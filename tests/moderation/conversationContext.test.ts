@@ -1,17 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/moderation/indonesianTextNormalizer.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../src/moderation/indonesianTextNormalizer.js")>();
-  return {
-    ...actual,
-    formatModerationTextEvidenceForPrompt: vi.fn(async (content: string) => {
-      // Deterministic mock evidence — length tuned for the "tight budget" test:
-      // maxTokens=300, target ~88, c3 ~108, c2 ~108, c1 ~108
-      // Expectation: target+c3 fits (196), target+c3+c2 overflows (304)
-      return "[text_evidence] categories=[\"offensive\",\"profanity\",\"sexual_violence\"] severity=high confidence=0.92 language=id detected=badword normalized=false metadata_v2=true context=true";
-    }),
-  };
-});
+vi.mock(
+  "../../src/moderation/indonesianTextNormalizer.js",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../src/moderation/indonesianTextNormalizer.js")
+      >();
+    return {
+      ...actual,
+      formatModerationTextEvidenceForPrompt: vi.fn(async (content: string) => {
+        // Deterministic mock evidence — length tuned for the "tight budget" test:
+        // maxTokens=300, target ~88, c3 ~108, c2 ~108, c1 ~108
+        // Expectation: target+c3 fits (196), target+c3+c2 overflows (304)
+        return '[text_evidence] categories=["offensive","profanity","sexual_violence"] severity=high confidence=0.92 language=id detected=badword normalized=false metadata_v2=true context=true';
+      }),
+    };
+  },
+);
 
 import {
   buildConversationContext,

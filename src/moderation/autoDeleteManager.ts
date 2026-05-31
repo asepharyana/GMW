@@ -1,8 +1,8 @@
 import type { Client, PermissionString } from "discord.js-selfbot-v13";
 import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
-import type { MessageRecord } from "./types.js";
 import { createModerationAction } from "./messageStore.js";
+import type { MessageRecord } from "./types.js";
 
 const logger = createChildLogger("auto-delete-manager");
 
@@ -183,9 +183,7 @@ function isAlreadyDeletedError(error: unknown): boolean {
   return code === 10008 || code === 404 || code === "10008" || code === "404";
 }
 
-function hasChannelMessagesApi(
-  channel: unknown,
-): channel is {
+function hasChannelMessagesApi(channel: unknown): channel is {
   messages: {
     fetch: (id: string) => Promise<{ delete: () => Promise<unknown> }>;
   };
@@ -200,9 +198,7 @@ function hasChannelMessagesApi(
   );
 }
 
-function hasPermissionApi(
-  channel: unknown,
-): channel is {
+function hasPermissionApi(channel: unknown): channel is {
   permissionsFor: (
     member: unknown,
   ) => { has: (permission: string) => boolean } | null;

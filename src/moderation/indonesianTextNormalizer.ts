@@ -1,9 +1,9 @@
 import axios from "axios";
 import OpenAI from "openai";
 import { config } from "../config.js";
-import { INDONESIAN_SLANG_LEXICON } from "./resources/indonesianSlangLexicon.js";
 import { createChildLogger } from "../logger.js";
 import { retryWithBackoff } from "../retry.js";
+import { INDONESIAN_SLANG_LEXICON } from "./resources/indonesianSlangLexicon.js";
 
 const log = createChildLogger("indonesianTextNormalizer");
 
@@ -259,7 +259,10 @@ function getPrimaryModerationClient(): OpenAI | null {
 }
 
 function normalizePrimaryAiFlag(value: string): string | null {
-  const lower = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const lower = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
   if (!lower) return null;
 
   if (VALID_PRIMARY_AI_FLAGS.has(lower)) {
@@ -337,7 +340,7 @@ async function callPrimaryAiModeration(text: string): Promise<string[]> {
             role: "user",
             content:
               "Deteksi kata kasar / pelanggaran ringan dari teks Indonesia berikut. " +
-              "Balas hanya JSON object dengan format {\"flags\":[...]} dan gunakan hanya flag valid ini: " +
+              'Balas hanya JSON object dengan format {"flags":[...]} dan gunakan hanya flag valid ini: ' +
               Array.from(VALID_PRIMARY_AI_FLAGS).join(", ") +
               ". Jika tidak ada pelanggaran, flags harus array kosong. Teks: " +
               text,
@@ -478,9 +481,12 @@ export async function detectIndonesianBadwords(
           hits.add(hit);
         }
       } catch (error) {
-        const status = axios.isAxiosError(error) ? error.response?.status : null;
+        const status = axios.isAxiosError(error)
+          ? error.response?.status
+          : null;
         if (status === 429) {
-          nemotronUnavailableUntil = Date.now() + NEMOTRON_RATE_LIMIT_COOLDOWN_MS;
+          nemotronUnavailableUntil =
+            Date.now() + NEMOTRON_RATE_LIMIT_COOLDOWN_MS;
         }
         log.warn(
           { error },
@@ -497,7 +503,9 @@ export async function detectIndonesianBadwords(
           hits.add(hit);
         }
       } catch (error) {
-        const status = axios.isAxiosError(error) ? error.response?.status : null;
+        const status = axios.isAxiosError(error)
+          ? error.response?.status
+          : null;
         if (status === 429) {
           primaryAiUnavailableUntil =
             Date.now() + PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS;

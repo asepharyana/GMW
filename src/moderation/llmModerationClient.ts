@@ -7,15 +7,15 @@ import { retryWithBackoff } from "../retry.js";
 import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 import { extractMessageMediaEvidence } from "./messageMetadata.js";
 import {
-  buildStickerTextOnlyWarning,
-  buildStickerVisionPrompt,
-} from "./stickerPrompt.js";
-import {
   getStickerFromCache,
   initStickerCache,
   isStickerCacheReady,
   setStickerInCache,
 } from "./stickerCache.js";
+import {
+  buildStickerTextOnlyWarning,
+  buildStickerVisionPrompt,
+} from "./stickerPrompt.js";
 import type {
   AnalysisResult,
   AttachmentRecord,
@@ -244,7 +244,12 @@ export function parseModerationResponse(
         return (
           Array.isArray(val) &&
           val.length > 0 &&
-          val.every((item: unknown) => typeof item === "object" && item !== null && "message_id" in (item as any))
+          val.every(
+            (item: unknown) =>
+              typeof item === "object" &&
+              item !== null &&
+              "message_id" in (item as any),
+          )
         );
       });
       if (arrayKey) {
@@ -311,7 +316,7 @@ export function parseModerationResponse(
       flags: flags ?? [],
       score: normalizedScore,
       analysis: coalescedAnalysis,
-      categories: categories ?? (flags ?? []),
+      categories: categories ?? flags ?? [],
       severity: normalizedSeverity,
       confidence: normalizedConfidence,
       recommendedAction:

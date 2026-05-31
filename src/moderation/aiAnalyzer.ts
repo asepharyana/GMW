@@ -107,7 +107,9 @@ async function skipAgeRestrictedMessages(
     getModerationBroadcaster()?.messageAnalyzed(row);
   }
 
-  const skippedIds = new Set(ageRestrictedMessages.map((message) => message.id));
+  const skippedIds = new Set(
+    ageRestrictedMessages.map((message) => message.id),
+  );
   return messages.filter((message) => !skippedIds.has(message.id));
 }
 
@@ -798,7 +800,10 @@ export async function queueMessageAnalysis(messageId: string): Promise<void> {
       if (updated) {
         getModerationBroadcaster()?.messageAnalyzed(updated);
       }
-      logger.info({ messageId }, "Skipped AI analysis for age-restricted message");
+      logger.info(
+        { messageId },
+        "Skipped AI analysis for age-restricted message",
+      );
       return;
     }
 
@@ -902,7 +907,8 @@ export function startPendingAIAnalysisWorker(client?: Client): void {
                 config.AI_ANALYSIS_INDIVIDUAL_MAX_CONCURRENT,
               )
                 .then(async (msgs) => {
-                  const processableMessages = await skipAgeRestrictedMessages(msgs);
+                  const processableMessages =
+                    await skipAgeRestrictedMessages(msgs);
                   return processableMessages;
                 })
                 .then((msgs) => {

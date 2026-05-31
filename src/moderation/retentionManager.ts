@@ -1,3 +1,4 @@
+import { and, eq, isNull, lt } from "drizzle-orm";
 import { getDatabase } from "../database/drizzle.js";
 import {
   attachmentsTable,
@@ -6,9 +7,8 @@ import {
   voiceRecordingsTable,
 } from "../database/schema.js";
 import { createChildLogger } from "../logger.js";
-import { getExpiredMessages, getRetentionPolicy } from "./messageStore.js";
+import { getRetentionPolicy } from "./messageStore.js";
 import type { RetentionPolicy } from "./types.js";
-import { and, eq, isNull, lt, sql } from "drizzle-orm";
 
 const logger = createChildLogger("retention-manager");
 

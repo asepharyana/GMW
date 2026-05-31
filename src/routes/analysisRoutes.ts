@@ -5,7 +5,10 @@ import {
   getAnalysisQueueStatus,
   queueMessageAnalysis,
 } from "../moderation/aiAnalyzer.js";
-import { searchMessages, updateMessageAIAnalysis } from "../moderation/messageStore.js";
+import {
+  searchMessages,
+  updateMessageAIAnalysis,
+} from "../moderation/messageStore.js";
 import type { MessageRecord } from "../moderation/types.js";
 
 export function createAnalysisRoutes(): Router {

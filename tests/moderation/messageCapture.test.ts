@@ -8,13 +8,13 @@ import {
   vi,
 } from "vitest";
 import { closeDatabase } from "../../src/database/drizzle";
+import { captureMessage } from "../../src/moderation/messageCapture";
+import type { ModerationBroadcaster } from "../../src/moderation/types";
 import {
   clearTestTables,
   getTestDatabase,
   initializeTestDatabase,
 } from "../helpers/testDatabase";
-import { captureMessage } from "../../src/moderation/messageCapture";
-import type { ModerationBroadcaster } from "../../src/moderation/types";
 
 const queueMessageAnalysis = vi.fn();
 

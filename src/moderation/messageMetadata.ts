@@ -87,7 +87,10 @@ export function getMessageLocation(message: Message): MessageLocation {
       threadId: null,
       threadName: null,
       channelName: "name" in channel ? channel.name : null,
-      nsfw: typeof safetyChannel.nsfw === "boolean" ? safetyChannel.nsfw : undefined,
+      nsfw:
+        typeof safetyChannel.nsfw === "boolean"
+          ? safetyChannel.nsfw
+          : undefined,
       nsfwLevel:
         typeof safetyChannel.nsfwLevel === "string"
           ? safetyChannel.nsfwLevel
@@ -104,7 +107,8 @@ export function getMessageLocation(message: Message): MessageLocation {
     threadId: channel.id,
     threadName: channel.name,
     channelName: channel.parent?.name ?? null,
-    nsfw: typeof safetyChannel.nsfw === "boolean" ? safetyChannel.nsfw : undefined,
+    nsfw:
+      typeof safetyChannel.nsfw === "boolean" ? safetyChannel.nsfw : undefined,
     nsfwLevel:
       typeof safetyChannel.nsfwLevel === "string"
         ? safetyChannel.nsfwLevel

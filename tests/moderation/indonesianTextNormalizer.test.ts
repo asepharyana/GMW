@@ -1,4 +1,5 @@
 import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { config } from "../../src/config";
 import {
   buildModerationTextEvidence,
   detectIndonesianBadwords,
@@ -6,7 +7,6 @@ import {
   normalizeDiscordCustomEmoji,
   normalizeIndonesianSlang,
 } from "../../src/moderation/indonesianTextNormalizer";
-import { config } from "../../src/config";
 
 const originalNemotronKey = config.NVIDIA_NEMOTRON_API_KEY;
 const originalPrimaryAiKey = config.AI_LLM_API_KEY;
@@ -105,7 +105,9 @@ describe("formatModerationTextEvidenceForPrompt", () => {
     expect(formatted).toContain("[emoji:hadeh]");
     expect(formatted).toContain("[normalization_notes:");
     // The NVIDIA API may or may not detect badwords for this input
-    expect(formatted).toMatch(/no Indonesian badword detected|Indonesian badword detected/);
+    expect(formatted).toMatch(
+      /no Indonesian badword detected|Indonesian badword detected/,
+    );
   });
 
   it("includes normalized text even for clean input", async () => {

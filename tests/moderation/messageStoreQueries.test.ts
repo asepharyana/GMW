@@ -1,10 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { closeDatabase } from "../../src/database/drizzle";
-import {
-  clearTestTables,
-  getTestDatabase,
-  initializeTestDatabase,
-} from "../helpers/testDatabase";
 import { createChildLogger } from "../../src/logger";
 import {
   decodeCursor,
@@ -18,6 +13,11 @@ import {
   updateMessageAsEdited,
 } from "../../src/moderation/messageStore";
 import type { MessageRecord } from "../../src/moderation/types";
+import {
+  clearTestTables,
+  getTestDatabase,
+  initializeTestDatabase,
+} from "../helpers/testDatabase";
 
 const logger = createChildLogger("messageStoreQueries.test");
 
