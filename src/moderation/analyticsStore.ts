@@ -1,4 +1,3 @@
-import { config } from "../config.js";
 import { executeAll, executeGet } from "../database/drizzle.js";
 import { createChildLogger } from "../logger.js";
 import type { MessageRecord } from "./types.js";
@@ -107,11 +106,7 @@ export async function getHourlyStats(input: {
 
   try {
     const since = Date.now() - hours * 3600_000;
-    const isPg = config.DATABASE_TYPE === "postgres";
-
-    const hourExpr = isPg
-      ? `to_char(to_timestamp((created_at / 3600000) * 3600), 'YYYY-MM-DD HH24:MI:SS') as hour`
-      : `datetime((created_at / 3600000) * 3600, 'unixepoch') as hour`;
+    const hourExpr = `to_char(to_timestamp((created_at / 3600000) * 3600), 'YYYY-MM-DD HH24:MI:SS') as hour`;
 
     const rows = await executeAll(
       `
@@ -531,11 +526,7 @@ export async function getModerationStats(input: {
 
   try {
     const since = Date.now() - hours * 3600_000;
-    const isPg = config.DATABASE_TYPE === "postgres";
-
-    const avgScoreExpr = isPg
-      ? `round(avg(ai_moderation_score)::numeric, 2)`
-      : `round(avg(ai_moderation_score), 2)`;
+    const avgScoreExpr = `round(avg(ai_moderation_score)::numeric, 2)`;
 
     const row = await executeGet(
       `
@@ -738,11 +729,7 @@ export async function getDailyTrend(input: {
 
   try {
     const since = Date.now() - hours * 3600_000;
-    const isPg = config.DATABASE_TYPE === "postgres";
-
-    const dateExpr = isPg
-      ? `to_char(date_trunc('day', to_timestamp(created_at / 1000)), 'YYYY-MM-DD') as date`
-      : `date(created_at / 1000, 'unixepoch') as date`;
+    const dateExpr = `to_char(date_trunc('day', to_timestamp(created_at / 1000)), 'YYYY-MM-DD') as date`;
 
     const rows = await executeAll(
       `
@@ -832,15 +819,8 @@ export async function getActivityHeatmap(input: {
 
   try {
     const since = Date.now() - hours * 3600_000;
-    const isPg = config.DATABASE_TYPE === "postgres";
-
-    // SQLite: cast to int for modulo; Postgres: use extract()
-    const dayExpr = isPg
-      ? `(extract(isodow from to_timestamp(created_at / 1000)) % 7)::int as day_of_week`
-      : `(cast((created_at / 86400000) as integer) % 7) as day_of_week`;
-    const hourExpr = isPg
-      ? `extract(hour from to_timestamp(created_at / 1000))::int as hour`
-      : `(cast((created_at / 3600000) as integer) % 24) as hour`;
+    const dayExpr = `(extract(isodow from to_timestamp(created_at / 1000)) % 7)::int as day_of_week`;
+    const hourExpr = `extract(hour from to_timestamp(created_at / 1000))::int as hour`;
 
     const rows = await executeAll(
       `

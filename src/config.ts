@@ -155,7 +155,6 @@ const configSchema = z
       .optional()
       .transform((v) => v === "true")
       .default(true),
-    DATABASE_TYPE: z.enum(["sqlite", "postgres"]).default("sqlite"),
     DATABASE_URL: z.string().optional(),
     POSTGRES_HOST: z.string().default("localhost"),
     POSTGRES_PORT: z.coerce.number().int().positive().default(5432),
@@ -179,15 +178,12 @@ const configSchema = z
     }
 
     // Validate PostgreSQL configuration
-    if (value.DATABASE_TYPE === "postgres") {
-      if (!value.DATABASE_URL && !value.POSTGRES_HOST) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["DATABASE_URL"],
-          message:
-            "Either DATABASE_URL or POSTGRES_HOST must be provided when DATABASE_TYPE=postgres",
-        });
-      }
+    if (!value.DATABASE_URL && !value.POSTGRES_HOST) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["DATABASE_URL"],
+        message: "Either DATABASE_URL or POSTGRES_HOST must be provided",
+      });
     }
   });
 

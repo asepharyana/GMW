@@ -37,7 +37,6 @@
     "@types/pg": "^8.20.0",
     "@vitejs/plugin-react": "^6.0.2",
     "axios": "^1.16.1",
-    "better-sqlite3": "^12.10.0",
     "clsx": "^2.1.1",
     "discord.js-selfbot-v13": "workspace:*",
     "dotenv": "^17.4.2",
@@ -67,7 +66,6 @@
   "devDependencies": {
     "@biomejs/biome": "latest",
     "@tailwindcss/postcss": "^4.3.0",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
     "@types/node": "^25.9.0",
     "@types/react": "^19.2.14",

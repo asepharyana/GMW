@@ -23,7 +23,7 @@ type ModerationTestGlobal = typeof globalThis & {
 };
 
 interface TestDatabase {
-  run(sql: string): void;
+  run(sql: string): Promise<unknown>;
 }
 
 function getTestDatabase(): TestDatabase {
@@ -63,8 +63,9 @@ function createMessage(id = "message-1"): TestMessage {
 
 async function createTables() {
   const db = getTestDatabase();
-  db.run(`DROP TABLE IF EXISTS "messages"`);
-  db.run(`
+  await db.run(`DROP TABLE IF EXISTS "attachments" CASCADE`);
+  await db.run(`DROP TABLE IF EXISTS "messages" CASCADE`);
+  await db.run(`
     CREATE TABLE IF NOT EXISTS "messages" (
       "id" text PRIMARY KEY NOT NULL,
       "guild_id" text NOT NULL,
@@ -75,9 +76,9 @@ async function createTables() {
       "avatar_url" text,
       "content" text NOT NULL,
       "edited_content" text,
-      "created_at" integer NOT NULL,
-      "edited_at" integer,
-      "deleted_at" integer,
+      "created_at" bigint NOT NULL,
+      "edited_at" bigint,
+      "deleted_at" bigint,
       "type" text DEFAULT 'text' NOT NULL,
       "metadata" text,
       "ai_status" text DEFAULT 'pending' NOT NULL,
@@ -89,11 +90,11 @@ async function createTables() {
       "ai_severity" text,
       "ai_confidence" real,
       "ai_recommended_action" text,
-      "ai_analyzed_at" integer,
+      "ai_analyzed_at" bigint,
       "ai_error" text
     )
   `);
-  db.run(`
+  await db.run(`
     DROP TABLE IF EXISTS "attachments";
     CREATE TABLE IF NOT EXISTS "attachments" (
       "id" text PRIMARY KEY NOT NULL,
@@ -109,8 +110,8 @@ async function createTables() {
       "uploaded_url" text,
       "upload_status" text DEFAULT 'pending' NOT NULL,
       "upload_error" text,
-      "created_at" integer NOT NULL,
-      "uploaded_at" integer
+      "created_at" bigint NOT NULL,
+      "uploaded_at" bigint
     )
   `);
 }
@@ -124,8 +125,8 @@ describe("captureMessage", () => {
   beforeEach(async () => {
     queueMessageAnalysis.mockClear();
     const db = getTestDatabase();
-    db.run(`DELETE FROM "attachments"`);
-    db.run(`DELETE FROM "messages"`);
+    await db.run(`DELETE FROM "attachments"`);
+    await db.run(`DELETE FROM "messages"`);
     delete (globalThis as ModerationTestGlobal).moderationBroadcaster;
   });
 

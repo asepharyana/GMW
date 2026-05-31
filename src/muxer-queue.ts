@@ -53,7 +53,7 @@ export function getDatabase() {
   return undefined as unknown as never;
 }
 
-// ── Persistent KV store (replaces SQLite uiState table) ────────────────────
+// ── Persistent KV store ────────────────────────────────────────────────────
 
 const KV_PREFIX = "kv:";
 

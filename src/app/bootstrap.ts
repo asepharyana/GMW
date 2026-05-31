@@ -42,7 +42,7 @@ export async function initializeApp() {
   try {
     logger.info("Initializing database");
     await initializeDatabase();
-    logger.info({ type: config.DATABASE_TYPE }, "Database initialized");
+    logger.info("PostgreSQL database initialized");
   } catch (err) {
     logger.error({ error: err }, "Failed to initialize database");
     process.exit(1);

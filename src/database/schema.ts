@@ -8,14 +8,6 @@ import {
   pgTable,
   text as pgText,
 } from "drizzle-orm/pg-core";
-import {
-  index as sqliteIndex,
-  integer as sqliteInteger,
-  real as sqliteReal,
-  sqliteTable,
-  text as sqliteText,
-} from "drizzle-orm/sqlite-core";
-import { config } from "../config.js";
 
 // PostgreSQL Schema
 // ==================
@@ -244,227 +236,6 @@ export const pgVoiceRecordingsTable = pgTable(
   }),
 );
 
-// SQLite Schema
-// =============
-
-/**
- * Muxer Jobs Table (SQLite)
- * Tracks audio post-processing jobs with status and retry logic
- */
-export const sqliteMuxerJobsTable = sqliteTable(
-  "muxer_jobs",
-  {
-    id: sqliteText("id").primaryKey(),
-    data: sqliteText("data").notNull(),
-    status: sqliteText("status", {
-      enum: ["pending", "processing", "completed", "failed"],
-    })
-      .notNull()
-      .default("pending"),
-    attempts: sqliteInteger("attempts").notNull().default(0),
-    maxAttempts: sqliteInteger("maxAttempts").notNull().default(3),
-    createdAt: sqliteInteger("createdAt").notNull(),
-    updatedAt: sqliteInteger("updatedAt").notNull(),
-    error: sqliteText("error"),
-  },
-  (table) => ({
-    statusIdx: sqliteIndex("idx_muxer_jobs_status").on(table.status),
-    createdAtIdx: sqliteIndex("idx_muxer_jobs_createdAt").on(table.createdAt),
-  }),
-);
-
-/**
- * Messages Table (SQLite)
- * Stores text messages with AI moderation analysis
- */
-export const sqliteMessagesTable = sqliteTable(
-  "messages",
-  {
-    id: sqliteText("id").primaryKey(),
-    guild_id: sqliteText("guild_id").notNull(),
-    channel_id: sqliteText("channel_id").notNull(),
-    thread_id: sqliteText("thread_id"),
-    user_id: sqliteText("user_id").notNull(),
-    username: sqliteText("username").notNull(),
-    avatar_url: sqliteText("avatar_url"),
-    content: sqliteText("content").notNull(),
-    edited_content: sqliteText("edited_content"),
-    created_at: sqliteInteger("created_at").notNull(),
-    edited_at: sqliteInteger("edited_at"),
-    deleted_at: sqliteInteger("deleted_at"),
-    type: sqliteText("type", { enum: ["text", "edited", "deleted"] })
-      .notNull()
-      .default("text"),
-    metadata: sqliteText("metadata"),
-    ai_status: sqliteText("ai_status", {
-      enum: ["pending", "clean", "warn", "flagged", "error"],
-    })
-      .notNull()
-      .default("pending"),
-    ai_moderation_flags: sqliteText("ai_moderation_flags"),
-    ai_moderation_score: sqliteReal("ai_moderation_score"),
-    ai_analysis: sqliteText("ai_analysis"),
-    ai_categories: sqliteText("ai_categories"),
-    ai_severity: sqliteText("ai_severity", {
-      enum: ["none", "low", "medium", "high", "critical"],
-    }),
-    ai_confidence: sqliteReal("ai_confidence"),
-    ai_recommended_action: sqliteText("ai_recommended_action", {
-      enum: ["none", "monitor", "warn", "review", "delete", "escalate"],
-    }),
-    ai_analyzed_at: sqliteInteger("ai_analyzed_at"),
-    ai_error: sqliteText("ai_error"),
-  },
-  (table) => ({
-    channelIdx: sqliteIndex("idx_messages_channel").on(table.channel_id),
-    userIdx: sqliteIndex("idx_messages_user").on(table.user_id),
-    createdIdx: sqliteIndex("idx_messages_created").on(table.created_at),
-    threadIdx: sqliteIndex("idx_messages_thread").on(table.thread_id),
-    channelCreatedIdx: sqliteIndex("idx_messages_channel_created").on(
-      table.channel_id,
-      table.created_at,
-      table.id,
-    ),
-    threadCreatedIdx: sqliteIndex("idx_messages_thread_created").on(
-      table.thread_id,
-      table.created_at,
-      table.id,
-    ),
-    aiStatusCreatedIdx: sqliteIndex("idx_messages_ai_status_created").on(
-      table.ai_status,
-      table.created_at,
-      table.id,
-    ),
-    guildAiStatusCreatedIdx: sqliteIndex(
-      "idx_messages_guild_ai_status_created",
-    ).on(table.guild_id, table.ai_status, table.created_at, table.id),
-  }),
-);
-
-/**
- * Attachments Table (SQLite)
- * Stores attachment metadata with upload status tracking
- */
-export const sqliteAttachmentsTable = sqliteTable(
-  "attachments",
-  {
-    id: sqliteText("id").primaryKey(),
-    message_id: sqliteText("message_id").notNull(),
-    guild_id: sqliteText("guild_id").notNull(),
-    channel_id: sqliteText("channel_id").notNull(),
-    thread_id: sqliteText("thread_id"),
-    user_id: sqliteText("user_id").notNull(),
-    filename: sqliteText("filename").notNull(),
-    size: sqliteInteger("size").notNull(),
-    type: sqliteText("type").notNull(),
-    discord_url: sqliteText("discord_url").notNull(),
-    uploaded_url: sqliteText("uploaded_url"),
-    upload_status: sqliteText("upload_status", {
-      enum: ["pending", "uploaded", "failed"],
-    })
-      .notNull()
-      .default("pending"),
-    upload_error: sqliteText("upload_error"),
-    created_at: sqliteInteger("created_at").notNull(),
-    uploaded_at: sqliteInteger("uploaded_at"),
-  },
-  (table) => ({
-    channelIdx: sqliteIndex("idx_attachments_channel").on(table.channel_id),
-    messageIdx: sqliteIndex("idx_attachments_message").on(table.message_id),
-    statusIdx: sqliteIndex("idx_attachments_status").on(table.upload_status),
-    channelCreatedIdx: sqliteIndex("idx_attachments_channel_created").on(
-      table.channel_id,
-      table.created_at,
-      table.id,
-    ),
-    threadCreatedIdx: sqliteIndex("idx_attachments_thread_created").on(
-      table.thread_id,
-      table.created_at,
-      table.id,
-    ),
-  }),
-);
-
-/**
- * UI State Table (SQLite)
- * Stores persistent UI state (e.g., selected channel, filter preferences)
- */
-export const sqliteUIStateTable = sqliteTable("ui_state", {
-  key: sqliteText("key").primaryKey(),
-  value: sqliteText("value").notNull(),
-  updated_at: sqliteInteger("updated_at").notNull(),
-});
-
-/**
- * AI Analysis Runs Table (SQLite)
- * Tracks AI analysis batch runs for conversation-level moderation
- */
-export const sqliteAIAnalysisRunsTable = sqliteTable(
-  "ai_analysis_runs",
-  {
-    id: sqliteText("id").primaryKey(),
-    conversation_key: sqliteText("conversation_key").notNull(),
-    target_message_ids: sqliteText("target_message_ids").notNull(), // JSON array
-    model: sqliteText("model").notNull(),
-    request_tokens_estimate: sqliteInteger("request_tokens_estimate"),
-    response_raw: sqliteText("response_raw"),
-    status: sqliteText("status", {
-      enum: ["pending", "processing", "completed", "failed"],
-    })
-      .notNull()
-      .default("pending"),
-    error: sqliteText("error"),
-    created_at: sqliteInteger("created_at").notNull(),
-    completed_at: sqliteInteger("completed_at"),
-  },
-  (table) => ({
-    conversationKeyIdx: sqliteIndex("idx_ai_analysis_runs_conversation_key").on(
-      table.conversation_key,
-    ),
-    statusIdx: sqliteIndex("idx_ai_analysis_runs_status").on(table.status),
-    createdAtIdx: sqliteIndex("idx_ai_analysis_runs_created_at").on(
-      table.created_at,
-    ),
-  }),
-);
-
-/**
- * Voice Recordings Table (SQLite)
- * Stores voice recording segment metadata and upload status
- */
-export const sqliteVoiceRecordingsTable = sqliteTable(
-  "voice_recordings",
-  {
-    id: sqliteText("id").primaryKey(),
-    user_id: sqliteText("user_id").notNull(),
-    username: sqliteText("username").notNull(),
-    avatar_url: sqliteText("avatar_url"),
-    guild_id: sqliteText("guild_id"),
-    channel_id: sqliteText("channel_id"),
-    channel_name: sqliteText("channel_name"),
-    filename: sqliteText("filename").notNull(),
-    size_bytes: sqliteInteger("size_bytes").notNull(),
-    download_url: sqliteText("download_url"),
-    upload_status: sqliteText("upload_status", {
-      enum: ["pending", "uploaded", "failed"],
-    })
-      .notNull()
-      .default("pending"),
-    upload_error: sqliteText("upload_error"),
-    created_at: sqliteInteger("created_at").notNull(),
-    uploaded_at: sqliteInteger("uploaded_at"),
-  },
-  (table) => ({
-    userIdIdx: sqliteIndex("idx_voice_recordings_user_id").on(table.user_id),
-    channelIdIdx: sqliteIndex("idx_voice_recordings_channel_id").on(
-      table.channel_id,
-    ),
-    createdIdx: sqliteIndex("idx_voice_recordings_created_at").on(
-      table.created_at,
-    ),
-  }),
-);
-
 /**
  * Message Reviews Table (PostgreSQL)
  * Tracks manual reviews of messages flagged by AI moderation
@@ -495,43 +266,6 @@ export const pgMessageReviewsTable = pgTable(
       table.created_at,
     ),
     guildStatusIdx: pgIndex("idx_message_reviews_guild_status").on(
-      table.guild_id,
-      table.status,
-      table.created_at,
-    ),
-  }),
-);
-
-/**
- * Message Reviews Table (SQLite)
- * Tracks manual reviews of messages flagged by AI moderation
- */
-export const sqliteMessageReviewsTable = sqliteTable(
-  "message_reviews",
-  {
-    id: sqliteText("id").primaryKey(),
-    message_id: sqliteText("message_id").notNull(),
-    guild_id: sqliteText("guild_id").notNull(),
-    channel_id: sqliteText("channel_id").notNull(),
-    reviewer_id: sqliteText("reviewer_id"),
-    status: sqliteText("status", {
-      enum: ["pending", "approved", "rejected", "escalated"],
-    })
-      .notNull()
-      .default("pending"),
-    notes: sqliteText("notes"),
-    created_at: sqliteInteger("created_at").notNull(),
-    reviewed_at: sqliteInteger("reviewed_at"),
-  },
-  (table) => ({
-    messageIdIdx: sqliteIndex("idx_message_reviews_message_id").on(
-      table.message_id,
-    ),
-    statusIdx: sqliteIndex("idx_message_reviews_status").on(table.status),
-    createdAtIdx: sqliteIndex("idx_message_reviews_created_at").on(
-      table.created_at,
-    ),
-    guildStatusIdx: sqliteIndex("idx_message_reviews_guild_status").on(
       table.guild_id,
       table.status,
       table.created_at,
@@ -585,51 +319,6 @@ export const pgModerationActionsTable = pgTable(
 );
 
 /**
- * Moderation Actions Table (SQLite)
- * Tracks actions taken on messages (delete, mute, etc.)
- */
-export const sqliteModerationActionsTable = sqliteTable(
-  "moderation_actions",
-  {
-    id: sqliteText("id").primaryKey(),
-    message_id: sqliteText("message_id"),
-    user_id: sqliteText("user_id"),
-    guild_id: sqliteText("guild_id").notNull(),
-    action_type: sqliteText("action_type", {
-      enum: [
-        "delete_message",
-        "mute_user",
-        "warn_user",
-        "kick_user",
-        "ban_user",
-      ],
-    }).notNull(),
-    reason: sqliteText("reason"),
-    executed_by: sqliteText("executed_by"),
-    status: sqliteText("status", {
-      enum: ["pending", "executed", "failed"],
-    })
-      .notNull()
-      .default("pending"),
-    error: sqliteText("error"),
-    created_at: sqliteInteger("created_at").notNull(),
-    executed_at: sqliteInteger("executed_at"),
-  },
-  (table) => ({
-    messageIdIdx: sqliteIndex("idx_moderation_actions_message_id").on(
-      table.message_id,
-    ),
-    userIdIdx: sqliteIndex("idx_moderation_actions_user_id").on(table.user_id),
-    statusIdx: sqliteIndex("idx_moderation_actions_status").on(table.status),
-    guildStatusIdx: sqliteIndex("idx_moderation_actions_guild_status").on(
-      table.guild_id,
-      table.status,
-      table.created_at,
-    ),
-  }),
-);
-
-/**
  * Retention Policies Table (PostgreSQL)
  * Defines data retention rules per guild/channel
  */
@@ -652,78 +341,18 @@ export const pgRetentionPoliciesTable = pgTable(
   }),
 );
 
-/**
- * Retention Policies Table (SQLite)
- * Defines data retention rules per guild/channel
- */
-export const sqliteRetentionPoliciesTable = sqliteTable(
-  "retention_policies",
-  {
-    id: sqliteText("id").primaryKey(),
-    guild_id: sqliteText("guild_id").notNull(),
-    channel_id: sqliteText("channel_id"),
-    retention_days: sqliteInteger("retention_days").notNull().default(90),
-    apply_to_media: sqliteInteger("apply_to_media", { mode: "boolean" })
-      .notNull()
-      .default(true),
-    apply_to_voice: sqliteInteger("apply_to_voice", { mode: "boolean" })
-      .notNull()
-      .default(true),
-    enabled: sqliteInteger("enabled", { mode: "boolean" })
-      .notNull()
-      .default(true),
-    created_at: sqliteInteger("created_at").notNull(),
-    updated_at: sqliteInteger("updated_at").notNull(),
-  },
-  (table) => ({
-    guildIdIdx: sqliteIndex("idx_retention_policies_guild_id").on(
-      table.guild_id,
-    ),
-    enabledIdx: sqliteIndex("idx_retention_policies_enabled").on(table.enabled),
-  }),
-);
+// Runtime table exports
+// =====================
 
-// Runtime table selection based on config
-// ========================================
-
-export const muxerJobsTable =
-  config.DATABASE_TYPE === "postgres" ? pgMuxerJobsTable : sqliteMuxerJobsTable;
-
-export const messagesTable =
-  config.DATABASE_TYPE === "postgres" ? pgMessagesTable : sqliteMessagesTable;
-
-export const attachmentsTable =
-  config.DATABASE_TYPE === "postgres"
-    ? pgAttachmentsTable
-    : sqliteAttachmentsTable;
-
-export const uiStateTable =
-  config.DATABASE_TYPE === "postgres" ? pgUIStateTable : sqliteUIStateTable;
-
-export const aiAnalysisRunsTable =
-  config.DATABASE_TYPE === "postgres"
-    ? pgAIAnalysisRunsTable
-    : sqliteAIAnalysisRunsTable;
-
-export const voiceRecordingsTable =
-  config.DATABASE_TYPE === "postgres"
-    ? pgVoiceRecordingsTable
-    : sqliteVoiceRecordingsTable;
-
-export const messageReviewsTable =
-  config.DATABASE_TYPE === "postgres"
-    ? pgMessageReviewsTable
-    : sqliteMessageReviewsTable;
-
-export const moderationActionsTable =
-  config.DATABASE_TYPE === "postgres"
-    ? pgModerationActionsTable
-    : sqliteModerationActionsTable;
-
-export const retentionPoliciesTable =
-  config.DATABASE_TYPE === "postgres"
-    ? pgRetentionPoliciesTable
-    : sqliteRetentionPoliciesTable;
+export const muxerJobsTable = pgMuxerJobsTable;
+export const messagesTable = pgMessagesTable;
+export const attachmentsTable = pgAttachmentsTable;
+export const uiStateTable = pgUIStateTable;
+export const aiAnalysisRunsTable = pgAIAnalysisRunsTable;
+export const voiceRecordingsTable = pgVoiceRecordingsTable;
+export const messageReviewsTable = pgMessageReviewsTable;
+export const moderationActionsTable = pgModerationActionsTable;
+export const retentionPoliciesTable = pgRetentionPoliciesTable;
 
 // Export table types for use in queries
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;

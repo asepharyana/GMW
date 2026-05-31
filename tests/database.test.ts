@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 const originalEnv = process.env;
 
 describe("Drizzle ORM Database", () => {
-  let config: typeof import("../src/config").config;
   let drizzle: typeof import("../src/database/drizzle");
   let logger: ReturnType<typeof import("../src/logger").createChildLogger>;
 
@@ -14,22 +13,20 @@ describe("Drizzle ORM Database", () => {
       ...originalEnv,
       DISCORD_TOKEN: "test-token",
       NODE_ENV: "test",
-      DATABASE_TYPE: originalEnv.DATABASE_TYPE || "sqlite",
     };
 
     // Reset modules to pick up new environment
     vi.resetModules();
 
     // Import after environment is set
-    const configModule = await import("../src/config");
+    await import("../src/config");
     const drizzleModule = await import("../src/database/drizzle");
     const loggerModule = await import("../src/logger");
 
-    config = configModule.config;
     drizzle = drizzleModule;
     logger = loggerModule.createChildLogger("database.test");
 
-    logger.info(`Testing with DATABASE_TYPE: ${config.DATABASE_TYPE}`);
+    logger.info("Testing PostgreSQL database initialization");
   });
 
   afterAll(async () => {

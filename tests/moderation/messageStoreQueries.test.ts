@@ -19,7 +19,7 @@ import {
 import type { MessageRecord } from "../../src/moderation/types";
 
 interface TestDatabase {
-  run(sql: string): void;
+  run(sql: string): Promise<unknown>;
 }
 
 function getTestDatabase(): TestDatabase {
@@ -45,12 +45,13 @@ describe("message cursor helpers", () => {
 describe("message query integration tests", () => {
   beforeAll(async () => {
     await initializeDatabase();
-    // Create tables using Drizzle schema (SQLite doesn't support migrations with PostgreSQL syntax)
+    // Create tables directly for isolated query integration tests
     const db = getTestDatabase();
     try {
       // Create messages table
       await db.run(`
-        DROP TABLE IF EXISTS "messages";
+        DROP TABLE IF EXISTS "attachments" CASCADE;
+        DROP TABLE IF EXISTS "messages" CASCADE;
         CREATE TABLE IF NOT EXISTS "messages" (
           "id" text PRIMARY KEY NOT NULL,
           "guild_id" text NOT NULL,
@@ -61,9 +62,9 @@ describe("message query integration tests", () => {
           "avatar_url" text,
           "content" text NOT NULL,
           "edited_content" text,
-          "created_at" integer NOT NULL,
-          "edited_at" integer,
-          "deleted_at" integer,
+          "created_at" bigint NOT NULL,
+          "edited_at" bigint,
+          "deleted_at" bigint,
           "type" text DEFAULT 'text' NOT NULL,
           "metadata" text,
           "ai_status" text DEFAULT 'pending' NOT NULL,
@@ -75,7 +76,7 @@ describe("message query integration tests", () => {
           "ai_confidence" real,
           "ai_recommended_action" text,
           "ai_analysis" text,
-          "ai_analyzed_at" integer,
+          "ai_analyzed_at" bigint,
           "ai_error" text
         )
       `);
@@ -97,8 +98,8 @@ describe("message query integration tests", () => {
           "uploaded_url" text,
           "upload_status" text DEFAULT 'pending' NOT NULL,
           "upload_error" text,
-          "created_at" integer NOT NULL,
-          "uploaded_at" integer
+          "created_at" bigint NOT NULL,
+          "uploaded_at" bigint
         )
       `);
     } catch (error) {
@@ -110,8 +111,8 @@ describe("message query integration tests", () => {
     // Clear tables before each test
     try {
       const db = getTestDatabase();
-      await db.run(`DELETE FROM "messages"`);
       await db.run(`DELETE FROM "attachments"`);
+      await db.run(`DELETE FROM "messages"`);
     } catch (error) {
       logger.debug({ error }, "Could not clear tables");
     }
@@ -613,6 +614,41 @@ describe("message query integration tests", () => {
     it("returns attachments matching given message IDs", async () => {
       const msgId1 = "msg-att-1";
       const msgId2 = "msg-att-2";
+
+      await insertMessage({
+        id: msgId1,
+        guild_id: "guild-123",
+        channel_id: "channel-456",
+        thread_id: null,
+        user_id: "user-789",
+        username: "testuser",
+        avatar_url: null,
+        content: "message with attachment 1",
+        edited_content: null,
+        created_at: Date.now(),
+        edited_at: null,
+        deleted_at: null,
+        type: "text",
+        metadata: null,
+        ai_status: "pending",
+      });
+      await insertMessage({
+        id: msgId2,
+        guild_id: "guild-123",
+        channel_id: "channel-456",
+        thread_id: null,
+        user_id: "user-789",
+        username: "testuser",
+        avatar_url: null,
+        content: "message with attachment 2",
+        edited_content: null,
+        created_at: Date.now(),
+        edited_at: null,
+        deleted_at: null,
+        type: "text",
+        metadata: null,
+        ai_status: "pending",
+      });
 
       const attachment1 = {
         id: "att-1",
