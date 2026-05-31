@@ -58,6 +58,8 @@ export default function App() {
   const selectedVoiceChannel = uiState.selectedVoiceChannel || "";
   const selectedTextGuild = uiState.selectedTextGuild || uiState.selectedGuild || "";
   const selectedTextChannel = uiState.selectedTextChannel || "";
+  const selectedAnalyticsGuild = uiState.selectedAnalyticsGuild || uiState.selectedGuild || "";
+  const selectedAnalyticsChannel = uiState.selectedAnalyticsChannel || "";
 
   const handleIncomingPcm = useCallback((data: ArrayBuffer) => {
     const headerView = new DataView(data, 0, 4);
@@ -163,6 +165,7 @@ export default function App() {
 
   useEffect(() => { if (selectedVoiceGuild) voice.loadVoiceChannels(selectedVoiceGuild).catch(() => undefined); }, [selectedVoiceGuild]);
   useEffect(() => { if (selectedTextGuild) voice.loadTextTargets(selectedTextGuild).catch(() => undefined); }, [selectedTextGuild]);
+  useEffect(() => { if (selectedAnalyticsGuild) voice.loadTextTargets(selectedAnalyticsGuild).catch(() => undefined); }, [selectedAnalyticsGuild]);
   useEffect(() => { if (selectedTextChannel) messages.fetchMessages(selectedTextChannel).catch(() => undefined); }, [selectedTextChannel]);
 
   const toggleListening = useCallback(async () => {
@@ -250,10 +253,10 @@ export default function App() {
             <AnalyticsPanel
               guilds={voice.guilds}
               channels={voice.textChannels}
-              selectedGuild={selectedTextGuild}
-              selectedChannel={selectedTextChannel}
-              onGuildChange={(guildId) => patchUIState({ selectedTextGuild: guildId, selectedTextChannel: "" })}
-              onChannelChange={(channelId) => patchUIState({ selectedTextChannel: channelId })}
+              selectedGuild={selectedAnalyticsGuild}
+              selectedChannel={selectedAnalyticsChannel}
+              onGuildChange={(guildId) => patchUIState({ selectedAnalyticsGuild: guildId, selectedAnalyticsChannel: "" })}
+              onChannelChange={(channelId) => patchUIState({ selectedAnalyticsChannel: channelId })}
             />
           </Suspense>
         </AnalyticsErrorBoundary>

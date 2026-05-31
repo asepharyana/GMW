@@ -6,6 +6,8 @@ export interface UIState {
   selectedVoiceChannel?: string;
   selectedTextGuild?: string;
   selectedTextChannel?: string;
+  selectedAnalyticsGuild?: string;
+  selectedAnalyticsChannel?: string;
   activeTab?: DashboardTab;
   isListening?: boolean;
   isStreaming?: boolean;

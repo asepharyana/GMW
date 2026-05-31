@@ -7,9 +7,18 @@ const logger = createChildLogger("muxer-queue");
 // ── Redis client (lazy singleton) ──────────────────────────────────────────
 
 let redis: Redis | null = null;
+let redisReady = false;
+let redisAttempted = false;
 
-function getRedis(): Redis {
-  if (redis !== null) return redis;
+/**
+ * Try to create a Redis connection. Does NOT block if unreachable —
+ * sets lazyConnect + logs a single warning, then lets callers fall back
+ * to in-memory KV.
+ */
+function tryGetRedis(): Redis | null {
+  if (redis !== null) return redisReady ? redis : null;
+  if (redisAttempted) return null;
+  redisAttempted = true;
 
   redis = new Redis(config.REDIS_URL, {
     maxRetriesPerRequest: 3,
@@ -17,19 +26,44 @@ function getRedis(): Redis {
       if (times > 5) return null; // stop retrying
       return Math.min(times * 200, 2000);
     },
-    lazyConnect: false,
+    lazyConnect: true, // don't block startup on Redis
   });
 
   redis.on("error", (err) => {
-    logger.error({ err }, "Redis connection error");
+    logger.warn({ err }, "Redis connection failed — using in-memory fallback");
   });
 
   redis.on("connect", () => {
     logger.info({ url: config.REDIS_URL }, "Redis connected");
+    redisReady = true;
+  });
+
+  redis.on("reconnecting", () => {
+    redisReady = false;
   });
 
   return redis;
 }
+
+/**
+ * Attempt a Redis operation. Returns the result on success, or null if
+ * Redis is unavailable (caller should fall back).
+ */
+async function redisOp<T>(fn: (r: Redis) => Promise<T>): Promise<T | null> {
+  const r = tryGetRedis();
+  if (!r) return null;
+  try {
+    return await fn(r);
+  } catch {
+    // Redis failed mid-operation — mark as not ready so next call falls back
+    redisReady = false;
+    return null;
+  }
+}
+
+// ── In-memory KV fallback (volatile, survives only process lifetime) ──────
+
+const memKV = new Map<string, string>();
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -61,33 +95,39 @@ export async function getPersistedValue<T>(
   key: string,
   fallback: T,
 ): Promise<T> {
-  try {
-    const r = getRedis();
-    const raw = await r.get(`${KV_PREFIX}${key}`);
-    if (raw === null) return fallback;
-    return JSON.parse(raw) as T;
-  } catch (error) {
-    logger.error(
-      { key, error: error instanceof Error ? error.message : String(error) },
-      "Failed to get persisted value",
-    );
-    return fallback;
+  const raw = await redisOp((r) => r.get(`${KV_PREFIX}${key}`));
+  if (raw !== null && raw !== undefined) {
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      logger.warn({ key }, "Failed to parse persisted value from Redis");
+    }
   }
+  // Fallback to in-memory KV, then default
+  const memVal = memKV.get(`${KV_PREFIX}${key}`);
+  if (memVal !== undefined) {
+    try {
+      return JSON.parse(memVal) as T;
+    } catch {
+      // ignore corrupted in-memory data
+    }
+  }
+  return fallback;
 }
 
 export async function setPersistedValue(
   key: string,
   value: unknown,
 ): Promise<void> {
-  try {
-    const r = getRedis();
-    await r.set(`${KV_PREFIX}${key}`, JSON.stringify(value));
-  } catch (error) {
-    logger.error(
-      { key, error: error instanceof Error ? error.message : String(error) },
-      "Failed to set persisted value",
+  const serialized = JSON.stringify(value);
+  // Always store in in-memory KV so it works even without Redis
+  memKV.set(`${KV_PREFIX}${key}`, serialized);
+  const saved = await redisOp((r) => r.set(`${KV_PREFIX}${key}`, serialized));
+  if (!saved) {
+    logger.verbose(
+      { key },
+      "Persisted value stored in-memory only (Redis unavailable)",
     );
-    throw error;
   }
 }
 
@@ -115,8 +155,7 @@ function queueKey(status: string): string {
 }
 
 export async function enqueueMuxerJob(data: MuxerJobData): Promise<string> {
-  try {
-    const r = getRedis();
+  const result = await redisOp(async (r) => {
     const jobId = `${data.userId}-${data.sessionId}`;
     const now = Date.now();
 
@@ -142,16 +181,14 @@ export async function enqueueMuxerJob(data: MuxerJobData): Promise<string> {
     );
 
     return jobId;
-  } catch (error) {
-    logger.error(
-      {
-        userId: data.userId,
-        error: error instanceof Error ? error.message : String(error),
-      },
-      "Failed to enqueue muxer job",
+  });
+  if (!result) {
+    logger.warn(
+      { userId: data.userId },
+      "Failed to enqueue muxer job (Redis unavailable)",
     );
-    throw error;
   }
+  return result ?? "";
 }
 
 export async function getPendingJobs(): Promise<
@@ -166,9 +203,7 @@ export async function getPendingJobs(): Promise<
     error?: string;
   }>
 > {
-  try {
-    const r = getRedis();
-
+  const jobs = await redisOp(async (r) => {
     // Get up to 10 pending job IDs from the left (oldest first)
     const jobIds = await r.lrange(QUEUE_PENDING, 0, 9);
     if (jobIds.length === 0) return [];
@@ -181,7 +216,7 @@ export async function getPendingJobs(): Promise<
     const results = await pipeline.exec();
     if (!results) return [];
 
-    const jobs: Array<{
+    const out: Array<{
       id: string;
       data: string;
       status: "pending" | "processing" | "completed" | "failed";
@@ -197,7 +232,7 @@ export async function getPendingJobs(): Promise<
       if (err || !fields) continue;
 
       const raw = fields as Record<string, string>;
-      jobs.push({
+      out.push({
         id: jobIds[i],
         data: raw.data || "",
         status: (raw.status as "pending") || "pending",
@@ -209,14 +244,12 @@ export async function getPendingJobs(): Promise<
       });
     }
 
-    return jobs;
-  } catch (error) {
-    logger.error(
-      { error: error instanceof Error ? error.message : String(error) },
-      "Failed to get pending jobs",
-    );
-    return [];
+    return out;
+  });
+  if (!jobs) {
+    logger.verbose("No pending jobs (Redis unavailable)");
   }
+  return jobs ?? [];
 }
 
 export async function updateJobStatus(
@@ -224,8 +257,7 @@ export async function updateJobStatus(
   status: "processing" | "completed" | "failed",
   error?: string,
 ): Promise<void> {
-  try {
-    const r = getRedis();
+  const ok = await redisOp(async (r) => {
     const jobKey = `${JOB_PREFIX}${jobId}`;
     const now = Date.now();
 
@@ -256,21 +288,17 @@ export async function updateJobStatus(
     await pipeline.exec();
 
     logger.info({ jobId, status, error }, "Job status updated");
-  } catch (err) {
-    logger.error(
-      {
-        jobId,
-        error: err instanceof Error ? err.message : String(err),
-      },
-      "Failed to update job status",
+  });
+  if (!ok) {
+    logger.verbose(
+      { jobId, status },
+      "Job status update skipped (Redis unavailable)",
     );
-    throw err;
   }
 }
 
 export async function retryFailedJob(jobId: string): Promise<boolean> {
-  try {
-    const r = getRedis();
+  const result = await redisOp(async (r) => {
     const jobKey = `${JOB_PREFIX}${jobId}`;
 
     const [attemptsStr, maxAttemptsStr] = await r.hmget(
@@ -299,20 +327,17 @@ export async function retryFailedJob(jobId: string): Promise<boolean> {
 
     logger.info({ jobId, attempt: attempts + 1 }, "Job retried");
     return true;
-  } catch (err) {
-    logger.error(
-      { jobId, error: err instanceof Error ? err.message : String(err) },
-      "Failed to retry job",
-    );
-    return false;
+  });
+  if (!result) {
+    logger.verbose({ jobId }, "Job retry skipped (Redis unavailable)");
   }
+  return result ?? false;
 }
 
 export async function cleanupCompletedJobs(
   olderThanMs: number = 24 * 60 * 60 * 1000,
 ): Promise<number> {
-  try {
-    const r = getRedis();
+  const deletedCount = await redisOp(async (r) => {
     const cutoffTime = Date.now() - olderThanMs;
 
     const jobIds = await r.lrange(QUEUE_COMPLETED, 0, -1);
@@ -325,7 +350,7 @@ export async function cleanupCompletedJobs(
     const results = await pipeline.exec();
     if (!results) return 0;
 
-    let deletedCount = 0;
+    let count = 0;
     const deletePipeline = r.pipeline();
 
     for (let i = 0; i < jobIds.length; i++) {
@@ -336,23 +361,21 @@ export async function cleanupCompletedJobs(
       if (updatedAt < cutoffTime) {
         deletePipeline.del(`${JOB_PREFIX}${jobIds[i]}`);
         deletePipeline.lrem(QUEUE_COMPLETED, 0, jobIds[i]);
-        deletedCount++;
+        count++;
       }
     }
 
-    if (deletedCount > 0) {
+    if (count > 0) {
       await deletePipeline.exec();
     }
 
-    logger.info({ deletedCount }, "Cleaned up completed jobs");
-    return deletedCount;
-  } catch (err) {
-    logger.error(
-      { error: err instanceof Error ? err.message : String(err) },
-      "Failed to clean up completed jobs",
-    );
-    return 0;
+    logger.info({ deletedCount: count }, "Cleaned up completed jobs");
+    return count;
+  });
+  if (deletedCount === null) {
+    logger.verbose("Cleanup skipped (Redis unavailable)");
   }
+  return deletedCount ?? 0;
 }
 
 export async function getJobStats(): Promise<{
@@ -361,23 +384,16 @@ export async function getJobStats(): Promise<{
   completed: number;
   failed: number;
 }> {
-  try {
-    const r = getRedis();
+  const stats = await redisOp(async (r) => {
     const [pending, processing, completed, failed] = await Promise.all([
       r.llen(QUEUE_PENDING),
       r.llen(QUEUE_PROCESSING),
       r.llen(QUEUE_COMPLETED),
       r.llen(QUEUE_FAILED),
     ]);
-
     return { pending, processing, completed, failed };
-  } catch (err) {
-    logger.error(
-      { error: err instanceof Error ? err.message : String(err) },
-      "Failed to get job stats",
-    );
-    return { pending: 0, processing: 0, completed: 0, failed: 0 };
-  }
+  });
+  return stats ?? { pending: 0, processing: 0, completed: 0, failed: 0 };
 }
 
 export async function closeQueue(): Promise<void> {
