@@ -106,6 +106,18 @@ export const pgMessagesTable = pgTable(
       table.created_at,
       table.id,
     ),
+    guildCreatedDeletedIdx: pgIndex("idx_messages_guild_created_deleted").on(
+      table.guild_id,
+      table.created_at,
+      table.deleted_at,
+      table.id,
+    ),
+    channelAiStatusCreatedIdx: pgIndex(
+      "idx_messages_channel_ai_status_created",
+    ).on(table.channel_id, table.ai_status, table.created_at, table.id),
+    threadAiStatusCreatedIdx: pgIndex(
+      "idx_messages_thread_ai_status_created",
+    ).on(table.thread_id, table.ai_status, table.created_at, table.id),
   }),
 );
 

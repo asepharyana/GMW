@@ -686,9 +686,7 @@ describe("runModerationAnalysis", () => {
     expect(secondRequestBody.messages[0].content).toContain(
       "RESPON SEBELUMNYA GAGAL VALIDASI",
     );
-    expect(secondRequestBody.messages[0].content).toContain(
-      "Invalid option",
-    );
+    expect(secondRequestBody.messages[0].content).toContain("Invalid option");
     expect(secondRequestBody.messages[0].content).toContain(
       "Coba lagi dengan output JSON yang benar",
     );
@@ -753,8 +751,8 @@ describe("runModerationAnalysis", () => {
           arrayBuffer: async () => {
             // Minimal valid PNG bytes (8-byte signature)
             const png = Buffer.from([
-              0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-              0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+              0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00,
+              0x0d, 0x49, 0x48, 0x44, 0x52,
             ]);
             return png.buffer.slice(
               png.byteOffset,
@@ -932,7 +930,8 @@ describe("runModerationAnalysis", () => {
                   status: "warn",
                   flags: ["harassment"],
                   score: 0.65,
-                  analysis: "Teks mengandung unsur harassment dan memerlukan tindakan lebih lanjut.",
+                  analysis:
+                    "Teks mengandung unsur harassment dan memerlukan tindakan lebih lanjut.",
                 },
               ],
             }),
@@ -941,7 +940,22 @@ describe("runModerationAnalysis", () => {
       ],
     };
 
-    const imageBytes = Buffer.from("realistic-image-bytes");
+    const imageBytes = Buffer.from([
+      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+    ]);
+    const toBody = (buffer: Buffer) => {
+      let done = false;
+      return {
+        getReader: () => ({
+          read: async () => {
+            if (done) return { done: true, value: undefined };
+            done = true;
+            return { done: false, value: new Uint8Array(buffer) };
+          },
+          cancel: vi.fn(),
+        }),
+      };
+    };
     global.fetch = vi.fn().mockImplementation((url: string) => {
       if (
         url === "https://httpbin.org/image/png" ||
@@ -949,11 +963,7 @@ describe("runModerationAnalysis", () => {
       ) {
         return Promise.resolve({
           ok: true,
-          arrayBuffer: async () =>
-            imageBytes.buffer.slice(
-              imageBytes.byteOffset,
-              imageBytes.byteOffset + imageBytes.byteLength,
-            ),
+          body: toBody(imageBytes),
         });
       }
 

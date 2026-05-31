@@ -7,11 +7,12 @@ import {
   it,
   vi,
 } from "vitest";
+import { closeDatabase } from "../../src/database/drizzle";
 import {
-  closeDatabase,
-  getDatabase,
-  initializeDatabase,
-} from "../../src/database/drizzle";
+  clearTestTables,
+  getTestDatabase,
+  initializeTestDatabase,
+} from "../helpers/testDatabase";
 import { captureMessage } from "../../src/moderation/messageCapture";
 import type { ModerationBroadcaster } from "../../src/moderation/types";
 
@@ -21,14 +22,6 @@ type TestMessage = Parameters<typeof captureMessage>[0];
 type ModerationTestGlobal = typeof globalThis & {
   moderationBroadcaster?: Partial<ModerationBroadcaster>;
 };
-
-interface TestDatabase {
-  run(sql: string): Promise<unknown>;
-}
-
-function getTestDatabase(): TestDatabase {
-  return getDatabase() as unknown as TestDatabase;
-}
 
 vi.mock("../../src/moderation/aiAnalyzer", () => ({
   queueMessageAnalysis: (id: string) => queueMessageAnalysis(id),
@@ -118,15 +111,13 @@ async function createTables() {
 
 describe("captureMessage", () => {
   beforeAll(async () => {
-    await initializeDatabase();
+    await initializeTestDatabase();
     await createTables();
   });
 
   beforeEach(async () => {
     queueMessageAnalysis.mockClear();
-    const db = getTestDatabase();
-    await db.run(`DELETE FROM "attachments"`);
-    await db.run(`DELETE FROM "messages"`);
+    await clearTestTables("attachments", "messages");
     delete (globalThis as ModerationTestGlobal).moderationBroadcaster;
   });
 

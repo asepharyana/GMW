@@ -29,6 +29,13 @@
       "when": 1780079000000,
       "tag": "0003_ai_moderation_review_guardrails",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780218363790,
+      "tag": "0005_optimize-message-index",
+      "breakpoints": true
     }
   ]
 }

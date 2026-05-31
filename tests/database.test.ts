@@ -1,5 +1,6 @@
 import process from "node:process";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { assertSafeTestDatabaseUrl } from "./helpers/testDatabase";
 
 const originalEnv = process.env;
 
@@ -14,6 +15,10 @@ describe("Drizzle ORM Database", () => {
       DISCORD_TOKEN: "test-token",
       NODE_ENV: "test",
     };
+    if (originalEnv.TEST_DATABASE_URL) {
+      process.env.DATABASE_URL = originalEnv.TEST_DATABASE_URL;
+    }
+    assertSafeTestDatabaseUrl();
 
     // Reset modules to pick up new environment
     vi.resetModules();

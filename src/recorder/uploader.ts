@@ -38,7 +38,7 @@ export async function uploadRecordingSegment(input: {
 
   try {
     // 1. Get file size and insert initial pending state to DB
-    const stats = fs.statSync(oggPath);
+    const stats = await fs.promises.stat(oggPath);
     await insertVoiceRecording({
       id,
       user_id: userId,
@@ -54,7 +54,7 @@ export async function uploadRecordingSegment(input: {
     });
 
     // 2. Perform async upload with retry logic
-    const fileBuffer = fs.readFileSync(oggPath);
+    const fileBuffer = await fs.promises.readFile(oggPath);
     const uploadResult = await uploadToTele({
       buffer: fileBuffer,
       filename: fileName,

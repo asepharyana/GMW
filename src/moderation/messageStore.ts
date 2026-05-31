@@ -48,6 +48,7 @@ interface MessageDatabase {
   selectDistinct<T = unknown[]>(...args: unknown[]): QueryBuilder<T>;
   insert<T = unknown>(...args: unknown[]): QueryBuilder<T>;
   update(...args: unknown[]): QueryBuilder<unknown>;
+  transaction<T>(callback: (tx: MessageDatabase) => Promise<T>): Promise<T>;
 }
 
 function db(): MessageDatabase {
@@ -457,28 +458,28 @@ export async function updateMessagesAIAnalysisBulk(
 ): Promise<MessageRecord[]> {
   if (updates.length === 0) return [];
   try {
-    // Use raw SQL batch UPDATE instead of Promise.all per-message queries
-    // (P2: reduce N*2 queries → 2 queries total)
     const database = db();
     const now = Date.now();
 
-    for (const { messageId, result } of updates) {
-      await database
-        .update(messagesTable)
-        .set({
-          ai_status: result.status,
-          ai_moderation_flags: result.flags ?? null,
-          ai_moderation_score: result.score ?? null,
-          ai_analysis: result.analysis ?? null,
-          ai_categories: stringifyAIList(result.categories),
-          ai_severity: result.severity ?? null,
-          ai_confidence: result.confidence ?? result.score ?? null,
-          ai_recommended_action: result.recommendedAction ?? null,
-          ai_analyzed_at: result.analyzedAt ?? now,
-          ai_error: result.error ?? null,
-        })
-        .where(eq(messagesTable.id, messageId));
-    }
+    await database.transaction(async (tx) => {
+      for (const { messageId, result } of updates) {
+        await tx
+          .update(messagesTable)
+          .set({
+            ai_status: result.status,
+            ai_moderation_flags: result.flags ?? null,
+            ai_moderation_score: result.score ?? null,
+            ai_analysis: result.analysis ?? null,
+            ai_categories: stringifyAIList(result.categories),
+            ai_severity: result.severity ?? null,
+            ai_confidence: result.confidence ?? result.score ?? null,
+            ai_recommended_action: result.recommendedAction ?? null,
+            ai_analyzed_at: result.analyzedAt ?? now,
+            ai_error: result.error ?? null,
+          })
+          .where(eq(messagesTable.id, messageId));
+      }
+    });
 
     // Fetch all updated messages in a single query
     const ids = updates.map(({ messageId }) => messageId);

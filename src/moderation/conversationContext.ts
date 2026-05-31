@@ -56,12 +56,14 @@ export async function buildConversationContext(
     0,
   );
 
+  const contextLines = await Promise.all(
+    contextBefore.map((msg) => formatMessageForPrompt(msg, "context")),
+  );
   const selectedContextLines: string[] = [];
 
   // Go backwards through context, taking most recent first
-  for (let i = contextBefore.length - 1; i >= 0; i--) {
-    const msg = contextBefore[i];
-    const line = await formatMessageForPrompt(msg, "context");
+  for (let i = contextLines.length - 1; i >= 0; i--) {
+    const line = contextLines[i];
     const lineTokens = estimateTokens(line);
 
     if (usedTokens + lineTokens <= maxTokens) {

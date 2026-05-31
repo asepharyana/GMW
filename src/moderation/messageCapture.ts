@@ -178,14 +178,27 @@ export async function captureMessage(
   // Queue analysis after attachment uploads settle so AI uses stable tele URLs.
   if (!isBacklog) {
     if (attachmentUploadTasks.length > 0) {
-      setTimeout(() => queueMessageAnalysis(message.id), 30000);
+      let analysisQueued = false;
+      let fallbackTimer: NodeJS.Timeout | null = null;
+      const queueAnalysisOnce = () => {
+        if (analysisQueued) return;
+        analysisQueued = true;
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = null;
+        }
+        queueMessageAnalysis(message.id);
+      };
+
+      fallbackTimer = setTimeout(queueAnalysisOnce, 30000);
       Promise.allSettled(attachmentUploadTasks)
-        .then(() => queueMessageAnalysis(message.id))
+        .then(queueAnalysisOnce)
         .catch((err) => {
           logger.error(
             { messageId: message.id, error: err },
             "Failed to queue message analysis after attachment upload",
           );
+          queueAnalysisOnce();
         });
     } else {
       queueMessageAnalysis(message.id);

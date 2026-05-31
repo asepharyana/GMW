@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { closeDatabase } from "../../src/database/drizzle";
 import {
-  closeDatabase,
-  getDatabase,
-  initializeDatabase,
-} from "../../src/database/drizzle";
+  clearTestTables,
+  getTestDatabase,
+  initializeTestDatabase,
+} from "../helpers/testDatabase";
 import { createChildLogger } from "../../src/logger";
 import {
   decodeCursor,
@@ -17,14 +18,6 @@ import {
   updateMessageAsEdited,
 } from "../../src/moderation/messageStore";
 import type { MessageRecord } from "../../src/moderation/types";
-
-interface TestDatabase {
-  run(sql: string): Promise<unknown>;
-}
-
-function getTestDatabase(): TestDatabase {
-  return getDatabase() as unknown as TestDatabase;
-}
 
 const logger = createChildLogger("messageStoreQueries.test");
 
@@ -44,7 +37,7 @@ describe("message cursor helpers", () => {
 
 describe("message query integration tests", () => {
   beforeAll(async () => {
-    await initializeDatabase();
+    await initializeTestDatabase();
     // Create tables directly for isolated query integration tests
     const db = getTestDatabase();
     try {
@@ -110,9 +103,7 @@ describe("message query integration tests", () => {
   beforeEach(async () => {
     // Clear tables before each test
     try {
-      const db = getTestDatabase();
-      await db.run(`DELETE FROM "attachments"`);
-      await db.run(`DELETE FROM "messages"`);
+      await clearTestTables("attachments", "messages");
     } catch (error) {
       logger.debug({ error }, "Could not clear tables");
     }
