@@ -486,34 +486,15 @@ function enqueueIndividualFallbacks(messages: MessageRecord[]): void {
   const newMessages = messages.filter((m) => !individualInFlight.has(m.id));
   if (newMessages.length === 0) return;
 
-  // FIX #1: Enforce concurrency cap.
-  const availableSlots =
-    config.AI_ANALYSIS_INDIVIDUAL_MAX_CONCURRENT - individualInFlight.size;
-  if (availableSlots <= 0) {
-    logger.warn(
-      {
-        cap: config.AI_ANALYSIS_INDIVIDUAL_MAX_CONCURRENT,
-        inFlight: individualInFlight.size,
-        skipped: newMessages.length,
-      },
-      "Individual fallback concurrency cap reached — messages will be recovered by recovery worker",
-    );
-    return;
-  }
-
-  const toProcess = newMessages.slice(0, availableSlots);
-  const skipped = newMessages.length - toProcess.length;
-
   logger.info(
     {
-      count: toProcess.length,
-      skipped,
-      messageIds: toProcess.map((m) => m.id),
+      count: newMessages.length,
+      messageIds: newMessages.map((m) => m.id),
     },
     "Enqueueing individual fallback analysis for batch-incomplete messages",
   );
 
-  for (const msg of toProcess) {
+  for (const msg of newMessages) {
     individualInFlight.add(msg.id);
     // Fire-and-forget: processIndividualFallback handles all errors internally.
     processIndividualFallback(msg).catch((err) => {
@@ -855,8 +836,8 @@ export function startPendingAIAnalysisWorker(client?: Client): void {
   setInterval(() => {
     // FIX #3 pattern: no async arrow — chain promises explicitly.
     Promise.all([
-      getPendingConversationKeys(100),
-      getConversationKeysWithIncompleteAnalysis(50),
+      getPendingConversationKeys(500),
+      getConversationKeysWithIncompleteAnalysis(200),
     ])
       .then(([pendingKeys, incompleteKeys]) => {
         const now = Date.now();
@@ -902,10 +883,7 @@ export function startPendingAIAnalysisWorker(client?: Client): void {
             if (isConversationProcessingLocked(key)) continue;
 
             promises.push(
-              getIncompleteMessagesByConversation(
-                key,
-                config.AI_ANALYSIS_INDIVIDUAL_MAX_CONCURRENT,
-              )
+              getIncompleteMessagesByConversation(key, 500)
                 .then(async (msgs) => {
                   const processableMessages =
                     await skipAgeRestrictedMessages(msgs);

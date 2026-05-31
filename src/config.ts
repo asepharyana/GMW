@@ -71,14 +71,18 @@ const configSchema = z
       .string()
       .url()
       .default("https://9router.asepharyana.tech/v1"),
-    AI_LLM_MODEL: z.string().default("free"),
+    /** Model used for text-only moderation (messages, badword analysis). */
+    AI_LLM_MODEL: z.string().default("text"),
+    /** Model used for image/video moderation (vision-capable model). */
+    AI_LLM_VISION_MODEL: z.string().optional(),
     AI_ANALYSIS_DEBOUNCE_MS: z.coerce.number().positive().default(500),
     AI_ANALYSIS_RECOVERY_INTERVAL_MS: z.coerce
       .number()
       .positive()
       .default(15000),
     AI_ANALYSIS_ERROR_COOLDOWN_MS: z.coerce.number().positive().default(30000),
-    AI_ANALYSIS_MAX_BATCH_SIZE: z.coerce.number().int().positive().default(25),
+    /** Max messages fetched per conversation batch (token budget is the real constraint). */
+    AI_ANALYSIS_MAX_BATCH_SIZE: z.coerce.number().int().positive().default(200),
     AI_ANALYSIS_MAX_CONTEXT_TOKENS: z.coerce.number().positive().default(8000),
     /** Token budget for target messages specifically (separate from context window). */
     AI_ANALYSIS_MAX_TARGET_TOKENS: z.coerce.number().positive().default(4000),
@@ -96,15 +100,12 @@ const configSchema = z
       .number()
       .positive()
       .default(120000),
-    /**
-     * Maximum number of concurrent individual-fallback LLM calls.
-     * Prevents OOM/connection exhaustion when many messages miss a batch.
-     */
+    /** Max concurrent individual-fallback LLM calls (effectively unlimited). */
     AI_ANALYSIS_INDIVIDUAL_MAX_CONCURRENT: z.coerce
       .number()
       .int()
       .positive()
-      .default(20),
+      .default(1000),
     /**
      * How many consecutive individual-fallback errors trigger the individual
      * circuit breaker (separate from the batch circuit breaker).
@@ -113,7 +114,7 @@ const configSchema = z
       .number()
       .int()
       .positive()
-      .default(10),
+      .default(50),
     /** NVIDIA Nemotron-3 Content Safety API key for badword detection. */
     NVIDIA_NEMOTRON_API_KEY: z.string().optional(),
     /** NVIDIA Nemotron model identifier. */

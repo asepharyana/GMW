@@ -630,7 +630,7 @@ export async function getConversationContextBefore(input: {
 
 export async function getPendingMessagesByConversation(
   conversationKey: string,
-  limit: number = 25,
+  limit: number = 200,
 ): Promise<MessageRecord[]> {
   try {
     const database = db();
@@ -667,7 +667,7 @@ export async function getPendingMessagesByConversation(
 }
 
 export async function getPendingConversationKeys(
-  limit: number = 100,
+  limit: number = 500,
 ): Promise<string[]> {
   try {
     const database = db();
@@ -782,7 +782,7 @@ export async function searchMessages(input: {
  * the individual-fallback queue.
  */
 export async function getConversationKeysWithIncompleteAnalysis(
-  limit: number = 50,
+  limit: number = 200,
 ): Promise<string[]> {
   try {
     const database = db();
@@ -826,7 +826,7 @@ export async function getConversationKeysWithIncompleteAnalysis(
  */
 export async function getIncompleteMessagesByConversation(
   conversationKey: string,
-  limit: number = 20,
+  limit: number = 500,
 ): Promise<MessageRecord[]> {
   try {
     const database = db();

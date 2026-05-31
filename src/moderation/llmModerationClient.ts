@@ -769,7 +769,7 @@ export async function runModerationAnalysis(
   ): Promise<string | null> => {
     try {
       const completion = await openai.chat.completions.create({
-        model: config.AI_LLM_MODEL,
+        model: config.AI_LLM_VISION_MODEL ?? config.AI_LLM_MODEL,
         messages: [
           {
             role: "user",
