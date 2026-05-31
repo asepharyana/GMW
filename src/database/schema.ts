@@ -353,6 +353,40 @@ export const pgRetentionPoliciesTable = pgTable(
   }),
 );
 
+/**
+ * Word Analysis Cache Table (PostgreSQL)
+ * Caches per-word moderation analysis results so repeated words reuse
+ * previously computed API / fallback results instead of re-calling
+ * expensive LLM or external moderation APIs.
+ */
+export const pgWordAnalysisCacheTable = pgTable(
+  "word_analysis_cache",
+  {
+    /** Normalized word (lowercase, trimmed) — primary key. */
+    word: pgText("word").primaryKey(),
+    /** JSON array of moderation flags detected for this word (e.g. ["vulgar_language","harassment"]). */
+    flags: pgText("flags").notNull().default("[]"),
+    /** Which source produced this result: "local" | "nvidia" | "primary_ai" | "groq". */
+    source: pgText("source", {
+      enum: ["local", "nvidia", "primary_ai", "groq"],
+    })
+      .notNull()
+      .default("local"),
+    /** Epoch millis when the analysis was stored. */
+    analyzed_at: pgBigint("analyzed_at", { mode: "number" }).notNull(),
+    /** Epoch millis when this cache entry expires. */
+    expires_at: pgBigint("expires_at", { mode: "number" }).notNull(),
+    /** How many times this cached word has been reused. */
+    hit_count: pgInteger("hit_count").notNull().default(0),
+  },
+  (table) => ({
+    expiresAtIdx: pgIndex("idx_word_analysis_cache_expires_at").on(
+      table.expires_at,
+    ),
+    sourceIdx: pgIndex("idx_word_analysis_cache_source").on(table.source),
+  }),
+);
+
 // Runtime table exports
 // =====================
 
@@ -365,6 +399,7 @@ export const voiceRecordingsTable = pgVoiceRecordingsTable;
 export const messageReviewsTable = pgMessageReviewsTable;
 export const moderationActionsTable = pgModerationActionsTable;
 export const retentionPoliciesTable = pgRetentionPoliciesTable;
+export const wordAnalysisCacheTable = pgWordAnalysisCacheTable;
 
 // Export table types for use in queries
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;
