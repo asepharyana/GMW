@@ -369,9 +369,9 @@ export const pgTextAnalysisCacheTable = pgTable(
     text: pgText("text").primaryKey(),
     /** JSON array of moderation flags detected for this text (e.g. ["vulgar_language","harassment"]). */
     flags: pgText("flags").notNull().default("[]"),
-    /** Which source produced this result: "local" | "nvidia" | "primary_ai" | "groq". */
+    /** Which source produced this result: "local" | "nvidia" | "primary_ai" | "groq" | "vision_llm". */
     source: pgText("source", {
-      enum: ["local", "nvidia", "primary_ai", "groq"],
+      enum: ["local", "nvidia", "primary_ai", "groq", "vision_llm"],
     })
       .notNull()
       .default("local"),

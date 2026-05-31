@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS text_analysis_cache (
   text        TEXT PRIMARY KEY,
   flags       TEXT NOT NULL DEFAULT '[]',
   source      TEXT NOT NULL DEFAULT 'local'
-              CHECK (source IN ('local', 'nvidia', 'primary_ai', 'groq')),
+              CHECK (source IN ('local', 'nvidia', 'primary_ai', 'groq', 'vision_llm')),
   analyzed_at BIGINT NOT NULL,
   expires_at  BIGINT NOT NULL,
   hit_count   INTEGER NOT NULL DEFAULT 0

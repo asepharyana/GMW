@@ -36,6 +36,13 @@
       "when": 1780218363790,
       "tag": "0005_optimize-message-index",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780218363791,
+      "tag": "0006_fix_text_analysis_cache_source",
+      "breakpoints": true
     }
   ]
 }

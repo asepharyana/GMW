@@ -94,6 +94,8 @@ pnpm run install:yt-dlp
 
 Default database adalah SQLite di `.muxer-queue.db`. PostgreSQL dapat dipakai dengan `DATABASE_TYPE=postgres` dan konfigurasi `DATABASE_URL` atau variabel `POSTGRES_*`.
 
+Jika aplikasi dijalankan di PostgreSQL production, migrasi dapat dijalankan otomatis saat startup dengan `AUTO_MIGRATE_ON_STARTUP=true`. Jalur ini memakai advisory lock supaya hanya satu instance yang memigrasi schema pada satu waktu.
+
 ```bash
 # Generate migration Drizzle
 pnpm run db:generate

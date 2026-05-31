@@ -1,19 +1,44 @@
 import "dotenv/config";
+import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
 import { migrate as migratePostgres } from "drizzle-orm/node-postgres/migrator";
+import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
-import { closeDatabase, initializeDatabase } from "./drizzle.js";
+import * as schema from "./schema.js";
+import {
+  closeDatabase,
+  initializeDatabase,
+  withDatabaseClient,
+} from "./drizzle.js";
 
 const logger = createChildLogger("migrate");
+const MIGRATION_LOCK_KEY_1 = 2026;
+const MIGRATION_LOCK_KEY_2 = 531;
 
 export async function runMigrations(): Promise<void> {
   try {
     logger.info("Starting PostgreSQL migrations");
-    const db = (await initializeDatabase()) as Parameters<
-      typeof migratePostgres
-    >[0];
+    await initializeDatabase();
 
     try {
-      await migratePostgres(db, { migrationsFolder: "./drizzle/migrations" });
+      await withDatabaseClient(async (client) => {
+        const db = drizzlePostgres(client, { schema });
+
+        await client.query("SELECT pg_advisory_lock($1, $2)", [
+          MIGRATION_LOCK_KEY_1,
+          MIGRATION_LOCK_KEY_2,
+        ]);
+
+        try {
+          await migratePostgres(db, {
+            migrationsFolder: "./drizzle/migrations",
+          });
+        } finally {
+          await client.query("SELECT pg_advisory_unlock($1, $2)", [
+            MIGRATION_LOCK_KEY_1,
+            MIGRATION_LOCK_KEY_2,
+          ]);
+        }
+      });
     } finally {
       await closeDatabase();
     }

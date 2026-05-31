@@ -39,9 +39,10 @@ describe("loadConfig", () => {
     expect(config.AI_ANALYSIS_DEBOUNCE_MS).toBe(500);
     expect(config.AI_ANALYSIS_RECOVERY_INTERVAL_MS).toBe(15000);
     expect(config.AI_ANALYSIS_ERROR_COOLDOWN_MS).toBe(30000);
-    expect(config.AI_ANALYSIS_MAX_BATCH_SIZE).toBe(25);
+    expect(config.AI_ANALYSIS_MAX_BATCH_SIZE).toBe(200);
     expect(config.AI_ANALYSIS_MAX_CONTEXT_TOKENS).toBe(8000);
     expect(config.AI_ANALYSIS_CONTEXT_MESSAGE_LIMIT).toBe(20);
+    expect(config.AUTO_MIGRATE_ON_STARTUP).toBe(true);
   });
 
   it("coerces AI analysis tuning values", async () => {
@@ -106,5 +107,19 @@ describe("loadConfig", () => {
     expect(config.EFFECTIVE_TEXT_GUILD_ID).toBe("text-guild");
     expect(config.TEXT_CHANNEL_ID).toBe("text-channel");
     expect(config.EFFECTIVE_VOICE_GUILD_ID).toBe("voice-guild");
+  });
+
+  it("allows disabling startup migrations explicitly", async () => {
+    process.env = {
+      ...originalEnv,
+      DISCORD_TOKEN: "token",
+      AUTO_MIGRATE_ON_STARTUP: "false",
+      NODE_ENV: "test",
+    };
+
+    const { loadConfig } = await import("../src/config");
+    const config = loadConfig(process.env);
+
+    expect(config.AUTO_MIGRATE_ON_STARTUP).toBe(false);
   });
 });

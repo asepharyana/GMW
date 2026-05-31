@@ -1,6 +1,7 @@
 import { Client } from "discord.js-selfbot-v13";
 import { config } from "../config.js";
 import { closeDatabase, initializeDatabase } from "../database/drizzle.js";
+import { runMigrations } from "../database/migrate.js";
 import { createDiscordClientOptions } from "../discordClientOptions.js";
 import { createChildLogger } from "../logger.js";
 import { startPendingAIAnalysisWorker } from "../moderation/aiAnalyzer.js";
@@ -40,6 +41,13 @@ export async function initializeApp() {
   });
 
   try {
+    if (config.AUTO_MIGRATE_ON_STARTUP) {
+      logger.info(
+        "AUTO_MIGRATE_ON_STARTUP enabled; running database migrations",
+      );
+      await runMigrations();
+    }
+
     logger.info("Initializing database");
     await initializeDatabase();
     logger.info("PostgreSQL database initialized");

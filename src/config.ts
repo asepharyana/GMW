@@ -167,6 +167,11 @@ const configSchema = z
       .optional()
       .transform((v) => v === "true")
       .default(true),
+    AUTO_MIGRATE_ON_STARTUP: z
+      .string()
+      .optional()
+      .transform((v) => v === "true")
+      .default(true),
     DATABASE_URL: z.string().optional(),
     POSTGRES_HOST: z.string().default("localhost"),
     POSTGRES_PORT: z.coerce.number().int().positive().default(5432),

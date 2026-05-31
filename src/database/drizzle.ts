@@ -1,5 +1,6 @@
 import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import type { PoolClient } from "pg";
 import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
 import * as schema from "./schema.js";
@@ -91,6 +92,27 @@ export async function executeGet(sql: string, params?: unknown[]) {
   const query = convertPlaceholdersForPostgres(sql);
   const result = await rawPool.query(query, params || []);
   return result.rows[0] ?? null;
+}
+
+/**
+ * Run a function with a dedicated PostgreSQL client from the shared pool.
+ * Use this for session-scoped operations such as advisory locks.
+ */
+export async function withDatabaseClient<T>(
+  callback: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  if (!rawPool) {
+    throw new Error(
+      "Database not initialized. Call initializeDatabase() first.",
+    );
+  }
+
+  const client = await rawPool.connect();
+  try {
+    return await callback(client);
+  } finally {
+    client.release();
+  }
 }
 
 /**

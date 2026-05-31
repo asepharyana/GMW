@@ -1,0 +1,2 @@
+ALTER TABLE "text_analysis_cache" DROP CONSTRAINT IF EXISTS "text_analysis_cache_source_check";--> statement-breakpoint
+ALTER TABLE "text_analysis_cache" ADD CONSTRAINT "text_analysis_cache_source_check" CHECK ("source" IN ('local', 'nvidia', 'primary_ai', 'groq', 'vision_llm'));--> statement-breakpoint
