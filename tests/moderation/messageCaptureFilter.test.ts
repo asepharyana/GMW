@@ -39,5 +39,12 @@ describe("shouldCaptureMessageLocation", () => {
         { guildId: "guild-1" },
       ),
     ).toBe(false);
+
+    expect(
+      shouldCaptureMessageLocation(
+        { guildId: "guild-1", channelId: "1310867899745046558" },
+        { guildId: "guild-1" },
+      ),
+    ).toBe(false);
   });
 });
