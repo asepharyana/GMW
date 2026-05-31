@@ -354,17 +354,20 @@ export const pgRetentionPoliciesTable = pgTable(
 );
 
 /**
- * Word Analysis Cache Table (PostgreSQL)
- * Caches per-word moderation analysis results so repeated words reuse
- * previously computed API / fallback results instead of re-calling
- * expensive LLM or external moderation APIs.
+ * Text Analysis Cache Table (PostgreSQL)
+ * Caches per-normalized-text moderation analysis results so repeated
+ * phrases reuse previously computed API / fallback results instead of
+ * re-calling expensive LLM or external moderation APIs.
+ *
+ * Uses the FULL normalized text (not per-word) because context matters:
+ * "kau" alone is clean, but "awas kau" can be a threat.
  */
-export const pgWordAnalysisCacheTable = pgTable(
-  "word_analysis_cache",
+export const pgTextAnalysisCacheTable = pgTable(
+  "text_analysis_cache",
   {
-    /** Normalized word (lowercase, trimmed) — primary key. */
-    word: pgText("word").primaryKey(),
-    /** JSON array of moderation flags detected for this word (e.g. ["vulgar_language","harassment"]). */
+    /** Normalized text (lowercase, whitespace-collapsed) — primary key. */
+    text: pgText("text").primaryKey(),
+    /** JSON array of moderation flags detected for this text (e.g. ["vulgar_language","harassment"]). */
     flags: pgText("flags").notNull().default("[]"),
     /** Which source produced this result: "local" | "nvidia" | "primary_ai" | "groq". */
     source: pgText("source", {
@@ -376,14 +379,14 @@ export const pgWordAnalysisCacheTable = pgTable(
     analyzed_at: pgBigint("analyzed_at", { mode: "number" }).notNull(),
     /** Epoch millis when this cache entry expires. */
     expires_at: pgBigint("expires_at", { mode: "number" }).notNull(),
-    /** How many times this cached word has been reused. */
+    /** How many times this cached text has been reused. */
     hit_count: pgInteger("hit_count").notNull().default(0),
   },
   (table) => ({
-    expiresAtIdx: pgIndex("idx_word_analysis_cache_expires_at").on(
+    expiresAtIdx: pgIndex("idx_text_analysis_cache_expires_at").on(
       table.expires_at,
     ),
-    sourceIdx: pgIndex("idx_word_analysis_cache_source").on(table.source),
+    sourceIdx: pgIndex("idx_text_analysis_cache_source").on(table.source),
   }),
 );
 
@@ -399,7 +402,7 @@ export const voiceRecordingsTable = pgVoiceRecordingsTable;
 export const messageReviewsTable = pgMessageReviewsTable;
 export const moderationActionsTable = pgModerationActionsTable;
 export const retentionPoliciesTable = pgRetentionPoliciesTable;
-export const wordAnalysisCacheTable = pgWordAnalysisCacheTable;
+export const textAnalysisCacheTable = pgTextAnalysisCacheTable;
 
 // Export table types for use in queries
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;

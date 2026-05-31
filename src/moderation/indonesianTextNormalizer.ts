@@ -3,14 +3,9 @@ import OpenAI from "openai";
 import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
 import { retryWithBackoff } from "../retry.js";
-import { getCachedWords, upsertCachedWords } from "./wordCacheStore.js";
+import { getCachedText, upsertCachedText } from "./textCacheStore.js";
 
 const log = createChildLogger("indonesianTextNormalizer");
-
-/**
- * Default TTL for the DB-backed per-word analysis cache (24 hours).
- */
-const WORD_DB_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const CUSTOM_EMOJI_PATTERN = /<a?:([a-zA-Z0-9_]+):(\d+)>/g;
 
@@ -67,9 +62,20 @@ const VALID_PRIMARY_AI_FLAGS = new Set([
   "self_promo",
 ]);
 
+/**
+ * In-memory cache TTL (10 min) — fastest path for repeated identical texts.
+ */
 const BADWORD_CACHE_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * DB cache TTL (24 hours) — survives restarts, stores full-text results
+ * so context is preserved (e.g. "kaus" is clean, "kau" alone is clean,
+ * but "awas kau" is harassment).
+ */
+const DB_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
 const NEMOTRON_RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
-const PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS = 30 * 1000;
+const PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS = 30_000;
 const GROQ_RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
 
 interface BadwordCacheEntry {
@@ -459,8 +465,6 @@ async function callNemotronContentSafety(text: string): Promise<string[]> {
   if (content) {
     const lowerContent = content.toLowerCase();
     for (const category of NVIDIA_BAD_CATEGORIES) {
-      // Check if the category appears as a key in the response
-      // The Nemotron content safety model returns structured data with category scores
       if (lowerContent.includes(category)) {
         categories.push(CATEGORY_TO_BADWORD_LABEL[category] ?? category);
       }
@@ -487,188 +491,149 @@ async function callNemotronContentSafety(text: string): Promise<string[]> {
   return Array.from(new Set(categories));
 }
 
-/**
- * Tokenize text into individual normalized words for per-word caching.
- */
-function tokenizeToWords(text: string): string[] {
-  return (text.match(/[\p{L}\p{N}_]+/gu) || []).map((w) =>
-    w.toLowerCase().trim(),
-  );
-}
+// ---------------------------------------------------------------------------
+// Three-tier cache pipeline
+// ---------------------------------------------------------------------------
 
 /**
- * Detect badwords in text using a two-tier cache strategy:
+ * Detect badwords in text using a **three-tier cache strategy**:
  *
  * 1. **In-memory cache** (BADWORD_CACHE_TTL_MS, 10 min) — fastest path,
  *    keyed by the full normalized text string.
- * 2. **DB cache** (WORD_DB_CACHE_TTL_MS, 24 h) — per-word analysis results
- *    that survive restarts. If the full-text in-memory cache misses, we
- *    tokenize the text into words and look each word up in the DB. Only
- *    uncached words go through the API pipeline.
- *
- * API/fallback pipeline (NVIDIA → Primary AI → Groq → local lexical) only
- * runs for words that are not found in any cache layer.
+ * 2. **DB cache** (DB_CACHE_TTL_MS, 24 h) — same full-text key, persisted
+ *    across restarts. Uses the FULL normalized text (not per-word) because
+ *    context matters: "kau" alone is clean, but "awas kau" can be a threat.
+ * 3. **API/fallback pipeline** (NVIDIA → Primary AI → Groq → local lexical)
+ *    only runs when both cache layers miss.
  */
 export async function detectIndonesianBadwords(
   text: string,
 ): Promise<string[]> {
   const cacheKey = normalizeBadwordCacheKey(text);
+
+  // ── Tier 1: In-memory cache (fastest) ──
   const cached = getCachedBadwords(cacheKey);
   if (cached) {
     return cached;
   }
 
+  // De-duplicate concurrent lookups
   const inFlight = inFlightBadwordLookups.get(cacheKey);
   if (inFlight) {
     return inFlight;
   }
 
   const lookupPromise = (async () => {
-    const words = tokenizeToWords(text);
-    const uniqueWords = Array.from(new Set(words));
-
-    // ── Step 1: DB cache lookup for all unique words ──
-    const dbCached = await getCachedWords(uniqueWords);
-    const uncachedWords = uniqueWords.filter((w) => !dbCached.has(w));
-
-    // ── Step 2: Aggregate flags from cached words ──
-    const cachedFlags = new Set<string>();
-    for (const entry of dbCached.values()) {
-      for (const flag of entry.flags) {
-        cachedFlags.add(flag);
-      }
+    // ── Tier 2: DB cache (survives restarts, preserves context) ──
+    const dbEntry = await getCachedText(cacheKey);
+    if (dbEntry) {
+      const flags = [...dbEntry.flags];
+      setCachedBadwords(cacheKey, flags); // populate in-memory too
+      return flags;
     }
 
-    // ── Step 3: If all words are cached, return immediately ──
-    if (uncachedWords.length === 0) {
-      const finalHits = Array.from(cachedFlags);
-      setCachedBadwords(cacheKey, finalHits);
-      return finalHits;
-    }
+    // ── Tier 3: API / fallback pipeline ──
 
-    // ── Step 4: Run API pipeline for uncached words ──
-    // Build a minimal "text" from uncached words to keep the existing
-    // pipeline working (the APIs work on sentences, but a joined word list
-    // is sufficient for badword detection).
-    const uncachedText = uncachedWords.join(" ");
-
-    const uncachedFlags = new Set<string>();
-    const newWordEntries: Array<{
-      word: string;
-      flags: string[];
-      source: "local" | "nvidia" | "primary_ai" | "groq";
-      expiresAt: number;
-    }> = [];
-
-    const expiresAt = Date.now() + WORD_DB_CACHE_TTL_MS;
-
-    // 4a. Local lexical check on the uncached text
-    const localHits = detectLocalBadwords(uncachedText);
+    // 3a. Local lexical check (instant, no network)
+    const localHits = detectLocalBadwords(text);
     if (localHits.length > 0) {
-      for (const hit of localHits) {
-        uncachedFlags.add(hit);
-      }
+      setCachedBadwords(cacheKey, localHits);
+      await upsertCachedText(
+        cacheKey,
+        localHits,
+        "local",
+        Date.now() + DB_CACHE_TTL_MS,
+      );
+      return localHits;
     }
 
-    // If we got local hits only and no words remain to check, skip API calls
-    // for words that are not in LOCAL_BADWORDS. We still need to cache the
-    // "clean" status for uncached words that don't match local badwords.
+    const hits = new Set<string>();
     let sourceUsed: "local" | "nvidia" | "primary_ai" | "groq" = "local";
 
-    if (uncachedFlags.size === 0) {
-      // Try NVIDIA API if key is configured and not rate limited.
-      const apiKey = config.NVIDIA_NEMOTRON_API_KEY;
-      if (apiKey && Date.now() >= nemotronUnavailableUntil) {
+    // 3b. Try NVIDIA API if key is configured and not rate limited.
+    const apiKey = config.NVIDIA_NEMOTRON_API_KEY;
+    if (apiKey && Date.now() >= nemotronUnavailableUntil) {
+      try {
+        const apiCategories = await callNemotronContentSafety(text);
+        for (const hit of apiCategories) {
+          hits.add(hit);
+        }
+        if (apiCategories.length > 0) sourceUsed = "nvidia";
+      } catch (error) {
+        const status = axios.isAxiosError(error)
+          ? error.response?.status
+          : null;
+        if (status === 429) {
+          nemotronUnavailableUntil =
+            Date.now() + NEMOTRON_RATE_LIMIT_COOLDOWN_MS;
+        }
+        log.warn(
+          { error },
+          "NVIDIA Nemotron API call failed, falling back to primary AI then local detection",
+        );
+      }
+    }
+
+    // 3c. Try the main AI model next.
+    if (hits.size === 0 && Date.now() >= primaryAiUnavailableUntil) {
+      try {
+        const primaryHits = await callPrimaryAiModeration(text);
+        for (const hit of primaryHits) {
+          hits.add(hit);
+        }
+        if (primaryHits.length > 0) sourceUsed = "primary_ai";
+      } catch (error) {
+        const status = axios.isAxiosError(error)
+          ? error.response?.status
+          : null;
+        if (status === 429) {
+          primaryAiUnavailableUntil =
+            Date.now() + PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS;
+        }
+        log.warn(
+          { error },
+          "Primary AI badword detection failed, falling back to Groq then local detection",
+        );
+      }
+    }
+
+    // 3d. Try Groq Llama Prompt Guard as final API fallback.
+    if (hits.size === 0 && Date.now() >= groqUnavailableUntil) {
+      const groqKey = config.GROQ_API_KEY;
+      if (groqKey) {
         try {
-          const apiCategories = await callNemotronContentSafety(uncachedText);
-          for (const hit of apiCategories) {
-            uncachedFlags.add(hit);
+          const groqHits = await callGrokModeration(text);
+          for (const hit of groqHits) {
+            hits.add(hit);
           }
-          sourceUsed = "nvidia";
+          if (groqHits.length > 0) sourceUsed = "groq";
         } catch (error) {
           const status = axios.isAxiosError(error)
             ? error.response?.status
             : null;
           if (status === 429) {
-            nemotronUnavailableUntil =
-              Date.now() + NEMOTRON_RATE_LIMIT_COOLDOWN_MS;
+            groqUnavailableUntil = Date.now() + GROQ_RATE_LIMIT_COOLDOWN_MS;
           }
           log.warn(
             { error },
-            "NVIDIA Nemotron API call failed, falling back to primary AI then local detection",
+            "Groq Llama Prompt Guard moderation failed, falling back to local detection",
           );
         }
       }
-
-      // Try the main AI model next.
-      if (uncachedFlags.size === 0 && Date.now() >= primaryAiUnavailableUntil) {
-        try {
-          const primaryHits = await callPrimaryAiModeration(uncachedText);
-          for (const hit of primaryHits) {
-            uncachedFlags.add(hit);
-          }
-          if (primaryHits.length > 0) sourceUsed = "primary_ai";
-        } catch (error) {
-          const status = axios.isAxiosError(error)
-            ? error.response?.status
-            : null;
-          if (status === 429) {
-            primaryAiUnavailableUntil =
-              Date.now() + PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS;
-          }
-          log.warn(
-            { error },
-            "Primary AI badword detection failed, falling back to Groq then local detection",
-          );
-        }
-      }
-
-      // Try Groq Llama Prompt Guard as final API fallback.
-      if (uncachedFlags.size === 0 && Date.now() >= groqUnavailableUntil) {
-        const groqKey = config.GROQ_API_KEY;
-        if (groqKey) {
-          try {
-            const groqHits = await callGrokModeration(uncachedText);
-            for (const hit of groqHits) {
-              uncachedFlags.add(hit);
-            }
-            if (groqHits.length > 0) sourceUsed = "groq";
-          } catch (error) {
-            const status = axios.isAxiosError(error)
-              ? error.response?.status
-              : null;
-            if (status === 429) {
-              groqUnavailableUntil = Date.now() + GROQ_RATE_LIMIT_COOLDOWN_MS;
-            }
-            log.warn(
-              { error },
-              "Groq Llama Prompt Guard moderation failed, falling back to local detection",
-            );
-          }
-        }
-      }
     }
 
-    // ── Step 5: Cache each uncached word with the aggregated result ──
-    // All uncached words get the same flags (since the API was called on
-    // the combined text). Words that are clean get an empty flags array.
-    const wordFlagsArray = Array.from(uncachedFlags);
-    for (const word of uncachedWords) {
-      newWordEntries.push({
-        word,
-        flags: wordFlagsArray,
-        source: sourceUsed,
-        expiresAt,
-      });
-    }
+    const finalHits = Array.from(hits);
 
-    if (newWordEntries.length > 0) {
-      await upsertCachedWords(newWordEntries);
-    }
-
-    // ── Step 6: Merge cached + uncached flags ──
-    const finalHits = Array.from(new Set([...cachedFlags, ...uncachedFlags]));
+    // Populate all cache tiers so the same text never triggers another API call
+    // within the TTL window.
     setCachedBadwords(cacheKey, finalHits);
+    await upsertCachedText(
+      cacheKey,
+      finalHits,
+      sourceUsed,
+      Date.now() + DB_CACHE_TTL_MS,
+    );
+
     return finalHits;
   })();
 
