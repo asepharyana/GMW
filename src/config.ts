@@ -165,6 +165,7 @@ const configSchema = z
     POSTGRES_POOL_MIN: z.coerce.number().int().positive().default(2),
     POSTGRES_POOL_MAX: z.coerce.number().int().positive().default(10),
     ADMIN_PASSWORD: z.string().default("admin123"),
+    REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
   })
   .superRefine((value, ctx) => {
     if (!value.AI_ANALYSIS_ENABLED) {
