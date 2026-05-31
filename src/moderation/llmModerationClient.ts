@@ -481,8 +481,7 @@ function hasMediaContent(
 ): boolean {
   if (target.metadata) {
     const evidence = extractMessageMediaEvidence(target.metadata);
-    if (evidence.stickers.length > 0 || evidence.embeds.length > 0)
-      return true;
+    if (evidence.stickers.length > 0 || evidence.embeds.length > 0) return true;
   }
   if (attachments?.some((a) => a.message_id === target.id)) return true;
   return false;
@@ -832,7 +831,8 @@ async function runTextOnlyBatch(
     const correction = lastParseError
       ? {
           error: lastParseError,
-          preview: (lastInvalidContent as string | null)?.slice(0, 800) ?? "<empty>",
+          preview:
+            (lastInvalidContent as string | null)?.slice(0, 800) ?? "<empty>",
         }
       : undefined;
 
@@ -1061,10 +1061,7 @@ async function runSingleMediaAnalysis(
     ),
   ];
 
-  const remainingSlots = Math.max(
-    0,
-    8 - (imageMap.get(targetId)?.length ?? 0),
-  );
+  const remainingSlots = Math.max(0, 8 - (imageMap.get(targetId)?.length ?? 0));
 
   await Promise.all(
     mediaCandidates.slice(0, remainingSlots).map(async (candidate) => {
@@ -1146,13 +1143,11 @@ async function runSingleMediaAnalysis(
   );
 
   // ── 5. Build single-message prompt ──
-  const textEvidence =
-    await formatModerationTextEvidenceForPrompt(content);
+  const textEvidence = await formatModerationTextEvidenceForPrompt(content);
 
   const webTexts = webTextMap.get(targetId) ?? [];
   const mediaAnalyses = mediaAnalysisMap.get(targetId) ?? [];
-  const webContext =
-    webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
+  const webContext = webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
   const textContext = textEvidence ? `\n${textEvidence}` : "";
   const mediaAnalysisContext =
     mediaAnalyses.length > 0 ? `\n${mediaAnalyses.join("\n")}` : "";
