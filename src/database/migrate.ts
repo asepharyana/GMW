@@ -52,15 +52,3 @@ export async function runMigrations(): Promise<void> {
     throw error;
   }
 }
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runMigrations()
-    .then(() => {
-      logger.info("Migrations completed");
-      process.exit(0);
-    })
-    .catch((error) => {
-      logger.error({ error }, "Migration failed");
-      process.exit(1);
-    });
-}
