@@ -5,15 +5,16 @@ import {
   detectIndonesianBadwords,
   formatModerationTextEvidenceForPrompt,
   normalizeDiscordCustomEmoji,
-  normalizeIndonesianSlang,
 } from "../../src/moderation/indonesianTextNormalizer";
 
 const originalNemotronKey = config.NVIDIA_NEMOTRON_API_KEY;
 const originalPrimaryAiKey = config.AI_LLM_API_KEY;
+const originalGroqKey = config.GROQ_API_KEY;
 
 function disableRemoteModeration(): void {
   config.NVIDIA_NEMOTRON_API_KEY = undefined;
   config.AI_LLM_API_KEY = undefined;
+  config.GROQ_API_KEY = undefined;
 }
 
 disableRemoteModeration();
@@ -25,6 +26,7 @@ afterEach(() => {
 afterAll(() => {
   config.NVIDIA_NEMOTRON_API_KEY = originalNemotronKey;
   config.AI_LLM_API_KEY = originalPrimaryAiKey;
+  config.GROQ_API_KEY = originalGroqKey;
 });
 
 describe("normalizeDiscordCustomEmoji", () => {
@@ -49,20 +51,6 @@ describe("normalizeDiscordCustomEmoji", () => {
   });
 });
 
-describe("normalizeIndonesianSlang", () => {
-  it("maps common slang to normalized form", () => {
-    const { text, notes } = normalizeIndonesianSlang("gw emg kyk gitu");
-    expect(text).toBe("gue memang kayak gitu");
-    expect(notes.some((n) => n.startsWith("gw="))).toBe(true);
-  });
-
-  it("marks woy as safe casual interjection", () => {
-    const { text, notes } = normalizeIndonesianSlang("woy hadeh");
-    expect(text).toBe("woy hadeh");
-    expect(notes.some((n) => n.includes("casual"))).toBe(true);
-  });
-});
-
 describe("detectIndonesianBadwords", () => {
   it("detects known badword via local fallback", async () => {
     const badwords = await detectIndonesianBadwords("kontol banget");
@@ -81,10 +69,8 @@ describe("buildModerationTextEvidence", () => {
       "Bersiaplah woy <:hadeh:1217434294281048185>",
     );
     expect(evidence.normalized).toContain("[emoji:hadeh]");
-    // NVIDIA API may detect "vulgar_language" for certain inputs;
-    // just verify the local slang normalizer (woy, hadeh) still works
+    // Slang normalization removed; only emoji normalization and badword detection remain
     expect(evidence.notes.some((n) => n.includes("emoji:hadeh"))).toBe(true);
-    expect(evidence.notes.some((n) => n.includes("casual"))).toBe(true);
   });
 
   it("detects badword when present", async () => {
@@ -97,7 +83,7 @@ describe("buildModerationTextEvidence", () => {
 });
 
 describe("formatModerationTextEvidenceForPrompt", () => {
-  it("returns prompt evidence for slang + emoji", async () => {
+  it("returns prompt evidence for emoji", async () => {
     const formatted = await formatModerationTextEvidenceForPrompt(
       "Bersiaplah woy <:hadeh:1217434294281048185>",
     );

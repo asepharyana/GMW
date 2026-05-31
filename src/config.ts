@@ -125,6 +125,17 @@ const configSchema = z
       .string()
       .url()
       .default("https://integrate.api.nvidia.com/v1/chat/completions"),
+    /** Groq API key for Llama Prompt Guard moderation fallback. */
+    GROQ_API_KEY: z.string().optional(),
+    /** Groq moderation model identifier. */
+    GROQ_MODERATION_MODEL: z
+      .string()
+      .default("meta-llama/llama-prompt-guard-2-86m"),
+    /** Groq API base URL. */
+    GROQ_MODERATION_BASE_URL: z
+      .string()
+      .url()
+      .default("https://api.groq.com/openai/v1/chat/completions"),
     AUTO_DELETE_FLAGGED_ENABLED: z
       .string()
       .optional()

@@ -3,12 +3,10 @@ import OpenAI from "openai";
 import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
 import { retryWithBackoff } from "../retry.js";
-import { INDONESIAN_SLANG_LEXICON } from "./resources/indonesianSlangLexicon.js";
 
 const log = createChildLogger("indonesianTextNormalizer");
 
 const CUSTOM_EMOJI_PATTERN = /<a?:([a-zA-Z0-9_]+):(\d+)>/g;
-const WORD_PATTERN = /[\p{L}\p{N}_]+/gu;
 
 /** NVIDIA content safety categories that map to offensive/badword content. */
 const NVIDIA_BAD_CATEGORIES = new Set([
@@ -66,6 +64,7 @@ const VALID_PRIMARY_AI_FLAGS = new Set([
 const BADWORD_CACHE_TTL_MS = 10 * 60 * 1000;
 const NEMOTRON_RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
 const PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS = 30 * 1000;
+const GROQ_RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
 
 interface BadwordCacheEntry {
   value: string[];
@@ -76,6 +75,7 @@ const badwordCache = new Map<string, BadwordCacheEntry>();
 const inFlightBadwordLookups = new Map<string, Promise<string[]>>();
 let nemotronUnavailableUntil = 0;
 let primaryAiUnavailableUntil = 0;
+let groqUnavailableUntil = 0;
 let primaryModerationClient: OpenAI | null = null;
 
 export interface ModerationTextEvidence {
@@ -104,22 +104,6 @@ export function normalizeDiscordCustomEmoji(text: string): {
   );
 
   return { text: normalized, emojiNames };
-}
-
-export function normalizeIndonesianSlang(text: string): {
-  text: string;
-  notes: string[];
-} {
-  const notes: string[] = [];
-  const normalized = text.replace(WORD_PATTERN, (word) => {
-    const entry = INDONESIAN_SLANG_LEXICON[word.toLowerCase()];
-    if (!entry) return word;
-
-    notes.push(`${word}=${entry.normalized} (${entry.note})`);
-    return entry.normalized;
-  });
-
-  return { text: normalized, notes: Array.from(new Set(notes)) };
 }
 
 // ---------------------------------------------------------------------------
@@ -373,6 +357,61 @@ async function callPrimaryAiModeration(text: string): Promise<string[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Groq Llama Prompt Guard Moderation API (Fallback)
+// ---------------------------------------------------------------------------
+
+/**
+ * Call Groq Llama Prompt Guard 2-86M model for moderation scoring.
+ * Returns a probability score as a string (e.g. "0.9988824725151062").
+ * Scores above ~0.5 indicate moderation violations.
+ */
+async function callGrokModeration(text: string): Promise<string[]> {
+  const apiKey = config.GROQ_API_KEY;
+  if (!apiKey) {
+    return [];
+  }
+
+  const response = await axios.post(
+    config.GROQ_MODERATION_BASE_URL,
+    {
+      model: config.GROQ_MODERATION_MODEL,
+      messages: [{ role: "user", content: text }],
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      timeout: 10_000,
+    },
+  );
+
+  const scoreStr = response.data?.choices?.[0]?.message?.content?.trim();
+  if (!scoreStr) {
+    return [];
+  }
+
+  // Parse the score (Llama Prompt Guard returns a single probability score)
+  const score = parseFloat(scoreStr);
+  if (isNaN(score) || score < 0.5) {
+    return [];
+  }
+
+  // Map score to moderation flags based on severity
+  const flags: string[] = [];
+  if (score >= 0.9) {
+    flags.push("vulgar_language", "harassment");
+  } else if (score >= 0.7) {
+    flags.push("vulgar_language");
+  } else {
+    flags.push("spam");
+  }
+
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // NVIDIA Nemotron-3 Content Safety API
 // ---------------------------------------------------------------------------
 
@@ -512,8 +551,32 @@ export async function detectIndonesianBadwords(
         }
         log.warn(
           { error },
-          "Primary AI badword detection failed, falling back to local detection",
+          "Primary AI badword detection failed, falling back to Groq then local detection",
         );
+      }
+    }
+
+    // Try Groq Llama Prompt Guard as final API fallback before local detection.
+    if (hits.size === 0 && Date.now() >= groqUnavailableUntil) {
+      const groqKey = config.GROQ_API_KEY;
+      if (groqKey) {
+        try {
+          const groqHits = await callGrokModeration(text);
+          for (const hit of groqHits) {
+            hits.add(hit);
+          }
+        } catch (error) {
+          const status = axios.isAxiosError(error)
+            ? error.response?.status
+            : null;
+          if (status === 429) {
+            groqUnavailableUntil = Date.now() + GROQ_RATE_LIMIT_COOLDOWN_MS;
+          }
+          log.warn(
+            { error },
+            "Groq Llama Prompt Guard moderation failed, falling back to local detection",
+          );
+        }
       }
     }
 
@@ -539,9 +602,8 @@ export async function buildModerationTextEvidence(
   text: string,
 ): Promise<ModerationTextEvidence> {
   const emojiNormalized = normalizeDiscordCustomEmoji(text);
-  const slangNormalized = normalizeIndonesianSlang(emojiNormalized.text);
-  const badwordHits = await detectIndonesianBadwords(slangNormalized.text);
-  const notes = [...slangNormalized.notes];
+  const badwordHits = await detectIndonesianBadwords(emojiNormalized.text);
+  const notes: string[] = [];
 
   for (const emojiName of emojiNormalized.emojiNames) {
     notes.push(
@@ -557,7 +619,7 @@ export async function buildModerationTextEvidence(
 
   return {
     raw: text,
-    normalized: slangNormalized.text,
+    normalized: emojiNormalized.text,
     notes: Array.from(new Set(notes)),
     badwords: badwordHits,
     hasBadwords: badwordHits.length > 0,
