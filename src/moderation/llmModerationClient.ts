@@ -456,416 +456,124 @@ function sniffImageMimeType(buf: Buffer): string | null {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Shared types for image resolution
+// ---------------------------------------------------------------------------
+
+type MessageImagePart = {
+  type: "image_url";
+  image_url: { url: string };
+  sourceLabel: string;
+  stickerName?: string;
+};
+
+// ---------------------------------------------------------------------------
+// Media detection helper
+// ---------------------------------------------------------------------------
+
 /**
- * Runs LLM-based moderation analysis on messages.
- * POSTs to AI_LLM_BASE_URL with auth bearer token.
+ * Returns true when a target message has any media evidence that requires
+ * image download + vision analysis before LLM evaluation.
  */
-export async function runModerationAnalysis(
-  input: ModerationInput,
-): Promise<ModerationOutput> {
-  const { targets, contextText, attachments } = input;
+function hasMediaContent(
+  target: MessageRecord,
+  attachments?: AttachmentRecord[],
+): boolean {
+  if (target.metadata) {
+    const evidence = extractMessageMediaEvidence(target.metadata);
+    if (evidence.stickers.length > 0 || evidence.embeds.length > 0)
+      return true;
+  }
+  if (attachments?.some((a) => a.message_id === target.id)) return true;
+  return false;
+}
 
-  if (!targets.length) {
-    throw new Error("No targets provided for analysis");
+// ---------------------------------------------------------------------------
+// Single-image vision analysis (reused by both text-only and media paths)
+// ---------------------------------------------------------------------------
+
+const analyzeSingleMediaImage = async (
+  messageId: string,
+  image: MessageImagePart,
+): Promise<string | null> => {
+  const cacheKey = image.stickerName
+    ? makeStickerCacheKey(image.stickerName)
+    : makeImageCacheKey(image.image_url.url);
+
+  const cached = await getCachedMediaAnalysis(cacheKey);
+  if (cached) {
+    log.debug({ cacheKey }, "Media analysis cache HIT");
+    return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${cached}`;
   }
 
-  // Lazy init sticker cache on first run
-  if (!isStickerCacheReady()) {
-    await initStickerCache({
-      cacheDir: config.STICKER_CACHE_DIR,
-      maxSizeBytes: config.STICKER_CACHE_MAX_SIZE_MB * 1024 * 1024,
-    }).catch((err) => {
-      log.warn(
-        { error: err instanceof Error ? err.message : String(err) },
-        "Sticker cache init failed — continuing without cache",
-      );
-    });
-  }
-
-  const targetIds = targets.map((t) => t.id);
-
-  // Build a lookup: message_id → list of resolved base64 image parts
-  type MessageImagePart = {
-    type: "image_url";
-    image_url: { url: string };
-    sourceLabel: string;
-    stickerName?: string;
-  };
-  type MessageImageMap = Map<string, MessageImagePart[]>;
-
-  // Resolve and download image attachments, grouped by message_id.
-  // Only images whose message_id appears in the full attachment list are kept;
-  // target messages get priority in the 8-image global cap.
-  const getAttachmentImageUrl = (att: AttachmentRecord): string | null =>
-    att.uploaded_url ?? null;
-
-  const targetIdSet = new Set(targets.map((t) => t.id));
-
-  const candidateAttachments = (attachments ?? [])
-    .filter(
-      (att) => getAttachmentImageUrl(att) && att.type.startsWith("image/"),
-    )
-    .sort((a, b) => {
-      // Target-message attachments always come first so they consume the cap first
-      const aIsTarget = targetIdSet.has(a.message_id) ? 1 : 0;
-      const bIsTarget = targetIdSet.has(b.message_id) ? 1 : 0;
-      if (aIsTarget !== bIsTarget) return bIsTarget - aIsTarget;
-      // Within the same priority tier, newest first
-      return b.created_at - a.created_at;
-    })
-    .slice(0, 8); // Hard cap — some vision APIs (Nemotron, Omni) reject >8 images
-
-  const messageImageMap: MessageImageMap = new Map();
-
-  await Promise.all(
-    candidateAttachments.map(async (att) => {
-      const urlToUse = getAttachmentImageUrl(att);
-      if (!urlToUse) return;
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-      try {
-        log.info(
-          { attachmentId: att.id, messageId: att.message_id, url: urlToUse },
-          "Downloading attachment for base64 encoding",
-        );
-
-        const res = await fetch(urlToUse, { signal: controller.signal });
-        if (!res.ok) {
-          log.warn(
-            { attachmentId: att.id, status: res.status, url: urlToUse },
-            "Failed to fetch attachment image — non-2xx status",
-          );
-          return;
-        }
-
-        if (!res.body) return;
-
-        let totalBytes = 0;
-        const chunks: Uint8Array[] = [];
-        const reader = res.body.getReader();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          if (value) {
-            totalBytes += value.length;
-            if (totalBytes > 10 * 1024 * 1024) {
-              log.warn(
-                { attachmentId: att.id },
-                "Attachment exceeded 10MB limit, aborting stream",
-              );
-              reader.cancel();
-              return;
-            }
-            chunks.push(value);
-          }
-        }
-
-        const imageBytes = Buffer.concat(chunks);
-        const sniffedMime = sniffImageMimeType(imageBytes);
-        if (!sniffedMime) {
-          log.warn(
-            {
-              attachmentId: att.id,
-              url: urlToUse,
-              dbType: att.type,
-              bytesLength: imageBytes.length,
-              headerHex: imageBytes.subarray(0, 16).toString("hex"),
-            },
-            "Skipping attachment: downloaded bytes are not a recognised image format",
-          );
-          return;
-        }
-
-        const dataUrl = `data:${sniffedMime};base64,${imageBytes.toString("base64")}`;
-        const part: MessageImagePart = {
-          type: "image_url",
-          image_url: { url: dataUrl },
-          sourceLabel: `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`,
-        };
-
-        const existing = messageImageMap.get(att.message_id) ?? [];
-        existing.push(part);
-        messageImageMap.set(att.message_id, existing);
-      } catch (err) {
-        log.warn(
-          {
-            attachmentId: att.id,
-            error: err instanceof Error ? err.message : String(err),
-          },
-          "Error base64 encoding attachment",
-        );
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    }),
-  );
-
-  // --- Fetch URLs found in target messages ---
-  // To avoid slowing down the pipeline too much, we limit to 3 URLs per message.
-  const messageWebTextMap = new Map<string, string[]>();
-
-  await Promise.all(
-    targets.map(async (msg) => {
-      const content = msg.edited_content ?? msg.content;
-      const urls = extractUrlsFromText(content).slice(0, 3);
-      if (urls.length === 0) return;
-
-      const webTexts: string[] = [];
-
-      await Promise.all(
-        urls.map(async (url) => {
-          const result = await fetchUrlSafely(url);
-
-          if (result.type === "image" && result.data && result.mimeType) {
-            // Append as an image part
-            const dataUrl = `data:${result.mimeType};base64,${result.data.toString("base64")}`;
-            const part: MessageImagePart = {
-              type: "image_url",
-              image_url: { url: dataUrl },
-              sourceLabel: `[gambar di atas berasal dari link ${url} pada pesan id=${msg.id}]`,
-            };
-            const existing = messageImageMap.get(msg.id) ?? [];
-            existing.push(part);
-            messageImageMap.set(msg.id, existing);
-          } else if (result.type === "text" && result.textContent) {
-            webTexts.push(`[Isi Web dari ${url}]: ${result.textContent}`);
-          } else if (result.type === "error") {
-            log.debug(
-              { url, error: result.error },
-              "Failed to fetch URL for moderation context",
-            );
-          }
-        }),
-      );
-
-      if (webTexts.length > 0) {
-        messageWebTextMap.set(msg.id, webTexts);
-      }
-    }),
-  );
-
-  const mediaImageCandidates = targets.flatMap((msg) => {
-    const evidence = extractMessageMediaEvidence(msg.metadata);
-    return [
-      ...evidence.stickers
-        .filter((sticker) => sticker.url)
-        .map((sticker) => ({
-          messageId: msg.id,
-          url: sticker.url,
-          label: `[gambar di atas adalah sticker "${sticker.name}" dari pesan id=${msg.id}]`,
-          stickerName: sticker.name,
-        })),
-      ...evidence.embeds.flatMap((embed) =>
-        [
-          embed.image
-            ? {
-                messageId: msg.id,
-                url: embed.image,
-                label: `[gambar di atas berasal dari embed image pada pesan id=${msg.id}]`,
-              }
-            : null,
-          embed.thumbnail
-            ? {
-                messageId: msg.id,
-                url: embed.thumbnail,
-                label: `[gambar di atas berasal dari embed thumbnail pada pesan id=${msg.id}]`,
-              }
-            : null,
-        ].filter(
-          (
-            candidate,
-          ): candidate is {
-            messageId: string;
-            url: string;
-            label: string;
-            stickerName?: string;
-          } => candidate !== null,
-        ),
-      ),
-    ];
-  });
-
-  const remainingImageSlots = Math.max(
-    0,
-    8 -
-      Array.from(messageImageMap.values()).reduce(
-        (sum, imgs) => sum + imgs.length,
-        0,
-      ),
-  );
-
-  await Promise.all(
-    mediaImageCandidates
-      .slice(0, remainingImageSlots)
-      .map(async (candidate) => {
-        // --- Sticker cache check ---
-        if (candidate.stickerName && isStickerCacheReady()) {
-          try {
-            const cached = await getStickerFromCache(candidate.stickerName);
-            if (cached) {
-              const part: MessageImagePart = {
-                type: "image_url",
-                image_url: {
-                  url: `data:${cached.mimeType};base64,${cached.base64}`,
-                },
-                sourceLabel: candidate.label,
-                stickerName: candidate.stickerName,
-              };
-              const existing = messageImageMap.get(candidate.messageId) ?? [];
-              existing.push(part);
-              messageImageMap.set(candidate.messageId, existing);
-              log.debug(
-                { stickerName: candidate.stickerName },
-                "Sticker cache HIT — skipped fetch",
-              );
-              return;
-            }
-          } catch (err) {
-            log.debug(
-              {
-                stickerName: candidate.stickerName,
-                error: err instanceof Error ? err.message : String(err),
-              },
-              "Sticker cache read error — falling back to fetch",
-            );
-          }
-        }
-
-        // --- Cache miss or non-sticker: fetch normally ---
-        const result = await fetchUrlSafely(candidate.url);
-        if (result.type !== "image" || !result.data || !result.mimeType) return;
-
-        const base64 = result.data.toString("base64");
-
-        // Cache on success (sticker only)
-        if (candidate.stickerName) {
-          setStickerInCache(
-            candidate.stickerName,
-            base64,
-            result.mimeType,
-          ).catch((err) => {
-            log.warn(
-              { error: err instanceof Error ? err.message : String(err) },
-              "Failed to cache sticker — continuing without cache",
-            );
-          });
-        }
-
-        const part: MessageImagePart = {
-          type: "image_url",
-          image_url: {
-            url: `data:${result.mimeType};base64,${base64}`,
-          },
-          sourceLabel: candidate.label,
-          stickerName: candidate.stickerName,
-        };
-        const existing = messageImageMap.get(candidate.messageId) ?? [];
-        existing.push(part);
-        messageImageMap.set(candidate.messageId, existing);
-      }),
-  );
-
-  const analyzeSingleMediaImage = async (
-    messageId: string,
-    image: MessageImagePart,
-  ): Promise<string | null> => {
-    // ── Build deterministic cache key ──
-    const cacheKey = image.stickerName
-      ? makeStickerCacheKey(image.stickerName)
-      : makeImageCacheKey(image.image_url.url);
-
-    // ── Tier 1: DB cache lookup ──
-    const cached = await getCachedMediaAnalysis(cacheKey);
-    if (cached) {
-      log.debug({ cacheKey }, "Media analysis cache HIT");
-      return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${cached}`;
-    }
-
-    // ── Tier 2: Vision API call ──
-    try {
-      const completion = await openai.chat.completions.create({
-        model: config.AI_LLM_VISION_MODEL ?? config.AI_LLM_MODEL,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: image.stickerName
-                  ? buildStickerVisionPrompt(image.stickerName, messageId)
-                  : `Analisis media Discord berikut sebagai evidence moderasi. ${image.sourceLabel}\nJelaskan isi visual, teks yang terlihat, konteks risiko, dan apakah ada indikasi spam, scam, SARA, harassment, sexual content, violence, self-harm, doxxing, NSFW, gore, atau illegal content. Jawab Bahasa Indonesia, maksimal 3 kalimat. Jangan bilang kurang konteks atau perlu admin cek; berikan observasi langsung dari media.`,
-              },
-              { type: "image_url", image_url: image.image_url },
-            ],
-          },
-        ],
-        temperature: 0.1,
-        top_p: 0.9,
-        max_tokens: 500,
-        stream: false,
-        chat_template_kwargs: { enable_thinking: false },
-        reasoning_budget: 0,
-      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
-
-      const content = completion.choices[0]?.message?.content?.trim();
-      if (!content) return null;
-
-      // ── Cache the result (24h TTL, strips messageId wrapper) ──
-      await upsertCachedMediaAnalysis(
-        cacheKey,
-        content,
-        "vision_llm",
-        Date.now() + 24 * 60 * 60 * 1000,
-      );
-
-      return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${content}`;
-    } catch (error) {
-      log.warn(
+  try {
+    const completion = await openai.chat.completions.create({
+      model: config.AI_LLM_VISION_MODEL ?? config.AI_LLM_MODEL,
+      messages: [
         {
-          messageId,
-          error: error instanceof Error ? error.message : String(error),
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: image.stickerName
+                ? buildStickerVisionPrompt(image.stickerName, messageId)
+                : `Analisis media Discord berikut sebagai evidence moderasi. ${image.sourceLabel}\nJelaskan isi visual, teks yang terlihat, konteks risiko, dan apakah ada indikasi spam, scam, SARA, harassment, sexual content, violence, self-harm, doxxing, NSFW, gore, atau illegal content. Jawab Bahasa Indonesia, maksimal 3 kalimat. Jangan bilang kurang konteks atau perlu admin cek; berikan observasi langsung dari media.`,
+            },
+            { type: "image_url", image_url: image.image_url },
+          ],
         },
-        "Separate media analysis failed",
-      );
-      return `[Media analysis for message ${messageId}] ${image.sourceLabel}: gagal dianalisis otomatis; gunakan metadata URL/nama media sebagai evidence.`;
-    }
-  };
+      ],
+      temperature: 0.1,
+      top_p: 0.9,
+      max_tokens: 500,
+      stream: false,
+      chat_template_kwargs: { enable_thinking: false },
+      reasoning_budget: 0,
+    } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
 
-  const messageMediaAnalysisMap = new Map<string, string[]>();
-  await Promise.all(
-    Array.from(messageImageMap.entries()).flatMap(([messageId, images]) =>
-      images.map(async (image) => {
-        const summary = await analyzeSingleMediaImage(messageId, image);
-        if (!summary) return;
-        const existing = messageMediaAnalysisMap.get(messageId) ?? [];
-        existing.push(summary);
-        messageMediaAnalysisMap.set(messageId, existing);
-      }),
-    ),
-  );
+    const content = completion.choices[0]?.message?.content?.trim();
+    if (!content) return null;
 
-  // -------------------------------------------------------------------------
-  // System prompt — Indonesian-first, English as secondary language.
-  //
-  // Core design decisions:
-  //  • Explicitly names the server as a Discord community whose primary
-  //    communication language is Indonesian; English is secondary.
-  //  • Instructs the model to understand Indonesian slang, abbreviations,
-  //    and culturally specific harmful patterns (SARA, hoaks, dll).
-  //  • When images are present, instructs the model to treat each image as
-  //    an integral part of the message that precedes it — not as standalone
-  //    content — so text + image are evaluated together.
-  //  • Strict JSON-only output, no markdown or prose.
-  // -------------------------------------------------------------------------
-  const buildSystemPrompt = (correction?: {
-    error: string;
-    preview: string;
-  }): string => {
-    const imageInstructions = `
+    await upsertCachedMediaAnalysis(
+      cacheKey,
+      content,
+      "vision_llm",
+      Date.now() + 24 * 60 * 60 * 1000,
+    );
+
+    return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${content}`;
+  } catch (error) {
+    log.warn(
+      {
+        messageId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Separate media analysis failed",
+    );
+    return `[Media analysis for message ${messageId}] ${image.sourceLabel}: gagal dianalisis otomatis; gunakan metadata URL/nama media sebagai evidence.`;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// System prompt builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the system prompt for the main moderation LLM call.
+ *
+ * @param contextText        Conversation context lines.
+ * @param includeMediaInstructions Whether to inject image/sticker analysis
+ *                                instructions. Set to `false` for text-only
+ *                                batches (no media evidence present).
+ * @param correction         Previous parse error info (for retry with feedback).
+ */
+function buildSystemPrompt(
+  contextText: string,
+  includeMediaInstructions: boolean,
+  correction?: { error: string; preview: string },
+): string {
+  const imageInstructions = includeMediaInstructions
+    ? `
 ## Instruksi Analisis Media
 Gambar, sticker, embed image, preview link, dan attachment sudah dianalisis lewat request media terpisah sebelum batch utama.
 Gunakan baris "Media analysis" sebagai evidence visual utama dalam keputusan moderasi batch ini.
@@ -880,9 +588,10 @@ Gunakan baris "Media analysis" sebagai evidence visual utama dalam keputusan mod
 
 Sticker yang berhasil diunduh WAJIB diperlakukan sebagai image evidence, bukan sekadar nama sticker.
 Jangan abaikan link: gunakan isi web, preview image, atau hasil analisis media link bila tersedia.
-`;
+`
+    : "";
 
-    const base = `Kamu adalah asisten moderasi konten untuk server Discord berbahasa Indonesia.
+  const base = `Kamu adalah asisten moderasi konten untuk server Discord berbahasa Indonesia.
 Bahasa utama komunitas ini adalah BAHASA INDONESIA. Bahasa Inggris adalah bahasa sekunder.
 
 ## Konteks Server
@@ -943,98 +652,49 @@ Flag yang valid: spam, hate_speech, sara, hoaks, harassment, vulgar_language, se
 
 CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan perlakukan ID sebagai angka — ini snowflake Discord yang bisa kehilangan presisi jika diparse sebagai number.`;
 
-    if (correction) {
-      return `${base}\n\nRESPON SEBELUMNYA GAGAL VALIDASI.\nError: ${correction.error}\nPreview respons tidak valid:\n${correction.preview}\n\nCoba lagi dengan output JSON yang benar sesuai skema di atas.`;
-    }
-    return base;
-  };
+  if (correction) {
+    return `${base}\n\nRESPON SEBELUMNYA GAGAL VALIDASI.\nError: ${correction.error}\nPreview respons tidak valid:\n${correction.preview}\n\nCoba lagi dengan output JSON yang benar sesuai skema di atas.`;
+  }
+  return base;
+}
 
-  // -------------------------------------------------------------------------
-  // Build the user-turn content.
-  // Media images are NOT sent in the main moderation batch. They are analyzed
-  // above through separate vision requests, then injected here as text evidence.
-  // -------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Shared LLM call + parse + fallback helper
+// ---------------------------------------------------------------------------
 
+/**
+ * Execute a single LLM moderation call (batch or single-message) with retry
+ * logic, JSON parse, and fallback error markers on failure.
+ *
+ * @returns Parsed analysis results matching the requested target IDs.
+ */
+async function callModerationLLM(
+  buildContent: () => Promise<string>,
+  targetIds: string[],
+  label: string,
+): Promise<{
+  results: AnalysisResult[];
+  raw: OpenAI.Chat.Completions.ChatCompletion | null;
+}> {
   let lastParseError: string | null = null;
   let lastInvalidContent: string | null = null;
 
-  // Pre-compute text evidence for all targets in parallel
-  const textEvidenceMap = new Map<string, string>();
-  await Promise.all(
-    targets.map(async (msg) => {
-      const content = msg.edited_content ?? msg.content;
-      const evidence = await formatModerationTextEvidenceForPrompt(content);
-      textEvidenceMap.set(msg.id, evidence);
-    }),
-  );
-
-  const buildMessageContent = async (): Promise<string> => {
-    const correction = lastParseError
-      ? {
-          error: lastParseError,
-          preview: lastInvalidContent?.slice(0, 800) ?? "<empty>",
-        }
-      : undefined;
-
-    const systemText = buildSystemPrompt(correction);
-
-    const messagesBlock = targets
-      .map((msg) => {
-        const content = msg.edited_content ?? msg.content;
-        const webTexts = messageWebTextMap.get(msg.id) ?? [];
-        const mediaAnalyses = messageMediaAnalysisMap.get(msg.id) ?? [];
-        const webContext =
-          webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
-        const textEvidence = textEvidenceMap.get(msg.id) ?? "";
-        const textContext = textEvidence ? `\n${textEvidence}` : "";
-        const mediaAnalysisContext =
-          mediaAnalyses.length > 0 ? `\n${mediaAnalyses.join("\n")}` : "";
-        const mediaEvidence = extractMessageMediaEvidence(msg.metadata);
-        const mediaContext = [
-          mediaEvidence.stickers.length > 0
-            ? mediaEvidence.stickers
-                .map((s) => buildStickerTextOnlyWarning(s.name, s.url))
-                .join(" ")
-            : null,
-          mediaEvidence.embeds.length > 0
-            ? `[embed evidence: ${mediaEvidence.embeds
-                .map((e) =>
-                  [e.title, e.description, e.url, e.image, e.thumbnail]
-                    .filter(Boolean)
-                    .join(" | "),
-                )
-                .join(" || ")}]`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" ");
-        return `[target] id=${msg.id} user=${msg.username}: ${content}${mediaContext ? ` ${mediaContext}` : ""}${textContext}${webContext}${mediaAnalysisContext}`;
-      })
-      .join("\n");
-
-    return `${systemText}\n\n## Pesan yang Dianalisis\n${messagesBlock}`;
-  };
-
   let parsed: AnalysisResult[];
   let result: OpenAI.Chat.Completions.ChatCompletion | null = null;
+
   try {
     const analysis = await retryWithBackoff(
       async () => {
         try {
+          const content = await buildContent();
+
           const completion = await openai.chat.completions.create({
             model: config.AI_LLM_MODEL,
-            messages: [
-              {
-                role: "user",
-                content: await buildMessageContent(),
-              },
-            ],
+            messages: [{ role: "user", content }],
             temperature: 0.2,
             top_p: 0.95,
             max_tokens: 16384,
-            response_format: {
-              type: "json_object",
-            },
+            response_format: { type: "json_object" },
             stream: false,
             chat_template_kwargs: { enable_thinking: false },
             reasoning_budget: 0,
@@ -1048,14 +708,14 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
             throw new Error("Invalid LLM response structure");
           }
 
-          const content = completion.choices[0].message?.content;
-          if (!content) {
+          const rawContent = completion.choices[0].message?.content;
+          if (!rawContent) {
             throw new Error("No content in LLM response");
           }
 
           try {
             return {
-              parsed: parseModerationResponse(content, targetIds),
+              parsed: parseModerationResponse(rawContent, targetIds),
               result: completion,
             };
           } catch (parseError) {
@@ -1063,23 +723,21 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
               parseError instanceof Error
                 ? parseError.message
                 : String(parseError);
-            lastInvalidContent = content;
+            lastInvalidContent = rawContent;
             log.warn(
               {
                 error: lastParseError,
-                contentLength: content.length,
-                contentPreview: content.substring(0, 1000),
-                fullContent: content,
+                contentLength: rawContent.length,
+                contentPreview: rawContent.substring(0, 1000),
+                fullContent: rawContent,
                 targetIds,
                 model: config.AI_LLM_MODEL,
               },
-              "Failed to parse moderation response from LLM",
+              `Failed to parse moderation response from LLM (${label})`,
             );
             throw parseError;
           }
         } catch (apiError: any) {
-          // Immediately abort retries on rate limits or auth errors so the
-          // message can return to the DB queue instead of bursting retries.
           if (
             apiError?.status === 429 ||
             apiError?.status === 401 ||
@@ -1106,20 +764,21 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
 
     const errorMsg =
       parseError instanceof Error ? parseError.message : String(parseError);
-    const content: string = lastInvalidContent;
+    const badContent: string = lastInvalidContent as string;
 
     log.error(
       {
         error: errorMsg,
-        contentLength: content.length,
-        contentPreview: content.substring(0, 500),
-        fullContent: content,
+        contentLength: badContent.length,
+        contentPreview: badContent.substring(0, 500),
+        fullContent: badContent,
         targetIds,
         model: config.AI_LLM_MODEL,
         timestamp: new Date().toISOString(),
       },
-      "Robust Fallback: Failed to parse moderation response. Marking all targets as analysis errors.",
+      `Robust Fallback (${label}): Failed to parse moderation response. Marking all targets as analysis errors.`,
     );
+
     parsed = targetIds.map((id) => ({
       messageId: id,
       status: "error",
@@ -1135,16 +794,484 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
     }));
   }
 
+  return { results: parsed, raw: result };
+}
+
+// ---------------------------------------------------------------------------
+// Text-only fast path — all text-only messages in one batch LLM call
+// ---------------------------------------------------------------------------
+
+/**
+ * Run a lightweight batch analysis on text-only messages.
+ *
+ * No image download, no vision API, no sticker/embed parsing beyond
+ * the lightweight text-only warnings embedded in buildMessageContent.
+ */
+async function runTextOnlyBatch(
+  targets: MessageRecord[],
+  contextText: string,
+): Promise<{ results: AnalysisResult[]; raw: unknown }> {
+  if (!targets.length) return { results: [], raw: null };
+
+  const targetIds = targets.map((t) => t.id);
+
+  // Pre-compute text evidence (normalization + badword detection)
+  const textEvidenceMap = new Map<string, string>();
+  await Promise.all(
+    targets.map(async (msg) => {
+      const content = msg.edited_content ?? msg.content;
+      const evidence = await formatModerationTextEvidenceForPrompt(content);
+      textEvidenceMap.set(msg.id, evidence);
+    }),
+  );
+
+  let lastParseError: string | null = null;
+  let lastInvalidContent: string | null = null;
+
+  const buildContent = async (): Promise<string> => {
+    const correction = lastParseError
+      ? {
+          error: lastParseError,
+          preview: (lastInvalidContent as string | null)?.slice(0, 800) ?? "<empty>",
+        }
+      : undefined;
+
+    const systemText = buildSystemPrompt(
+      contextText,
+      false, // ← no media instructions for text-only path
+      correction,
+    );
+
+    const messagesBlock = targets
+      .map((msg) => {
+        const content = msg.edited_content ?? msg.content;
+        const textEvidence = textEvidenceMap.get(msg.id) ?? "";
+        const textContext = textEvidence ? `\n${textEvidence}` : "";
+        return `[target] id=${msg.id} user=${msg.username}: ${content}${textContext}`;
+      })
+      .join("\n");
+
+    return `${systemText}\n\n## Pesan yang Dianalisis\n${messagesBlock}`;
+  };
+
+  const result = await callModerationLLM(buildContent, targetIds, "text-batch");
+
+  log.info(
+    { targetCount: targets.length, resultCount: result.results.length },
+    "Text-only batch analysis complete",
+  );
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Single media message analysis — one LLM call per message with vision
+// ---------------------------------------------------------------------------
+
+/**
+ * Process a single media-bearing message:
+ * 1. Download attachment images
+ * 2. Fetch URLs found in the message body
+ * 3. Download sticker/embed images
+ * 4. Run vision analysis on every image (with DB + sticker cache)
+ * 5. Build a single-message prompt with text + media analysis
+ * 6. One LLM call → single AnalysisResult
+ */
+async function runSingleMediaAnalysis(
+  target: MessageRecord,
+  contextText: string,
+  allAttachments: AttachmentRecord[] | undefined,
+): Promise<{ results: AnalysisResult[]; raw: unknown }> {
+  const targetId = target.id;
+  const targetIds = [targetId];
+
+  // Lazy init sticker cache
+  if (!isStickerCacheReady()) {
+    await initStickerCache({
+      cacheDir: config.STICKER_CACHE_DIR,
+      maxSizeBytes: config.STICKER_CACHE_MAX_SIZE_MB * 1024 * 1024,
+    }).catch((err) => {
+      log.warn(
+        { error: err instanceof Error ? err.message : String(err) },
+        "Sticker cache init failed — continuing without cache",
+      );
+    });
+  }
+
+  // ── State maps for this single message ──
+  const imageMap = new Map<string, MessageImagePart[]>();
+  const webTextMap = new Map<string, string[]>();
+  const mediaAnalysisMap = new Map<string, string[]>();
+
+  const getAttachmentImageUrl = (att: AttachmentRecord): string | null =>
+    att.uploaded_url ?? null;
+
+  // ── 1. Download attachments for this message ──
+  const msgAttachments = (allAttachments ?? [])
+    .filter(
+      (att) =>
+        att.message_id === targetId &&
+        getAttachmentImageUrl(att) &&
+        att.type.startsWith("image/"),
+    )
+    .slice(0, 8);
+
+  await Promise.all(
+    msgAttachments.map(async (att) => {
+      const urlToUse = getAttachmentImageUrl(att);
+      if (!urlToUse) return;
+
+      // Check vision cache BEFORE downloading
+      const attVisionKey = makeImageCacheKey(urlToUse);
+      const cachedVision = await getCachedMediaAnalysis(attVisionKey);
+      if (cachedVision) {
+        log.debug(
+          { attachmentId: att.id, cacheKey: attVisionKey },
+          "Vision cache HIT for attachment — skipped download",
+        );
+        const sourceLabel = `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`;
+        const analysisText = `[Media analysis for message ${att.message_id}] ${sourceLabel}: ${cachedVision}`;
+        const existing = mediaAnalysisMap.get(targetId) ?? [];
+        existing.push(analysisText);
+        mediaAnalysisMap.set(targetId, existing);
+        return;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      try {
+        const res = await fetch(urlToUse, { signal: controller.signal });
+        if (!res.ok || !res.body) return;
+
+        let totalBytes = 0;
+        const chunks: Uint8Array[] = [];
+        const reader = res.body.getReader();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            totalBytes += value.length;
+            if (totalBytes > 10 * 1024 * 1024) {
+              reader.cancel();
+              return;
+            }
+            chunks.push(value);
+          }
+        }
+
+        const imageBytes = Buffer.concat(chunks);
+        const sniffedMime = sniffImageMimeType(imageBytes);
+        if (!sniffedMime) {
+          log.warn(
+            { attachmentId: att.id },
+            "Skipping attachment: not a recognised image format",
+          );
+          return;
+        }
+
+        const dataUrl = `data:${sniffedMime};base64,${imageBytes.toString("base64")}`;
+        const part: MessageImagePart = {
+          type: "image_url",
+          image_url: { url: dataUrl },
+          sourceLabel: `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`,
+        };
+        const existing = imageMap.get(targetId) ?? [];
+        existing.push(part);
+        imageMap.set(targetId, existing);
+      } catch (err) {
+        log.warn(
+          {
+            attachmentId: att.id,
+            error: err instanceof Error ? err.message : String(err),
+          },
+          "Error downloading attachment",
+        );
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }),
+  );
+
+  // ── 2. Fetch URLs found in message text ──
+  const content = target.edited_content ?? target.content;
+  const urls = extractUrlsFromText(content).slice(0, 3);
+
+  if (urls.length > 0) {
+    const webTexts: string[] = [];
+    await Promise.all(
+      urls.map(async (url) => {
+        const result = await fetchUrlSafely(url);
+        if (result.type === "image" && result.data && result.mimeType) {
+          const dataUrl = `data:${result.mimeType};base64,${result.data.toString("base64")}`;
+          const part: MessageImagePart = {
+            type: "image_url",
+            image_url: { url: dataUrl },
+            sourceLabel: `[gambar di atas berasal dari link ${url} pada pesan id=${targetId}]`,
+          };
+          const existing = imageMap.get(targetId) ?? [];
+          existing.push(part);
+          imageMap.set(targetId, existing);
+        } else if (result.type === "text" && result.textContent) {
+          webTexts.push(`[Isi Web dari ${url}]: ${result.textContent}`);
+        }
+      }),
+    );
+    if (webTexts.length > 0) webTextMap.set(targetId, webTexts);
+  }
+
+  // ── 3. Sticker / embed images ──
+  const mediaEvidence = extractMessageMediaEvidence(target.metadata);
+  const mediaCandidates = [
+    ...mediaEvidence.stickers
+      .filter((s) => s.url)
+      .map((s) => ({
+        messageId: targetId,
+        url: s.url,
+        label: `[gambar di atas adalah sticker "${s.name}" dari pesan id=${targetId}]`,
+        stickerName: s.name,
+      })),
+    ...mediaEvidence.embeds.flatMap((embed) =>
+      [
+        embed.image
+          ? {
+              messageId: targetId,
+              url: embed.image,
+              label: `[gambar di atas berasal dari embed image pada pesan id=${targetId}]`,
+            }
+          : null,
+        embed.thumbnail
+          ? {
+              messageId: targetId,
+              url: embed.thumbnail,
+              label: `[gambar di atas berasal dari embed thumbnail pada pesan id=${targetId}]`,
+            }
+          : null,
+      ].filter(
+        (
+          c,
+        ): c is {
+          messageId: string;
+          url: string;
+          label: string;
+          stickerName?: string;
+        } => c !== null,
+      ),
+    ),
+  ];
+
+  const remainingSlots = Math.max(
+    0,
+    8 - (imageMap.get(targetId)?.length ?? 0),
+  );
+
+  await Promise.all(
+    mediaCandidates.slice(0, remainingSlots).map(async (candidate) => {
+      // Vision cache check before download
+      const visionCacheKey = candidate.stickerName
+        ? makeStickerCacheKey(candidate.stickerName)
+        : makeImageCacheKey(candidate.url);
+      const cachedVision = await getCachedMediaAnalysis(visionCacheKey);
+      if (cachedVision) {
+        log.debug(
+          { cacheKey: visionCacheKey },
+          "Vision cache HIT for media candidate — skipped download",
+        );
+        const analysisText = `[Media analysis for message ${candidate.messageId}] ${candidate.label}: ${cachedVision}`;
+        const existing = mediaAnalysisMap.get(targetId) ?? [];
+        existing.push(analysisText);
+        mediaAnalysisMap.set(targetId, existing);
+        return;
+      }
+
+      // Sticker download cache
+      if (candidate.stickerName && isStickerCacheReady()) {
+        try {
+          const cached = await getStickerFromCache(candidate.stickerName);
+          if (cached) {
+            const part: MessageImagePart = {
+              type: "image_url",
+              image_url: {
+                url: `data:${cached.mimeType};base64,${cached.base64}`,
+              },
+              sourceLabel: candidate.label,
+              stickerName: candidate.stickerName,
+            };
+            const existing = imageMap.get(targetId) ?? [];
+            existing.push(part);
+            imageMap.set(targetId, existing);
+            return;
+          }
+        } catch {
+          // Fall through to fetch
+        }
+      }
+
+      const result = await fetchUrlSafely(candidate.url);
+      if (result.type !== "image" || !result.data || !result.mimeType) return;
+
+      const base64 = result.data.toString("base64");
+      if (candidate.stickerName) {
+        setStickerInCache(candidate.stickerName, base64, result.mimeType).catch(
+          () => {},
+        );
+      }
+
+      const part: MessageImagePart = {
+        type: "image_url",
+        image_url: {
+          url: `data:${result.mimeType};base64,${base64}`,
+        },
+        sourceLabel: candidate.label,
+        stickerName: candidate.stickerName,
+      };
+      const existing = imageMap.get(targetId) ?? [];
+      existing.push(part);
+      imageMap.set(targetId, existing);
+    }),
+  );
+
+  // ── 4. Vision analysis for every image ──
+  await Promise.all(
+    Array.from(imageMap.entries()).flatMap(([msgId, images]) =>
+      images.map(async (image) => {
+        const summary = await analyzeSingleMediaImage(msgId, image);
+        if (!summary) return;
+        const existing = mediaAnalysisMap.get(msgId) ?? [];
+        existing.push(summary);
+        mediaAnalysisMap.set(msgId, existing);
+      }),
+    ),
+  );
+
+  // ── 5. Build single-message prompt ──
+  const textEvidence =
+    await formatModerationTextEvidenceForPrompt(content);
+
+  const webTexts = webTextMap.get(targetId) ?? [];
+  const mediaAnalyses = mediaAnalysisMap.get(targetId) ?? [];
+  const webContext =
+    webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
+  const textContext = textEvidence ? `\n${textEvidence}` : "";
+  const mediaAnalysisContext =
+    mediaAnalyses.length > 0 ? `\n${mediaAnalyses.join("\n")}` : "";
+
+  // Media evidence text-only fallbacks (sticker names, embed metadata)
+  const mediaContext = [
+    mediaEvidence.stickers.length > 0
+      ? mediaEvidence.stickers
+          .map((s) => buildStickerTextOnlyWarning(s.name, s.url))
+          .join(" ")
+      : null,
+    mediaEvidence.embeds.length > 0
+      ? `[embed evidence: ${mediaEvidence.embeds
+          .map((e) =>
+            [e.title, e.description, e.url, e.image, e.thumbnail]
+              .filter(Boolean)
+              .join(" | "),
+          )
+          .join(" || ")}]`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const messageBlock = `[target] id=${target.id} user=${target.username}: ${content}${mediaContext ? ` ${mediaContext}` : ""}${textContext}${webContext}${mediaAnalysisContext}`;
+
+  const systemText = buildSystemPrompt(
+    contextText,
+    true, // ← include media instructions for messages with images
+  );
+
+  const userContent = `${systemText}\n\n## Pesan yang Dianalisis\n${messageBlock}`;
+
+  // ── 6. LLM call ──
+  const result = await callModerationLLM(
+    async () => userContent,
+    targetIds,
+    `media:${targetId}`,
+  );
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Main entry point — splits text-only vs media, runs both paths in parallel
+// ---------------------------------------------------------------------------
+
+/**
+ * Runs LLM-based moderation analysis on messages.
+ *
+ * Architecture:
+ * - **Text-only messages** → single batch LLM call (fast, no image processing)
+ * - **Media messages** → each gets its own LLM call with vision API
+ * - Both paths execute **in parallel** — text batch does NOT wait for media.
+ */
+export async function runModerationAnalysis(
+  input: ModerationInput,
+): Promise<ModerationOutput> {
+  const { targets, contextText, attachments } = input;
+
+  if (!targets.length) {
+    throw new Error("No targets provided for analysis");
+  }
+
+  // ── Split targets ──
+  const textOnlyTargets: MessageRecord[] = [];
+  const mediaTargets: MessageRecord[] = [];
+
+  for (const target of targets) {
+    if (hasMediaContent(target, attachments)) {
+      mediaTargets.push(target);
+    } else {
+      textOnlyTargets.push(target);
+    }
+  }
+
+  log.info(
+    {
+      total: targets.length,
+      textOnly: textOnlyTargets.length,
+      media: mediaTargets.length,
+    },
+    "Split targets for parallel moderation analysis",
+  );
+
+  // ── Run both paths in parallel ──
+  const [textBatchResult, ...mediaResults] = await Promise.all([
+    // Text-only: one fast batch call
+    textOnlyTargets.length > 0
+      ? runTextOnlyBatch(textOnlyTargets, contextText)
+      : Promise.resolve({ results: [] as AnalysisResult[], raw: null }),
+
+    // Media: each message gets its own LLM call (all in parallel)
+    ...mediaTargets.map((target) =>
+      runSingleMediaAnalysis(target, contextText, attachments),
+    ),
+  ]);
+
+  // ── Merge ──
+  const allResults = [
+    ...textBatchResult.results,
+    ...mediaResults.flatMap((r) => r.results),
+  ];
+
+  // Preserve the text-batch raw completion if available; media completions
+  // are individual so there isn't a single canonical raw object.
+  const raw =
+    textBatchResult.raw ??
+    (mediaResults.length > 0 ? mediaResults[0].raw : null);
+
   log.info(
     {
       targetCount: targets.length,
-      resultCount: parsed.length,
+      resultCount: allResults.length,
+      textBatchResults: textBatchResult.results.length,
+      mediaResults: mediaResults.length,
     },
     "Moderation analysis complete",
   );
 
-  return {
-    results: parsed,
-    raw: result,
-  };
+  return { results: allResults, raw };
 }
