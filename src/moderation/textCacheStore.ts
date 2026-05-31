@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { executeAll, executeGet } from "../database/drizzle.js";
 import { createChildLogger } from "../logger.js";
 
@@ -147,5 +148,87 @@ export async function getTextCacheStats(): Promise<{
       "Failed to get text cache stats",
     );
     return { total: 0, expired: 0, bySource: {} };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Media / Vision analysis cache helpers (reuses text_analysis_cache table)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a deterministic cache key for a sticker.
+ * Same sticker name → same key across sessions and servers.
+ */
+export function makeStickerCacheKey(stickerName: string): string {
+  return `sticker:${stickerName}`;
+}
+
+/**
+ * Generate a deterministic cache key for an image data URL.
+ * Hashes the first 128 chars of the data URL (enough to identify the image
+ * without storing the full base64 string as the key).
+ */
+export function makeImageCacheKey(dataUrl: string): string {
+  const prefix = dataUrl.slice(0, 128);
+  const hash = createHash("sha256").update(prefix).digest("hex").slice(0, 16);
+  return `image:${hash}`;
+}
+
+/**
+ * Lookup a cached media analysis result.
+ * Returns the full cached text (the analysis summary string) or null.
+ */
+export async function getCachedMediaAnalysis(
+  cacheKey: string,
+): Promise<string | null> {
+  try {
+    const row = await executeGet(
+      `SELECT flags, hit_count
+       FROM text_analysis_cache
+       WHERE text = $1 AND expires_at > $2`,
+      [cacheKey, Date.now()],
+    );
+
+    if (!row) return null;
+
+    // flags stores the analysis result for media entries
+    const result = JSON.parse(row.flags) as string;
+    return result || null;
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed to get cached media analysis",
+    );
+    return null;
+  }
+}
+
+/**
+ * Store a media analysis result in the cache.
+ */
+export async function upsertCachedMediaAnalysis(
+  cacheKey: string,
+  analysisResult: string,
+  source: "vision_llm",
+  expiresAt: number,
+): Promise<void> {
+  const now = Date.now();
+
+  try {
+    await executeAll(
+      `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count)
+       VALUES ($1, $2, $3, $4, $5, 0)
+       ON CONFLICT (text) DO UPDATE SET
+         flags = EXCLUDED.flags,
+         source = EXCLUDED.source,
+         analyzed_at = EXCLUDED.analyzed_at,
+         expires_at = EXCLUDED.expires_at`,
+      [cacheKey, JSON.stringify(analysisResult), source, now, expiresAt],
+    );
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed to upsert cached media analysis",
+    );
   }
 }

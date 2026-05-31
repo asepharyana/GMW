@@ -16,6 +16,12 @@ import {
   buildStickerTextOnlyWarning,
   buildStickerVisionPrompt,
 } from "./stickerPrompt.js";
+import {
+  getCachedMediaAnalysis,
+  makeImageCacheKey,
+  makeStickerCacheKey,
+  upsertCachedMediaAnalysis,
+} from "./textCacheStore.js";
 import type {
   AnalysisResult,
   AttachmentRecord,
@@ -767,6 +773,19 @@ export async function runModerationAnalysis(
     messageId: string,
     image: MessageImagePart,
   ): Promise<string | null> => {
+    // ── Build deterministic cache key ──
+    const cacheKey = image.stickerName
+      ? makeStickerCacheKey(image.stickerName)
+      : makeImageCacheKey(image.image_url.url);
+
+    // ── Tier 1: DB cache lookup ──
+    const cached = await getCachedMediaAnalysis(cacheKey);
+    if (cached) {
+      log.debug({ cacheKey }, "Media analysis cache HIT");
+      return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${cached}`;
+    }
+
+    // ── Tier 2: Vision API call ──
     try {
       const completion = await openai.chat.completions.create({
         model: config.AI_LLM_VISION_MODEL ?? config.AI_LLM_MODEL,
@@ -794,6 +813,15 @@ export async function runModerationAnalysis(
 
       const content = completion.choices[0]?.message?.content?.trim();
       if (!content) return null;
+
+      // ── Cache the result (24h TTL, strips messageId wrapper) ──
+      await upsertCachedMediaAnalysis(
+        cacheKey,
+        content,
+        "vision_llm",
+        Date.now() + 24 * 60 * 60 * 1000,
+      );
+
       return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${content}`;
     } catch (error) {
       log.warn(
