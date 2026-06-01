@@ -38,4 +38,4 @@ RUN pnpm --filter './services/discord-gateway' run build
 RUN mkdir -p /app/recordings
 
 # Start discord gateway
-CMD ["node", "dist/index.js"]
+CMD ["node", "services/discord-gateway/dist/index.js"]

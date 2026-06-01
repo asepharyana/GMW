@@ -38,4 +38,4 @@ RUN pnpm --filter './services/backend' run build
 EXPOSE 3001
 
 # Start backend
-CMD ["node", "dist/index.js"]
+CMD ["node", "services/backend/dist/index.js"]

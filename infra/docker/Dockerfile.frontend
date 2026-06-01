@@ -37,5 +37,5 @@ RUN pnpm --filter './services/frontend' run build
 # Expose port (served by backend)
 EXPOSE 3000
 
-# Start development server
-CMD ["pnpm", "run", "dev:web"]
+# Start frontend (production preview)
+CMD ["pnpm", "--filter", "./services/frontend", "run", "preview", "--", "--host", "0.0.0.0"]
