@@ -1,5 +1,6 @@
 import { Client } from "discord.js-selfbot-v13";
 import { startPendingAIAnalysisWorker } from "../modules/ai-moderation/aiAnalyzer.js";
+import { CommandHandler } from "../modules/command-handler/commandHandler.js";
 import {
   EventBroadcaster,
   RedisEventPublisher,
@@ -43,12 +44,16 @@ export async function initializeDiscordGateway() {
   const redisPublisher = new RedisEventPublisher(config.REDIS_URL, logger);
   const eventBroadcaster = new EventBroadcaster(redisPublisher, logger);
 
+  // Initialize Redis command handler for backend→gateway commands
+  const commandHandler = new CommandHandler();
+
   const gracefulShutdown = createGracefulShutdown({
     logger,
     closeDatabase,
     voiceController,
     client,
     eventBroadcaster,
+    commandHandler,
   });
 
   try {
@@ -85,6 +90,10 @@ export async function initializeDiscordGateway() {
     setEventBroadcaster(eventBroadcaster);
     registerMessageCapture(client);
     startPendingAIAnalysisWorker(client);
+
+    // Start command handler after Discord is ready
+    commandHandler.start(client, voiceController);
+    logger.info("Command handler started");
   });
 
   client.on("error", (err) => {

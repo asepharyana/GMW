@@ -7,7 +7,7 @@ import {
 } from "./voice.service.js";
 
 export async function handleGetVoiceStatus(_req: Request, res: Response) {
-  const status = getVoiceStatus();
+  const status = await getVoiceStatus();
   res.json(status);
 }
 

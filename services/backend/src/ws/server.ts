@@ -10,15 +10,18 @@ interface BroadcastEvent {
   timestamp: string;
 }
 
-type BroadcastFn = (data: unknown) => void;
-
 // Extend globalThis with broadcast function types
 declare global {
   // biome-ignore lint/suspicious/noAssignInExpressions: intentional global broadcast registry
-  var broadcastMessageCreated: BroadcastFn | undefined;
-  var broadcastMessageUpdated: BroadcastFn | undefined;
-  var broadcastMessageDeleted: BroadcastFn | undefined;
-  var broadcastAttachmentUploaded: BroadcastFn | undefined;
+  var __broadcastFns:
+    | {
+        messageCreated: (data: unknown) => void;
+        messageUpdated: (data: unknown) => void;
+        messageDeleted: (data: unknown) => void;
+        attachmentUploaded: (data: unknown) => void;
+        raw: (type: string, data: unknown) => void;
+      }
+    | undefined;
 }
 
 export function createWebSocketServer(server: Server): WebSocketServer {
@@ -87,18 +90,18 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     }
   }
 
-  globalThis.broadcastMessageCreated = (data: unknown) =>
-    broadcast({ type: "message_created", data });
-  globalThis.broadcastMessageUpdated = (data: unknown) =>
-    broadcast({ type: "message_updated", data });
-  globalThis.broadcastMessageDeleted = (data: unknown) =>
-    broadcast({ type: "message_deleted", data });
-  globalThis.broadcastAttachmentUploaded = (data: unknown) =>
-    broadcast({ type: "attachment_uploaded", data });
+  globalThis.__broadcastFns = {
+    messageCreated: (data: unknown) => broadcast({ type: "message_created", data }),
+    messageUpdated: (data: unknown) => broadcast({ type: "message_updated", data }),
+    messageDeleted: (data: unknown) => broadcast({ type: "message_deleted", data }),
+    attachmentUploaded: (data: unknown) => broadcast({ type: "attachment_uploaded", data }),
+    raw: (type: string, data: unknown) => broadcast({ type, data }),
+  };
 
   // Cleanup on close
   wss.on("close", () => {
     clearInterval(heartbeatInterval);
+    globalThis.__broadcastFns = undefined;
   });
 
   logger.info({ path: "/ws" }, "WebSocket server created");

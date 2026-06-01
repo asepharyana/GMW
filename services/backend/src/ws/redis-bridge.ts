@@ -1,0 +1,112 @@
+import Redis from "ioredis";
+import { config } from "../shared/config/index.js";
+import { createChildLogger } from "../shared/logger/index.js";
+import { broadcastRaw } from "./broadcast.js";
+
+const logger = createChildLogger("ws.redis-bridge");
+
+interface ChannelMapping {
+  channel: string;
+  eventType: string;
+}
+
+const SUBSCRIPTIONS: ChannelMapping[] = [
+  { channel: "discord:message:created", eventType: "message_created" },
+  { channel: "discord:message:updated", eventType: "message_updated" },
+  { channel: "discord:message:deleted", eventType: "message_deleted" },
+  { channel: "discord:message:analyzed", eventType: "message_analyzed" },
+  { channel: "discord:attachment:uploaded", eventType: "attachment_uploaded" },
+  { channel: "discord:voice:started", eventType: "voice_recording_started" },
+  { channel: "discord:voice:stopped", eventType: "voice_recording_stopped" },
+  { channel: "discord:voice:uploaded", eventType: "voice_recording_uploaded" },
+];
+
+let subscriber: Redis | null = null;
+
+function createSubscriber(): Redis {
+  if (config.REDIS_URL) {
+    return new Redis(config.REDIS_URL, { keyPrefix: "" });
+  }
+  return new Redis({
+    host: config.REDIS_HOST,
+    port: config.REDIS_PORT,
+    keyPrefix: "",
+  });
+}
+
+function handleSubscriptionMessage(channel: string, message: string): void {
+  const mapping = SUBSCRIPTIONS.find((m) => m.channel === channel);
+  if (!mapping) {
+    logger.warn({ channel }, "Received message for unmapped Redis channel");
+    return;
+  }
+
+  let data: unknown;
+  try {
+    data = JSON.parse(message);
+  } catch (err) {
+    logger.error({ channel, err }, "Failed to parse Redis message as JSON");
+    return;
+  }
+
+  logger.debug({ channel, eventType: mapping.eventType }, "Broadcasting Redis event");
+  broadcastRaw(mapping.eventType, data);
+}
+
+export async function startRedisBridge(): Promise<void> {
+  if (!config.REDIS_URL && !config.REDIS_HOST) {
+    logger.info("Redis not configured, skipping Redis bridge");
+    return;
+  }
+
+  try {
+    subscriber = createSubscriber();
+
+    subscriber.on("error", (err: Error) => {
+      logger.error({ err }, "Redis subscriber error");
+    });
+
+    subscriber.on("connect", () => {
+      logger.info("Redis subscriber connected");
+    });
+
+    subscriber.on("reconnecting", () => {
+      logger.warn("Redis subscriber reconnecting…");
+    });
+
+    subscriber.on("close", () => {
+      logger.warn("Redis subscriber connection closed");
+    });
+
+    subscriber.on("message", handleSubscriptionMessage);
+
+    await subscriber.ping();
+    logger.info("Redis ping OK");
+
+    const channels = SUBSCRIPTIONS.map((m) => m.channel);
+    await subscriber.subscribe(...channels);
+    logger.info({ channels }, "Subscribed to Redis channels");
+
+    logger.info("Redis bridge started");
+  } catch (err) {
+    logger.error({ err }, "Failed to start Redis bridge");
+    throw err;
+  }
+}
+
+export async function stopRedisBridge(): Promise<void> {
+  if (!subscriber) {
+    logger.debug("Redis bridge not running, nothing to stop");
+    return;
+  }
+
+  try {
+    await subscriber.quit();
+    logger.info("Redis bridge stopped");
+  } catch (err) {
+    logger.error({ err }, "Error stopping Redis bridge");
+  } finally {
+    subscriber.disconnect();
+    subscriber = null;
+  }
+}

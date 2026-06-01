@@ -4,6 +4,7 @@ import { initializeDatabase } from "../shared/database/index.js";
 import { createChildLogger } from "../shared/logger/index.js";
 import { createHttpApp } from "./app.js";
 import { createWebSocketServer } from "../ws/server.js";
+import { startRedisBridge } from "../ws/redis-bridge.js";
 
 const logger = createChildLogger("http.server");
 
@@ -17,6 +18,9 @@ export async function startHttpServer(): Promise<Server> {
 
   // Attach WebSocket server to the same HTTP server
   createWebSocketServer(server);
+
+  // Start Redis pub/sub bridge to forward discord-gateway events to WS clients
+  await startRedisBridge();
 
   return new Promise<Server>((resolve, reject) => {
     server.listen(port, () => {

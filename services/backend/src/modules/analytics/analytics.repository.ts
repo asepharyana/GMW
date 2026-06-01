@@ -35,6 +35,8 @@ export class AnalyticsRepository {
   async getOverview(guildId: string, channelId?: string, hours = 24) {
     logger.debug({ guildId, channelId, hours }, "Getting analytics overview");
     const pool = getPool();
+    const now = Date.now();
+    const start = now - hours * 3_600_000;
     const filter = buildTimeFilter(guildId, channelId, hours);
 
     const { rows } = await pool.query(
@@ -57,8 +59,13 @@ export class AnalyticsRepository {
 
     const row = rows[0] as Record<string, unknown> | undefined;
 
+    // Fetch hourly stats, topics, and top violators to include in overview
+    const hourly = await this.getHourlyStats(guildId, channelId, hours);
+    const topics = await this.getTopics(guildId, channelId, hours);
+    const topUsers = await this.getTopViolators(guildId, channelId, hours, 5);
+
     return {
-      period: { hours },
+      period: { start, end: now },
       messages: {
         total: Number(row?.total_messages ?? 0),
         clean: Number(row?.clean ?? 0),
@@ -68,9 +75,9 @@ export class AnalyticsRepository {
         pending: Number(row?.pending ?? 0),
         average_score: Number(row?.average_score ?? 0),
       },
-      hourly: [],
-      topics: [],
-      top_users: [],
+      hourly,
+      topics,
+      top_users: topUsers,
       active_users_count: Number(row?.active_users_count ?? 0),
       total_channels: Number(row?.total_channels ?? 0),
     };
@@ -185,7 +192,9 @@ export class AnalyticsRepository {
       flagged_count: Number(r.flagged_count ?? 0),
       warned_count: Number(r.warned_count ?? 0),
       violation_score: Number(r.violation_score ?? 0),
-      worst_flags: (r.worst_flags as string | null) ?? null,
+      worst_flags: (r.worst_flags as string | null)
+        ? (r.worst_flags as string).split(",").map((s) => s.trim()).filter(Boolean)
+        : [],
       last_violation: Number(r.last_violation ?? 0),
     }));
   }

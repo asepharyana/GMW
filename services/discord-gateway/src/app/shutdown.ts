@@ -1,4 +1,5 @@
 import type { Client } from "discord.js-selfbot-v13";
+import type { CommandHandler } from "../modules/command-handler/commandHandler.js";
 import type { EventBroadcaster } from "../modules/event-broadcaster/index.js";
 import type { VoiceController } from "../modules/voice-recording/voiceController.js";
 import type { closeDatabase } from "../shared/database/drizzle.js";
@@ -13,6 +14,7 @@ export interface GracefulShutdownOptions {
   voiceController: VoiceController;
   client: Client;
   eventBroadcaster: EventBroadcaster;
+  commandHandler: CommandHandler;
 }
 
 export function createGracefulShutdown(options: GracefulShutdownOptions) {
@@ -37,6 +39,9 @@ export function createGracefulShutdown(options: GracefulShutdownOptions) {
 
       options.logger.info("Closing event broadcaster...");
       await options.eventBroadcaster.close();
+
+      options.logger.info("Closing command handler...");
+      await options.commandHandler.close();
 
       options.logger.info("Destroying Discord client...");
       try {

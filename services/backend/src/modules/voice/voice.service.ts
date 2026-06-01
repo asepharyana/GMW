@@ -1,8 +1,14 @@
-import { getDatabase } from "../../shared/database/index.js";
+import Redis from "ioredis";
+import { getPool } from "../../shared/database/index.js";
+import { config } from "../../shared/config/index.js";
+import { createChildLogger } from "../../shared/logger/index.js";
+
+const logger = createChildLogger("voice.service");
 
 export interface Guild {
   id: string;
   name: string;
+  icon: string | null;
 }
 
 export interface Channel {
@@ -13,27 +19,117 @@ export interface Channel {
 
 export interface VoiceStatus {
   connected: boolean;
-  guildId: string | null;
-  channelId: string | null;
-  users: Array<{ id: string; name: string }>;
+  activeGuildId: string | null;
+  activeChannelId: string | null;
+  activeChannelName: string | null;
+}
+
+interface CommandReply {
+  id: string;
+  success: boolean;
+  data: unknown;
+  error?: string;
+}
+
+// --- Redis command client ---
+let commandRedis: Redis | null = null;
+let statusRedis: Redis | null = null;
+
+function getCommandRedis(): Redis {
+  if (!commandRedis) {
+    commandRedis = config.REDIS_URL
+      ? new Redis(config.REDIS_URL, { keyPrefix: "" })
+      : new Redis({
+          host: config.REDIS_HOST,
+          port: config.REDIS_PORT,
+          keyPrefix: "",
+        });
+  }
+  return commandRedis;
+}
+
+function getStatusRedis(): Redis {
+  if (!statusRedis) {
+    statusRedis = config.REDIS_URL
+      ? new Redis(config.REDIS_URL, { keyPrefix: "" })
+      : new Redis({
+          host: config.REDIS_HOST,
+          port: config.REDIS_PORT,
+          keyPrefix: "",
+        });
+  }
+  return statusRedis;
+}
+
+async function sendCommand<T = unknown>(
+  type: string,
+  payload: Record<string, unknown>,
+  timeoutMs = 10000,
+): Promise<T | null> {
+  const redis = getCommandRedis();
+  const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const replyChannel = `backend:command:reply:${id}`;
+
+  return new Promise<T | null>((resolve) => {
+    const timer = setTimeout(() => {
+      redis.unsubscribe(replyChannel).catch(() => {});
+      resolve(null);
+    }, timeoutMs);
+
+    redis.subscribe(replyChannel, (err) => {
+      if (err) {
+        clearTimeout(timer);
+        resolve(null);
+        return;
+      }
+    });
+
+    const handler = (_ch: string, msg: string) => {
+      if (_ch === replyChannel) {
+        clearTimeout(timer);
+        redis.unsubscribe(replyChannel).catch(() => {});
+        try {
+          const reply: CommandReply = JSON.parse(msg);
+          resolve(reply.success ? (reply.data as T) : null);
+        } catch {
+          resolve(null);
+        }
+      }
+    };
+
+    redis.on("message", handler);
+
+    redis
+      .publish("backend:command", JSON.stringify({ id, type, payload, replyChannel }))
+      .catch(() => {
+        clearTimeout(timer);
+        resolve(null);
+      });
+  });
+}
+
+async function readStatus<T>(key: string): Promise<T | null> {
+  try {
+    const val = await getStatusRedis().get(key);
+    return val ? (JSON.parse(val) as T) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Get guilds from database (distinct guild_id from messages).
  */
 export async function getGuilds(): Promise<Guild[]> {
-  const db = getDatabase();
-  const result = await db.execute(
-    "SELECT DISTINCT guild_id FROM messages ORDER BY guild_id",
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT DISTINCT guild_id FROM messages ORDER BY guild_id`,
   );
 
-  if (!result?.rows?.length) {
-    return [];
-  }
-
-  return result.rows.map((row: Record<string, unknown>) => ({
+  return rows.map((row: Record<string, unknown>) => ({
     id: String(row.guild_id ?? ""),
     name: `Guild ${String(row.guild_id).slice(0, 8)}`,
+    icon: null,
   }));
 }
 
@@ -41,16 +137,13 @@ export async function getGuilds(): Promise<Guild[]> {
  * Get text channels from database (distinct channel_id for a guild).
  */
 export async function getTextChannels(guildId: string): Promise<Channel[]> {
-  const db = getDatabase();
-  const result = await db.execute(
-    `SELECT DISTINCT channel_id FROM messages WHERE guild_id = '${guildId.replace(/'/g, "''")}' ORDER BY channel_id`,
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT DISTINCT channel_id FROM messages WHERE guild_id = $1 ORDER BY channel_id`,
+    [guildId],
   );
 
-  if (!result?.rows?.length) {
-    return [];
-  }
-
-  return result.rows.map((row: Record<string, unknown>) => ({
+  return rows.map((row: Record<string, unknown>) => ({
     id: String(row.channel_id ?? ""),
     name: `Channel ${String(row.channel_id).slice(0, 8)}`,
     type: "text" as const,
@@ -58,37 +151,66 @@ export async function getTextChannels(guildId: string): Promise<Channel[]> {
 }
 
 /**
- * Get voice channels — not available via API-only backend.
+ * Get voice channels — query from discord-gateway via Redis command.
  */
-export async function getVoiceChannels(_guildId: string): Promise<Channel[]> {
-  return [];
+export async function getVoiceChannels(guildId: string): Promise<Channel[]> {
+  const channels = await sendCommand<Channel[]>("voice:channels", { guildId });
+  return channels ?? [];
 }
 
 /**
- * Get current voice connection status.
+ * Get current voice connection status from Redis cache set by discord-gateway.
  */
-export function getVoiceStatus(): VoiceStatus {
+export async function getVoiceStatus(): Promise<VoiceStatus> {
+  const cached = await readStatus<VoiceStatus>("voice:status");
+  if (cached) return cached;
   return {
     connected: false,
-    guildId: null,
-    channelId: null,
-    users: [],
+    activeGuildId: null,
+    activeChannelId: null,
+    activeChannelName: null,
   };
 }
 
 /**
- * Connect to a voice channel — not supported via API-only backend.
+ * Connect to a voice channel via Redis command to discord-gateway.
  */
 export async function connectVoice(
-  _guildId: string,
-  _channelId: string,
+  guildId: string,
+  channelId: string,
 ): Promise<VoiceStatus> {
-  return getVoiceStatus();
+  const result = await sendCommand<VoiceStatus>("voice:connect", {
+    guildId,
+    channelId,
+  });
+  if (result) return result;
+
+  // Fallback: read from Redis status key
+  const cached = await readStatus<VoiceStatus>("voice:status");
+  return (
+    cached ?? {
+      connected: false,
+      activeGuildId: null,
+      activeChannelId: null,
+      activeChannelName: null,
+    }
+  );
 }
 
 /**
- * Disconnect from voice — not supported via API-only backend.
+ * Disconnect from voice via Redis command to discord-gateway.
  */
 export async function disconnectVoice(): Promise<VoiceStatus> {
-  return getVoiceStatus();
+  const result = await sendCommand<VoiceStatus>("voice:disconnect", {});
+  if (result) return result;
+
+  const cached = await readStatus<VoiceStatus>("voice:status");
+  return (
+    cached ?? {
+      connected: false,
+      activeGuildId: null,
+      activeChannelId: null,
+      activeChannelName: null,
+    }
+  );
 }

@@ -10,26 +10,36 @@
  */
 
 type BroadcastFn = (data: unknown) => void;
+type BroadcastRawFn = (type: string, data: unknown) => void;
 
 // Extend globalThis with broadcast function types
 declare global {
   // biome-ignore lint/suspicious/noAssignInExpressions: intentional global broadcast registry
-  var broadcastMessageCreated: BroadcastFn | undefined;
-  var broadcastMessageUpdated: BroadcastFn | undefined;
-  var broadcastMessageDeleted: BroadcastFn | undefined;
-  var broadcastAttachmentUploaded: BroadcastFn | undefined;
+  var __broadcastFns:
+    | {
+        messageCreated: BroadcastFn;
+        messageUpdated: BroadcastFn;
+        messageDeleted: BroadcastFn;
+        attachmentUploaded: BroadcastFn;
+        raw: BroadcastRawFn;
+      }
+    | undefined;
 }
 
 const noop: BroadcastFn = () => {};
+const noopRaw: BroadcastRawFn = () => {};
 
-export const broadcastMessageCreated: BroadcastFn = (...args) =>
-  (globalThis.broadcastMessageCreated ?? noop)(...args);
+export const broadcastMessageCreated: BroadcastFn = (data) =>
+  (globalThis.__broadcastFns?.messageCreated ?? noop)(data);
 
-export const broadcastMessageUpdated: BroadcastFn = (...args) =>
-  (globalThis.broadcastMessageUpdated ?? noop)(...args);
+export const broadcastMessageUpdated: BroadcastFn = (data) =>
+  (globalThis.__broadcastFns?.messageUpdated ?? noop)(data);
 
-export const broadcastMessageDeleted: BroadcastFn = (...args) =>
-  (globalThis.broadcastMessageDeleted ?? noop)(...args);
+export const broadcastMessageDeleted: BroadcastFn = (data) =>
+  (globalThis.__broadcastFns?.messageDeleted ?? noop)(data);
 
-export const broadcastAttachmentUploaded: BroadcastFn = (...args) =>
-  (globalThis.broadcastAttachmentUploaded ?? noop)(...args);
+export const broadcastAttachmentUploaded: BroadcastFn = (data) =>
+  (globalThis.__broadcastFns?.attachmentUploaded ?? noop)(data);
+
+export const broadcastRaw: BroadcastRawFn = (type, data) =>
+  (globalThis.__broadcastFns?.raw ?? noopRaw)(type, data);
