@@ -48,6 +48,9 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.OWNER }}/bete-${{ matrix.service }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            VITE_BE_API_URL=https://imphnen.asepharyana.my.id
+            VITE_BE_WS_URL=wss://imphnen.asepharyana.my.id
 
   deploy:
     needs: build-and-push
@@ -115,9 +118,6 @@ jobs:
                 image: ghcr.io/${OWNER:-mytheclipse}/bete-frontend:latest
                 container_name: imphenbot-frontend
                 restart: unless-stopped
-                environment:
-                  VITE_API_URL: https://imphnen.asepharyana.my.id
-                  VITE_WS_URL: wss://imphnen.asepharyana.my.id
                 labels:
                   - "traefik.enable=true"
                   - "traefik.http.routers.imphenbot-frontend.rule=Host(`imphnen.asepharyana.my.id`)"
