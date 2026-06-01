@@ -609,8 +609,6 @@ const analyzeSingleMediaImage = async (
         top_p: 0.9,
         max_tokens: 500,
         stream: false,
-        chat_template_kwargs: { enable_thinking: false },
-        reasoning_budget: 0,
       } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming),
     );
 
@@ -698,8 +696,6 @@ async function callModerationLLM(
                 },
               },
               stream: false,
-              chat_template_kwargs: { enable_thinking: false },
-              reasoning_budget: 0,
             } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming),
           );
 

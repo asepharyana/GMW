@@ -272,8 +272,6 @@ async function callPrimaryAiModeration(text: string): Promise<string[]> {
         max_tokens: 200,
         stream: false,
         response_format: { type: "json_object" },
-        chat_template_kwargs: { enable_thinking: false },
-        reasoning_budget: 0,
       } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
     },
     {
@@ -371,7 +369,6 @@ async function callNemotronContentSafety(text: string): Promise<string[]> {
       temperature: 0.2,
       top_p: 0.7,
       stream: false,
-      chat_template_kwargs: { request_categories: "/categories" },
     },
     {
       headers: {
