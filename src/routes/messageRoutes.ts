@@ -1,5 +1,6 @@
 import type { Router } from "express";
 import express from "express";
+import { config } from "../config.js";
 import { AppError } from "../errors.js";
 import {
   getAttachmentsByChannel,
@@ -52,6 +53,7 @@ export function createMessageRoutes(): Router {
       };
 
       const targetChannel = channelId || channel;
+      const monitorGuildId = config.MONITOR_GUILD_ID;
       const limitNum = Math.min(parseInt(limit) || 50, 100);
       const offsetNum = parseInt(offset) || 0;
 
@@ -68,6 +70,7 @@ export function createMessageRoutes(): Router {
           targetChannel,
           limitNum,
           offsetNum,
+          monitorGuildId,
         );
         res.json({
           type: "image",
@@ -77,6 +80,7 @@ export function createMessageRoutes(): Router {
         });
       } else if (channelId || cursor || status) {
         const result = await listMessages({
+          guildId: monitorGuildId,
           channelId: targetChannel,
           cursor,
           limit: limitNum,
@@ -101,6 +105,7 @@ export function createMessageRoutes(): Router {
           targetChannel,
           limitNum,
           offsetNum,
+          monitorGuildId,
         );
         res.json({
           type: "text",
@@ -127,6 +132,14 @@ export function createMessageRoutes(): Router {
 
       if (!message) {
         throw new AppError("Message not found", "MESSAGE_NOT_FOUND", 404);
+      }
+
+      if (message.guild_id !== config.MONITOR_GUILD_ID) {
+        throw new AppError(
+          "Message is outside the monitor guild",
+          "INVALID_GUILD",
+          403,
+        );
       }
 
       res.json(message);
@@ -158,7 +171,7 @@ export function createMessageRoutes(): Router {
       const limitNum = Math.min(parseInt(limit) || 50, 100);
 
       const query: Omit<MessageQuery, "status"> = {
-        guildId,
+        guildId: guildId || config.MONITOR_GUILD_ID,
         channelId,
         threadId,
         userId,

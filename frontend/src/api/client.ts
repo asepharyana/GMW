@@ -48,6 +48,10 @@ export interface Guild {
   icon: string | null;
 }
 
+export interface AppConfig {
+  monitorGuildId: string | null;
+}
+
 class ApiError extends Error {
   code: string;
   statusCode: number;
@@ -104,4 +108,8 @@ export async function reanalyzeMessage(id: string): Promise<void> {
 
 export async function getGuilds(): Promise<Guild[]> {
   return request<Guild[]>("/api/guilds");
+}
+
+export async function getAppConfig(): Promise<AppConfig> {
+  return request<AppConfig>("/api/config");
 }

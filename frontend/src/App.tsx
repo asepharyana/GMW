@@ -8,6 +8,7 @@ import { mergeMessages, useMessages } from "./hooks/useMessages";
 import { useMediaControl } from "./hooks/useMediaControl";
 import { useUIState } from "./hooks/useUIState";
 import { useVoiceControl } from "./hooks/useVoiceControl";
+import { getAppConfig } from "./api/client";
 import type { MessageRecord } from "./types/messages";
 import type { DashboardTab } from "./types/ui";
 import type { ActiveSpeaker } from "./types/voice";
@@ -47,6 +48,7 @@ export default function App() {
   const [isListening, setIsListening] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem("admin-password"));
+  const [monitorGuildId, setMonitorGuildId] = useState("");
   const audioContextListenRef = useRef<AudioContext | null>(null);
   const audioContextTransmitRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -56,10 +58,11 @@ export default function App() {
   const activeTab = uiState.activeTab || "live";
   const selectedVoiceGuild = uiState.selectedVoiceGuild || uiState.selectedGuild || "";
   const selectedVoiceChannel = uiState.selectedVoiceChannel || "";
-  const selectedTextGuild = uiState.selectedTextGuild || uiState.selectedGuild || "";
+  const selectedTextGuild = monitorGuildId || uiState.selectedTextGuild || uiState.selectedGuild || "";
   const selectedTextChannel = uiState.selectedTextChannel || "";
-  const selectedAnalyticsGuild = uiState.selectedAnalyticsGuild || uiState.selectedGuild || "";
+  const selectedAnalyticsGuild = monitorGuildId || uiState.selectedAnalyticsGuild || uiState.selectedGuild || "";
   const selectedAnalyticsChannel = uiState.selectedAnalyticsChannel || "";
+  const monitorGuild = monitorGuildId ? voice.guilds.find((guild) => guild.id === monitorGuildId) : undefined;
 
   const handleIncomingPcm = useCallback((data: ArrayBuffer) => {
     const headerView = new DataView(data, 0, 4);
@@ -90,6 +93,22 @@ export default function App() {
   const triggerAnalyticsRefresh = useCallback(() => {
     window.dispatchEvent(new CustomEvent("analytics_refresh"));
   }, []);
+
+  useEffect(() => {
+    getAppConfig()
+      .then((config) => {
+        if (config.monitorGuildId) {
+          setMonitorGuildId(config.monitorGuildId);
+          patchUIState({
+            selectedTextGuild: config.monitorGuildId,
+            selectedAnalyticsGuild: config.monitorGuildId,
+            selectedTextChannel: "",
+            selectedAnalyticsChannel: "",
+          });
+        }
+      })
+      .catch(() => undefined);
+  }, [patchUIState]);
 
   const socket = useDashboardSocket({
     onUIState: (state) => setUIState((prev) => ({ ...prev, ...state })),
@@ -164,8 +183,7 @@ export default function App() {
   }, [isStreaming, startStreamingLocal, stopStreamingLocal, patchUIState]);
 
   useEffect(() => { if (selectedVoiceGuild) voice.loadVoiceChannels(selectedVoiceGuild).catch(() => undefined); }, [selectedVoiceGuild]);
-  useEffect(() => { if (selectedTextGuild) voice.loadTextTargets(selectedTextGuild).catch(() => undefined); }, [selectedTextGuild]);
-  useEffect(() => { if (selectedAnalyticsGuild) voice.loadTextTargets(selectedAnalyticsGuild).catch(() => undefined); }, [selectedAnalyticsGuild]);
+  useEffect(() => { if (monitorGuildId) voice.loadTextTargets(monitorGuildId).catch(() => undefined); }, [monitorGuildId]);
   useEffect(() => { if (selectedTextChannel) messages.fetchMessages(selectedTextChannel).catch(() => undefined); }, [selectedTextChannel]);
 
   const toggleListening = useCallback(async () => {
@@ -232,7 +250,7 @@ export default function App() {
         )
       ) : activeTab === "messages" ? (
         <MessagesPanel
-          guilds={voice.guilds}
+          guilds={monitorGuild ? [monitorGuild] : []}
           channels={voice.textChannels}
           selectedGuild={selectedTextGuild}
           selectedChannel={selectedTextChannel}
@@ -251,7 +269,7 @@ export default function App() {
             }
           >
             <AnalyticsPanel
-              guilds={voice.guilds}
+              guilds={monitorGuild ? [monitorGuild] : []}
               channels={voice.textChannels}
               selectedGuild={selectedAnalyticsGuild}
               selectedChannel={selectedAnalyticsChannel}

@@ -214,7 +214,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     const parsed = configSchema.parse(env);
     return {
       ...parsed,
-      EFFECTIVE_TEXT_GUILD_ID: parsed.TEXT_GUILD_ID ?? parsed.MONITOR_GUILD_ID,
+      // AI text capture and analytics are pinned to the monitor guild.
+      EFFECTIVE_TEXT_GUILD_ID: parsed.MONITOR_GUILD_ID,
       EFFECTIVE_VOICE_GUILD_ID: parsed.VOICE_GUILD_ID ?? parsed.GUILD_ID,
     };
   } catch (error) {

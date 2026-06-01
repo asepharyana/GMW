@@ -1,5 +1,6 @@
 import type { Router } from "express";
 import express from "express";
+import { config } from "../config.js";
 import { AppError } from "../errors.js";
 import {
   getAnalysisQueueStatus,
@@ -7,6 +8,7 @@ import {
 } from "../moderation/aiAnalyzer.js";
 import {
   searchMessages,
+  getMessageById,
   updateMessageAIAnalysis,
 } from "../moderation/messageStore.js";
 import type { MessageRecord } from "../moderation/types.js";
@@ -49,6 +51,7 @@ export function createAnalysisRoutes(): Router {
 
       const results = await searchMessages({
         query: q,
+        guildId: config.MONITOR_GUILD_ID,
         channelId,
         limit: limitNum,
       });
@@ -76,6 +79,19 @@ export function createAnalysisRoutes(): Router {
 
       if (!id) {
         throw new AppError("Message ID is required", "MISSING_MESSAGE_ID", 400);
+      }
+
+      const existing = await getMessageById(id);
+      if (!existing) {
+        throw new AppError("Message not found", "MESSAGE_NOT_FOUND", 404);
+      }
+
+      if (existing.guild_id !== config.MONITOR_GUILD_ID) {
+        throw new AppError(
+          "Message is outside the monitor guild",
+          "INVALID_GUILD",
+          403,
+        );
       }
 
       // P3: Single UPDATE + RETURNING instead of GET + UPDATE + GET

@@ -1,5 +1,6 @@
 import type { Router } from "express";
 import express from "express";
+import { config } from "../config.js";
 import { AppError } from "../errors.js";
 import {
   getActivityHeatmap,
@@ -14,6 +15,26 @@ import {
 
 export function createAnalyticsRoutes(): Router {
   const router = express.Router();
+
+  function assertMonitorGuild(guildId?: string): string {
+    if (!config.MONITOR_GUILD_ID) {
+      throw new AppError(
+        "MONITOR_GUILD_ID is required for analytics",
+        "MISSING_MONITOR_GUILD_ID",
+        400,
+      );
+    }
+
+    if (guildId && guildId !== config.MONITOR_GUILD_ID) {
+      throw new AppError(
+        "Analytics are restricted to the monitor guild",
+        "INVALID_GUILD",
+        403,
+      );
+    }
+
+    return config.MONITOR_GUILD_ID;
+  }
 
   // GET /api/analytics/overview - Full analytics dashboard data
   // Query params: guildId (required), channelId, hours (default 24)
@@ -34,9 +55,10 @@ export function createAnalyticsRoutes(): Router {
       }
 
       const hoursNum = hours ? Math.min(parseInt(hours) || 24, 168) : 24;
+      const monitorGuildId = assertMonitorGuild(guildId);
 
       const overview = await getAnalyticsOverview({
-        guildId,
+        guildId: monitorGuildId,
         channelId,
         hours: hoursNum,
       });
@@ -66,9 +88,10 @@ export function createAnalyticsRoutes(): Router {
       }
 
       const hoursNum = hours ? Math.min(parseInt(hours) || 24, 168) : 24;
+      const monitorGuildId = assertMonitorGuild(guildId);
 
       const stats = await getHourlyStats({
-        guildId,
+        guildId: monitorGuildId,
         channelId,
         hours: hoursNum,
       });
@@ -98,9 +121,10 @@ export function createAnalyticsRoutes(): Router {
       }
 
       const hoursNum = hours ? Math.min(parseInt(hours) || 24, 168) : 24;
+      const monitorGuildId = assertMonitorGuild(guildId);
 
       const topics = await getTopicTrends({
-        guildId,
+        guildId: monitorGuildId,
         channelId,
         hours: hoursNum,
       });
@@ -132,9 +156,10 @@ export function createAnalyticsRoutes(): Router {
 
       const hoursNum = hours ? Math.min(parseInt(hours) || 24, 168) : 24;
       const limitNum = limit ? Math.min(parseInt(limit) || 20, 100) : 20;
+      const monitorGuildId = assertMonitorGuild(guildId);
 
       const users = await getUserLeaderboard({
-        guildId,
+        guildId: monitorGuildId,
         channelId,
         hours: hoursNum,
         limit: limitNum,
@@ -165,9 +190,10 @@ export function createAnalyticsRoutes(): Router {
       }
 
       const hoursNum = hours ? Math.min(parseInt(hours) || 24, 168) : 24;
+      const monitorGuildId = assertMonitorGuild(guildId);
 
       const stats = await getModerationStats({
-        guildId,
+        guildId: monitorGuildId,
         channelId,
         hours: hoursNum,
       });
@@ -199,9 +225,10 @@ export function createAnalyticsRoutes(): Router {
 
       const hoursNum = hours ? Math.min(parseInt(hours) || 24, 168) : 24;
       const limitNum = limit ? Math.min(parseInt(limit) || 20, 100) : 20;
+      const monitorGuildId = assertMonitorGuild(guildId);
 
       const violators = await getTopViolators({
-        guildId,
+        guildId: monitorGuildId,
         channelId,
         hours: hoursNum,
         limit: limitNum,
@@ -232,9 +259,10 @@ export function createAnalyticsRoutes(): Router {
       }
 
       const hoursNum = hours ? Math.min(parseInt(hours) || 168, 720) : 168;
+      const monitorGuildId = assertMonitorGuild(guildId);
 
       const trend = await getDailyTrend({
-        guildId,
+        guildId: monitorGuildId,
         channelId,
         hours: hoursNum,
       });
@@ -264,9 +292,10 @@ export function createAnalyticsRoutes(): Router {
       }
 
       const hoursNum = hours ? Math.min(parseInt(hours) || 168, 720) : 168;
+      const monitorGuildId = assertMonitorGuild(guildId);
 
       const heatmap = await getActivityHeatmap({
-        guildId,
+        guildId: monitorGuildId,
         channelId,
         hours: hoursNum,
       });

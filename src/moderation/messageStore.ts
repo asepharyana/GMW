@@ -235,18 +235,25 @@ export async function getMessagesByChannel(
   channelId: string,
   limit: number = 50,
   offset: number = 0,
+  guildId?: string,
 ): Promise<MessageRecord[]> {
   try {
     const database = db();
+    const conditions: SQL[] = [
+      or(
+        eq(messagesTable.channel_id, channelId),
+        eq(messagesTable.thread_id, channelId),
+      ) as SQL,
+    ];
+
+    if (guildId) {
+      conditions.push(eq(messagesTable.guild_id, guildId));
+    }
+
     const rows = await database
       .select()
       .from(messagesTable)
-      .where(
-        or(
-          eq(messagesTable.channel_id, channelId),
-          eq(messagesTable.thread_id, channelId),
-        ),
-      )
+      .where(and(...conditions))
       // P3: add secondary sort by id for stable pagination
       .orderBy(desc(messagesTable.created_at), desc(messagesTable.id))
       .limit(limit)
@@ -290,18 +297,25 @@ export async function getAttachmentsByChannel(
   channelId: string,
   limit: number = 50,
   offset: number = 0,
+  guildId?: string,
 ): Promise<AttachmentRecord[]> {
   try {
     const database = db();
+    const conditions: SQL[] = [
+      or(
+        eq(attachmentsTable.channel_id, channelId),
+        eq(attachmentsTable.thread_id, channelId),
+      ) as SQL,
+    ];
+
+    if (guildId) {
+      conditions.push(eq(attachmentsTable.guild_id, guildId));
+    }
+
     const rows = await database
       .select()
       .from(attachmentsTable)
-      .where(
-        or(
-          eq(attachmentsTable.channel_id, channelId),
-          eq(attachmentsTable.thread_id, channelId),
-        ),
-      )
+      .where(and(...conditions))
       .orderBy(desc(attachmentsTable.created_at))
       .limit(limit)
       .offset(offset);
@@ -732,14 +746,19 @@ export async function getAttachmentsForMessages(
 export async function searchMessages(input: {
   query: string;
   channelId?: string;
+  guildId?: string;
   limit?: number;
 }): Promise<MessageRecord[]> {
   try {
-    const { query, channelId, limit = 20 } = input;
+    const { query, channelId, guildId, limit = 20 } = input;
     const database = db();
 
     const searchPattern = `%${query}%`;
     const conditions: (SQL | undefined)[] = [isNull(messagesTable.deleted_at)];
+
+    if (guildId) {
+      conditions.push(eq(messagesTable.guild_id, guildId));
+    }
 
     if (channelId) {
       conditions.push(channelOrThreadCondition(channelId));
@@ -767,6 +786,7 @@ export async function searchMessages(input: {
       {
         query: input.query,
         channelId: input.channelId,
+        guildId: input.guildId,
         error: error instanceof Error ? error.message : String(error),
       },
       "Failed to search messages",

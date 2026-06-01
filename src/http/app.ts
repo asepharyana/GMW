@@ -12,6 +12,7 @@ import type { createChildLogger } from "../logger.js";
 import type { MediaController } from "../media/mediaController.js";
 import type { ModerationBroadcaster } from "../moderation/types.js";
 import { createAnalysisRoutes } from "../routes/analysisRoutes.js";
+import { createAppConfigRoutes } from "../routes/appConfigRoutes.js";
 import { createAnalyticsRoutes } from "../routes/analyticsRoutes.js";
 import { createMediaRoutes } from "../routes/mediaRoutes.js";
 import { createMessageRoutes } from "../routes/messageRoutes.js";
@@ -115,6 +116,7 @@ export function createHttpApp(options: CreateHttpAppOptions) {
   );
   app.use("/api", createMessageRoutes());
   app.use("/api", createAnalysisRoutes());
+  app.use("/api", createAppConfigRoutes());
   app.use("/api", createReviewRoutes());
   app.use("/api", createAnalyticsRoutes());
   app.use("/api", createSyncRoutes(options.client));

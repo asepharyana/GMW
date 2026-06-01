@@ -88,11 +88,11 @@ describe("loadConfig", () => {
     expect(config.VOICE_CHANNEL_ID).toBe("voice-channel");
   });
 
-  it("uses explicit split text and voice config before legacy values", async () => {
+  it("pins text capture to the monitor guild even when legacy text config is present", async () => {
     process.env = {
       ...originalEnv,
       DISCORD_TOKEN: "token",
-      MONITOR_GUILD_ID: "legacy-text-guild",
+      MONITOR_GUILD_ID: "monitor-guild",
       GUILD_ID: "legacy-voice-guild",
       TEXT_GUILD_ID: "text-guild",
       TEXT_CHANNEL_ID: "text-channel",
@@ -104,7 +104,7 @@ describe("loadConfig", () => {
     const { loadConfig } = await import("../src/config");
     const config = loadConfig(process.env);
 
-    expect(config.EFFECTIVE_TEXT_GUILD_ID).toBe("text-guild");
+    expect(config.EFFECTIVE_TEXT_GUILD_ID).toBe("monitor-guild");
     expect(config.TEXT_CHANNEL_ID).toBe("text-channel");
     expect(config.EFFECTIVE_VOICE_GUILD_ID).toBe("voice-guild");
   });
