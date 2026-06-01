@@ -70,7 +70,7 @@ const configSchema = z
     AI_LLM_BASE_URL: z
       .string()
       .url()
-      .default("https://9router.asepharyana.tech/v1"),
+      .default("https://9router.asepharyana.my.id/v1"),
     /** Model used for text-only moderation (messages, badword analysis). */
     AI_LLM_MODEL: z.string().default("text"),
     /** Model used for image/video moderation (vision-capable model). */
@@ -147,9 +147,9 @@ const configSchema = z
       .string()
       .optional()
       .transform((v) => v === "true")
-      .default(true),
+      .default(false),
     AUTO_DELETE_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.5),
-    AUTO_DELETE_ALLOWED_SEVERITIES: z.string().default("critical,high,medium"),
+    AUTO_DELETE_ALLOWED_SEVERITIES: z.string().default("critical,high,medium,low"),
     AUTO_DELETE_ALLOWED_CATEGORIES: z.string().default(""),
     AUTO_DELETE_EXCLUDED_CHANNEL_IDS: z.string().default(""),
     AUTO_DELETE_EXCLUDED_USER_IDS: z.string().default(""),

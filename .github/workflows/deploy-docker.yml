@@ -1,72 +1,103 @@
-name: Deploy GMW to VPS
+name: Deploy to VPS
 
 on:
-  workflow_run:
-    workflows: ["Build and Push Docker Image"]
-    types:
-      - completed
+  push:
     branches:
-      - main
       - master
   workflow_dispatch:
 
-concurrency:
-  group: gmw-deploy
-  cancel-in-progress: false
-
 permissions:
   contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/bete
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 1
-          submodules: false
+          submodules: recursive
 
-      - name: Deploy GMW on VPS
+      - name: Normalize image name
+        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.2.0
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_TARGET_DIR: ${{ secrets.VPS_TARGET_DIR }}
-          ENV_FILE_PRODUCTION: ${{ secrets.ENV_FILE_PRODUCTION }}
-        run: |
-          set -euo pipefail
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: IMAGE_NAME,GHCR_USERNAME,GHCR_TOKEN,ENV_FILE
+          script: |
+            set -eu
 
-          echo "Deploy event: ${{ github.event_name }}"
-          echo "Deploy ref: ${{ github.ref }}"
-          echo "Deploy sha: ${{ github.sha }}"
+            APP_DIR=/opt/imphenbot
+            mkdir -p "$APP_DIR"
+            cd "$APP_DIR"
 
-          if [ -z "${SSH_PRIVATE_KEY:-}" ] || [ -z "${VPS_HOST:-}" ] || [ -z "${VPS_USER:-}" ] || [ -z "${VPS_TARGET_DIR:-}" ]; then
-            echo "❌ Deployment secrets are not fully configured. Please set SSH_PRIVATE_KEY, VPS_HOST, VPS_USER, and VPS_TARGET_DIR."
-            exit 1
-          fi
+            printf '%s\nIMAGE_NAME=%s:latest\n' "$ENV_FILE" "$IMAGE_NAME" > .env
 
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H -t ed25519,rsa "$VPS_HOST" >> ~/.ssh/known_hosts
+            cat > docker-compose.yml <<'EOF'
+            services:
+              app:
+                image: ${IMAGE_NAME}
+                container_name: imphenbot-app
+                restart: unless-stopped
+                env_file:
+                  - .env
+                volumes:
+                  - ./recordings:/app/recordings
+                  - ./.muxer-queue.db:/app/.muxer-queue.db
+                  - ./.muxer-queue.db-shm:/app/.muxer-queue.db-shm
+                  - ./.muxer-queue.db-wal:/app/.muxer-queue.db-wal
+                labels:
+                  - "traefik.enable=true"
+                  - "traefik.http.routers.imphenbot.rule=Host(`imphnen.asepharyana.tech`)"
+                  - "traefik.http.routers.imphenbot.entrypoints=websecure"
+                  - "traefik.http.routers.imphenbot.tls=true"
+                  - "traefik.http.services.imphenbot.loadbalancer.server.port=3000"
+                networks:
+                  - app-shared-net
 
-          SSH_OPTS=(-o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=600 -o StrictHostKeyChecking=yes)
+            networks:
+              app-shared-net:
+                name: app-shared-net
+                external: true
+            EOF
 
-          ssh "${SSH_OPTS[@]}" "$VPS_USER@$VPS_HOST" "mkdir -p $VPS_TARGET_DIR"
-          echo "$ENV_FILE_PRODUCTION" > .env.prod
-          scp "${SSH_OPTS[@]}" .env.prod "$VPS_USER@$VPS_HOST:$VPS_TARGET_DIR/.env"
+            touch .muxer-queue.db .muxer-queue.db-shm .muxer-queue.db-wal
+            mkdir -p recordings
 
-          echo "📦 Syncing GMW app files to VPS..."
-          rsync -az --delete \
-            --exclude '.git' \
-            --exclude '.github' \
-            --exclude 'node_modules' \
-            --exclude 'dist' \
-            --exclude '.claude' \
-            --exclude 'logs' \
-            -e "ssh ${SSH_OPTS[*]}" \
-            ./ "$VPS_USER@$VPS_HOST:$VPS_TARGET_DIR/"
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 
-          ssh "${SSH_OPTS[@]}" "$VPS_USER@$VPS_HOST" "cd $VPS_TARGET_DIR && (docker compose up -d --build || docker-compose up -d --build)"
+            docker compose pull
+            docker compose up -d --force-recreate --remove-orphans
+            docker image prune -f
