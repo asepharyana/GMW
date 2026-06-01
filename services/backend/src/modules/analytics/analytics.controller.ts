@@ -46,10 +46,13 @@ export function handleGetHourlyStats(
   next: NextFunction,
 ) {
   return asyncHandler(async (req: Request, res: Response) => {
-    const guildId = requireQueryString(req.query.guildId, "guildId");
-    const hours = req.query.hours ? Number(req.query.hours) : 24;
-    logger.debug({ guildId, hours }, "Handling get hourly stats");
-    const result = await analyticsService.getHourlyStats(guildId, hours);
+    const query = analyticsQuerySchema.parse(req.query);
+    logger.debug({ query }, "Handling get hourly stats");
+    const result = await analyticsService.getHourlyStats(
+      query.guildId,
+      query.channelId,
+      query.hours,
+    );
     res.json(result);
   })(req, res, next);
 }
@@ -60,10 +63,15 @@ export function handleGetTopViolators(
   next: NextFunction,
 ) {
   return asyncHandler(async (req: Request, res: Response) => {
-    const guildId = requireQueryString(req.query.guildId, "guildId");
+    const query = analyticsQuerySchema.parse(req.query);
     const limit = req.query.limit ? Number(req.query.limit) : 10;
-    logger.debug({ guildId, limit }, "Handling get top violators");
-    const result = await analyticsService.getTopViolators(guildId, limit);
+    logger.debug({ query, limit }, "Handling get top violators");
+    const result = await analyticsService.getTopViolators(
+      query.guildId,
+      query.channelId,
+      query.hours,
+      limit,
+    );
     res.json(result);
   })(req, res, next);
 }
@@ -74,10 +82,15 @@ export function handleGetUserLeaderboard(
   next: NextFunction,
 ) {
   return asyncHandler(async (req: Request, res: Response) => {
-    const guildId = requireQueryString(req.query.guildId, "guildId");
+    const query = analyticsQuerySchema.parse(req.query);
     const limit = req.query.limit ? Number(req.query.limit) : 10;
-    logger.debug({ guildId, limit }, "Handling get user leaderboard");
-    const result = await analyticsService.getUserLeaderboard(guildId, limit);
+    logger.debug({ query, limit }, "Handling get user leaderboard");
+    const result = await analyticsService.getUserLeaderboard(
+      query.guildId,
+      query.channelId,
+      query.hours,
+      limit,
+    );
     res.json(result);
   })(req, res, next);
 }
@@ -88,9 +101,47 @@ export function handleGetModerationStats(
   next: NextFunction,
 ) {
   return asyncHandler(async (req: Request, res: Response) => {
-    const guildId = requireQueryString(req.query.guildId, "guildId");
-    logger.debug({ guildId }, "Handling get moderation stats");
-    const result = await analyticsService.getModerationStats(guildId);
+    const query = analyticsQuerySchema.parse(req.query);
+    logger.debug({ query }, "Handling get moderation stats");
+    const result = await analyticsService.getModerationStats(
+      query.guildId,
+      query.channelId,
+      query.hours,
+    );
+    res.json(result);
+  })(req, res, next);
+}
+
+export function handleGetHeatmap(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const query = analyticsQuerySchema.parse(req.query);
+    logger.debug({ query }, "Handling get heatmap");
+    const result = await analyticsService.getHeatmap(
+      query.guildId,
+      query.channelId,
+      query.hours,
+    );
+    res.json(result);
+  })(req, res, next);
+}
+
+export function handleGetTopics(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const query = analyticsQuerySchema.parse(req.query);
+    logger.debug({ query }, "Handling get topics");
+    const result = await analyticsService.getTopics(
+      query.guildId,
+      query.channelId,
+      query.hours,
+    );
     res.json(result);
   })(req, res, next);
 }

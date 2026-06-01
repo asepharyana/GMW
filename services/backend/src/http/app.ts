@@ -5,11 +5,17 @@ import express, {
   type Response,
 } from "express";
 import helmet from "helmet";
+import { createAnalysisRouter } from "../modules/analysis/analysis.routes.js";
 import { createAnalyticsRouter } from "../modules/analytics/analytics.routes.js";
+import { createAuthRouter } from "../modules/auth/auth.routes.js";
+import { createConfigRouter } from "../modules/config/config.routes.js";
 import { createHealthRouter } from "../modules/health/health.routes.js";
 import { createMediaRouter } from "../modules/media/media.routes.js";
 import { createMessagesRouter } from "../modules/messages/messages.routes.js";
+import { createRecordingsRouter } from "../modules/recordings/recordings.routes.js";
+import { createUiStateRouter } from "../modules/ui-state/ui-state.routes.js";
 import { createVoiceRouter } from "../modules/voice/voice.routes.js";
+import { createGuildsRouter } from "../modules/voice/guilds.routes.js";
 import { createChildLogger } from "../shared/logger/index.js";
 import { errorHandler } from "../shared/middlewares/index.js";
 
@@ -55,10 +61,18 @@ export function createHttpApp(): Express {
   app.use("/api", createHealthRouter());
 
   // API routes
+  app.use("/api", createAuthRouter());
+  app.use("/api", createConfigRouter());
   app.use("/api", createMessagesRouter());
+  app.use("/api", createAnalysisRouter());
   app.use("/api", createAnalyticsRouter());
   app.use("/api", createMediaRouter());
   app.use("/api", createVoiceRouter());
+  app.use("/api", createRecordingsRouter());
+  app.use("/api", createUiStateRouter());
+
+  // Guilds routes (must be before catch-all, after other /api routes)
+  app.use("/api/guilds", createGuildsRouter());
 
   // 404 handler
   app.use((_req: Request, res: Response) => {

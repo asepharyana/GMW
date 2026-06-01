@@ -1,12 +1,15 @@
 import { startHttpServer } from "./http/server.js";
 import { createChildLogger } from "./shared/logger/index.js";
+import type { Server } from "node:http";
 
 const logger = createChildLogger("backend");
+
+let httpServer: Server | undefined;
 
 async function main() {
   try {
     logger.info("Starting Discord Moderation Backend Service");
-    await startHttpServer();
+    httpServer = await startHttpServer();
     logger.info("Backend service ready");
   } catch (err) {
     logger.error({ err }, "Failed to start backend service");
@@ -14,16 +17,27 @@ async function main() {
   }
 }
 
-// Graceful shutdown
-process.on("SIGINT", () => {
-  logger.info("Received SIGINT, shutting down gracefully");
-  process.exit(0);
-});
+function shutdown(signal: string) {
+  logger.info({ signal }, "Shutting down gracefully");
 
-process.on("SIGTERM", () => {
-  logger.info("Received SIGTERM, shutting down gracefully");
-  process.exit(0);
-});
+  if (httpServer) {
+    httpServer.close(() => {
+      logger.info("HTTP server closed");
+      process.exit(0);
+    });
+
+    // Force exit after 10s if connections don't close
+    setTimeout(() => {
+      logger.error("Forced shutdown after timeout");
+      process.exit(1);
+    }, 10_000).unref();
+  } else {
+    process.exit(0);
+  }
+}
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 process.on("uncaughtException", (err) => {
   logger.error({ err }, "Uncaught exception");

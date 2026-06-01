@@ -48,6 +48,15 @@ export function getDatabase() {
   return db;
 }
 
+export function getPool() {
+  if (!pool) {
+    throw new Error(
+      "Database not initialized. Call initializeDatabase() first.",
+    );
+  }
+  return pool;
+}
+
 export async function closeDatabase() {
   if (pool) {
     await pool.end();

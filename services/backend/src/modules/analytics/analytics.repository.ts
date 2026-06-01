@@ -1,52 +1,332 @@
+import { getPool } from "../../shared/database/index.js";
 import { createChildLogger } from "../../shared/logger/index.js";
 
 const logger = createChildLogger("analytics.repository");
 
+interface TimeFilter {
+  where: string;
+  params: Array<string | number>;
+  paramOffset: number;
+}
+
+function buildTimeFilter(
+  guildId: string,
+  channelId: string | undefined,
+  hours: number,
+  offset = 1,
+): TimeFilter {
+  const clauses: string[] = ["guild_id = $" + offset];
+  const params: Array<string | number> = [guildId];
+  let p = offset + 1;
+
+  if (channelId) {
+    clauses.push("channel_id = $" + p);
+    params.push(channelId);
+    p++;
+  }
+
+  clauses.push("created_at > (EXTRACT(EPOCH FROM NOW()) * 1000 - $" + p + ")");
+  params.push(hours * 3_600_000);
+
+  return { where: "WHERE " + clauses.join(" AND "), params, paramOffset: p };
+}
+
 export class AnalyticsRepository {
   async getOverview(guildId: string, channelId?: string, hours = 24) {
     logger.debug({ guildId, channelId, hours }, "Getting analytics overview");
-    // TODO: Implement actual Drizzle ORM queries
+    const pool = getPool();
+    const filter = buildTimeFilter(guildId, channelId, hours);
+
+    const { rows } = await pool.query(
+      `
+        SELECT
+          COUNT(*)::int                        AS total_messages,
+          COUNT(DISTINCT user_id)::int         AS active_users_count,
+          COUNT(DISTINCT channel_id)::int      AS total_channels,
+          COUNT(*) FILTER (WHERE ai_status = 'clean')::int    AS clean,
+          COUNT(*) FILTER (WHERE ai_status = 'warn')::int     AS warned,
+          COUNT(*) FILTER (WHERE ai_status = 'flagged')::int  AS flagged,
+          COUNT(*) FILTER (WHERE ai_status = 'error')::int    AS error,
+          COUNT(*) FILTER (WHERE ai_status = 'pending')::int  AS pending,
+          COALESCE(AVG(ai_moderation_score), 0)::real         AS average_score
+        FROM messages
+        ${filter.where}
+      `,
+      filter.params,
+    );
+
+    const row = rows[0] as Record<string, unknown> | undefined;
+
     return {
-      totalMessages: 0,
-      totalUsers: 0,
-      flaggedMessages: 0,
-      averageSeverity: 0,
+      period: { hours },
+      messages: {
+        total: Number(row?.total_messages ?? 0),
+        clean: Number(row?.clean ?? 0),
+        warned: Number(row?.warned ?? 0),
+        flagged: Number(row?.flagged ?? 0),
+        error: Number(row?.error ?? 0),
+        pending: Number(row?.pending ?? 0),
+        average_score: Number(row?.average_score ?? 0),
+      },
+      hourly: [],
+      topics: [],
+      top_users: [],
+      active_users_count: Number(row?.active_users_count ?? 0),
+      total_channels: Number(row?.total_channels ?? 0),
     };
   }
 
   async getDailyTrend(guildId: string, hours = 24) {
     logger.debug({ guildId, hours }, "Getting daily trend");
-    // TODO: Implement actual Drizzle ORM queries
-    return [];
+    const pool = getPool();
+    const filter = buildTimeFilter(guildId, undefined, hours);
+
+    const { rows } = await pool.query(
+      `
+        SELECT
+          TO_CHAR(to_timestamp(created_at / 1000), 'YYYY-MM-DD') AS date,
+          COUNT(*)::int AS count,
+          COUNT(*) FILTER (WHERE ai_status = 'clean')::int    AS clean,
+          COUNT(*) FILTER (WHERE ai_status = 'warn')::int     AS warned,
+          COUNT(*) FILTER (WHERE ai_status = 'flagged')::int  AS flagged,
+          COUNT(*) FILTER (WHERE ai_status = 'error')::int    AS error
+        FROM messages
+        ${filter.where}
+        GROUP BY date
+        ORDER BY date ASC
+      `,
+      filter.params,
+    );
+
+    return rows.map((r) => ({
+      date: r.date as string,
+      count: Number(r.count ?? 0),
+      clean: Number(r.clean ?? 0),
+      warned: Number(r.warned ?? 0),
+      flagged: Number(r.flagged ?? 0),
+      error: Number(r.error ?? 0),
+    }));
   }
 
-  async getHourlyStats(guildId: string, hours = 24) {
-    logger.debug({ guildId, hours }, "Getting hourly stats");
-    // TODO: Implement actual Drizzle ORM queries
-    return [];
+  async getHourlyStats(guildId: string, channelId?: string, hours = 24) {
+    logger.debug({ guildId, channelId, hours }, "Getting hourly stats");
+    const pool = getPool();
+    const filter = buildTimeFilter(guildId, channelId, hours);
+
+    const { rows } = await pool.query(
+      `
+        SELECT
+          TO_CHAR(to_timestamp(created_at / 1000), 'HH24') AS hour,
+          COUNT(*)::int AS count,
+          COUNT(*) FILTER (WHERE ai_status = 'clean')::int    AS clean,
+          COUNT(*) FILTER (WHERE ai_status = 'warn')::int     AS warned,
+          COUNT(*) FILTER (WHERE ai_status = 'flagged')::int  AS flagged,
+          COUNT(*) FILTER (WHERE ai_status = 'error')::int    AS error
+        FROM messages
+        ${filter.where}
+        GROUP BY hour
+        ORDER BY hour ASC
+      `,
+      filter.params,
+    );
+
+    return rows.map((r) => ({
+      hour: r.hour as string,
+      count: Number(r.count ?? 0),
+      clean: Number(r.clean ?? 0),
+      warned: Number(r.warned ?? 0),
+      flagged: Number(r.flagged ?? 0),
+      error: Number(r.error ?? 0),
+    }));
   }
 
-  async getTopViolators(guildId: string, limit = 10) {
-    logger.debug({ guildId, limit }, "Getting top violators");
-    // TODO: Implement actual Drizzle ORM queries
-    return [];
+  async getTopViolators(
+    guildId: string,
+    channelId?: string,
+    hours = 24,
+    limit = 10,
+  ) {
+    logger.debug(
+      { guildId, channelId, hours, limit },
+      "Getting top violators",
+    );
+    const pool = getPool();
+    const filter = buildTimeFilter(guildId, channelId, hours);
+
+    const { rows } = await pool.query(
+      `
+        SELECT
+          user_id,
+          MAX(username)    AS username,
+          MAX(avatar_url)  AS avatar_url,
+          COUNT(*)::int    AS total_messages,
+          COUNT(*) FILTER (WHERE ai_status IN ('warn', 'flagged', 'error'))::int AS flagged_count,
+          COUNT(*) FILTER (WHERE ai_status = 'warn')::int    AS warned_count,
+          COUNT(*) FILTER (WHERE ai_status = 'flagged')::int AS hard_flagged_count,
+          COUNT(*) FILTER (WHERE ai_status = 'error')::int   AS error_count,
+          COALESCE(AVG(ai_moderation_score), 0)::real        AS violation_score,
+          MAX(ai_moderation_flags)  AS worst_flags,
+          MAX(created_at)           AS last_violation
+        FROM messages
+        ${filter.where}
+          AND ai_status IN ('warn', 'flagged', 'error')
+        GROUP BY user_id
+        ORDER BY flagged_count DESC
+        LIMIT $${filter.params.length + 1}
+      `,
+      [...filter.params, limit],
+    );
+
+    return rows.map((r) => ({
+      user_id: r.user_id as string,
+      username: (r.username as string) ?? "",
+      avatar_url: (r.avatar_url as string | null) ?? null,
+      total_messages: Number(r.total_messages ?? 0),
+      flagged_count: Number(r.flagged_count ?? 0),
+      warned_count: Number(r.warned_count ?? 0),
+      violation_score: Number(r.violation_score ?? 0),
+      worst_flags: (r.worst_flags as string | null) ?? null,
+      last_violation: Number(r.last_violation ?? 0),
+    }));
   }
 
-  async getUserLeaderboard(guildId: string, limit = 10) {
-    logger.debug({ guildId, limit }, "Getting user leaderboard");
-    // TODO: Implement actual Drizzle ORM queries
-    return [];
+  async getUserLeaderboard(
+    guildId: string,
+    channelId?: string,
+    hours = 24,
+    limit = 10,
+  ) {
+    logger.debug(
+      { guildId, channelId, hours, limit },
+      "Getting user leaderboard",
+    );
+    const pool = getPool();
+    const filter = buildTimeFilter(guildId, channelId, hours);
+
+    const { rows } = await pool.query(
+      `
+        SELECT
+          user_id,
+          MAX(username)   AS username,
+          MAX(avatar_url) AS avatar_url,
+          COUNT(*)::int   AS message_count,
+          COUNT(*) FILTER (WHERE type = 'edited')::int   AS edited_count,
+          COUNT(*) FILTER (WHERE type = 'deleted')::int  AS deleted_count,
+          COUNT(*) FILTER (WHERE ai_status IN ('warn', 'flagged', 'error'))::int AS flagged_count,
+          MAX(created_at) AS last_active
+        FROM messages
+        ${filter.where}
+        GROUP BY user_id
+        ORDER BY message_count DESC
+        LIMIT $${filter.params.length + 1}
+      `,
+      [...filter.params, limit],
+    );
+
+    return rows.map((r) => ({
+      user_id: r.user_id as string,
+      username: (r.username as string) ?? "",
+      avatar_url: (r.avatar_url as string | null) ?? null,
+      message_count: Number(r.message_count ?? 0),
+      edited_count: Number(r.edited_count ?? 0),
+      deleted_count: Number(r.deleted_count ?? 0),
+      flagged_count: Number(r.flagged_count ?? 0),
+      last_active: Number(r.last_active ?? 0),
+    }));
   }
 
-  async getModerationStats(guildId: string) {
-    logger.debug({ guildId }, "Getting moderation stats");
-    // TODO: Implement actual Drizzle ORM queries
+  async getModerationStats(guildId: string, channelId?: string, hours = 24) {
+    logger.debug({ guildId, channelId, hours }, "Getting moderation stats");
+    const pool = getPool();
+    const filter = buildTimeFilter(guildId, channelId, hours);
+
+    const { rows } = await pool.query(
+      `
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE ai_status = 'clean')::int    AS clean,
+          COUNT(*) FILTER (WHERE ai_status = 'warn')::int     AS warned,
+          COUNT(*) FILTER (WHERE ai_status = 'flagged')::int  AS flagged,
+          COUNT(*) FILTER (WHERE ai_status = 'error')::int    AS error,
+          COUNT(*) FILTER (WHERE ai_status = 'pending')::int  AS pending,
+          COALESCE(AVG(ai_moderation_score), 0)::real         AS average_score
+        FROM messages
+        ${filter.where}
+      `,
+      filter.params,
+    );
+
+    const row = rows[0] as Record<string, unknown> | undefined;
+
     return {
-      clean: 0,
-      warn: 0,
-      flagged: 0,
-      error: 0,
+      total: Number(row?.total ?? 0),
+      clean: Number(row?.clean ?? 0),
+      warned: Number(row?.warned ?? 0),
+      flagged: Number(row?.flagged ?? 0),
+      error: Number(row?.error ?? 0),
+      pending: Number(row?.pending ?? 0),
+      average_score: Number(row?.average_score ?? 0),
     };
+  }
+
+  async getHeatmap(guildId: string, channelId?: string, hours = 24) {
+    logger.debug({ guildId, channelId, hours }, "Getting heatmap data");
+    const pool = getPool();
+    const filter = buildTimeFilter(guildId, channelId, hours);
+
+    const { rows } = await pool.query(
+      `
+        SELECT
+          EXTRACT(DOW FROM to_timestamp(created_at / 1000))::int  AS day_of_week,
+          EXTRACT(HOUR FROM to_timestamp(created_at / 1000))::int AS hour,
+          COUNT(*)::int AS count,
+          COUNT(*) FILTER (WHERE ai_status = 'clean')::int    AS clean,
+          COUNT(*) FILTER (WHERE ai_status = 'warn')::int     AS warned,
+          COUNT(*) FILTER (WHERE ai_status = 'flagged')::int  AS flagged
+        FROM messages
+        ${filter.where}
+        GROUP BY day_of_week, hour
+        ORDER BY day_of_week, hour
+      `,
+      filter.params,
+    );
+
+    return rows.map((r) => ({
+      dayOfWeek: Number(r.day_of_week ?? 0),
+      hour: Number(r.hour ?? 0),
+      count: Number(r.count ?? 0),
+      clean: Number(r.clean ?? 0),
+      warned: Number(r.warned ?? 0),
+      flagged: Number(r.flagged ?? 0),
+    }));
+  }
+
+  async getTopics(guildId: string, channelId?: string, hours = 24) {
+    logger.debug({ guildId, channelId, hours }, "Getting topics");
+    const pool = getPool();
+    const filter = buildTimeFilter(guildId, channelId, hours);
+
+    const { rows } = await pool.query(
+      `
+        SELECT
+          TRIM(UNNEST(STRING_TO_ARRAY(ai_categories, ','))) AS topic,
+          COUNT(*)::int AS count,
+          COALESCE(AVG(ai_moderation_score), 0)::real AS score
+        FROM messages
+        ${filter.where}
+          AND ai_categories IS NOT NULL
+          AND ai_categories != ''
+        GROUP BY topic
+        ORDER BY count DESC
+      `,
+      filter.params,
+    );
+
+    return rows.map((r) => ({
+      topic: (r.topic as string) ?? "",
+      count: Number(r.count ?? 0),
+      score: Number(r.score ?? 0),
+    }));
   }
 }
 
