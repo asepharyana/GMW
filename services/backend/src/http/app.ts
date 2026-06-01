@@ -5,11 +5,11 @@ import express, {
   type Response,
 } from "express";
 import helmet from "helmet";
-import { createAnalyticsRouter } from "../modules/analytics/routes/index.js";
-import { createHealthRouter } from "../modules/health/routes/index.js";
-import { createMediaRouter } from "../modules/media/routes/index.js";
-import { createMessagesRouter } from "../modules/messages/routes/index.js";
-import { createVoiceRouter } from "../modules/voice/routes/index.js";
+import { createAnalyticsRouter } from "../modules/analytics/analytics.routes.js";
+import { createHealthRouter } from "../modules/health/health.routes.js";
+import { createMediaRouter } from "../modules/media/media.routes.js";
+import { createMessagesRouter } from "../modules/messages/messages.routes.js";
+import { createVoiceRouter } from "../modules/voice/voice.routes.js";
 import { createChildLogger } from "../shared/logger/index.js";
 import { errorHandler } from "../shared/middlewares/index.js";
 

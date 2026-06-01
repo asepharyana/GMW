@@ -5,7 +5,7 @@ import {
   handleGetMessageById,
   handleGetMessagesByChannel,
   handleListMessages,
-} from "../messages.controller.js";
+} from "./messages.controller.js";
 
 export function createMessagesRouter(): Router {
   const router = express.Router();

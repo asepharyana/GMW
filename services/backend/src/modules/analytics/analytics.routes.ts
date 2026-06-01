@@ -7,7 +7,7 @@ import {
   handleGetOverview,
   handleGetTopViolators,
   handleGetUserLeaderboard,
-} from "../analytics.controller.js";
+} from "./analytics.controller.js";
 
 export function createAnalyticsRouter(): Router {
   const router = express.Router();

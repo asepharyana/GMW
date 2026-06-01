@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import express from "express";
-import { handleHealthCheck } from "../health.controller.js";
+import { handleHealthCheck } from "./health.controller.js";
 
 export function createHealthRouter(): Router {
   const router = express.Router();
