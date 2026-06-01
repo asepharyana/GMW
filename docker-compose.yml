@@ -1,7 +1,7 @@
 services:
   app:
     build: .
-    image: ${IMAGE_NAME:-ghcr.io/mytheclipse/bete:latest}
+    image: ${IMAGE_NAME:-ghcr.io/mytheclipse/gmw:latest}
     container_name: imphenbot-app
     restart: unless-stopped
     env_file:
