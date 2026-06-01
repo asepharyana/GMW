@@ -10,23 +10,8 @@ COPY pnpm-workspace.yaml .
 COPY pnpm-lock.yaml .
 COPY package.json .
 
-# Copy workspace packages
-COPY packages/shared ./packages/shared
-
-# Copy vendor packages (workspace dependencies)
-COPY vendor/discord.js-selfbot-v13 ./vendor/discord.js-selfbot-v13
-COPY vendor/discord-video-stream ./vendor/discord-video-stream
-COPY vendor/better-sqlite3 ./vendor/better-sqlite3
-COPY vendor/drizzle-orm ./vendor/drizzle-orm
-
-# Copy root source (root package is a workspace member)
-COPY src ./src
-COPY vite.backend.config.ts .
-
-# Copy services
+# Copy service
 COPY services/backend ./services/backend
-COPY services/frontend ./services/frontend
-COPY services/discord-gateway ./services/discord-gateway
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile

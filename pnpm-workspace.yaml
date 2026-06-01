@@ -1,5 +1,4 @@
 packages:
-  - .
   - services/frontend
   - services/backend
   - services/discord-gateway
