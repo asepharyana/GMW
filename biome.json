@@ -3,6 +3,9 @@
     "includes": [
       "src/**/*.ts",
       "tests/**/*.ts",
+      "services/**/*.ts",
+      "services/**/*.tsx",
+      "packages/**/*.ts",
       "*.json",
       "*.ts",
       "!vendor/**",

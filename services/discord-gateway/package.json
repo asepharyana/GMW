@@ -1,0 +1,45 @@
+{
+  "name": "@bete/discord-gateway",
+  "version": "1.0.0",
+  "description": "Discord Gateway service - handles message capture, voice recording, and AI moderation",
+  "type": "module",
+  "main": "dist/index.js",
+  "packageManager": "pnpm@11.1.3",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check --diagnostic-level=error .",
+    "format": "biome format --write .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@discordjs/opus": "^0.10.0",
+    "@discordjs/voice": "^0.19.2",
+    "@snazzah/davey": "^0.1.11",
+    "discord.js-selfbot-v13": "workspace:*",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "ioredis": "^5.11.0",
+    "libsodium-wrappers": "^0.8.4",
+    "openai": "^6.38.0",
+    "opusscript": "^0.0.8",
+    "p-limit": "^7.3.0",
+    "p-retry": "^8.0.0",
+    "pg": "^8.21.0",
+    "piscina": "^5.1.4",
+    "prism-media": "2.0.0-alpha.0",
+    "sharp": "^0.34.5",
+    "winston": "^3.19.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "latest",
+    "@types/node": "^25.9.0",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.22.2",
+    "typescript": "^5.9.3",
+    "vitest": "latest"
+  }
+}

@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # Backend Service (REST API + WebSocket via Traefik)
+  backend:
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.backend
+    container_name: bete-backend
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      NODE_ENV: production
+      WEBSERVER_PORT: 3000
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bete-backend.rule=Host(`imphnen.asepharyana.my.id`) && PathPrefix(`/api`, `/ws`)"
+      - "traefik.http.routers.bete-backend.entrypoints=websecure"
+      - "traefik.http.routers.bete-backend.tls=true"
+      - "traefik.http.services.bete-backend.loadbalancer.server.port=3000"
+    depends_on:
+      - discord-gateway
+    networks:
+      - app-shared-net
+
+  # Discord Gateway Service (Event capture and processing — no HTTP)
+  discord-gateway:
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.discord-gateway
+    container_name: bete-discord-gateway
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      NODE_ENV: production
+    volumes:
+      - ../recordings:/app/recordings
+    networks:
+      - app-shared-net
+
+  # Frontend Service (React Dashboard via Traefik)
+  frontend:
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.frontend
+    container_name: bete-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: https://imphnen.asepharyana.my.id
+      VITE_WS_URL: wss://imphnen.asepharyana.my.id
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bete-frontend.rule=Host(`imphnen.asepharyana.my.id`)"
+      - "traefik.http.routers.bete-frontend.entrypoints=websecure"
+      - "traefik.http.routers.bete-frontend.tls=true"
+      - "traefik.http.services.bete-frontend.loadbalancer.server.port=3000"
+    depends_on:
+      - backend
+    networks:
+      - app-shared-net
+
+networks:
+  app-shared-net:
+    name: app-shared-net
+    external: true

@@ -1,5 +1,9 @@
 packages:
   - .
+  - services/frontend
+  - services/backend
+  - services/discord-gateway
+  - packages/shared
   - vendor/discord-video-stream
   - vendor/discord.js-selfbot-v13
 

@@ -1,0 +1,27 @@
+{
+  "name": "@bete/shared",
+  "version": "1.0.0",
+  "description": "Shared utilities, types, and errors for Bete microservices",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./types": "./dist/types/index.js",
+    "./errors": "./dist/errors/index.js",
+    "./logger": "./dist/logger/index.js",
+    "./utils": "./dist/utils/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pino": "^9.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.0",
+    "typescript": "^5.9.3"
+  }
+}

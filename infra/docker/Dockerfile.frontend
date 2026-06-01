@@ -1,0 +1,29 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy workspace files
+COPY pnpm-workspace.yaml .
+COPY pnpm-lock.yaml .
+COPY package.json .
+
+# Copy shared package
+COPY packages/shared ./packages/shared
+
+# Copy frontend service
+COPY services/frontend ./services/frontend
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Build frontend
+RUN pnpm run build:web
+
+# Expose port (served by backend)
+EXPOSE 3000
+
+# Start development server
+CMD ["pnpm", "run", "dev:web"]
