@@ -118,84 +118,9 @@ export function normalizeDiscordCustomEmoji(text: string): {
   return { text: normalized, emojiNames };
 }
 
-// ---------------------------------------------------------------------------
-// Local fallback badword list (used when NVIDIA API is unavailable)
-// ---------------------------------------------------------------------------
-
-const LOCAL_BADWORDS = [
-  "anjing",
-  "bangsat",
-  "brengsek",
-  "bajingan",
-  "kontol",
-  "memek",
-  "tai",
-  "goblok",
-  "tolol",
-  "bego",
-  "sialan",
-  "jancuk",
-  "kampret",
-  "pepek",
-  "jembut",
-  "ngentot",
-  "ngewe",
-  "coli",
-  "celaka",
-  "laknat",
-  "pantek",
-  "entod",
-  "ndasmu",
-  "ndas",
-  "piyo",
-  "asu",
-];
-
-const FALSE_POSITIVE_WHITELISTS: Record<string, string[]> = {
-  asu: [
-    "asus",
-    "masuk",
-    "termasuk",
-    "dimasukkan",
-    "memasukkan",
-    "kasur",
-    "asumsi",
-    "asuransi",
-    "asupan",
-    "pasukan",
-    "pasundan",
-  ],
-  goblok: ["goblok"],
-  kontol: ["kontol"],
-  memek: ["memek"],
-  tolol: ["tolol"],
-};
-
-function detectLocalBadwords(text: string): string[] {
-  const lowerText = text.toLowerCase();
-  const words = lowerText.match(/[\p{L}\p{N}_]+/gu) || [];
-
-  const isRealHit = (hit: string, whitelist: string[]): boolean => {
-    for (const w of words) {
-      if (w.includes(hit)) {
-        if (w === hit) return true;
-        if (!whitelist.includes(w)) return true;
-      }
-    }
-    return false;
-  };
-
-  const hits: string[] = [];
-
-  for (const badword of LOCAL_BADWORDS) {
-    const whitelist = FALSE_POSITIVE_WHITELISTS[badword] ?? [badword];
-    if (isRealHit(badword, whitelist)) {
-      hits.push(badword);
-    }
-  }
-
-  return Array.from(new Set(hits));
-}
+// Local badword detection removed (lines 121-198).
+// All detection now goes through the API pipeline (NVIDIA → Primary AI → Groq)
+// to eliminate false positives from substring matching and hardcoded whitelists.
 
 function normalizeBadwordCacheKey(text: string): string {
   return text.trim().replace(/\s+/g, " ").toLowerCase();
@@ -496,15 +421,18 @@ async function callNemotronContentSafety(text: string): Promise<string[]> {
 // ---------------------------------------------------------------------------
 
 /**
- * Detect badwords in text using a **three-tier cache strategy**:
+ * Detect badwords in text using a **two-tier cache + API pipeline**:
  *
  * 1. **In-memory cache** (BADWORD_CACHE_TTL_MS, 10 min) — fastest path,
  *    keyed by the full normalized text string.
  * 2. **DB cache** (DB_CACHE_TTL_MS, 24 h) — same full-text key, persisted
  *    across restarts. Uses the FULL normalized text (not per-word) because
  *    context matters: "kau" alone is clean, but "awas kau" can be a threat.
- * 3. **API/fallback pipeline** (NVIDIA → Primary AI → Groq → local lexical)
+ * 3. **API pipeline** (NVIDIA → Primary AI → Groq)
  *    only runs when both cache layers miss.
+ *
+ * No local hardcoded badword list — all detection goes through AI APIs
+ * to eliminate false positives from substring matching.
  */
 export async function detectIndonesianBadwords(
   text: string,
@@ -532,25 +460,12 @@ export async function detectIndonesianBadwords(
       return flags;
     }
 
-    // ── Tier 3: API / fallback pipeline ──
-
-    // 3a. Local lexical check (instant, no network)
-    const localHits = detectLocalBadwords(text);
-    if (localHits.length > 0) {
-      setCachedBadwords(cacheKey, localHits);
-      await upsertCachedText(
-        cacheKey,
-        localHits,
-        "local",
-        Date.now() + DB_CACHE_TTL_MS,
-      );
-      return localHits;
-    }
+    // ── Tier 3: API pipeline ──
 
     const hits = new Set<string>();
-    let sourceUsed: "local" | "nvidia" | "primary_ai" | "groq" = "local";
+    let sourceUsed: "nvidia" | "primary_ai" | "groq" = "primary_ai";
 
-    // 3b. Try NVIDIA API if key is configured and not rate limited.
+    // 3a. Try NVIDIA API if key is configured and not rate limited.
     const apiKey = config.NVIDIA_NEMOTRON_API_KEY;
     if (apiKey && Date.now() >= nemotronUnavailableUntil) {
       try {
@@ -569,12 +484,12 @@ export async function detectIndonesianBadwords(
         }
         log.warn(
           { error },
-          "NVIDIA Nemotron API call failed, falling back to primary AI then local detection",
+          "NVIDIA Nemotron API call failed, falling back to primary AI",
         );
       }
     }
 
-    // 3c. Try the main AI model next.
+    // 3b. Try the main AI model next.
     if (hits.size === 0 && Date.now() >= primaryAiUnavailableUntil) {
       try {
         const primaryHits = await callPrimaryAiModeration(text);
@@ -592,12 +507,12 @@ export async function detectIndonesianBadwords(
         }
         log.warn(
           { error },
-          "Primary AI badword detection failed, falling back to Groq then local detection",
+          "Primary AI badword detection failed, falling back to Groq",
         );
       }
     }
 
-    // 3d. Try Groq Llama Prompt Guard as final API fallback.
+    // 3c. Try Groq Llama Prompt Guard as final API fallback.
     if (hits.size === 0 && Date.now() >= groqUnavailableUntil) {
       const groqKey = config.GROQ_API_KEY;
       if (groqKey) {
@@ -616,7 +531,7 @@ export async function detectIndonesianBadwords(
           }
           log.warn(
             { error },
-            "Groq Llama Prompt Guard moderation failed, falling back to local detection",
+            "Groq Llama Prompt Guard moderation failed",
           );
         }
       }

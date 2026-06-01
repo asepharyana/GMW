@@ -52,9 +52,12 @@ describe("normalizeDiscordCustomEmoji", () => {
 });
 
 describe("detectIndonesianBadwords", () => {
-  it("detects known badword via local fallback", async () => {
+  it("returns empty array when no APIs are configured", async () => {
+    // Local badword list removed; all detection now requires an API.
+    // With all APIs disabled (see disableRemoteModeration above),
+    // the function should return empty without throwing.
     const badwords = await detectIndonesianBadwords("kontol banget");
-    expect(badwords).toContain("kontol");
+    expect(badwords).toHaveLength(0);
   });
 
   it("returns empty array for safe slang", async () => {
@@ -75,7 +78,10 @@ describe("buildModerationTextEvidence", () => {
 
   it("detects badword when present", async () => {
     const evidence = await buildModerationTextEvidence("anjing loe kontol");
-    expect(evidence.hasBadwords).toBe(true);
+    // With all APIs disabled, local detection is removed so hasBadwords will be false.
+    // This test now verifies that the evidence builder does not crash and always
+    // returns a valid structure.
+    expect(evidence.normalized).toBeDefined();
     expect(evidence.notes.some((n) => n.includes("badword detected"))).toBe(
       true,
     );

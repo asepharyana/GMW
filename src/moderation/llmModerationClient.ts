@@ -66,17 +66,24 @@ const log = createChildLogger("llmModerationClient");
 
 /**
  * Enhanced deferral detection pattern (R9).
- * Covers more variations and multi-word combinations that the LLM might use
- * to defer judgment instead of making a decision.
+ *
+ * Only matches patterns where the model explicitly states it cannot make
+ * a decision and needs human review. Removed overly broad patterns that
+ * caused false positives:
+ * - "admin (perlu|harus|sebaiknya)" → common in regular sentences
+ * - "bisa (berpotensi|mengandung)" → decisive statements, not deferral
+ * - "maaf|sorry" → opinions/apologies, not deferral
+ * - "saya tidak yakin|tahu|paham" → expressing uncertainty, not deferral
  */
 const DEFERRAL_ANALYSIS_PATTERN =
-  /(?:kurang (?:konteks|bukti|informasi|data)|kekurangan (?:konteks|bukti)|perlu (?:dicek|diperiksa|ditinjau|dikaji|dievaluasi).*(?:admin|moderator|manusia|human)|admin (?:perlu|harus|sebaiknya)|moderator (?:perlu|harus|sebaiknya)|tidak (?:bisa|dapat|mampu) (?:menentukan|menilai|memastikan|menyimpulkan|mengevaluasi)|cannot determine|insufficient (?:context|evidence|information)|(?:mungkin|sepertinya|tampaknya) (?:perlu|harus|sebaiknya) (?:dicek|diperiksa|ditinjau)|tidak (?:cukup|memadai) (?:bukti|informasi|konteks)|bisa (?:berpotensi|mengandung)|(?:(?:maaf|sorry|抱歉|ขออภัย))[,.\s]|(?:saya (?:tidak|kurang|belum) (?:yakin|pasti|tahu|paham)))/i;
+  /(?:kurang (?:konteks|bukti|informasi|data) (?:untuk (?:menilai|menentukan|memutuskan)|untuk moderasi)|perlu (?:dicek|diperiksa|ditinjau|dikaji|dievaluasi) (?:oleh )?(?:admin|moderator|manusia|human review)|tidak (?:bisa|dapat|mampu) (?:menentukan|menilai|memastikan|menyimpulkan|memberi keputusan|memoderasi).*(?:karena (?:konteks tidak jelas|informasi tidak cukup|bukti kurang|konteks kurang|tidak cukup konteks)|data tidak cukup|informasi tidak lengkap)|cannot determine|insufficient (?:context|evidence|information) (?:to |for )?(?:moderate|judge|evaluate|decide|classify)|(?:sepertinya|tampaknya) (?:perlu|harus) (?:ditinjau|diperiksa|dicek) (?:oleh )?(?:admin|moderator)|tidak cukup (?:bukti|informasi|konteks) (?:untuk (?:memberikan|membuat|menentukan)|memutuskan))/i;
 
 /**
  * Exceptions: patterns that look like deferral but are actually decisive.
+ * Expanded to catch more variations where the model gives a clear verdict.
  */
 const DEFERRAL_EXCEPTION_PATTERN =
-  /tidak bisa menentukan.*(?:karena|sebab|dengan alasan).*(?:clean|tidak (?:ada|terdapat).*(?:pelanggaran|masalah)|aman)/i;
+  /tidak bisa menentukan.*(?:karena|sebab|dengan alasan|sebab tidak ada).*(?:clean|tidak (?:ada|terdapat|menunjukkan).*(?:pelanggaran|masalah|indikasi|konten)|aman|bersih|normal)/i;
 
 function hasDeferralAnalysis(analysis: string): boolean {
   if (DEFERRAL_EXCEPTION_PATTERN.test(analysis)) return false;
