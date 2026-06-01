@@ -103,7 +103,7 @@ describe("parseModerationResponse", () => {
     expect(result[0].status).toBe("error");
     expect(result[0].flags).toEqual(["analysis_incomplete"]);
     expect(result[0].score).toBe(0);
-    expect(result[0].analysis).toContain("incomplete");
+    expect(result[0].analysis).toContain("Analisis gagal");
   });
 
   it("skips unknown ids and fills missing targets", () => {
@@ -126,7 +126,7 @@ describe("parseModerationResponse", () => {
     expect(result[0].messageId).toBe("m1");
     expect(result[0].status).toBe("error");
     expect(result[0].flags).toEqual(["analysis_incomplete"]);
-    expect(result[0].analysis).toContain("incomplete");
+    expect(result[0].analysis).toContain("Analisis gagal");
   });
 
   it("handles surrounding text around JSON", () => {
@@ -488,7 +488,10 @@ describe("runModerationAnalysis", () => {
 
     const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
     expect(requestBody.temperature).toBe(0.2);
-    expect(requestBody.response_format).toEqual({ type: "json_object" });
+    expect(requestBody.response_format.type).toBe("json_schema");
+    expect(requestBody.response_format.json_schema.name).toBe(
+      "moderation_result",
+    );
     expect(requestBody.stream).toBe(false);
     expect(requestBody.reasoning_budget).toBe(0);
     expect(requestBody.chat_template_kwargs).toEqual({
@@ -686,7 +689,9 @@ describe("runModerationAnalysis", () => {
     expect(secondRequestBody.messages[0].content).toContain(
       "RESPON SEBELUMNYA GAGAL VALIDASI",
     );
-    expect(secondRequestBody.messages[0].content).toContain("Invalid option");
+    expect(secondRequestBody.messages[0].content).toContain(
+      "RESPON SEBELUMNYA GAGAL VALIDASI",
+    );
     expect(secondRequestBody.messages[0].content).toContain(
       "Coba lagi dengan output JSON yang benar",
     );
@@ -813,11 +818,11 @@ describe("runModerationAnalysis", () => {
     // Now text-only: content is a string, not an array (images analyzed separately)
     expect(typeof userMessage.content).toBe("string");
     expect(userMessage.content).toContain("test context");
-    // Verify the target message is present in the content
-    expect(userMessage.content).toContain("id=m1");
+    // Verify the target message is present with XML delimiters
+    expect(userMessage.content).toContain('<message id="m1"');
   });
 
-  it("caps image attachments to 8 and prioritizes targets over context", async () => {
+  it("downloads only target-matching attachments for single media analysis", async () => {
     const mockResponse = {
       choices: [
         {
@@ -858,11 +863,7 @@ describe("runModerationAnalysis", () => {
       });
     });
 
-    const createAttachment = (
-      id: string,
-      msgId: string,
-      createdAt: number,
-    ) => ({
+    const createAttachment = (id: string, msgId: string) => ({
       id,
       message_id: msgId,
       guild_id: "guild123",
@@ -876,22 +877,22 @@ describe("runModerationAnalysis", () => {
       uploaded_url: `https://httpbin.org/image/png?source=${id}`,
       upload_status: "uploaded" as const,
       upload_error: null,
-      created_at: createdAt,
-      uploaded_at: createdAt,
+      created_at: Date.now(),
+      uploaded_at: Date.now(),
     });
 
-    // 10 attachments total (3 targets, 7 context)
+    // 3 attachments for target m1, 7 for other messages (should NOT be downloaded)
     const attachments = [
-      createAttachment("c1", "context1", 100),
-      createAttachment("c2", "context2", 200),
-      createAttachment("t1", "m1", 300), // Target 1
-      createAttachment("c3", "context3", 400),
-      createAttachment("t2", "m1", 500), // Target 2
-      createAttachment("c4", "context4", 600),
-      createAttachment("c5", "context5", 700),
-      createAttachment("t3", "m1", 800), // Target 3
-      createAttachment("c6", "context6", 900),
-      createAttachment("c7", "context7", 1000),
+      createAttachment("c1", "context1"),
+      createAttachment("c2", "context2"),
+      createAttachment("t1", "m1"),
+      createAttachment("c3", "context3"),
+      createAttachment("t2", "m1"),
+      createAttachment("c4", "context4"),
+      createAttachment("c5", "context5"),
+      createAttachment("t3", "m1"),
+      createAttachment("c6", "context6"),
+      createAttachment("c7", "context7"),
     ];
 
     await runModerationAnalysis({
@@ -901,20 +902,21 @@ describe("runModerationAnalysis", () => {
     });
 
     const fetchCalls = (global.fetch as any).mock.calls;
-    // Should download exactly 8 images (since it's capped at 8) plus 1 call for completion API = 9 calls total.
-    expect(fetchCalls.length).toBe(9);
+    const imageFetchUrls = fetchCalls
+      .filter((c: any) => c[0].startsWith("https://httpbin.org/image/"))
+      .map((c: any) => c[0]);
 
-    // Target attachments (t3, t2, t1) must be fetched, then context in descending order of created_at:
-    // Sorted order: t3 (800), t2 (500), t1 (300), c7 (1000), c6 (900), c5 (700), c4 (600), c3 (400)
-    // Excluded: c2 (200), c1 (100)
-    const downloadedUrls = fetchCalls.slice(0, 8).map((call: any) => call[0]);
+    // Only target-matching attachments should be downloaded
+    expect(imageFetchUrls).toContain("https://httpbin.org/image/png?source=t1");
+    expect(imageFetchUrls).toContain("https://httpbin.org/image/png?source=t2");
+    expect(imageFetchUrls).toContain("https://httpbin.org/image/png?source=t3");
 
-    expect(downloadedUrls).toContain("https://httpbin.org/image/png?source=t3");
-    expect(downloadedUrls).toContain("https://httpbin.org/image/png?source=t2");
-    expect(downloadedUrls).toContain("https://httpbin.org/image/png?source=t1");
-    expect(downloadedUrls).toContain("https://httpbin.org/image/png?source=c7");
-    expect(downloadedUrls).not.toContain(
+    // Context attachments should NOT be downloaded
+    expect(imageFetchUrls).not.toContain(
       "https://httpbin.org/image/png?source=c1",
+    );
+    expect(imageFetchUrls).not.toContain(
+      "https://httpbin.org/image/png?source=c7",
     );
   });
 
@@ -1028,8 +1030,8 @@ describe("runModerationAnalysis", () => {
     expect(result.results[0].status).toBe("warn");
 
     const fetchCalls = (global.fetch as any).mock.calls;
-    expect(fetchCalls[0][0]).toBe("https://httpbin.org/image/jpeg");
-    expect(fetchCalls[1][0]).toBe("https://httpbin.org/image/png");
+    expect(fetchCalls[0][0]).toBe("https://httpbin.org/image/png");
+    expect(fetchCalls[1][0]).toBe("https://httpbin.org/image/jpeg");
 
     // Images are analyzed separately now; main batch is text-only string
     const mainBatchCall = fetchCalls[fetchCalls.length - 1];
@@ -1603,7 +1605,7 @@ describe("runModerationAnalysis", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].messageId).toBe("m1");
-      expect(result[0].analysis).toContain("incomplete");
+      expect(result[0].analysis).toContain("Analisis gagal");
     });
 
     it("throws on invalid status value", () => {
@@ -1639,6 +1641,33 @@ describe("runModerationAnalysis", () => {
       }`;
 
       expect(() => parseModerationResponse(content, ["m1"])).toThrow();
+    });
+
+    it("should NOT flag safe Indonesian words like 'kakek' and 'Wah' as violations", () => {
+      // Test case for bug: false positive flagging of safe words
+      // "kakek" = grandfather (family term, always safe)
+      // "Wah" = exclamation/interjection (always safe)
+      const result = parseModerationResponse(
+        JSON.stringify({
+          results: [
+            {
+              message_id: "m1",
+              status: "clean",
+              flags: [],
+              score: 0.0,
+              analysis:
+                "Kata 'kakek' adalah istilah keluarga yang aman. 'Wah' adalah interjeksi biasa.",
+            },
+          ],
+        }),
+        ["m1"],
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].messageId).toBe("m1");
+      expect(result[0].status).toBe("clean");
+      expect(result[0].flags).toEqual([]);
+      expect(result[0].score).toBe(0.0);
     });
   });
 });

@@ -4,8 +4,11 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
 import { retryWithBackoff } from "../retry.js";
+import { withLlmConcurrency } from "./concurrencyLimiter.js";
 import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
+import { resizeImageForVision } from "./imageResizer.js";
 import { extractMessageMediaEvidence } from "./messageMetadata.js";
+import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
 import {
   getStickerFromCache,
   initStickerCache,
@@ -60,10 +63,23 @@ const ModerationResponseSchema = z.object({
 });
 
 const log = createChildLogger("llmModerationClient");
+
+/**
+ * Enhanced deferral detection pattern (R9).
+ * Covers more variations and multi-word combinations that the LLM might use
+ * to defer judgment instead of making a decision.
+ */
 const DEFERRAL_ANALYSIS_PATTERN =
-  /kurang konteks|kekurangan konteks|perlu (dicek|diperiksa|ditinjau).*(admin|moderator)|admin perlu|moderator perlu|tidak bisa menentukan|tidak dapat menentukan|cannot determine|insufficient context/i;
+  /(?:kurang (?:konteks|bukti|informasi|data)|kekurangan (?:konteks|bukti)|perlu (?:dicek|diperiksa|ditinjau|dikaji|dievaluasi).*(?:admin|moderator|manusia|human)|admin (?:perlu|harus|sebaiknya)|moderator (?:perlu|harus|sebaiknya)|tidak (?:bisa|dapat|mampu) (?:menentukan|menilai|memastikan|menyimpulkan|mengevaluasi)|cannot determine|insufficient (?:context|evidence|information)|(?:mungkin|sepertinya|tampaknya) (?:perlu|harus|sebaiknya) (?:dicek|diperiksa|ditinjau)|tidak (?:cukup|memadai) (?:bukti|informasi|konteks)|bisa (?:berpotensi|mengandung)|(?:(?:maaf|sorry|抱歉|ขออภัย))[,.\s]|(?:saya (?:tidak|kurang|belum) (?:yakin|pasti|tahu|paham)))/i;
+
+/**
+ * Exceptions: patterns that look like deferral but are actually decisive.
+ */
+const DEFERRAL_EXCEPTION_PATTERN =
+  /tidak bisa menentukan.*(?:karena|sebab|dengan alasan).*(?:clean|tidak (?:ada|terdapat).*(?:pelanggaran|masalah)|aman)/i;
 
 function hasDeferralAnalysis(analysis: string): boolean {
+  if (DEFERRAL_EXCEPTION_PATTERN.test(analysis)) return false;
   return DEFERRAL_ANALYSIS_PATTERN.test(analysis);
 }
 
@@ -95,17 +111,69 @@ function deriveRecommendedAction(
   return "review";
 }
 
+/**
+ * JSON Schema for OpenAI's response_format: { type: "json_schema" }.
+ * This enforces the exact structure the LLM must output (R2).
+ */
+const MODERATION_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    results: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          message_id: { type: "string" },
+          status: { type: "string", enum: ["clean", "warn", "flagged"] },
+          flags: { type: "array", items: { type: "string" } },
+          score: { type: "number", minimum: 0, maximum: 1 },
+          analysis: { type: "string" },
+          categories: { type: "array", items: { type: "string" } },
+          severity: {
+            type: "string",
+            enum: ["none", "low", "medium", "high", "critical"],
+          },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+          recommended_action: {
+            type: "string",
+            enum: ["none", "monitor", "warn", "review", "delete", "escalate"],
+          },
+          policy_version: { type: "string" },
+          evidence: { type: "array", items: { type: "string" } },
+        },
+        required: [
+          "message_id",
+          "status",
+          "flags",
+          "score",
+          "severity",
+          "confidence",
+          "recommended_action",
+          "policy_version",
+          "evidence",
+          "analysis",
+        ],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["results"],
+  additionalProperties: false,
+};
+
+// ---------------------------------------------------------------------------
+// OpenAI client with Cloudflare WAF bypass (unchanged)
+// ---------------------------------------------------------------------------
+
 const openai = new OpenAI({
   apiKey: config.AI_LLM_API_KEY,
   baseURL: config.AI_LLM_BASE_URL,
   maxRetries: 0,
   timeout: 30000,
   fetch: async (url, init) => {
-    // Add internal timeout for the global fetch as safety
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
 
-    // Override headers to bypass Cloudflare WAF Bot Fight Mode
     const headers = new Headers(init?.headers);
     headers.set(
       "User-Agent",
@@ -144,13 +212,13 @@ const openai = new OpenAI({
         }
       }
 
-      const headers = new Headers(response.headers ?? undefined);
-      headers.set("Content-Type", "application/json");
-      headers.delete("Content-Length");
+      const responseHeaders = new Headers(response.headers ?? undefined);
+      responseHeaders.set("Content-Type", "application/json");
+      responseHeaders.delete("Content-Length");
 
       return new Response(normalizedBody, {
         status: response.status ?? 200,
-        headers,
+        headers: responseHeaders,
       });
     } finally {
       clearTimeout(timeout);
@@ -226,6 +294,20 @@ export function extractJson(content: string): any {
   throw new Error("No JSON object found in response");
 }
 
+/**
+ * Sanitize error messages for client-facing output (R10).
+ * Internal details are logged but the caller gets a generic message.
+ */
+function sanitizeErrorMessage(internalMsg: string, messageId: string): string {
+  // Log the full error for debugging
+  log.warn(
+    { messageId, internalError: internalMsg },
+    "Internal moderation error (sanitized for client)",
+  );
+  // Return generic message without internal details
+  return `Analisis gagal dan memerlukan pemeriksaan manual. Error code: MOD_${Date.now().toString(36).slice(0, 6)}`;
+}
+
 export function parseModerationResponse(
   content: string,
   targetIds: string[],
@@ -240,13 +322,9 @@ export function parseModerationResponse(
   if (Array.isArray(parsed)) {
     parsed = { results: parsed };
   } else if (parsed && typeof parsed === "object" && !("results" in parsed)) {
-    // If the object directly looks like a result item (has message_id), wrap it
-    // BEFORE checking for array keys. This prevents flags:[] from being
-    // mistaken as the results array on a single-object response.
     if ("message_id" in parsed) {
       parsed = { results: [parsed] };
     } else {
-      // Find the first non-empty array key whose elements are objects with message_id
       const arrayKey = Object.keys(parsed).find((key) => {
         const val = (parsed as any)[key];
         return (
@@ -351,7 +429,10 @@ export function parseModerationResponse(
         status: "error",
         flags: ["analysis_incomplete"],
         score: 0,
-        analysis: "Analysis incomplete - LLM did not process this message",
+        analysis: sanitizeErrorMessage(
+          "Analysis incomplete - LLM did not process this message",
+          missingId,
+        ),
         categories: ["analysis_incomplete"],
         severity: "none",
         confidence: 0,
@@ -380,23 +461,14 @@ interface ModerationOutput {
  * Sniff the first bytes of a buffer to determine if it is a supported image
  * format. Returns the canonical MIME type string on success, or null if the
  * bytes are not a recognizable image.
- *
- * Supported probes (in order):
- *   - JPEG:  FF D8 FF
- *   - PNG:   89 50 4E 47 0D 0A 1A 0A
- *   - GIF:   47 49 46 38 (GIF8)
- *   - WebP:  52 49 46 46 ?? ?? ?? ?? 57 45 42 50 (RIFF....WEBP)
- *   - AVIF / HEIF: 4-byte big-endian size + 66 74 79 70 (ftyp ISO base-media box)
  */
 function sniffImageMimeType(buf: Buffer): string | null {
   if (buf.length < 12) return null;
 
-  // JPEG
   if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
     return "image/jpeg";
   }
 
-  // PNG
   if (
     buf[0] === 0x89 &&
     buf[1] === 0x50 &&
@@ -410,7 +482,6 @@ function sniffImageMimeType(buf: Buffer): string | null {
     return "image/png";
   }
 
-  // GIF
   if (
     buf[0] === 0x47 &&
     buf[1] === 0x49 &&
@@ -420,7 +491,6 @@ function sniffImageMimeType(buf: Buffer): string | null {
     return "image/gif";
   }
 
-  // WebP: RIFF????WEBP
   if (
     buf[0] === 0x52 &&
     buf[1] === 0x49 &&
@@ -434,7 +504,6 @@ function sniffImageMimeType(buf: Buffer): string | null {
     return "image/webp";
   }
 
-  // AVIF / HEIF: ISO base media file format — ftyp box at offset 4
   if (
     buf.length >= 12 &&
     buf[4] === 0x66 &&
@@ -475,10 +544,6 @@ type MessageImagePart = {
 // Media detection helper
 // ---------------------------------------------------------------------------
 
-/**
- * Returns true when a target message has any media evidence that requires
- * image download + vision analysis before LLM evaluation.
- */
 function hasMediaContent(
   target: MessageRecord,
   attachments?: AttachmentRecord[],
@@ -518,27 +583,29 @@ const analyzeSingleMediaImage = async (
       : `Analisis media Discord berikut sebagai evidence moderasi. ${image.sourceLabel}\nJelaskan isi visual, teks yang terlihat, konteks risiko, dan apakah ada indikasi spam, scam, SARA, harassment, sexual content, violence, self-harm, doxxing, NSFW, gore, atau illegal content. Jawab Bahasa Indonesia, maksimal 3 kalimat. Jangan bilang kurang konteks atau perlu admin cek; berikan observasi langsung dari media.`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: config.AI_LLM_VISION_MODEL ?? config.AI_LLM_MODEL,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: promptText,
-            },
-            { type: "image_url", image_url: image.image_url },
-          ],
-        },
-      ],
-      temperature: 0.1,
-      top_p: 0.9,
-      max_tokens: 500,
-      stream: false,
-      chat_template_kwargs: { enable_thinking: false },
-      reasoning_budget: 0,
-    } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
+    const completion = await withLlmConcurrency(async () =>
+      openai.chat.completions.create({
+        model: config.AI_LLM_VISION_MODEL ?? config.AI_LLM_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: promptText,
+              },
+              { type: "image_url", image_url: image.image_url },
+            ],
+          },
+        ],
+        temperature: 0.1,
+        top_p: 0.9,
+        max_tokens: 500,
+        stream: false,
+        chat_template_kwargs: { enable_thinking: false },
+        reasoning_budget: 0,
+      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming),
+    );
 
     const content = completion.choices[0]?.message?.content?.trim();
     if (!content) return null;
@@ -564,130 +631,39 @@ const analyzeSingleMediaImage = async (
 };
 
 // ---------------------------------------------------------------------------
-// System prompt builder
+// Shared LLM call + parse + fallback helper
 // ---------------------------------------------------------------------------
 
 /**
- * Build the system prompt for the main moderation LLM call.
+ * State object shared between the caller and callModerationLLM so that
+ * parse-error feedback can be injected into subsequent retry attempts.
  *
- * @param contextText        Conversation context lines.
- * @param includeMediaInstructions Whether to inject image/sticker analysis
- *                                instructions. Set to `false` for text-only
- *                                batches (no media evidence present).
- * @param correction         Previous parse error info (for retry with feedback).
+ * The caller creates this object, passes it to callModerationLLM, and
+ * the internal retry loop mutates it before re-invoking buildContent().
  */
-function buildSystemPrompt(
-  contextText: string,
-  includeMediaInstructions: boolean,
-  correction?: { error: string; preview: string },
-): string {
-  const imageInstructions = includeMediaInstructions
-    ? `
-## Instruksi Analisis Media
-Gambar, sticker, embed image, preview link, dan attachment sudah dianalisis lewat request media terpisah sebelum batch utama.
-Gunakan baris "Media analysis" sebagai evidence visual utama dalam keputusan moderasi batch ini.
-
-## Panduan Khusus Sticker
-- Sticker Discord adalah media kartun/meme/ilustrasi, BUKAN foto atau video nyata.
-- Sticker sering bersifat humor, satir, atau ekspresi emosi yang dilebih-lebihkan.
-- Gambar sticker bisa menampilkan adegan kartun yang terlihat "keras" (tokoh kartun menginjak sesuatu, ledakan komik, senjata kartun) — itu SENI KARTUN, bukan dokumentasi kekerasan nyata.
-- Nama sticker yang terdengar provokatif (mis. "Singa injek pejabat", "Bom atom", dll) adalah konteks satir/humor. JANGAN flag "violence", "harassment", atau "sara" berdasarkan nama sticker saja tanpa melihat gambar.
-- Jika sticker evidence hanya tersedia sebagai nama (gambar gagal diunduh), abaikan sebagai evidence pelanggaran — nama sticker saja TIDAK cukup untuk flag.
-- Terapkan standar yang lebih longgar untuk konten kartun/meme dibanding foto/video nyata.
-
-Sticker yang berhasil diunduh WAJIB diperlakukan sebagai image evidence, bukan sekadar nama sticker.
-Jangan abaikan link: gunakan isi web, preview image, atau hasil analisis media link bila tersedia.
-`
-    : "";
-
-  const base = `Kamu adalah asisten moderasi konten untuk server Discord berbahasa Indonesia.
-Bahasa utama komunitas ini adalah BAHASA INDONESIA. Bahasa Inggris adalah bahasa sekunder.
-
-## Konteks Server
-Ini adalah server Discord komunitas Indonesia. Kamu harus memahami:
-- Bahasa gaul/slang Indonesia: "anjay", "wkwk", "gws", "gaskeun", "santuy", "njir", "baka", "woy", "woi", "hadeh", dll.
-- Singkatan umum: "gw", "lo", "emg", "kyk", "tdk", "krn", "jgn", dll.
-- Konteks budaya lokal: SARA (Suku, Agama, Ras, Antar-golongan), hoaks, ujaran kebencian berbasis konteks Indonesia.
-- Makian/kata kasar umum (seperti "anjing", "asu", "bangsat") BUKAN pelanggaran SARA. SARA khusus untuk diskriminasi/hinaan terhadap Suku, Agama, Ras, dan Antargolongan. NAMUN makian/kata kasar TETAP bisa di-flag sebagai "harassment" atau "vulgar_language" HANYA jika: (1) ditujukan langsung ke orang lain sebagai serangan/hinaan, (2) dalam tone agresif/mengancam, atau (3) bagian dari pola harassment berkelanjutan. Jangan flag sekadar karena kata itu muncul dalam teks. Jangan flag sebagai SARA, tapi flag sesuai kategori yang tepat.
-- Kata "asus" adalah merk teknologi, jangan pernah dianggap sebagai makian "asu".
-- Perbedaan antara humor/banter biasa vs konten yang benar-benar melanggar.
-- "woy"/"woi" adalah sapaan/interjeksi informal Indonesia dan tidak boleh dianggap SARA, hate speech, atau harassment tanpa target hinaan/ancaman jelas.
-- Kata-kata AMAN yang TIDAK BOLEH di-flag: "kakek" (kakek = grandfather, family term), "Wah" (exclamation), "hadeh" (slang exclamation), dan kata-kata keluarga/interjeksi umum lainnya. Jika kata ini muncul dalam teks, JANGAN flag sebagai vulgar_language atau harassment.
-- Discord custom emoji seperti <:hadeh:123> atau [emoji:hadeh] adalah ekspresi/emoji, bukan pelanggaran teks. Gunakan sebagai konteks ekspresi saja.
-- Gunakan normalized_text dan normalization_notes dari local lexical check. Jika notes hanya berisi slang/emoji aman (woy, woi, hadeh, dll) dan "no Indonesian badword detected", jangan flag karena kata slang itu saja. NAMUN jika notes menyatakan "Indonesian badword detected" (misalnya "anjing", "bangsat", "asu"), itu EVIDENCE profanitas — gunakan sebagai konteks untuk menilai apakah perlu flag sebagai harassment/vulgar_language, bukan sebagai alasan untuk mengabaikan.
-- Topik seksual/identitas yang dibatasi server: LGBT/LGBTQ, furry/transfurry, therian, otherkin, protogen, yiff/fursona/fursuit, dan istilah terkait. Jika pesan mempromosikan, mendukung, mengajak, menyatakan identitas/roleplay, membagikan media, atau menjadikan topik ini sebagai pembahasan utama, flag sebagai "sexual_deviation". Jika pesan hanya mengecam/menolak topik tersebut tanpa hinaan ke orang/kelompok, status bisa "clean" atau "warn" sesuai tone. Jangan gunakan kebijakan ini untuk membenarkan doxxing, ancaman, atau penghinaan personal; ancaman/hinaan tetap flag sebagai harassment/hate_speech juga.
-- Kalimat ambigu dalam bahasa Indonesia harus diberi keputusan final: "clean" bila bukti pelanggaran tidak jelas, "flagged" bila bukti pelanggaran jelas.
-- Jangan pernah menulis analisis yang meminta admin/moderator memeriksa ulang, menyebut kurang konteks, atau tidak bisa menentukan. Berikan kesimpulan langsung berdasarkan teks + media + konteks yang tersedia.
-- Gambar, sticker, embed, dan preview link adalah evidence utama yang setara dengan teks, bukan sekadar URL teks.
-- Pornografi/NSFW, hentai, bokep, ajakan seksual, roleplay seksual, atau istilah seksual eksplisit harus di-flag sebagai "sexual_content"; jika melibatkan anak/di bawah umur/loli/shota/CP/pedofil, flag sebagai "child_safety" dan "illegal_content".
-- Judi/slot/togel/casino/parlay/maxwin/RTP/deposit/withdraw dalam konteks promosi atau ajakan harus di-flag sebagai "gambling" dan bila spam/scam juga tambahkan "spam" atau "scam".
-- Narkoba/obat terlarang/ganja/sabu/kokain/ekstasi dalam konteks jual beli, promosi, atau ajakan penggunaan harus di-flag sebagai "drugs".
-- Ancaman kekerasan, ajakan bunuh diri, self-harm, doxxing, scam finansial/crypto/phishing, dan spam self-promo harus diprioritaskan walau teksnya bercampur slang bercanda.
-- Istilah agama/suku/ras harus dinilai hati-hati: penyebutan netral/ibadah/edukasi = clean; hinaan, generalisasi negatif, provokasi, atau ajakan diskriminatif = flag "sara", "hate_speech", atau "religious_insult" sesuai konteks.
-${imageInstructions}
-## Konteks Percakapan
-${contextText}
-
-## Format Output
-Balas HANYA dengan satu objek JSON valid. Tanpa markdown, tanpa prose, tanpa komentar, tanpa XML.
-Struktur wajib:
-{
-  "results": [
-    {
-      "message_id": "<ID string PERSIS seperti di input>",
-      "status": "clean" | "warn" | "flagged",
-      "flags": [<string array, kosong jika clean>],
-      "score": <float 0.0–1.0>,
-      "categories": [<kategori kebijakan, kosong jika clean>],
-      "severity": "none" | "low" | "medium" | "high" | "critical",
-      "confidence": <float 0.0–1.0>,
-      "recommended_action": "none" | "monitor" | "warn" | "review" | "delete" | "escalate",
-      "policy_version": "default-2026-05-30",
-      "evidence": [<kutipan/evidence singkat dari teks/media/konteks>],
-      "analysis": "<penjelasan singkat dalam Bahasa Indonesia, maks 2 kalimat>"
-    }
-  ]
+interface RetryState {
+  lastParseError: string | null;
+  lastInvalidContent: string | null;
 }
-
-Kriteria status:
-- "clean": tidak ada pelanggaran yang terdeteksi, atau kasus masih ambigu setelah semua evidence dianalisis
-- "warn": risiko ringan yang konkret terdeteksi, misalnya spam borderline atau harassment ringan; BUKAN untuk kurang konteks/perlu admin cek
-- "flagged": pelanggaran jelas terdeteksi
-
-Larangan output analysis:
-- Jangan tulis "kurang konteks", "perlu dicek admin", "perlu moderator periksa", "tidak bisa menentukan", atau frasa deferral sejenis.
-- Jika evidence tidak cukup kuat untuk pelanggaran, status harus "clean" dan analysis menjelaskan alasan langsung.
-
-Flag yang valid: spam, hate_speech, sara, hoaks, harassment, vulgar_language, sexual_content, sexual_deviation, violence, self_harm, doxxing, scam, misinformation, nsfw_image, gore_image, illegal_content, gambling, drugs, child_safety, financial_scam, religious_insult, self_promo
-
-CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan perlakukan ID sebagai angka — ini snowflake Discord yang bisa kehilangan presisi jika diparse sebagai number.`;
-
-  if (correction) {
-    return `${base}\n\nRESPON SEBELUMNYA GAGAL VALIDASI.\nError: ${correction.error}\nPreview respons tidak valid:\n${correction.preview}\n\nCoba lagi dengan output JSON yang benar sesuai skema di atas.`;
-  }
-  return base;
-}
-
-// ---------------------------------------------------------------------------
-// Shared LLM call + parse + fallback helper
-// ---------------------------------------------------------------------------
 
 /**
  * Execute a single LLM moderation call (batch or single-message) with retry
  * logic, JSON parse, and fallback error markers on failure.
  *
- * @returns Parsed analysis results matching the requested target IDs.
+ * Uses JSON Schema response format (R2) and concurrency limiter (R3).
  */
 async function callModerationLLM(
-  buildContent: () => Promise<string>,
+  buildContent: (state: RetryState) => Promise<string>,
   targetIds: string[],
   label: string,
 ): Promise<{
   results: AnalysisResult[];
   raw: OpenAI.Chat.Completions.ChatCompletion | null;
 }> {
-  let lastParseError: string | null = null;
-  let lastInvalidContent: string | null = null;
+  const state: RetryState = {
+    lastParseError: null,
+    lastInvalidContent: null,
+  };
 
   let parsed: AnalysisResult[];
   let result: OpenAI.Chat.Completions.ChatCompletion | null = null;
@@ -696,19 +672,29 @@ async function callModerationLLM(
     const analysis = await retryWithBackoff(
       async () => {
         try {
-          const content = await buildContent();
+          const content = await buildContent(state);
 
-          const completion = await openai.chat.completions.create({
-            model: config.AI_LLM_MODEL,
-            messages: [{ role: "user", content }],
-            temperature: 0.2,
-            top_p: 0.95,
-            max_tokens: 16384,
-            response_format: { type: "json_object" },
-            stream: false,
-            chat_template_kwargs: { enable_thinking: false },
-            reasoning_budget: 0,
-          } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
+          const completion = await withLlmConcurrency(async () =>
+            openai.chat.completions.create({
+              model: config.AI_LLM_MODEL,
+              messages: [{ role: "user", content }],
+              temperature: 0.2,
+              top_p: 0.95,
+              // Reduced from 16384 — JSON Schema enforces structure (R2)
+              max_tokens: 4096,
+              response_format: {
+                type: "json_schema",
+                json_schema: {
+                  name: "moderation_result",
+                  schema: MODERATION_JSON_SCHEMA,
+                  strict: true,
+                },
+              },
+              stream: false,
+              chat_template_kwargs: { enable_thinking: false },
+              reasoning_budget: 0,
+            } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming),
+          );
 
           if (
             !completion.choices ||
@@ -729,17 +715,16 @@ async function callModerationLLM(
               result: completion,
             };
           } catch (parseError) {
-            lastParseError =
+            state.lastParseError =
               parseError instanceof Error
                 ? parseError.message
                 : String(parseError);
-            lastInvalidContent = rawContent;
+            state.lastInvalidContent = rawContent;
             log.warn(
               {
-                error: lastParseError,
+                error: state.lastParseError,
                 contentLength: rawContent.length,
                 contentPreview: rawContent.substring(0, 1000),
-                fullContent: rawContent,
                 targetIds,
                 model: config.AI_LLM_MODEL,
               },
@@ -768,20 +753,18 @@ async function callModerationLLM(
     parsed = analysis.parsed;
     result = analysis.result;
   } catch (parseError) {
-    if (!lastInvalidContent) {
+    if (!state.lastInvalidContent) {
       throw parseError;
     }
 
     const errorMsg =
       parseError instanceof Error ? parseError.message : String(parseError);
-    const badContent: string = lastInvalidContent as string;
 
     log.error(
       {
         error: errorMsg,
-        contentLength: badContent.length,
-        contentPreview: badContent.substring(0, 500),
-        fullContent: badContent,
+        contentLength: state.lastInvalidContent.length,
+        contentPreview: state.lastInvalidContent.substring(0, 500),
         targetIds,
         model: config.AI_LLM_MODEL,
         timestamp: new Date().toISOString(),
@@ -789,12 +772,14 @@ async function callModerationLLM(
       `Robust Fallback (${label}): Failed to parse moderation response. Marking all targets as analysis errors.`,
     );
 
+    // Sanitized error messages — no internal details exposed (R10)
+    const errorCode = `MOD_${Date.now().toString(36).slice(0, 6)}`;
     parsed = targetIds.map((id) => ({
       messageId: id,
       status: "error",
       flags: ["analysis_parse_failed"],
       score: 0,
-      analysis: `Parsing failed: ${errorMsg}.`,
+      analysis: `Analisis gagal dan memerlukan pemeriksaan manual. Error code: ${errorCode}`,
       categories: ["analysis_parse_failed"],
       severity: "none",
       confidence: 0,
@@ -808,14 +793,14 @@ async function callModerationLLM(
 }
 
 // ---------------------------------------------------------------------------
-// Text-only fast path — all text-only messages in one batch LLM call
+// Text-only fast path — with batch size splitting (R6)
 // ---------------------------------------------------------------------------
 
 /**
  * Run a lightweight batch analysis on text-only messages.
  *
- * No image download, no vision API, no sticker/embed parsing beyond
- * the lightweight text-only warnings embedded in buildMessageContent.
+ * If targets exceed AI_LLM_TEXT_BATCH_SIZE, split into sub-batches
+ * and run sequentially to avoid overwhelming the LLM (R6).
  */
 async function runTextOnlyBatch(
   targets: MessageRecord[],
@@ -823,7 +808,7 @@ async function runTextOnlyBatch(
 ): Promise<{ results: AnalysisResult[]; raw: unknown }> {
   if (!targets.length) return { results: [], raw: null };
 
-  const targetIds = targets.map((t) => t.id);
+  const maxBatchSize = config.AI_LLM_TEXT_BATCH_SIZE ?? 20;
 
   // Pre-compute text evidence (normalization + badword detection)
   const textEvidenceMap = new Map<string, string>();
@@ -835,58 +820,96 @@ async function runTextOnlyBatch(
     }),
   );
 
-  let lastParseError: string | null = null;
-  let lastInvalidContent: string | null = null;
+  // Split into sub-batches if needed (R6)
+  const subBatches: MessageRecord[][] = [];
+  for (let i = 0; i < targets.length; i += maxBatchSize) {
+    subBatches.push(targets.slice(i, i + maxBatchSize));
+  }
 
-  const buildContent = async (): Promise<string> => {
-    const correction = lastParseError
-      ? {
-          error: lastParseError,
-          preview:
-            (lastInvalidContent as string | null)?.slice(0, 800) ?? "<empty>",
-        }
-      : undefined;
+  if (subBatches.length > 1) {
+    log.info(
+      {
+        totalTargets: targets.length,
+        subBatchCount: subBatches.length,
+        maxBatchSize,
+      },
+      "Text targets exceed batch size limit — splitting into sub-batches",
+    );
+  }
 
-    const systemText = buildSystemPrompt(
-      contextText,
-      false, // ← no media instructions for text-only path
-      correction,
+  const allResults: AnalysisResult[] = [];
+  let lastRaw: unknown = null;
+
+  // Run sub-batches sequentially to avoid rate limits
+  for (let i = 0; i < subBatches.length; i++) {
+    const batch = subBatches[i];
+    const targetIds = batch.map((t) => t.id);
+
+    const buildContent = async (state: RetryState): Promise<string> => {
+      const correction = state.lastParseError
+        ? {
+            error: state.lastParseError,
+            preview: state.lastInvalidContent?.slice(0, 800) ?? "<empty>",
+          }
+        : undefined;
+
+      // Use modular system prompt with XML delimiters (R1, R7, R8)
+      const systemText = buildSystemPromptModular({
+        contextText,
+        includeMediaInstructions: false,
+        correction,
+      });
+
+      const messagesBlock = batch
+        .map((msg) => {
+          const content = msg.edited_content ?? msg.content;
+          const textEvidence = textEvidenceMap.get(msg.id) ?? "";
+          const textContext = textEvidence ? `\n${textEvidence}` : "";
+          // XML delimiters wrap each message for prompt safety (R1)
+          return `<message id="${msg.id}" user="${msg.username}">${content}${textContext}</message>`;
+        })
+        .join("\n");
+
+      // XML delimiter wraps the entire messages block (R1)
+      return `${systemText}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
+    };
+
+    const batchResult = await callModerationLLM(
+      buildContent,
+      targetIds,
+      `text-batch-${i + 1}`,
     );
 
-    const messagesBlock = targets
-      .map((msg) => {
-        const content = msg.edited_content ?? msg.content;
-        const textEvidence = textEvidenceMap.get(msg.id) ?? "";
-        const textContext = textEvidence ? `\n${textEvidence}` : "";
-        return `[target] id=${msg.id} user=${msg.username}: ${content}${textContext}`;
-      })
-      .join("\n");
-
-    return `${systemText}\n\n## Pesan yang Dianalisis\n${messagesBlock}`;
-  };
-
-  const result = await callModerationLLM(buildContent, targetIds, "text-batch");
+    allResults.push(...batchResult.results);
+    if (batchResult.raw) lastRaw = batchResult.raw;
+  }
 
   log.info(
-    { targetCount: targets.length, resultCount: result.results.length },
+    {
+      targetCount: targets.length,
+      resultCount: allResults.length,
+      subBatchCount: subBatches.length,
+    },
     "Text-only batch analysis complete",
   );
 
-  return result;
+  return { results: allResults, raw: lastRaw };
 }
 
 // ---------------------------------------------------------------------------
-// Single media message analysis — one LLM call per message with vision
+// Single media message analysis — one LLM call per message with vision + timeout (R4, R5)
 // ---------------------------------------------------------------------------
 
 /**
  * Process a single media-bearing message:
- * 1. Download attachment images
+ * 1. Download attachment images (resized via sharp — R5)
  * 2. Fetch URLs found in the message body
- * 3. Download sticker/embed images
+ * 3. Download sticker/embed images (resized via sharp — R5)
  * 4. Run vision analysis on every image (with DB + sticker cache)
- * 5. Build a single-message prompt with text + media analysis
+ * 5. Build a single-message prompt with XML delimiters (R1)
  * 6. One LLM call → single AnalysisResult
+ *
+ * Wrapped with overall timeout (R4).
  */
 async function runSingleMediaAnalysis(
   target: MessageRecord,
@@ -896,6 +919,39 @@ async function runSingleMediaAnalysis(
   const targetId = target.id;
   const targetIds = [targetId];
 
+  // Timeout wrapper (R4)
+  const timeoutMs = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
+
+  return Promise.race([
+    _runSingleMediaAnalysis(
+      target,
+      contextText,
+      allAttachments,
+      targetId,
+      targetIds,
+    ),
+    new Promise<{ results: AnalysisResult[]; raw: unknown }>((_, reject) => {
+      const timeout = setTimeout(
+        () =>
+          reject(
+            new Error(
+              `Media analysis timed out after ${timeoutMs}ms for message ${targetId}`,
+            ),
+          ),
+        timeoutMs,
+      );
+      timeout.unref();
+    }),
+  ]);
+}
+
+async function _runSingleMediaAnalysis(
+  target: MessageRecord,
+  contextText: string,
+  allAttachments: AttachmentRecord[] | undefined,
+  targetId: string,
+  targetIds: string[],
+): Promise<{ results: AnalysisResult[]; raw: unknown }> {
   // Lazy init sticker cache
   if (!isStickerCacheReady()) {
     await initStickerCache({
@@ -917,7 +973,9 @@ async function runSingleMediaAnalysis(
   const getAttachmentImageUrl = (att: AttachmentRecord): string | null =>
     att.uploaded_url ?? null;
 
-  // ── 1. Download attachments for this message ──
+  const maxDimension = config.AI_LLM_IMAGE_MAX_DIMENSION ?? 1024;
+
+  // ── 1. Download attachments for this message (with resize — R5) ──
   const msgAttachments = (allAttachments ?? [])
     .filter(
       (att) =>
@@ -982,7 +1040,11 @@ async function runSingleMediaAnalysis(
           return;
         }
 
-        const dataUrl = `data:${sniffedMime};base64,${imageBytes.toString("base64")}`;
+        // Resize before base64 encoding (R5)
+        const { data: resizedBuffer, mimeType: resizedMime } =
+          await resizeImageForVision(imageBytes, maxDimension);
+
+        const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
         const part: MessageImagePart = {
           type: "image_url",
           image_url: { url: dataUrl },
@@ -1015,7 +1077,11 @@ async function runSingleMediaAnalysis(
       urls.map(async (url) => {
         const result = await fetchUrlSafely(url);
         if (result.type === "image" && result.data && result.mimeType) {
-          const dataUrl = `data:${result.mimeType};base64,${result.data.toString("base64")}`;
+          // Resize fetched images too (R5)
+          const { data: resizedBuffer, mimeType: resizedMime } =
+            await resizeImageForVision(result.data, maxDimension);
+
+          const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
           const part: MessageImagePart = {
             type: "image_url",
             image_url: { url: dataUrl },
@@ -1137,9 +1203,13 @@ async function runSingleMediaAnalysis(
       const result = await fetchUrlSafely(candidate.url);
       if (result.type !== "image" || !result.data || !result.mimeType) return;
 
-      const base64 = result.data.toString("base64");
+      // Resize sticker/emoji images too (R5)
+      const { data: resizedBuffer, mimeType: resizedMime } =
+        await resizeImageForVision(result.data, maxDimension);
+
+      const base64 = resizedBuffer.toString("base64");
       if (candidate.stickerName) {
-        setStickerInCache(candidate.stickerName, base64, result.mimeType).catch(
+        setStickerInCache(candidate.stickerName, base64, resizedMime).catch(
           () => {},
         );
       }
@@ -1147,7 +1217,7 @@ async function runSingleMediaAnalysis(
       const part: MessageImagePart = {
         type: "image_url",
         image_url: {
-          url: `data:${result.mimeType};base64,${base64}`,
+          url: `data:${resizedMime};base64,${base64}`,
         },
         sourceLabel: candidate.label,
         stickerName: candidate.stickerName,
@@ -1173,7 +1243,7 @@ async function runSingleMediaAnalysis(
     ),
   );
 
-  // ── 5. Build single-message prompt ──
+  // ── 5. Build single-message prompt with XML delimiters (R1) ──
   const textEvidence = await formatModerationTextEvidenceForPrompt(content);
 
   const webTexts = webTextMap.get(targetId) ?? [];
@@ -1183,7 +1253,6 @@ async function runSingleMediaAnalysis(
   const mediaAnalysisContext =
     mediaAnalyses.length > 0 ? `\n${mediaAnalyses.join("\n")}` : "";
 
-  // Media evidence text-only fallbacks (sticker names, embed metadata)
   const mediaContext = [
     mediaEvidence.stickers.length > 0
       ? mediaEvidence.stickers
@@ -1203,18 +1272,20 @@ async function runSingleMediaAnalysis(
     .filter(Boolean)
     .join(" ");
 
-  const messageBlock = `[target] id=${target.id} user=${target.username}: ${content}${mediaContext ? ` ${mediaContext}` : ""}${textContext}${webContext}${mediaAnalysisContext}`;
+  // XML delimiters wrap the message content (R1)
+  const messageBlock = `<message id="${target.id}" user="${target.username}">${content}${mediaContext ? ` ${mediaContext}` : ""}${textContext}${webContext}${mediaAnalysisContext}</message>`;
 
-  const systemText = buildSystemPrompt(
+  // Modular system prompt with XML delimiters (R1, R7, R8)
+  const systemText = buildSystemPromptModular({
     contextText,
-    true, // ← include media instructions for messages with images
-  );
+    includeMediaInstructions: true,
+  });
 
-  const userContent = `${systemText}\n\n## Pesan yang Dianalisis\n${messageBlock}`;
+  const userContent = `${systemText}\n\n<messages_to_analyze>\n${messageBlock}\n</messages_to_analyze>`;
 
   // ── 6. LLM call ──
   const result = await callModerationLLM(
-    async () => userContent,
+    async (_state: RetryState) => userContent,
     targetIds,
     `media:${targetId}`,
   );
@@ -1231,8 +1302,10 @@ async function runSingleMediaAnalysis(
  *
  * Architecture:
  * - **Text-only messages** → single batch LLM call (fast, no image processing)
- * - **Media messages** → each gets its own LLM call with vision API
+ *   - Split into sub-batches if exceeding AI_LLM_TEXT_BATCH_SIZE (R6)
+ * - **Media messages** → each gets its own LLM call with vision API (R5: resized images)
  * - Both paths execute **in parallel** — text batch does NOT wait for media.
+ * - All LLM calls go through concurrency limiter (R3).
  */
 export async function runModerationAnalysis(
   input: ModerationInput,
@@ -1266,12 +1339,12 @@ export async function runModerationAnalysis(
 
   // ── Run both paths in parallel ──
   const [textBatchResult, ...mediaResults] = await Promise.all([
-    // Text-only: one fast batch call
+    // Text-only: one fast batch call (or multiple sub-batches)
     textOnlyTargets.length > 0
       ? runTextOnlyBatch(textOnlyTargets, contextText)
       : Promise.resolve({ results: [] as AnalysisResult[], raw: null }),
 
-    // Media: each message gets its own LLM call (all in parallel)
+    // Media: each message gets its own LLM call (all in parallel, but limited by semaphore — R3)
     ...mediaTargets.map((target) =>
       runSingleMediaAnalysis(target, contextText, attachments),
     ),
@@ -1283,8 +1356,6 @@ export async function runModerationAnalysis(
     ...mediaResults.flatMap((r) => r.results),
   ];
 
-  // Preserve the text-batch raw completion if available; media completions
-  // are individual so there isn't a single canonical raw object.
   const raw =
     textBatchResult.raw ??
     (mediaResults.length > 0 ? mediaResults[0].raw : null);

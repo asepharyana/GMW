@@ -251,7 +251,9 @@ export function parseRichMessageMetadata(
       stickers: Array.isArray(parsed.stickers) ? parsed.stickers : [],
       embeds: Array.isArray(parsed.embeds) ? parsed.embeds : [],
       attachments: Array.isArray(parsed.attachments) ? parsed.attachments : [],
-      customEmojis: Array.isArray(parsed.customEmojis) ? parsed.customEmojis : [],
+      customEmojis: Array.isArray(parsed.customEmojis)
+        ? parsed.customEmojis
+        : [],
       author: parsed.author as RichMessageMetadata["author"],
       member: (parsed.member ?? null) as RichMessageMetadata["member"],
       channel: parsed.channel as RichMessageMetadata["channel"],

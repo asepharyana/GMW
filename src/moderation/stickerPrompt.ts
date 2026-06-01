@@ -86,9 +86,7 @@ export function buildCustomEmojiVisionPrompt(
 /**
  * Fallback text for when a custom emoji image failed to download.
  */
-export function buildCustomEmojiTextOnlyFallback(
-  emojiName: string,
-): string {
+export function buildCustomEmojiTextOnlyFallback(emojiName: string): string {
   return (
     `[custom_emoji: "${emojiName}" — GAMBAR GAGAL DIUNDUH. ` +
     `"${emojiName}" adalah custom emoji Discord (ikon kecil). ` +

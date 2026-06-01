@@ -75,6 +75,22 @@ const configSchema = z
     AI_LLM_MODEL: z.string().default("text"),
     /** Model used for image/video moderation (vision-capable model). */
     AI_LLM_VISION_MODEL: z.string().optional(),
+    /** Max concurrent LLM API calls (default: 5). */
+    AI_LLM_MAX_CONCURRENT: z.coerce.number().int().positive().default(5),
+    /** Maximum image dimension in pixels before resize for vision API (default: 1024). */
+    AI_LLM_IMAGE_MAX_DIMENSION: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(1024),
+    /** Maximum messages per text-only moderation batch (default: 20). */
+    AI_LLM_TEXT_BATCH_SIZE: z.coerce.number().int().positive().default(20),
+    /** Timeout in ms for individual media analysis calls (default: 60000). */
+    AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(60000),
     AI_ANALYSIS_DEBOUNCE_MS: z.coerce.number().positive().default(500),
     AI_ANALYSIS_RECOVERY_INTERVAL_MS: z.coerce
       .number()
@@ -149,7 +165,9 @@ const configSchema = z
       .transform((v) => v === "true")
       .default(false),
     AUTO_DELETE_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.5),
-    AUTO_DELETE_ALLOWED_SEVERITIES: z.string().default("critical,high,medium,low"),
+    AUTO_DELETE_ALLOWED_SEVERITIES: z
+      .string()
+      .default("critical,high,medium,low"),
     AUTO_DELETE_ALLOWED_CATEGORIES: z.string().default(""),
     AUTO_DELETE_EXCLUDED_CHANNEL_IDS: z.string().default(""),
     AUTO_DELETE_EXCLUDED_USER_IDS: z.string().default(""),
