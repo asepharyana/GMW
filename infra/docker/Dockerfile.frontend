@@ -23,4 +23,4 @@ RUN pnpm --filter './services/frontend' run build
 EXPOSE 3000
 
 # Start frontend (production preview)
-CMD ["pnpm", "--filter", "./services/frontend", "run", "preview", "--", "--host", "0.0.0.0"]
+CMD ["pnpm", "--filter", "./services/frontend", "run", "preview"]
