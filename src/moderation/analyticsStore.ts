@@ -483,7 +483,7 @@ export async function getUserLeaderboard(input: {
         count(*) as message_count,
         count(case when type = 'edited' then 1 end) as edited_count,
         count(case when type = 'deleted' then 1 end) as deleted_count,
-        count(case when ai_status in ('flagged', 'warn') then 1 end) as flagged_count,
+        count(case when ai_status = 'flagged' then 1 end) as flagged_count,
         max(created_at) as last_active
       FROM messages
       WHERE guild_id = ?
@@ -682,17 +682,21 @@ export async function getTopViolators(input: {
         : [guildId, since, limit],
     );
 
-    const violators: ViolatorStat[] = rows.map((row: any) => ({
-      user_id: row.user_id,
-      username: row.username,
-      avatar_url: row.avatar_url,
-      total_messages: row.total_messages,
-      flagged_count: row.flagged_count,
-      warned_count: row.warned_count,
-      violation_score: row.flagged_count * 3 + row.warned_count,
-      worst_flags: [],
-      last_violation: row.last_violation,
-    }));
+    const violators: ViolatorStat[] = rows.map((row: any) => {
+      const flaggedCount = Number(row.flagged_count ?? 0);
+      const warnedCount = Number(row.warned_count ?? 0);
+      return {
+        user_id: row.user_id,
+        username: row.username,
+        avatar_url: row.avatar_url,
+        total_messages: Number(row.total_messages ?? 0),
+        flagged_count: flaggedCount,
+        warned_count: warnedCount,
+        violation_score: flaggedCount * 3 + warnedCount,
+        worst_flags: [],
+        last_violation: Number(row.last_violation ?? 0),
+      };
+    });
 
     setCache(cacheKey, violators, AGGREGATE_CACHE_TTL_MS);
     return violators;
