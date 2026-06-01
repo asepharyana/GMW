@@ -4,19 +4,22 @@ SHELL ["/bin/sh", "-c"]
 
 ENV NIX_CONFIG="experimental-features = nix-command flakes"
 
-# Install the runtime and build dependencies through Nix instead of apt.
-# Note: git is pulled transitively by yt-dlp as git-minimal; adding git
-# explicitly causes a file conflict (packinfo.pl) so we omit it here.
+# Pin nixpkgs to a specific commit for reproducible, conflict-free builds.
+# The nixos-unstable channel changes rapidly and causes file conflicts
+# between packages (e.g., cacert 3.123 vs 3.117, git vs git-minimal).
+# Pinning ensures all packages are resolved from the same nixpkgs snapshot.
+ARG NIXPKGS_COMMIT=7388966642e6a20b93860e5397e996af05c0e05c
+
 RUN nix profile install \
-    github:NixOS/nixpkgs/nixos-unstable#nodejs_22 \
-    github:NixOS/nixpkgs/nixos-unstable#ffmpeg \
-    github:NixOS/nixpkgs/nixos-unstable#python3 \
-    github:NixOS/nixpkgs/nixos-unstable#cacert \
-    github:NixOS/nixpkgs/nixos-unstable#gnumake \
-    github:NixOS/nixpkgs/nixos-unstable#gcc \
-    github:NixOS/nixpkgs/nixos-unstable#pkg-config \
-    github:NixOS/nixpkgs/nixos-unstable#vips \
-    github:NixOS/nixpkgs/nixos-unstable#yt-dlp
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#nodejs_22" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#ffmpeg" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#python3" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#cacert" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#gnumake" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#gcc" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#pkg-config" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#vips" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#yt-dlp"
 
 RUN corepack enable
 
