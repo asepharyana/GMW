@@ -13,11 +13,13 @@ import {
   setStickerInCache,
 } from "./stickerCache.js";
 import {
+  buildCustomEmojiVisionPrompt,
   buildStickerTextOnlyWarning,
   buildStickerVisionPrompt,
 } from "./stickerPrompt.js";
 import {
   getCachedMediaAnalysis,
+  makeCustomEmojiCacheKey,
   makeImageCacheKey,
   makeStickerCacheKey,
   upsertCachedMediaAnalysis,
@@ -465,6 +467,8 @@ type MessageImagePart = {
   image_url: { url: string };
   sourceLabel: string;
   stickerName?: string;
+  customEmojiId?: string;
+  customEmojiName?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -495,15 +499,23 @@ const analyzeSingleMediaImage = async (
   messageId: string,
   image: MessageImagePart,
 ): Promise<string | null> => {
-  const cacheKey = image.stickerName
-    ? makeStickerCacheKey(image.stickerName)
-    : makeImageCacheKey(image.image_url.url);
+  const cacheKey = image.customEmojiId
+    ? makeCustomEmojiCacheKey(image.customEmojiId)
+    : image.stickerName
+      ? makeStickerCacheKey(image.stickerName)
+      : makeImageCacheKey(image.image_url.url);
 
   const cached = await getCachedMediaAnalysis(cacheKey);
   if (cached) {
     log.debug({ cacheKey }, "Media analysis cache HIT");
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${cached}`;
   }
+
+  const promptText = image.stickerName
+    ? buildStickerVisionPrompt(image.stickerName, messageId)
+    : image.customEmojiName
+      ? buildCustomEmojiVisionPrompt(image.customEmojiName, messageId)
+      : `Analisis media Discord berikut sebagai evidence moderasi. ${image.sourceLabel}\nJelaskan isi visual, teks yang terlihat, konteks risiko, dan apakah ada indikasi spam, scam, SARA, harassment, sexual content, violence, self-harm, doxxing, NSFW, gore, atau illegal content. Jawab Bahasa Indonesia, maksimal 3 kalimat. Jangan bilang kurang konteks atau perlu admin cek; berikan observasi langsung dari media.`;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -514,9 +526,7 @@ const analyzeSingleMediaImage = async (
           content: [
             {
               type: "text",
-              text: image.stickerName
-                ? buildStickerVisionPrompt(image.stickerName, messageId)
-                : `Analisis media Discord berikut sebagai evidence moderasi. ${image.sourceLabel}\nJelaskan isi visual, teks yang terlihat, konteks risiko, dan apakah ada indikasi spam, scam, SARA, harassment, sexual content, violence, self-harm, doxxing, NSFW, gore, atau illegal content. Jawab Bahasa Indonesia, maksimal 3 kalimat. Jangan bilang kurang konteks atau perlu admin cek; berikan observasi langsung dari media.`,
+              text: promptText,
             },
             { type: "image_url", image_url: image.image_url },
           ],
@@ -1021,9 +1031,16 @@ async function runSingleMediaAnalysis(
     if (webTexts.length > 0) webTextMap.set(targetId, webTexts);
   }
 
-  // ── 3. Sticker / embed images ──
+  // ── 3. Sticker / embed / custom emoji images ──
   const mediaEvidence = extractMessageMediaEvidence(target.metadata);
-  const mediaCandidates = [
+  const mediaCandidates: Array<{
+    messageId: string;
+    url: string;
+    label: string;
+    stickerName?: string;
+    customEmojiId?: string;
+    customEmojiName?: string;
+  }> = [
     ...mediaEvidence.stickers
       .filter((s) => s.url)
       .map((s) => ({
@@ -1056,9 +1073,18 @@ async function runSingleMediaAnalysis(
           url: string;
           label: string;
           stickerName?: string;
+          customEmojiId?: string;
+          customEmojiName?: string;
         } => c !== null,
       ),
     ),
+    ...mediaEvidence.customEmojis.map((emoji) => ({
+      messageId: targetId,
+      url: emoji.url,
+      label: `[gambar di atas adalah custom emoji "${emoji.name}" dari pesan id=${targetId}]`,
+      customEmojiId: emoji.id,
+      customEmojiName: emoji.name,
+    })),
   ];
 
   const remainingSlots = Math.max(0, 8 - (imageMap.get(targetId)?.length ?? 0));
@@ -1066,9 +1092,11 @@ async function runSingleMediaAnalysis(
   await Promise.all(
     mediaCandidates.slice(0, remainingSlots).map(async (candidate) => {
       // Vision cache check before download
-      const visionCacheKey = candidate.stickerName
-        ? makeStickerCacheKey(candidate.stickerName)
-        : makeImageCacheKey(candidate.url);
+      const visionCacheKey = candidate.customEmojiId
+        ? makeCustomEmojiCacheKey(candidate.customEmojiId)
+        : candidate.stickerName
+          ? makeStickerCacheKey(candidate.stickerName)
+          : makeImageCacheKey(candidate.url);
       const cachedVision = await getCachedMediaAnalysis(visionCacheKey);
       if (cachedVision) {
         log.debug(
@@ -1122,6 +1150,8 @@ async function runSingleMediaAnalysis(
         },
         sourceLabel: candidate.label,
         stickerName: candidate.stickerName,
+        customEmojiId: candidate.customEmojiId,
+        customEmojiName: candidate.customEmojiName,
       };
       const existing = imageMap.get(targetId) ?? [];
       existing.push(part);

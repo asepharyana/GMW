@@ -21,6 +21,13 @@ export interface StickerEvidence {
   format: string | null;
 }
 
+export interface CustomEmojiEvidence {
+  id: string;
+  name: string;
+  animated: boolean;
+  url: string;
+}
+
 export interface EmbedEvidence {
   title: string | null;
   description: string | null;
@@ -49,12 +56,14 @@ export interface MessageMediaEvidence {
   stickers: StickerEvidence[];
   embeds: EmbedEvidence[];
   attachments: AttachmentEvidence[];
+  customEmojis: CustomEmojiEvidence[];
 }
 
 export interface RichMessageMetadata {
   stickers: Array<StickerEvidence>;
   embeds: Array<EmbedEvidence>;
   attachments: Array<AttachmentEvidence>;
+  customEmojis: Array<CustomEmojiEvidence>;
   author: {
     id: string;
     username: string;
@@ -129,6 +138,30 @@ export function getStickerMetadata(
   }));
 }
 
+/**
+ * Extract custom emoji references from message content.
+ * Builds Discord CDN URLs for each emoji so they can be downloaded
+ * and sent to the vision model for analysis.
+ */
+export function getCustomEmojiMetadata(
+  message: Message,
+): RichMessageMetadata["customEmojis"] {
+  const CUSTOM_EMOJI_PATTERN = /<(a)?:([a-zA-Z0-9_]+):(\d+)>/g;
+  const emojis: CustomEmojiEvidence[] = [];
+  let match;
+  while ((match = CUSTOM_EMOJI_PATTERN.exec(message.content)) !== null) {
+    const [, animated, name, id] = match;
+    const ext = animated ? "gif" : "png";
+    emojis.push({
+      id,
+      name,
+      animated: animated === "a",
+      url: `https://cdn.discordapp.com/emojis/${id}.${ext}?size=128`,
+    });
+  }
+  return emojis;
+}
+
 export function getAttachmentMetadata(
   message: Message,
 ): RichMessageMetadata["attachments"] {
@@ -178,6 +211,7 @@ export function getMessageMetadata(message: Message): RichMessageMetadata {
     stickers: getStickerMetadata(message),
     embeds: getEmbedMetadata(message),
     attachments: getAttachmentMetadata(message),
+    customEmojis: getCustomEmojiMetadata(message),
     author: {
       id: message.author.id,
       username: message.author.username,
@@ -217,6 +251,7 @@ export function parseRichMessageMetadata(
       stickers: Array.isArray(parsed.stickers) ? parsed.stickers : [],
       embeds: Array.isArray(parsed.embeds) ? parsed.embeds : [],
       attachments: Array.isArray(parsed.attachments) ? parsed.attachments : [],
+      customEmojis: Array.isArray(parsed.customEmojis) ? parsed.customEmojis : [],
       author: parsed.author as RichMessageMetadata["author"],
       member: (parsed.member ?? null) as RichMessageMetadata["member"],
       channel: parsed.channel as RichMessageMetadata["channel"],
@@ -249,6 +284,7 @@ export function extractMessageMediaEvidence(
     stickers: parsed?.stickers ?? [],
     embeds: parsed?.embeds ?? [],
     attachments: parsed?.attachments ?? [],
+    customEmojis: parsed?.customEmojis ?? [],
   };
 }
 

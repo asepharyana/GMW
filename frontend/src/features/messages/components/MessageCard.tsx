@@ -1,7 +1,57 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import type { MessageRecord } from "../../../shared/api/client";
 import { Badge, Button, Skeleton } from "../../../shared/ui";
 import { RotateCw, AlertCircle, CheckCircle2, AlertTriangle, Trash2, Pencil, Image as ImageIcon, Smile } from "lucide-react";
+
+const CUSTOM_EMOJI_REGEX = /<(a)?:([a-zA-Z0-9_]+):(\d+)>/g;
+
+/**
+ * Renders message content with Discord custom emojis displayed as images
+ * instead of raw text like `<:name:id>`.
+ */
+function renderContentWithCustomEmojis(content: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  const regex = new RegExp(CUSTOM_EMOJI_REGEX.source, "g");
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    // Text before the emoji
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index));
+    }
+
+    const [, animated, name, id] = match;
+    const ext = animated ? "gif" : "png";
+    const url = `https://cdn.discordapp.com/emojis/${id}.${ext}?size=128`;
+
+    parts.push(
+      <img
+        key={`${id}-${match.index}`}
+        src={url}
+        alt={name}
+        className="inline-block h-[22px] w-[22px] align-middle object-contain"
+        loading="lazy"
+        draggable={false}
+        title={`:${name}:`}
+      />,
+    );
+
+    lastIndex = regex.lastIndex;
+  }
+
+  // Remaining text after last emoji
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+
+  // If no emojis were found, just return the raw content
+  if (parts.length === 0) {
+    return content;
+  }
+
+  return <Fragment>{parts}</Fragment>;
+}
 
 interface MessageCardProps {
   message: MessageRecord;
@@ -128,7 +178,7 @@ export function MessageCard({ message, onReanalyze }: MessageCardProps) {
 
           {displayContent ? (
             <p className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/90">
-              {displayContent}
+              {renderContentWithCustomEmojis(displayContent)}
             </p>
           ) : null}
 

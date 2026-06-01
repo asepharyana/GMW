@@ -57,3 +57,42 @@ export function buildStickerTextOnlyWarning(
     `Nama yang terdengar provokatif adalah hal umum untuk sticker satir/humor di Discord.]`
   );
 }
+
+/**
+ * Prompt used when a custom emoji image was successfully downloaded
+ * and is being sent to the vision LLM as a base64 image.
+ *
+ * Custom emojis are small icons — context is similar to stickers.
+ */
+export function buildCustomEmojiVisionPrompt(
+  emojiName: string,
+  messageId: string,
+): string {
+  return [
+    `Analisis custom emoji Discord berikut sebagai evidence moderasi.`,
+    `Emoji "${emojiName}" berasal dari pesan id=${messageId}.`,
+    ``,
+    `PENTING — Konteks Custom Emoji:`,
+    `- Custom emoji Discord adalah ikon kecil/ekspresi, BUKAN foto atau dokumen nyata.`,
+    `- Emoji sering digunakan untuk ekspresi emosi, reaksi, atau lelucon.`,
+    `- Jangan flag berdasarkan nama emoji saja — analisis isi visual gambar.`,
+    `- Emoji yang terlihat lucu/aneh adalah hal umum di Discord, bukan pelanggaran.`,
+    ``,
+    `Jelaskan isi visual dan konteks risiko.`,
+    `Jawab Bahasa Indonesia, maksimal 2 kalimat. Jangan bilang kurang konteks.`,
+  ].join("\n");
+}
+
+/**
+ * Fallback text for when a custom emoji image failed to download.
+ */
+export function buildCustomEmojiTextOnlyFallback(
+  emojiName: string,
+): string {
+  return (
+    `[custom_emoji: "${emojiName}" — GAMBAR GAGAL DIUNDUH. ` +
+    `"${emojiName}" adalah custom emoji Discord (ikon kecil). ` +
+    `JANGAN flag berdasarkan nama emoji saja tanpa gambar visual. ` +
+    `Custom emoji di Discord adalah ekspresi/emosi umum, bukan konten ofensif.]`
+  );
+}

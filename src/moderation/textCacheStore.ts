@@ -164,6 +164,13 @@ export function makeStickerCacheKey(stickerName: string): string {
 }
 
 /**
+ * Generate a deterministic cache key for a custom emoji by its Discord ID.
+ */
+export function makeCustomEmojiCacheKey(emojiId: string): string {
+  return `emoji:${emojiId}`;
+}
+
+/**
  * Generate a deterministic cache key for an image data URL.
  * Hashes the first 128 chars of the data URL (enough to identify the image
  * without storing the full base64 string as the key).
