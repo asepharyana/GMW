@@ -4,22 +4,22 @@ SHELL ["/bin/sh", "-c"]
 
 ENV NIX_CONFIG="experimental-features = nix-command flakes"
 
-# Pin nixpkgs to a specific commit for reproducible, conflict-free builds.
-# The nixos-unstable channel changes rapidly and causes file conflicts
-# between packages (e.g., cacert 3.123 vs 3.117, git vs git-minimal).
-# Pinning ensures all packages are resolved from the same nixpkgs snapshot.
-ARG NIXPKGS_COMMIT=7388966642e6a20b93860e5397e996af05c0e05c
+# Install packages one at a time to avoid file conflicts in nix profile.
+# When installing multiple packages simultaneously, nix may resolve
+# different versions of shared dependencies (e.g., cacert 3.123 vs 3.117)
+# which causes "An existing package already provides" errors.
+# Installing sequentially allows each package to settle before the next.
+ARG NIXPKGS_COMMIT=64c08a7ca051951c8eae34e3e3cb1e202fe36786
 
-RUN nix profile install \
-    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#nodejs_22" \
-    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#ffmpeg" \
-    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#python3" \
-    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#cacert" \
-    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#gnumake" \
-    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#gcc" \
-    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#pkg-config" \
-    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#vips" \
-    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#yt-dlp"
+RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#cacert"
+RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#nodejs_22"
+RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#ffmpeg"
+RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#python3"
+RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#gnumake"
+RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#gcc"
+RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#pkg-config"
+RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#vips"
+RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#yt-dlp"
 
 RUN corepack enable
 
