@@ -4,14 +4,12 @@ SHELL ["/bin/sh", "-c"]
 
 ENV NIX_CONFIG="experimental-features = nix-command flakes"
 
-# Install packages one at a time to avoid file conflicts in nix profile.
-# When installing multiple packages simultaneously, nix may resolve
-# different versions of shared dependencies (e.g., cacert 3.123 vs 3.117)
-# which causes "An existing package already provides" errors.
-# We install the big packages first (which pull their own cacert),
-# then install standalone cacert last to upgrade, using --allow-import.
+# Install the system tools needed for native module post-install scripts.
+# Note: NixOS base image does NOT include coreutils (sed, etc.) in PATH.
+# The node-pre-gyp and prebuild-install wrappers require sed.
 ARG NIXPKGS_COMMIT=64c08a7ca051951c8eae34e3e3cb1e202fe36786
 
+RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#coreutils"
 RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#nodejs_22"
 RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#ffmpeg"
 RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#python3"
