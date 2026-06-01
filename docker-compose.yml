@@ -14,7 +14,7 @@ services:
       - ./.muxer-queue.db-wal:/app/.muxer-queue.db-wal
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.imphenbot.rule=Host(`imphnen.asepharyana.my.id`) || Host(`imphnen.asepharyana.tech`) || Host(`imphnen.asepharyana.web.id`)"
+      - "traefik.http.routers.imphenbot.rule=Host(`imphnen.asepharyana.my.id`)"
       - "traefik.http.routers.imphenbot.entrypoints=websecure"
       - "traefik.http.routers.imphenbot.tls=true"
       # Expose port to traefik (adjust if WEBSERVER_PORT differs)
