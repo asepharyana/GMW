@@ -19,11 +19,7 @@ COPY vendor/discord-video-stream ./vendor/discord-video-stream
 COPY vendor/better-sqlite3 ./vendor/better-sqlite3
 COPY vendor/drizzle-orm ./vendor/drizzle-orm
 
-# Copy frontend assets
-COPY frontend ./frontend
-COPY public ./public
-
-# Copy root source (root package is a workspace member)
+# Copy root source (root package is a workspace member — needed for pnpm install)
 COPY src ./src
 COPY vite.backend.config.ts .
 
