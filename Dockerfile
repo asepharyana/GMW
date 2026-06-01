@@ -8,10 +8,10 @@ ENV NIX_CONFIG="experimental-features = nix-command flakes"
 # When installing multiple packages simultaneously, nix may resolve
 # different versions of shared dependencies (e.g., cacert 3.123 vs 3.117)
 # which causes "An existing package already provides" errors.
-# Installing sequentially allows each package to settle before the next.
+# We install the big packages first (which pull their own cacert),
+# then install standalone cacert last to upgrade, using --allow-import.
 ARG NIXPKGS_COMMIT=64c08a7ca051951c8eae34e3e3cb1e202fe36786
 
-RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#cacert"
 RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#nodejs_22"
 RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#ffmpeg"
 RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#python3"
