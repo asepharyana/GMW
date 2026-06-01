@@ -20,7 +20,7 @@ COPY services/frontend ./services/frontend
 RUN pnpm install --frozen-lockfile
 
 # Build frontend
-RUN pnpm run build:web
+RUN pnpm --filter './services/frontend' run build
 
 # Expose port (served by backend)
 EXPOSE 3000

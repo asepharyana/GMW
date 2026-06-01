@@ -20,7 +20,7 @@ COPY services/backend ./services/backend
 RUN pnpm install --frozen-lockfile
 
 # Build backend
-RUN pnpm run build:server
+RUN pnpm --filter './services/backend' run build
 
 # Expose port
 EXPOSE 3001

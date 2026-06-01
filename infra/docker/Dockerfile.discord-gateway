@@ -20,7 +20,7 @@ COPY services/discord-gateway ./services/discord-gateway
 RUN pnpm install --frozen-lockfile
 
 # Build discord gateway
-RUN pnpm run build
+RUN pnpm --filter './services/discord-gateway' run build
 
 # Create recordings directory
 RUN mkdir -p /app/recordings
