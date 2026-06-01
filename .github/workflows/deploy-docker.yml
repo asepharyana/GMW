@@ -1,0 +1,72 @@
+name: Deploy GMW to VPS
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Docker Image"]
+    types:
+      - completed
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: gmw-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          submodules: false
+
+      - name: Deploy GMW on VPS
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_TARGET_DIR: ${{ secrets.VPS_TARGET_DIR }}
+          ENV_FILE_PRODUCTION: ${{ secrets.ENV_FILE_PRODUCTION }}
+        run: |
+          set -euo pipefail
+
+          echo "Deploy event: ${{ github.event_name }}"
+          echo "Deploy ref: ${{ github.ref }}"
+          echo "Deploy sha: ${{ github.sha }}"
+
+          if [ -z "${SSH_PRIVATE_KEY:-}" ] || [ -z "${VPS_HOST:-}" ] || [ -z "${VPS_USER:-}" ] || [ -z "${VPS_TARGET_DIR:-}" ]; then
+            echo "❌ Deployment secrets are not fully configured. Please set SSH_PRIVATE_KEY, VPS_HOST, VPS_USER, and VPS_TARGET_DIR."
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H -t ed25519,rsa "$VPS_HOST" >> ~/.ssh/known_hosts
+
+          SSH_OPTS=(-o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=600 -o StrictHostKeyChecking=yes)
+
+          ssh "${SSH_OPTS[@]}" "$VPS_USER@$VPS_HOST" "mkdir -p $VPS_TARGET_DIR"
+          echo "$ENV_FILE_PRODUCTION" > .env.prod
+          scp "${SSH_OPTS[@]}" .env.prod "$VPS_USER@$VPS_HOST:$VPS_TARGET_DIR/.env"
+
+          echo "📦 Syncing GMW app files to VPS..."
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'node_modules' \
+            --exclude 'dist' \
+            --exclude '.claude' \
+            --exclude 'logs' \
+            -e "ssh ${SSH_OPTS[*]}" \
+            ./ "$VPS_USER@$VPS_HOST:$VPS_TARGET_DIR/"
+
+          ssh "${SSH_OPTS[@]}" "$VPS_USER@$VPS_HOST" "cd $VPS_TARGET_DIR && (docker compose up -d --build || docker-compose up -d --build)"
