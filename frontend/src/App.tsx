@@ -77,6 +77,15 @@ export default function App() {
   useEffect(() => { if (monitorGuildId) voice.loadTextTargets(monitorGuildId).catch(() => undefined); }, [monitorGuildId, voice.loadTextTargets]);
   useEffect(() => { if (selectedTextChannel) messages.fetchMessages(selectedTextChannel).catch(() => undefined); }, [selectedTextChannel, messages.fetchMessages]);
 
+  // Periodic refetch — ensures dashboard stays in sync even if WS events were missed
+  useEffect(() => {
+    if (!selectedTextChannel) return;
+    const interval = setInterval(() => {
+      messages.fetchMessages(selectedTextChannel).catch(() => undefined);
+    }, 15_000); // every 15s (longer than WS, shorter than stale cache)
+    return () => clearInterval(interval);
+  }, [selectedTextChannel, messages.fetchMessages]);
+
   return (
     <DashboardLayout activeTab={activeTab} wsStatus={socket.status} voiceStatus={voice.voiceStatus} onTabChange={(tab) => patchUIState({ activeTab: tab })}>
       {activeTab === "live" ? (
@@ -105,6 +114,9 @@ export default function App() {
           onGuildChange={(id) => patchUIState({ selectedTextGuild: id, selectedTextChannel: "" })}
           onChannelChange={(id) => patchUIState({ selectedTextChannel: id })}
           onReanalyze={messages.reanalyze}
+          onLoadMore={messages.loadMore}
+          hasMore={messages.hasMore}
+          loadingMore={messages.loadingMore}
         />
       ) : (
         <AnalyticsErrorBoundary>

@@ -424,8 +424,8 @@ export async function getTopicTrends(input: {
   try {
     const since = Date.now() - hours * 3600_000;
 
-    // Only fetch messages that have ai_analysis (the ones that actually have topics)
-    // This dramatically reduces rows for large guilds
+    // Fetch all analyzed messages within the time window (no hard row cap).
+    // Messages without ai_analysis are excluded which naturally limits rows.
     const rows = (await executeAll(
       `
       SELECT
@@ -438,7 +438,6 @@ export async function getTopicTrends(input: {
         AND ai_analysis IS NOT NULL
         ${channelId ? `AND (channel_id = ? OR thread_id = ?)` : ""}
       ORDER BY created_at DESC
-      LIMIT 2000
       `,
       channelId ? [guildId, since, channelId, channelId] : [guildId, since],
     )) as MessageRecord[];

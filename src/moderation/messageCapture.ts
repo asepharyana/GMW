@@ -16,6 +16,7 @@ import {
   updateMessageAsEdited,
   upsertMessageForCapture,
 } from "./messageStore.js";
+import { invalidateAnalyticsCache } from "./analyticsStore.js";
 import type { AttachmentRecord, MessageRecord } from "./types.js";
 
 const logger = createChildLogger("message-capture");
@@ -126,6 +127,9 @@ export async function captureMessage(
   if (broadcaster && !isBacklog) {
     broadcaster.messageCreated(messageRecord);
   }
+
+  // Invalidate analytics cache so real-time stats reflect the new message
+  invalidateAnalyticsCache(messageRecord.guild_id);
 
   const attachmentUploadTasks: Promise<void>[] = [];
 

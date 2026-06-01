@@ -14,6 +14,9 @@ interface MessagesPanelProps {
   onGuildChange: (guildId: string) => void;
   onChannelChange: (channelId: string) => void;
   onReanalyze: (id: string) => Promise<void>;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
 }
 
 type AiFilter = "all" | "clean" | "warn" | "flagged" | "error" | "pending";
@@ -21,6 +24,7 @@ type AiFilter = "all" | "clean" | "warn" | "flagged" | "error" | "pending";
 export function MessagesPanel({
   guilds, channels, selectedGuild, selectedChannel,
   messages, onGuildChange, onChannelChange, onReanalyze,
+  onLoadMore, hasMore, loadingMore,
 }: MessagesPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<MessageRecord[]>([]);
@@ -85,7 +89,7 @@ export function MessagesPanel({
 
       {stats.total > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="text-xs">{stats.total} total</Badge>
+          <Badge variant="secondary" className="text-xs">{stats.total} total{hasMore && !showSearch ? "+" : ""}</Badge>
           <Badge variant="outline" className="text-xs text-green-400 border-green-400/30">{stats.clean} clean</Badge>
           <Badge variant="outline" className="text-xs text-yellow-400 border-yellow-400/30">{stats.warn} warn</Badge>
           <Badge variant="outline" className="text-xs text-red-400 border-red-400/30">{stats.flagged} flagged</Badge>
@@ -127,7 +131,14 @@ export function MessagesPanel({
           <TabsTrigger value="images">Images</TabsTrigger>
         </TabsList>
         <TabsContent value="all">
-          <MessageFeed messages={filteredMessages} onReanalyze={onReanalyze} emptyText={showSearch ? "No messages found matching your search." : selectedChannel ? "No captures yet." : "Select a channel to view captures."} />
+          <MessageFeed
+            messages={filteredMessages}
+            onReanalyze={onReanalyze}
+            emptyText={showSearch ? "No messages found matching your search." : selectedChannel ? "No captures yet." : "Select a channel to view captures."}
+            onLoadMore={showSearch ? undefined : onLoadMore}
+            hasMore={showSearch ? false : hasMore}
+            loadingMore={loadingMore}
+          />
         </TabsContent>
         <TabsContent value="images">
           <ImageGrid messages={filteredMessages} />

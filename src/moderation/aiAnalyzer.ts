@@ -21,6 +21,7 @@ import {
   updateMessageAIAnalysis,
   updateMessagesAIAnalysisBulk,
 } from "./messageStore.js";
+import { invalidateAnalyticsCache } from "./analyticsStore.js";
 import type {
   AnalysisQueueStatus,
   MessageRecord,
@@ -374,6 +375,7 @@ async function processIndividualFallback(
     const rows = await updateMessagesAIAnalysisBulk(updates);
     for (const row of rows) {
       getModerationBroadcaster()?.messageAnalyzed(row);
+      invalidateAnalyticsCache(row.guild_id);
       scheduleAutoDelete(row);
     }
 
