@@ -1,19 +1,21 @@
-FROM node:22-bookworm-slim
+FROM nixos/nix:latest
 
-# Runtime deps: ffmpeg for video muxing, yt-dlp for download, build tools for node-canvas
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    python3 \
-    curl \
-    ca-certificates \
-    git \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+SHELL ["/bin/sh", "-c"]
 
-# yt-dlp
-RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-    -o /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp
+ENV NIX_CONFIG="experimental-features = nix-command flakes"
+
+# Install the runtime and build dependencies through Nix instead of apt.
+RUN nix profile install \
+    github:NixOS/nixpkgs/nixos-unstable#nodejs_22 \
+    github:NixOS/nixpkgs/nixos-unstable#ffmpeg \
+    github:NixOS/nixpkgs/nixos-unstable#python3 \
+    github:NixOS/nixpkgs/nixos-unstable#cacert \
+    github:NixOS/nixpkgs/nixos-unstable#git \
+    github:NixOS/nixpkgs/nixos-unstable#gnumake \
+    github:NixOS/nixpkgs/nixos-unstable#gcc \
+    github:NixOS/nixpkgs/nixos-unstable#pkg-config \
+    github:NixOS/nixpkgs/nixos-unstable#vips \
+    github:NixOS/nixpkgs/nixos-unstable#yt-dlp
 
 RUN corepack enable
 
