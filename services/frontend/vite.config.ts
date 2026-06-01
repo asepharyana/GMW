@@ -13,4 +13,9 @@ export default defineConfig({
   server: {
     middlewareMode: false,
   },
+  preview: {
+    port: 3000,
+    host: true,
+    allowedHosts: ["imphnen.asepharyana.my.id", "imphnen.asepharyana.tech", "imphnen.asepharyana.web.id"],
+  },
 });
