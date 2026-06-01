@@ -4,20 +4,23 @@ SHELL ["/bin/sh", "-c"]
 
 ENV NIX_CONFIG="experimental-features = nix-command flakes"
 
-# Install the system tools needed for native module post-install scripts.
-# Note: NixOS base image does NOT include coreutils (sed, etc.) in PATH.
-# The node-pre-gyp and prebuild-install wrappers require sed.
+# Install all system dependencies in a single nix profile to avoid version conflicts.
+# The NixOS base image lacks common Unix utilities (sed, coreutils, etc.) that
+# native Node.js post-install scripts (node-pre-gyp, prebuild-install) require.
+# We pin nixpkgs to a specific commit for reproducible builds.
 ARG NIXPKGS_COMMIT=64c08a7ca051951c8eae34e3e3cb1e202fe36786
 
-RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#coreutils"
-RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#nodejs_22"
-RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#ffmpeg"
-RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#python3"
-RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#gnumake"
-RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#gcc"
-RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#pkg-config"
-RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#vips"
-RUN nix profile add "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#yt-dlp"
+RUN nix profile install \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#gnused" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#coreutils-full" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#nodejs_22" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#ffmpeg" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#python3" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#gnumake" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#gcc" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#pkg-config" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#vips" \
+    "github:NixOS/nixpkgs/${NIXPKGS_COMMIT}#yt-dlp"
 
 RUN corepack enable
 
