@@ -536,9 +536,18 @@ const analyzeSingleMediaImage = async (
       ? makeStickerCacheKey(image.stickerName)
       : makeImageCacheKey(image.image_url.url);
 
+  // Layer 0: In-memory LRU cache (fastest — no DB or network I/O)
+  const lruCached = visionLruCache.get(cacheKey);
+  if (lruCached) {
+    log.debug({ cacheKey }, "Vision LRU cache HIT (in-memory)");
+    return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${lruCached}`;
+  }
+
+  // Layer 1: DB cache
   const cached = await getCachedMediaAnalysis(cacheKey);
   if (cached) {
-    log.debug({ cacheKey }, "Media analysis cache HIT");
+    visionLruCache.set(cacheKey, cached);
+    log.debug({ cacheKey }, "Media analysis cache HIT (DB → LRU)");
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${cached}`;
   }
 
@@ -562,6 +571,38 @@ const analyzeSingleMediaImage = async (
       : buildGeneralImageVisionPrompt(image.sourceLabel, messageId);
 
   const visionPromise = (async (): Promise<string | null> => {
+    // Layer 2: Perceptual hash pre-check (before expensive vision API call)
+    let phash: string | null = null;
+    if (image.image_url.url.startsWith("data:")) {
+      try {
+        const base64Data = image.image_url.url.split(",")[1];
+        if (base64Data) {
+          const imgBuffer = Buffer.from(base64Data, "base64");
+          phash = await computeImagePhash(imgBuffer);
+          if (phash) {
+            const phashCached = await getCachedMediaByPhash(phash);
+            if (phashCached) {
+              log.debug(
+                { cacheKey, phash: phash.slice(0, 16) },
+                "Vision phash HIT — reusing analysis",
+              );
+              visionLruCache.set(cacheKey, phashCached);
+              await upsertCachedMediaAnalysis(
+                cacheKey,
+                phashCached,
+                "vision_llm",
+                Date.now() + 24 * 60 * 60 * 1000,
+              ).catch(() => {});
+              return phashCached;
+            }
+          }
+        }
+      } catch {
+        // phash failed — continue with normal vision API flow
+        phash = null;
+      }
+    }
+
     try {
       const content = await llmVision(promptText, image.image_url);
       if (!content) return null;
@@ -572,6 +613,16 @@ const analyzeSingleMediaImage = async (
         "vision_llm",
         Date.now() + 24 * 60 * 60 * 1000,
       );
+      // Populate in-memory LRU and phash cache
+      visionLruCache.set(cacheKey, content);
+      if (phash) {
+        upsertCachedMediaByPhash(
+          phash,
+          content,
+          "vision_llm",
+          Date.now() + 7 * 24 * 60 * 60 * 1000,
+        ).catch(() => {});
+      }
 
       return content;
     } catch (error) {
