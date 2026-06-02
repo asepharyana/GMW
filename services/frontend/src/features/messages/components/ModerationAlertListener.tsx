@@ -1,12 +1,12 @@
 // ─── Moderation alert toast listener ───────────────────────────────────────
 // Listens for "moderation_alert" custom events dispatched from WebSocket
-// message_analyzed handler, and shows toast notifications for flagged/warned
+// message_analyzed handler, and shows toast notifications for flagged
 // messages so moderators don't miss important alerts.
 import { useEffect } from "react";
 import { useToast } from "../../../shared/ui";
 
 interface AlertDetail {
-  type: "flagged" | "warn";
+  type: "flagged";
   username: string;
   severity: string;
   categories: string;
@@ -18,19 +18,18 @@ export function ModerationAlertListener() {
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const { type, username, severity, categories, brief } = (
+      const { username, severity, categories, brief } = (
         e as CustomEvent<AlertDetail>
       ).detail;
 
-      const emoji = type === "flagged" ? "🚨" : "⚠️";
       const sevLabel = severity ? `[${severity}]` : "";
       const catLabel = categories
         ? ` — ${categories.split(",").slice(0, 2).join(", ")}`
         : "";
 
       addToast(
-        `${emoji} ${username} ${sevLabel}${catLabel}: ${brief}`,
-        type === "flagged" ? "error" : "warning",
+        `🚨 ${username} ${sevLabel}${catLabel}: ${brief}`,
+        "error",
       );
     };
 

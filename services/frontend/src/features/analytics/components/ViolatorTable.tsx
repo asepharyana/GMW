@@ -48,7 +48,7 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
               Pelanggar Terbanyak
             </CardTitle>
             <CardDescription className="text-xs">
-              Skor: flagged × 3 + warned × 1.
+              Skor: flagged × 3.
             </CardDescription>
           </div>
           <Badge variant="destructive">{users.length} pelanggar</Badge>
@@ -61,7 +61,6 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
               <tr className="sticky top-0 z-10 bg-card/95 backdrop-blur border-b border-border text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                 <th className="py-2 pl-4 pr-2 font-semibold">#</th>
                 <th className="py-2 pr-2 font-semibold">User</th>
-                <th className="py-2 pr-2 font-semibold text-right">Warned</th>
                 <th className="py-2 pr-2 font-semibold text-right">Flagged</th>
                 <th className="py-2 pr-4 font-semibold text-right">Skor</th>
               </tr>
@@ -101,9 +100,6 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
                           {danger.text}
                         </Badge>
                       </div>
-                    </td>
-                    <td className="py-1.5 pr-2 text-right font-mono text-xs text-amber-400 tabular-nums">
-                      {user.warned_count}
                     </td>
                     <td className="py-1.5 pr-2 text-right font-mono text-xs text-red-400 tabular-nums">
                       {user.flagged_count}

@@ -22,10 +22,6 @@ export function SummaryCards({
     messages && messages.total > 0
       ? Math.round((messages.clean / messages.total) * 100)
       : 0;
-  const warnedPct =
-    messages && messages.total > 0
-      ? Math.round((messages.warned / messages.total) * 100)
-      : 0;
   const flaggedPct =
     messages && messages.total > 0
       ? Math.round((messages.flagged / messages.total) * 100)
@@ -46,11 +42,6 @@ export function SummaryCards({
       label: "Clean",
       value: cleanPct > 0 ? `${cleanPct}%` : "—",
       accent: "text-emerald-400",
-    },
-    {
-      label: "Warned",
-      value: warnedPct > 0 ? `${warnedPct}%` : "—",
-      accent: "text-amber-400",
     },
     {
       label: "Flagged",

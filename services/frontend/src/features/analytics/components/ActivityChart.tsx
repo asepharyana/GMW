@@ -27,7 +27,7 @@ export function ActivityChart({ hourly, loading }: ActivityChartProps) {
     return {
       hour: `${String(jakartaHour).padStart(2, "0")}:00`,
       clean: b.clean,
-      warned: b.warned,
+      warned: 0,
       flagged: b.flagged,
       error: b.error,
       total: b.count,

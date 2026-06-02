@@ -24,7 +24,7 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
   const data = trend.map((bucket) => ({
     date: bucket.date,
     clean: bucket.clean,
-    warned: bucket.warned,
+    warned: 0,
     flagged: bucket.flagged,
     error: bucket.error,
     total: bucket.count,

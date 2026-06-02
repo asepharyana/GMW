@@ -97,15 +97,15 @@ export default function App() {
     onMessageAnalyzed: (m) => {
       const msg = m as MessageRecord;
       messages.setMessages((prev) => mergeMessages(prev, [msg]));
-      // Show toast for moderation alerts (warn/flagged)
+      // Show toast for moderation alerts (flagged)
       const status = msg.ai_status;
-      if (status === "flagged" || status === "warn") {
+      if (status === "flagged") {
         const username = msg.username || msg.user_id || "unknown";
         const severity = msg.ai_severity || "";
         const categories = msg.ai_categories || "";
         const brief =
           msg.ai_analysis?.slice(0, 80) ??
-          `Message ${status === "flagged" ? "flagged" : "warned"} by AI`;
+          "Message flagged by AI";
         window.dispatchEvent(
           new CustomEvent("moderation_alert", {
             detail: { type: status, username, severity, categories, brief },

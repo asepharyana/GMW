@@ -1,6 +1,5 @@
 import {
   AlertCircle,
-  AlertTriangle,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -12,7 +11,6 @@ import {
 } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import type { MessageRecord } from "../../../shared/api/client";
-import { moderateMessage } from "../../../shared/api/client";
 import { Badge, Button, Skeleton } from "../../../shared/ui";
 import { parseMetadata } from "../../../entities/message/types";
 
@@ -89,7 +87,6 @@ function parseStringList(value?: string | null): string[] {
 
 function aiVariant(status: string) {
   if (status === "clean") return "success";
-  if (status === "warn") return "warning";
   if (status === "flagged" || status === "error") return "destructive";
   return "secondary";
 }
@@ -138,7 +135,7 @@ export function MessageCard({
     message.ai_confidence ?? message.ai_moderation_score ?? null;
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(
-    aiStatus === "warn" || aiStatus === "flagged",
+    aiStatus === "flagged",
   );
 
   // Build a human-readable analysis summary from categories + confidence + severity
@@ -222,9 +219,6 @@ export function MessageCard({
                 >
                   {aiStatus === "clean" && (
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                  )}
-                  {aiStatus === "warn" && (
-                    <AlertTriangle className="h-3.5 w-3.5" />
                   )}
                   {aiStatus === "flagged" && (
                     <AlertCircle className="h-3.5 w-3.5" />
@@ -328,9 +322,7 @@ export function MessageCard({
               className={`rounded-xl border-l-2 p-3 ${
                 aiStatus === "flagged"
                   ? "border-l-red-500 bg-red-500/5"
-                  : aiStatus === "warn"
-                    ? "border-l-yellow-500 bg-yellow-500/5"
-                    : "border-l-blue-500 bg-blue-500/5"
+                  : "border-l-blue-500 bg-blue-500/5"
               }`}
             >
               <button
@@ -341,9 +333,7 @@ export function MessageCard({
                 <span className="font-medium text-foreground/80">
                   {aiStatus === "flagged"
                     ? "🚨"
-                    : aiStatus === "warn"
-                      ? "⚠️"
-                      : "ℹ️"}{" "}
+                    : "ℹ️"}{" "}
                   {analysisSummary}
                 </span>
                 {showAnalysis ? (
@@ -383,52 +373,6 @@ export function MessageCard({
               <span className="text-xs text-destructive/80">
                 Click to retry analysis
               </span>
-            )}
-
-            {/* Moderation action buttons for flagged/warned messages */}
-            {(aiStatus === "flagged" || aiStatus === "warn") && (
-              <div className="flex items-center gap-1.5 border-l border-border pl-2">
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  className="text-xs"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Delete message from ${message.username}?\n\n"${(message.edited_content ?? message.content).slice(0, 120)}"`,
-                      )
-                    ) {
-                      moderateMessage(
-                        message.id,
-                        "delete_message",
-                        "Manual moderation from dashboard",
-                      );
-                    }
-                  }}
-                >
-                  <Trash2 className="h-3 w-3 mr-1" /> Delete
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Warn user ${message.username} for this message?`,
-                      )
-                    ) {
-                      moderateMessage(
-                        message.id,
-                        "warn_user",
-                        "Manual moderation from dashboard",
-                      );
-                    }
-                  }}
-                >
-                  <AlertTriangle className="h-3 w-3 mr-1" /> Warn
-                </Button>
-              </div>
             )}
           </div>
         </div>

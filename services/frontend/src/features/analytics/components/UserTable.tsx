@@ -53,7 +53,6 @@ export function UserTable({ users, loading }: UserTableProps) {
                 <th className="py-2 pr-2 font-semibold">User</th>
                 <th className="py-2 pr-2 font-semibold text-right">Pesan</th>
                 <th className="py-2 pr-2 font-semibold text-right">Edit</th>
-                <th className="py-2 pr-2 font-semibold text-right">Hapus</th>
                 <th className="py-2 pr-4 font-semibold text-right">Flag</th>
               </tr>
             </thead>
@@ -102,9 +101,6 @@ export function UserTable({ users, loading }: UserTableProps) {
                   </td>
                   <td className="py-1.5 pr-2 text-right font-mono text-[10px] text-muted-foreground tabular-nums">
                     {user.edited_count > 0 ? user.edited_count : "—"}
-                  </td>
-                  <td className="py-1.5 pr-2 text-right font-mono text-[10px] text-muted-foreground tabular-nums">
-                    {user.deleted_count > 0 ? user.deleted_count : "—"}
                   </td>
                   <td className="py-1.5 pr-4 text-right">
                     {user.flagged_count > 0 ? (

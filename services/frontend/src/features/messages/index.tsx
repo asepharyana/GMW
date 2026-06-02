@@ -27,7 +27,7 @@ interface MessagesPanelProps {
   loadingMore?: boolean;
 }
 
-type AiFilter = "all" | "clean" | "warn" | "flagged" | "error" | "pending";
+type AiFilter = "all" | "clean" | "flagged" | "error" | "pending";
 
 export function MessagesPanel({
   guildName,
@@ -73,7 +73,6 @@ export function MessagesPanel({
     return {
       total: base.length,
       clean: base.filter((m) => m.ai_status === "clean").length,
-      warn: base.filter((m) => m.ai_status === "warn").length,
       flagged: base.filter((m) => m.ai_status === "flagged").length,
       error: base.filter((m) => m.ai_status === "error").length,
       pending: base.filter((m) => m.ai_status === "pending" || !m.ai_status)
@@ -124,12 +123,6 @@ export function MessagesPanel({
             className="text-xs text-green-400 border-green-400/30"
           >
             {stats.clean} clean
-          </Badge>
-          <Badge
-            variant="outline"
-            className="text-xs text-yellow-400 border-yellow-400/30"
-          >
-            {stats.warn} warn
           </Badge>
           <Badge
             variant="outline"
@@ -227,7 +220,6 @@ export function MessagesPanel({
             [
               "all",
               "clean",
-              "warn",
               "flagged",
               "error",
               "pending",
