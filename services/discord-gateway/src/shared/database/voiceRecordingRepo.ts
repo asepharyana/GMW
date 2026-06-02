@@ -1,5 +1,5 @@
 import { desc, eq } from "drizzle-orm";
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { getDatabase } from "./drizzle.js";
 import {
   type VoiceRecording,

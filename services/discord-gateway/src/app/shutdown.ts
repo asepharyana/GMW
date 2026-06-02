@@ -3,7 +3,7 @@ import type { CommandHandler } from "../modules/command-handler/commandHandler.j
 import type { EventBroadcaster } from "../modules/event-broadcaster/index.js";
 import type { VoiceController } from "../modules/voice-recording/voiceController.js";
 import type { closeDatabase } from "../shared/database/drizzle.js";
-import type { createChildLogger } from "../shared/logger/logger.js";
+import type { createChildLogger } from "@bete/shared/logger";
 
 type Logger = ReturnType<typeof createChildLogger>;
 type CloseDatabase = typeof closeDatabase;

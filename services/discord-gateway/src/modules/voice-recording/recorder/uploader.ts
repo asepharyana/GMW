@@ -6,7 +6,7 @@ import {
   updateVoiceRecordingAsFailed,
   updateVoiceRecordingAsUploaded,
 } from "../../../shared/database/voiceRecordingRepo.js";
-import { createChildLogger } from "../../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { uploadToTele } from "../teleUpload.js";
 
 const logger = createChildLogger("recording-uploader");
@@ -61,7 +61,6 @@ export async function uploadRecordingSegment(input: {
       contentType: "audio/ogg",
       uploadUrl: config.TELE_UPLOAD_URL,
       retries: 0,
-      logger,
     });
     const downloadUrl = uploadResult.url;
 

@@ -1,5 +1,5 @@
 import { config } from "../../shared/config/config.js";
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { uploadToTele } from "./teleUpload.js";
 import {
   updateAttachmentAsFailedUpload,
@@ -45,7 +45,6 @@ export async function uploadAttachmentToTele(
       uploadUrl: config.TELE_UPLOAD_URL,
       timeoutMs: config.ATTACHMENT_UPLOAD_TIMEOUT_MS,
       retries: 0,
-      logger,
     });
 
     return result.url;

@@ -11,7 +11,7 @@ import {
 } from "@discordjs/voice";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { PacketFilter } from "./packetFilter.js";
 import { subscribeToAudioStream } from "./recorder/audioStream.js";
 import { OpusDecoder } from "./recorder/decoder.js";
@@ -26,7 +26,7 @@ import {
   type RecordingSession,
 } from "./recorder/sessionRecording.js";
 import { uploadRecordingSegment } from "./recorder/uploader.js";
-import { retryWithBackoff } from "../../shared/utils/retry.js";
+import { retryWithBackoff } from "@bete/shared/utils";
 import type { PcmBroadcaster } from "../message-capture/types.js";
 
 const logger = createChildLogger("recorder");
@@ -95,7 +95,6 @@ export async function startRecording(
         retries: 0,
         minTimeout: 0,
         maxTimeout: 0,
-        logger,
       },
     );
     logger.info("Connected to voice channel. Recording started");

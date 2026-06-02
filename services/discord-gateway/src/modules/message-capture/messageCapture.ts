@@ -1,6 +1,6 @@
 import type { Client, Message } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { queueMessageAnalysis } from "../ai-moderation/aiAnalyzer.js";
 import { processAttachmentUpload } from "../attachment-upload/attachmentUploader.js";
 import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";

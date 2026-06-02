@@ -1,4 +1,4 @@
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { getCachedText, upsertCachedText } from "./textCacheStore.js";
 import { llmDetectBadwords } from "./llmClient.js";
 

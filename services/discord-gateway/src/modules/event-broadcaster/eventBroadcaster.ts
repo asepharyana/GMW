@@ -1,5 +1,5 @@
 import Redis from "ioredis";
-import type { CustomLogger } from "../../shared/logger/logger.js";
+import type { CustomLogger } from "@bete/shared/logger";
 
 export interface DiscordGatewayEvent {
   type: string;

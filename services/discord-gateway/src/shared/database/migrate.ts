@@ -2,7 +2,7 @@ import "dotenv/config";
 import type { PoolClient } from "pg";
 import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
 import { migrate as migratePostgres } from "drizzle-orm/node-postgres/migrator";
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 import {
   closeDatabase,
   initializeDatabase,

@@ -1,6 +1,6 @@
 import { resolve } from "node:dns/promises";
 import { isIP } from "node:net";
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 
 const log = createChildLogger("urlFetcher");
 

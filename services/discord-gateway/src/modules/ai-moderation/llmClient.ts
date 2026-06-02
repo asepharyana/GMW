@@ -8,9 +8,9 @@
 
 import OpenAI from "openai";
 import { config } from "../../shared/config/config.js";
-import { retryWithBackoff } from "../../shared/utils/retry.js";
+import { retryWithBackoff } from "@bete/shared/utils";
 import { withLlmConcurrency } from "./concurrencyLimiter.js";
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 
 const log = createChildLogger("llm-client");
 
@@ -136,7 +136,6 @@ export async function llmChat(
       minTimeout: 0,
       maxTimeout: 0,
       factor: 2,
-      logger: log,
     },
   );
 }

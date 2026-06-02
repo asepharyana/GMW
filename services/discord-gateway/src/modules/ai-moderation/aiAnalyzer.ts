@@ -4,8 +4,8 @@ import type { Client } from "discord.js-selfbot-v13";
 import { AbortError } from "p-retry";
 import { Piscina } from "piscina";
 import { config } from "../../shared/config/config.js";
-import { createChildLogger } from "../../shared/logger/logger.js";
-import { retryWithBackoff } from "../../shared/utils/retry.js";
+import { createChildLogger } from "@bete/shared/logger";
+import { retryWithBackoff } from "@bete/shared/utils";
 import type { EventBroadcaster } from "../event-broadcaster/index.js";
 import { invalidateAnalyticsCache } from "../message-capture/analyticsStore.js";
 import { isAgeRestrictedMetadata } from "../message-capture/messageMetadata.js";
@@ -380,7 +380,6 @@ async function processIndividualFallback(
         retries: 0,
         minTimeout: 0,
         maxTimeout: 0,
-        logger,
       },
     );
 

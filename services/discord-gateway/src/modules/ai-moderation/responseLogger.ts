@@ -10,7 +10,7 @@
  * Enables full audit trail and debugging of moderation decisions.
  */
 
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 import type { AnalysisResult } from "../message-capture/types.js";
 
 const logger = createChildLogger("response-logger");

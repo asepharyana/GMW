@@ -2,8 +2,8 @@ import type { ChatCompletion } from "openai/resources/chat/completions";
 import { AbortError } from "p-retry";
 import { z } from "zod";
 import { config } from "../../shared/config/config.js";
-import { createChildLogger } from "../../shared/logger/logger.js";
-import { retryWithBackoff } from "../../shared/utils/retry.js";
+import { createChildLogger } from "@bete/shared/logger";
+import { retryWithBackoff } from "@bete/shared/utils";
 import { resizeImageForVision } from "../attachment-upload/imageResizer.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
 import type {
@@ -677,7 +677,6 @@ async function callModerationLLM(
         minTimeout: 3000,
         maxTimeout: 8000,
         factor: 2,
-        logger: log,
       },
     );
     parsed = analysis.parsed;

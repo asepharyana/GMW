@@ -1,4 +1,4 @@
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { runMigrations } from "./migrate.js";
 
 const logger = createChildLogger("migrate-cli");

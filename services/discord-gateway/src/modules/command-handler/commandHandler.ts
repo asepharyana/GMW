@@ -1,7 +1,7 @@
 import type { Client } from "discord.js-selfbot-v13";
 import Redis from "ioredis";
 import { config } from "../../shared/config/config.js";
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { discordPlayer } from "../voice-recording/player.js";
 import type { VoiceController } from "../voice-recording/voiceController.js";
 

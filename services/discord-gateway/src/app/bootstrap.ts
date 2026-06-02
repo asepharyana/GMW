@@ -17,7 +17,7 @@ import {
 } from "../shared/database/drizzle.js";
 import { runMigrations } from "../shared/database/migrate.js";
 import { createDiscordClientOptions } from "../shared/discord/clientOptions.js";
-import { createChildLogger } from "../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { createGracefulShutdown } from "./shutdown.js";
 
 const logger = createChildLogger("discord-gateway");

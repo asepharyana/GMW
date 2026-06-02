@@ -1,5 +1,4 @@
-import type { CustomLogger } from "../../shared/logger/logger.js";
-import { retryWithBackoff } from "../../shared/utils/retry.js";
+import { retryWithBackoff } from "@bete/shared/utils";
 
 export interface TeleUploadResponse {
   download_url: string;
@@ -37,7 +36,6 @@ export async function uploadToTele(input: {
   uploadUrl: string;
   timeoutMs?: number;
   retries: number;
-  logger: CustomLogger;
 }): Promise<TeleUploadResult> {
   const {
     buffer,
@@ -46,7 +44,6 @@ export async function uploadToTele(input: {
     uploadUrl,
     timeoutMs,
     retries,
-    logger,
   } = input;
 
   const response = await retryWithBackoff(
@@ -77,7 +74,6 @@ export async function uploadToTele(input: {
       retries,
       minTimeout: 0,
       maxTimeout: 0,
-      logger,
     },
   );
 

@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 import type { MediaState } from "../voice-recording/mediaTypes.js";
 import type {
   AnalysisQueueStatus,

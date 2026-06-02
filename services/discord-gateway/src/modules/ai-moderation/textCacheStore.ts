@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { executeAll, executeGet } from "../../shared/database/drizzle.js";
-import { createChildLogger } from "../../shared/logger/logger.js";
+import { createChildLogger } from "@bete/shared/logger";
 
 const logger = createChildLogger("text-cache-store");
 
