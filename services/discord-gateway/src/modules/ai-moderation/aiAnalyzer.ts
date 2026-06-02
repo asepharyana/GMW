@@ -162,6 +162,26 @@ const conversationConsecutiveErrors = new Map<string, number>();
 const MAX_CONSECUTIVE_ERRORS = 5;
 const CONVERSATION_CB_COOLDOWN_MS = 60000;
 
+function recordConversationBatchFailure(conversationKey: string): void {
+  const nextCount = (conversationConsecutiveErrors.get(conversationKey) ?? 0) + 1;
+  conversationConsecutiveErrors.set(conversationKey, nextCount);
+
+  if (nextCount >= MAX_CONSECUTIVE_ERRORS) {
+    conversationErrorCooldown.set(
+      conversationKey,
+      Date.now() + CONVERSATION_CB_COOLDOWN_MS,
+    );
+    logger.warn(
+      { conversationKey, consecutiveErrors: nextCount },
+      "Conversation circuit breaker triggered due to consecutive batch errors",
+    );
+  }
+}
+
+function resetConversationBatchFailures(conversationKey: string): void {
+  conversationConsecutiveErrors.delete(conversationKey);
+}
+
 // ---------------------------------------------------------------------------
 // Individual fallback queue — runs PARALLEL to the batch pipeline.
 //
