@@ -1020,10 +1020,12 @@ async function runTextOnlyBatch(
         : undefined;
 
       // Use modular system prompt with XML delimiters (R1, R7, R8)
+      const correctedExamples = await buildCorrectedFewShotExamples();
       const systemText = buildSystemPromptModular({
         contextText,
         mode: "text",
         correction,
+        correctedExamples,
       });
 
       const messagesBlock = batch
@@ -1503,9 +1505,11 @@ async function _runSingleMediaAnalysis(
   const messageBlock = `<message id="${target.id}" user="${target.username}">${content}${mediaContext ? ` ${mediaContext}` : ""}${textContext}${webContext}${mediaAnalysisContext}</message>`;
 
   // Modular system prompt with XML delimiters (R1, R7, R8)
+  const correctedExamples = await buildCorrectedFewShotExamples();
   const systemText = buildSystemPromptModular({
     contextText,
     mode: "mixed",
+    correctedExamples,
   });
 
   const userContent = `${systemText}\n\n<messages_to_analyze>\n${messageBlock}\n</messages_to_analyze>`;
