@@ -239,3 +239,57 @@ export async function upsertCachedMediaAnalysis(
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Perceptual hash helpers for image deduplication
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a deterministic cache key for a perceptual hash.
+ * The phash value is a string like "a1b2c3d4e5f6..." from the imghash library.
+ */
+export function makePhashCacheKey(phash: string): string {
+  return `phash:${phash.slice(0, 16)}`;
+}
+
+/**
+ * Look up a cached media analysis by perceptual hash.
+ * Returns the cached analysis string or null if not found/expired.
+ */
+export async function getCachedMediaByPhash(
+  phash: string,
+): Promise<string | null> {
+  const cacheKey = makePhashCacheKey(phash);
+  return getCachedMediaAnalysis(cacheKey);
+}
+
+/**
+ * Store a media analysis result keyed by perceptual hash.
+ */
+export async function upsertCachedMediaByPhash(
+  phash: string,
+  analysisResult: string,
+  source: "vision_llm",
+  expiresAt: number,
+): Promise<void> {
+  const cacheKey = makePhashCacheKey(phash);
+  return upsertCachedMediaAnalysis(cacheKey, analysisResult, source, expiresAt);
+}
+
+/**
+ * Compute perceptual hash from image buffer using imghash.
+ * Returns a hexadecimal string representation of the hash.
+ * Returns null if hashing fails (e.g., invalid image data).
+ */
+export async function computeImagePhash(
+  buffer: Buffer,
+): Promise<string | null> {
+  try {
+    // Dynamic import to avoid issues if imghash native bindings aren't available
+    const imghash = await import("imghash");
+    const hash = await imghash.hash(buffer);
+    return hash;
+  } catch {
+    return null;
+  }
+}
