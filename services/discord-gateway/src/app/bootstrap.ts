@@ -23,9 +23,9 @@ import { createGracefulShutdown } from "./shutdown.js";
 const logger = createChildLogger("discord-gateway");
 
 export async function initializeDiscordGateway() {
-  if (!config.AI_LLM_API_KEY) {
+  if (config.AI_ANALYSIS_ENABLED && !config.AI_LLM_API_KEY) {
     logger.error(
-      "AI_LLM_API_KEY is missing from environment. Force closing application as AI environment is required.",
+      "AI_ANALYSIS_ENABLED=true but AI_LLM_API_KEY is missing from environment. Force closing application because AI analysis cannot run without credentials.",
     );
     process.exit(1);
   }
