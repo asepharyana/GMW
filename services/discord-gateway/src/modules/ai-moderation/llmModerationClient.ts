@@ -862,7 +862,7 @@ async function runTextOnlyBatch(
       return `${systemText}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
     };
 
-    const batchResult = await Promise.race([
+    const batchResult = (await Promise.race([
       callModerationLLM(buildContent, targetIds, `text-batch-${i + 1}`),
       new Promise<{ results: AnalysisResult[]; raw: unknown }>((_, reject) => {
         const timeout = setTimeout(
@@ -876,7 +876,7 @@ async function runTextOnlyBatch(
         );
         timeout.unref();
       }),
-    ]);
+    ])) as { results: AnalysisResult[]; raw: unknown };
 
     allResults.push(...batchResult.results);
     if (batchResult.raw) lastRaw = batchResult.raw;
