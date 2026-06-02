@@ -24,8 +24,9 @@ export function createMessagesRouter(): Router {
   // GET /api/messages/:channelId/attachments - Get attachments by channel
   router.get("/messages/:channelId/attachments", handleGetAttachmentsByChannel);
 
-  // GET /api/messages/:id - Get single message by ID
-  router.get("/messages/:id", handleGetMessageById);
+  // GET /api/messages/detail/:id - Get single message by ID
+  // (uses /detail/ prefix to avoid collision with :channelId route above)
+  router.get("/messages/detail/:id", handleGetMessageById);
 
   // POST /api/messages/:id/reanalyze - Mark message for re-analysis
   router.post(

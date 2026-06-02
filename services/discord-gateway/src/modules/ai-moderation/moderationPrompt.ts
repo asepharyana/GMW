@@ -50,7 +50,13 @@ Prioritas rendah (PELANGGARAN RINGAN):
 3. Apakah ada harassment terarah/hate speech/sara? → flagged, medium-high
 4. Apakah ada spam/promosi borderline? → warn, low-medium
 5. Jika tidak ada pelanggaran jelas atau bukti ambigu → clean
-Jangan pernah flag hanya berdasarkan kecurigaan atau ketidakjelasan konteks.`;
+Jangan pernah flag hanya berdasarkan kecurigaan atau ketidakjelasan konteks.
+
+## ATURAN ANTI FALSE-POSITIVE UNTUK GAMBAR
+- Jika teks pesan adalah percakapan normal sehari-hari (seperti "Aku suka nasgor loh", "Halo guys", "Pagi semua", dll), maka gambar yang menyertainya SANGAT TIDAK MUNGKIN adalah konten judi atau pelanggaran berat.
+- Vision model sering salah mengklasifikasi screenshot biasa sebagai "antarmuka situs judi." Abaikan klaim vision model tentang judi KECUALI teks pesan juga mengandung promosi/link judi.
+- Jika teks clean dan vision bilang "gambling" tapi TANPA menyebutkan bukti spesifik (chip, kartu, odds, logo judi dikenal) → OVERRIDE ke clean.
+- Percaya teks terlebih dahulu. Bukti visual hanya pelengkap, bukan penentu utama.`;
 
 // ---------------------------------------------------------------------------
 // Section: Media Instructions (conditional — injected when media present)
@@ -58,7 +64,17 @@ Jangan pernah flag hanya berdasarkan kecurigaan atau ketidakjelasan konteks.`;
 
 const MEDIA_INSTRUCTIONS = `## Instruksi Analisis Media
 Gambar, sticker, embed image, preview link, dan attachment sudah dianalisis lewat request media terpisah sebelum batch utama.
-Gunakan baris "Media analysis" sebagai evidence visual utama dalam keputusan moderasi batch ini.
+Baris "Media analysis" memberikan DESKRIPSI VISUAL tentang apa yang terlihat di gambar, BUKAN keputusan moderasi final.
+
+## ATURAN KRITIS — Jangan Flag Gambar Biasa sebagai Judi
+- **Screenshot Discord/WhatsApp/Telegram/media sosial biasa BUKAN situs judi.** Jangan pernah mengklaim screenshot chat sebagai "antarmuka perjudian".
+- **Foto makanan, selfie, pemandangan, hewan, meme, screenshot game BUKAN konten melanggar.**
+- **Gambar dengan teks bahasa Indonesia biasa BUKAN promosi judi.**
+- HANYA flag "gambling" jika Media analysis secara SPESIFIK menyebutkan melihat elemen judi NYATA: chip, kartu remi, meja taruhan, odds, deposit/withdraw, atau logo situs judi yang DIKENALI.
+- Jika Media analysis hanya mendeskripsikan "antarmuka aplikasi" atau "tampilan web" tanpa menyebutkan elemen judi spesifik → jangan flag gambling.
+- Jika Media analysis bilang "aman" atau "tidak ada konten melanggar" → percaya itu.
+- **Bukti teks LEBIH PENTING dari bukti visual.** Jika teks pesan adalah percakapan biasa ("Aku suka nasgor loh", "Halo guys", "Pagi semua") dan tidak mengandung promosi judi/narkoba/scam, maka gambar tersebut SANGAT TIDAK MUNGKIN adalah pelanggaran. JANGAN kontradiksi antara teks dan gambar — percaya teks terlebih dahulu.
+- **Cross-check wajib**: Jika teks pesan clean/aman, maka analisis gambar yang mengklaim ada pelanggaran berat HARUS diabaikan kecuali ada bukti visual yang SANGAT JELAS dan TIDAK TERBANTAHKAN.
 
 ## Panduan Khusus Sticker
 - Sticker Discord adalah media kartun/meme/ilustrasi, BUKAN foto atau video nyata.
@@ -84,7 +100,15 @@ Output: {"results":[{"message_id":"67890","status":"flagged","flags":["harassmen
 
 Contoh 3 — Sticker kartun dengan nama provokatif:
 Input: [target] id=11111 user=citra: <:singa_injek:123456> [sticker: "Singa injek pejabat"]
-Output: {"results":[{"message_id":"11111","status":"clean","flags":[],"score":0.1,"categories":[],"severity":"none","confidence":0.8,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Sticker kartun satir dengan nama provokatif namun bukan ancaman nyata."}]}`;
+Output: {"results":[{"message_id":"11111","status":"clean","flags":[],"score":0.1,"categories":[],"severity":"none","confidence":0.8,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Sticker kartun satir dengan nama provokatif namun bukan ancaman nyata."}]}
+
+Contoh 4 — Pesan biasa dengan gambar (JANGAN flag sebagai judi):
+Input: [target] id=22222 user=rina: Aku suka nasgor loh [Media analysis for message 22222] [gambar di atas adalah attachment foto.jpg dari pesan id=22222]: Gambar menampilkan tangkapan layar aplikasi chat dengan teks percakapan biasa. Tidak ada konten melanggar terlihat. Aman.
+Output: {"results":[{"message_id":"22222","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pesan berisi percakapan sehari-hari tentang makanan. Gambar menunjukkan screenshot chat biasa tanpa pelanggaran."}]}
+
+Contoh 5 — Pesan promosi judi dengan gambar situs judi:
+Input: [target] id=33333 user=spammer: MAIN DI SINI GACOR PARAH https://judionline.xyz [Media analysis for message 33333] [gambar di atas adalah attachment slot.jpg dari pesan id=33333]: Gambar menampilkan antarmuka situs judi online dengan mesin slot, chip, dan tombol deposit. Terlihat logo "JudiOnline" dan odds taruhan.
+Output: {"results":[{"message_id":"33333","status":"flagged","flags":["gambling"],"score":0.92,"categories":["gambling"],"severity":"high","confidence":0.92,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["MAIN DI SINI GACOR PARAH","https://judionline.xyz","Gambar menampilkan antarmuka situs judi online dengan mesin slot, chip, dan tombol deposit"],"analysis":"Promosi situs judi online dengan link, teks promosi, dan gambar antarmuka judi yang jelas."}]}`;
 
 // ---------------------------------------------------------------------------
 // Section: Output Schema + XML Delimiter Instructions

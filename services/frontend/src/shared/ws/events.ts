@@ -10,6 +10,10 @@ export interface WsEventMap {
   ui_state: { state: unknown };
   media_state: { state: unknown };
   voice_recording_uploaded: { data: unknown };
+  voice_recording_started: { data: unknown };
+  voice_recording_stopped: { data: unknown };
+  attachment_created: { data: unknown };
+  analysis_queue_status: { data: unknown };
 }
 
 export type WsEventType = keyof WsEventMap;

@@ -4,10 +4,15 @@ import { z } from "zod";
 import { config } from "../../shared/config/config.js";
 import { createChildLogger } from "../../shared/logger/logger.js";
 import { retryWithBackoff } from "../../shared/utils/retry.js";
-import { withLlmConcurrency } from "./concurrencyLimiter.js";
 import { resizeImageForVision } from "../attachment-upload/imageResizer.js";
-import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
+import type {
+  AnalysisResult,
+  AttachmentRecord,
+  MessageRecord,
+} from "../message-capture/types.js";
+import { withLlmConcurrency } from "./concurrencyLimiter.js";
+import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
 import {
   getStickerFromCache,
@@ -27,11 +32,6 @@ import {
   makeStickerCacheKey,
   upsertCachedMediaAnalysis,
 } from "./textCacheStore.js";
-import type {
-  AnalysisResult,
-  AttachmentRecord,
-  MessageRecord,
-} from "../message-capture/types.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 
 const SeveritySchema = z.enum(["none", "low", "medium", "high", "critical"]);
@@ -587,7 +587,34 @@ const analyzeSingleMediaImage = async (
     ? buildStickerVisionPrompt(image.stickerName, messageId)
     : image.customEmojiName
       ? buildCustomEmojiVisionPrompt(image.customEmojiName, messageId)
-      : `Analisis media Discord berikut sebagai evidence moderasi. ${image.sourceLabel}\nJelaskan isi visual, teks yang terlihat, konteks risiko, dan apakah ada indikasi spam, scam, SARA, harassment, sexual content, violence, self-harm, doxxing, NSFW, gore, atau illegal content. Jawab Bahasa Indonesia, maksimal 3 kalimat. Jangan bilang kurang konteks atau perlu admin cek; berikan observasi langsung dari media.`;
+      : [
+          `Analisis media Discord berikut sebagai evidence moderasi. ${image.sourceLabel}`,
+          ``,
+          `Jelaskan SECARA SPESIFIK apa yang TERLIHAT di gambar (objek, teks, warna dominan, layout).`,
+          `Jangan menebak-nebak atau mengasumsikan konten yang tidak terlihat langsung.`,
+          ``,
+          `HANYA flag jika gambar secara JELAS dan TIDAK AMBIGU menampilkan:`,
+          `- Antarmuka situs judi yang JELAS TERLIHAT (ada chip, kartu, meja taruhan, odds, deposit/withdraw)`,
+
+          `- Konten seksual eksplisit/NSFW/pornografi`,
+          `- Darah/luka/gore nyata (BUKAN kartun/meme/animasi)`,
+          `- Narkoba atau obat terlarang yang bisa diidentifikasi spesifik`,
+          `- Simbol kebencian (swastika, simbol teroris) yang JELAS`,
+          `- Ajakan bunuh diri atau self-harm eksplisit`,
+          `- Informasi pribadi (alamat, nomor telepon, KTP) yang bocor`,
+          ``,
+          `Jika gambar HANYA berisi: chat biasa, meme lucu, foto makanan, selfie,`,
+          `screenshot discord/wa/media sosial biasa, landscape, hewan, screenshot game,`,
+          `atau konten sehari-hari lainnya → JELASKAN ISI YANG TERLIHAT dan KONFIRMASI AMAN.`,
+          ``,
+          `JANGAN PERNAH mengklaim gambar adalah "antarmuka judi" atau "situs perjudian"`,
+          `KECUALI ada BUKTI VISUAL SPESIFIK seperti chip, kartu remi, meja taruhan,`,
+          `odds, deposit/withdraw, atau logo situs judi yang DIKENALI.`,
+          `Screenshot aplikasi chat atau media sosial BUKAN situs judi.`,
+          ``,
+          `Jawab Bahasa Indonesia, maksimal 3 kalimat. Berikan deskripsi objektif,`,
+          `bukan asumsi. Jika aman, katakan "aman" dengan jelas.`,
+        ].join("\n");
 
   try {
     const completion = await withLlmConcurrency(async () =>

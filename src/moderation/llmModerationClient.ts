@@ -17,6 +17,7 @@ import {
 } from "./stickerCache.js";
 import {
   buildCustomEmojiVisionPrompt,
+  buildGeneralImageVisionPrompt,
   buildStickerTextOnlyWarning,
   buildStickerVisionPrompt,
 } from "./stickerPrompt.js";
@@ -587,7 +588,7 @@ const analyzeSingleMediaImage = async (
     ? buildStickerVisionPrompt(image.stickerName, messageId)
     : image.customEmojiName
       ? buildCustomEmojiVisionPrompt(image.customEmojiName, messageId)
-      : `Analisis media Discord berikut sebagai evidence moderasi. ${image.sourceLabel}\nJelaskan isi visual, teks yang terlihat, konteks risiko, dan apakah ada indikasi spam, scam, SARA, harassment, sexual content, violence, self-harm, doxxing, NSFW, gore, atau illegal content. Jawab Bahasa Indonesia, maksimal 3 kalimat. Jangan bilang kurang konteks atau perlu admin cek; berikan observasi langsung dari media.`;
+      : buildGeneralImageVisionPrompt(image.sourceLabel, messageId);
 
   try {
     const completion = await withLlmConcurrency(async () =>

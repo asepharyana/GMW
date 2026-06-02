@@ -15,6 +15,8 @@ export interface WsHandlers {
   onUserState?: (users: unknown[]) => void;
   onUiState?: (state: unknown) => void;
   onMediaState?: (state: unknown) => void;
+  onVoiceRecordingStarted?: (data: unknown) => void;
+  onVoiceRecordingStopped?: (data: unknown) => void;
   onVoiceRecordingUploaded?: (data: unknown) => void;
 }
 
@@ -82,6 +84,19 @@ function doConnect(): WebSocket {
           case "voice_recording_uploaded":
             h.onVoiceRecordingUploaded?.(msg.data);
             break;
+          case "voice_recording_started":
+            h.onVoiceRecordingStarted?.(msg.data);
+            break;
+          case "voice_recording_stopped":
+            h.onVoiceRecordingStopped?.(msg.data);
+            break;
+          case "attachment_created":
+            // attachment_created is informational — same data shape as message_created
+            h.onMessageCreated?.(msg.data);
+            break;
+          case "analysis_queue_status":
+            // analysis_queue_status is monitoring-only — no UI action needed
+            break;
         }
       }
     } catch {
@@ -130,6 +145,10 @@ export function useDashboardSocket(handlers: WsHandlers) {
       onMediaState: (s) => handlersRef.current.onMediaState?.(s),
       onVoiceRecordingUploaded: (d) =>
         handlersRef.current.onVoiceRecordingUploaded?.(d),
+      onVoiceRecordingStarted: (d) =>
+        handlersRef.current.onVoiceRecordingStarted?.(d),
+      onVoiceRecordingStopped: (d) =>
+        handlersRef.current.onVoiceRecordingStopped?.(d),
     };
 
     _listeners.add(wrapper);

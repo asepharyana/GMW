@@ -3,6 +3,7 @@ import {
   parseModerationResponse,
   runModerationAnalysis,
 } from "../../src/moderation/llmModerationClient";
+import { buildGeneralImageVisionPrompt } from "../../src/moderation/stickerPrompt";
 import type { MessageRecord } from "../../src/moderation/types";
 
 vi.mock("../../src/retry", () => ({
@@ -1668,6 +1669,54 @@ describe("runModerationAnalysis", () => {
       expect(result[0].status).toBe("clean");
       expect(result[0].flags).toEqual([]);
       expect(result[0].score).toBe(0.0);
+    });
+  });
+
+  describe("Vision prompts", () => {
+    it("buildGeneralImageVisionPrompt includes gambling false positive prevention", () => {
+      const prompt = buildGeneralImageVisionPrompt(
+        "[gambar dari attachment food.jpg]",
+        "msg123",
+      );
+
+      // Should explicitly warn against false positives
+      expect(prompt).toContain("Cryptocurrency UI");
+      expect(prompt).toContain("Binance");
+      expect(prompt).toContain("BUKAN judi");
+      expect(prompt).toContain("finance apps");
+
+      // Should be clear about what IS gambling
+      expect(prompt).toContain("promosi atau antarmuka situs judi");
+      expect(prompt).toContain("BUKTI VISUAL JELAS");
+
+      // Should warn against hallucinations
+      expect(prompt).toContain("Jangan flag berdasarkan kecurigaan");
+      expect(prompt).toContain("BUKTI VISUAL JELAS");
+    });
+
+    it("buildGeneralImageVisionPrompt warns against hallucinating gambling from casual images", () => {
+      const prompt = buildGeneralImageVisionPrompt(
+        "[gambar nasgor/fried rice]",
+        "msg123",
+      );
+
+      // Should explicitly state casual images are not gambling
+      expect(prompt).toContain("Gambar makanan");
+      expect(prompt).toContain("TIDAK PERNAH gambling");
+      expect(prompt).toContain("bahkan jika ada teks finansial");
+    });
+
+    it("buildGeneralImageVisionPrompt warns against false positive crypto flagging", () => {
+      const prompt = buildGeneralImageVisionPrompt(
+        "[screenshot dari exchange]",
+        "msg123",
+      );
+
+      // Explicitly state crypto/finance UI is NOT gambling
+      expect(prompt).toContain("Cryptocurrency UI atau finance apps");
+      expect(prompt).toContain("Coinbase");
+      expect(prompt).toContain("exchange");
+      expect(prompt).toContain("BUKAN judi");
     });
   });
 });

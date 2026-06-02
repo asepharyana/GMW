@@ -94,3 +94,45 @@ export function buildCustomEmojiTextOnlyFallback(emojiName: string): string {
     `Custom emoji di Discord adalah ekspresi/emosi umum, bukan konten ofensif.]`
   );
 }
+
+/**
+ * Prompt used for general attachment/web images (not stickers or emojis).
+ *
+ * This is the default prompt for analyzing regular images. It includes
+ * explicit guidance on gambling detection to prevent false positives
+ * (e.g., flagging screenshots of food, finance, or casual content as gambling).
+ */
+export function buildGeneralImageVisionPrompt(
+  sourceLabel: string,
+  messageId: string,
+): string {
+  return [
+    `Analisis media Discord berikut sebagai evidence moderasi.`,
+    `${sourceLabel}`,
+    ``,
+    `PENTING — Panduan Deteksi Pelanggaran:`,
+    ``,
+    `**Gambling/Judi:**`,
+    `- HANYA flag jika gambar JELAS menampilkan promosi atau antarmuka situs judi/taruhan nyata (poker, slots, sports betting).`,
+    `- Screenshot Discord/WhatsApp/Telegram/media sosial/chat biasa BUKAN situs judi — jangan flag.`,
+    `- Cryptocurrency UI atau finance apps (Coinbase, Binance, exchange) BUKAN judi — jangan flag sebagai gambling.`,
+    `- Screenshot ekonomi game, NFT marketplace, atau trading UI BUKAN judi — jangan flag.`,
+    `- Gambar makanan, meme, selfie, pemandangan atau konten casual TIDAK PERNAH gambling, bahkan jika ada teks finansial.`,
+    `- Hanya flag gambling jika ada BUKTI VISUAL JELAS: tombol taruhan, odds, chips, roulette wheel, atau branding situs judi terkenal.`,
+    `- Jika tidak yakin apakah sebuah gambar menampilkan situs judi atau sekadar aplikasi biasa → pilih "Tidak ada indikasi pelanggaran."`,
+    ``,
+    `**Illegal Content:**`,
+    `- Jangan flag berdasarkan kecurigaan. HANYA flag jika ada BUKTI VISUAL JELAS dari konten ilegal (narkoba, senjata, dokumen palsu).`,
+    ``,
+    `**Sexual Content & NSFW:**`,
+    `- Jangan flag foto casual/fashion hanya karena ada bagian tubuh. Flag HANYA jika gambar eksplisit atau pornografi.`,
+    ``,
+    `**Violence:**`,
+    `- Screenshot game/anime action BUKAN kekerasan nyata — jangan flag.`,
+    `- Jangan flag meme atau karya seni yang menampilkan adegan dramatik.`,
+    ``,
+    `Jelaskan isi visual, teks yang terlihat, dan konteks risiko.`,
+    `Jawab Bahasa Indonesia, maksimal 3 kalimat. Jangan bilang kurang konteks atau perlu admin cek; berikan observasi langsung dari media.`,
+    `Jika gambar tampak aman/tidak ada risiko, tulis: "Tidak ada indikasi pelanggaran terdeteksi."`,
+  ].join("\n");
+}

@@ -1,5 +1,5 @@
-import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "node:http";
+import { WebSocket, WebSocketServer } from "ws";
 import { createChildLogger } from "../shared/logger/index.js";
 
 const logger = createChildLogger("ws.server");
@@ -12,7 +12,6 @@ interface BroadcastEvent {
 
 // Extend globalThis with broadcast function types
 declare global {
-  // biome-ignore lint/suspicious/noAssignInExpressions: intentional global broadcast registry
   var __broadcastFns:
     | {
         messageCreated: (data: unknown) => void;
@@ -24,6 +23,46 @@ declare global {
     | undefined;
 }
 
+async function sendInitialStates(ws: WebSocket): Promise<void> {
+  // Send initial user state
+  ws.send(
+    JSON.stringify({
+      type: "user_state",
+      users: [],
+    }),
+  );
+
+  // Send initial UI state from database
+  try {
+    const { uiStateService } = await import(
+      "../modules/ui-state/ui-state.service.js"
+    );
+    const uiState = await uiStateService.getState();
+    ws.send(
+      JSON.stringify({
+        type: "ui_state",
+        state: uiState,
+      }),
+    );
+  } catch (err) {
+    logger.warn({ err }, "Failed to send initial ui_state");
+  }
+
+  // Send initial media state
+  try {
+    const { getStatus } = await import("../modules/media/media.service.js");
+    const mediaState = await getStatus();
+    ws.send(
+      JSON.stringify({
+        type: "media_state",
+        state: mediaState,
+      }),
+    );
+  } catch (err) {
+    logger.warn({ err }, "Failed to send initial media_state");
+  }
+}
+
 export function createWebSocketServer(server: Server): WebSocketServer {
   const clients = new Set<WebSocket>();
 
@@ -33,19 +72,19 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     clients.add(ws);
     logger.info(`Client connected (${clients.size} total)`);
 
-    // Send initial user state
-    ws.send(
-      JSON.stringify({
-        type: "user_state",
-        users: [],
-      }),
+    // Send initial states (user, ui, media) — fire-and-forget
+    sendInitialStates(ws).catch((err) =>
+      logger.error({ err }, "sendInitialStates failed"),
     );
 
     ws.on("message", (data: Buffer) => {
       // Binary PCM data received from browser.
       // Since backend has no Discord client to relay to, drop it.
       if (Buffer.isBuffer(data) && data.length > 0) {
-        logger.debug({ bytes: data.length }, "Dropping binary PCM (no Discord client)");
+        logger.debug(
+          { bytes: data.length },
+          "Dropping binary PCM (no Discord client)",
+        );
       }
     });
 
@@ -91,10 +130,14 @@ export function createWebSocketServer(server: Server): WebSocketServer {
   }
 
   globalThis.__broadcastFns = {
-    messageCreated: (data: unknown) => broadcast({ type: "message_created", data }),
-    messageUpdated: (data: unknown) => broadcast({ type: "message_updated", data }),
-    messageDeleted: (data: unknown) => broadcast({ type: "message_deleted", data }),
-    attachmentUploaded: (data: unknown) => broadcast({ type: "attachment_uploaded", data }),
+    messageCreated: (data: unknown) =>
+      broadcast({ type: "message_created", data }),
+    messageUpdated: (data: unknown) =>
+      broadcast({ type: "message_updated", data }),
+    messageDeleted: (data: unknown) =>
+      broadcast({ type: "message_deleted", data }),
+    attachmentUploaded: (data: unknown) =>
+      broadcast({ type: "attachment_uploaded", data }),
     raw: (type: string, data: unknown) => broadcast({ type, data }),
   };
 

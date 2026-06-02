@@ -15,10 +15,15 @@ const SUBSCRIPTIONS: ChannelMapping[] = [
   { channel: "discord:message:updated", eventType: "message_updated" },
   { channel: "discord:message:deleted", eventType: "message_deleted" },
   { channel: "discord:message:analyzed", eventType: "message_analyzed" },
+  { channel: "discord:attachment:created", eventType: "attachment_created" },
   { channel: "discord:attachment:uploaded", eventType: "attachment_uploaded" },
   { channel: "discord:voice:started", eventType: "voice_recording_started" },
   { channel: "discord:voice:stopped", eventType: "voice_recording_stopped" },
   { channel: "discord:voice:uploaded", eventType: "voice_recording_uploaded" },
+  {
+    channel: "discord:analysis:queue_status",
+    eventType: "analysis_queue_status",
+  },
 ];
 
 let subscriber: Redis | null = null;
@@ -41,15 +46,28 @@ function handleSubscriptionMessage(channel: string, message: string): void {
     return;
   }
 
-  let data: unknown;
+  let envelope: {
+    type?: string;
+    data?: unknown;
+    timestamp?: number;
+    source?: string;
+  };
   try {
-    data = JSON.parse(message);
+    envelope = JSON.parse(message);
   } catch (err) {
     logger.error({ channel, err }, "Failed to parse Redis message as JSON");
     return;
   }
 
-  logger.debug({ channel, eventType: mapping.eventType }, "Broadcasting Redis event");
+  // Unwrap DiscordGatewayEvent envelope — the gateway publishes:
+  // { type, data: <actual payload>, timestamp, source }
+  // We only want <actual payload>, not the full envelope.
+  const data = envelope.data !== undefined ? envelope.data : envelope;
+
+  logger.debug(
+    { channel, eventType: mapping.eventType },
+    "Broadcasting Redis event",
+  );
   broadcastRaw(mapping.eventType, data);
 }
 
