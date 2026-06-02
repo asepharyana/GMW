@@ -1028,7 +1028,17 @@ async function runTextOnlyBatch(
         };
       }
     )?.usage;
-    allResults.push(...batchResult.results);
+    // Fan-out results from representative messages to all group members
+    const fannedOutResults = groupMapping.size > 0
+      ? batchResult.results.flatMap((result) => {
+          const members = groupMapping.get(result.messageId);
+          if (members) {
+            return members.map((memberId) => ({ ...result, messageId: memberId }));
+          }
+          return [result];
+        })
+      : batchResult.results;
+    allResults.push(...fannedOutResults);
     if (batchResult.raw) lastRaw = batchResult.raw;
 
     // Log batch results with comprehensive details
