@@ -361,6 +361,9 @@ export const pgRetentionPoliciesTable = pgTable(
  *
  * Uses the FULL normalized text (not per-word) because context matters:
  * "kau" alone is clean, but "awas kau" can be a threat.
+ *
+ * model_version tracks the vision/LLM model version that produced this cache entry.
+ * On model updates, bump the version to invalidate all old cache entries automatically.
  */
 export const pgTextAnalysisCacheTable = pgTable(
   "text_analysis_cache",
@@ -381,12 +384,20 @@ export const pgTextAnalysisCacheTable = pgTable(
     expires_at: pgBigint("expires_at", { mode: "number" }).notNull(),
     /** How many times this cached text has been reused. */
     hit_count: pgInteger("hit_count").notNull().default(0),
+    /** Model version that produced this cache entry (e.g. "v1", "v2-2026-06-02"). Mismatched versions are ignored. */
+    model_version: pgText("model_version").notNull().default("v1"),
   },
   (table) => ({
     expiresAtIdx: pgIndex("idx_text_analysis_cache_expires_at").on(
       table.expires_at,
     ),
     sourceIdx: pgIndex("idx_text_analysis_cache_source").on(table.source),
+    modelVersionIdx: pgIndex("idx_text_analysis_cache_model_version").on(
+      table.model_version,
+    ),
+    sourceModelVersionIdx: pgIndex(
+      "idx_text_analysis_cache_source_model_version",
+    ).on(table.source, table.model_version),
   }),
 );
 

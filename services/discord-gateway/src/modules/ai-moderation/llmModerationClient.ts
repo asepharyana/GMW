@@ -32,8 +32,17 @@ import {
   makeImageCacheKey,
   makeStickerCacheKey,
   upsertCachedMediaAnalysis,
+  VISION_MODEL_VERSION,
 } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
+import {
+  logVisionAnalysis,
+  logCacheEvent,
+  logModerationAnalysis,
+  logModerationError,
+  logVisionError,
+  logRetryAttempt,
+} from "./responseLogger.js";
 
 const SeveritySchema = z.enum(["none", "low", "medium", "high", "critical"]);
 const RecommendedActionSchema = z.enum([
@@ -786,6 +795,13 @@ async function callModerationLLM(
       `Robust Fallback (${label}): Failed to parse moderation response. Marking all targets as analysis errors.`,
     );
 
+    // Log error with responseLogger
+    logModerationError(targetIds, config.AI_LLM_MODEL, parseError, {
+      phase: "parse_response",
+      label,
+      contentLength: state.lastInvalidContent.length,
+    });
+
     // Sanitized error messages — no internal details exposed (R10)
     const errorCode = `MOD_${Date.now().toString(36).slice(0, 6)}`;
     parsed = targetIds.map((id) => ({
@@ -896,6 +912,21 @@ async function runTextOnlyBatch(
 
     allResults.push(...batchResult.results);
     if (batchResult.raw) lastRaw = batchResult.raw;
+
+    // Log batch results with comprehensive details
+    logModerationAnalysis(
+      targetIds,
+      config.AI_LLM_MODEL,
+      batchResult.results,
+      0, // Duration will be tracked at higher level
+      batchResult.raw?.usage
+        ? {
+            prompt_tokens: batchResult.raw.usage.prompt_tokens,
+            completion_tokens: batchResult.raw.usage.completion_tokens,
+            total_tokens: batchResult.raw.usage.total_tokens,
+          }
+        : undefined,
+    );
   }
 
   log.info(
@@ -1012,6 +1043,7 @@ async function _runSingleMediaAnalysis(
           { attachmentId: att.id, cacheKey: attVisionKey },
           "Vision cache HIT for attachment — skipped download",
         );
+        logCacheEvent("hit", attVisionKey, "media", VISION_MODEL_VERSION);
         const sourceLabel = `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`;
         const analysisText = `[Media analysis for message ${att.message_id}] ${sourceLabel}: ${cachedVision}`;
         const existing = mediaAnalysisMap.get(targetId) ?? [];
@@ -1019,6 +1051,8 @@ async function _runSingleMediaAnalysis(
         mediaAnalysisMap.set(targetId, existing);
         return;
       }
+
+      logCacheEvent("miss", attVisionKey, "media", VISION_MODEL_VERSION);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
