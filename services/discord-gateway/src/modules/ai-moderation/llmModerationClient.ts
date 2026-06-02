@@ -580,7 +580,7 @@ async function callModerationLLM(
   label: string,
 ): Promise<{
   results: AnalysisResult[];
-  raw: OpenAI.Chat.Completions.ChatCompletion | null;
+  raw: ChatCompletion | null;
 }> {
   const state: RetryState = {
     lastParseError: null,
@@ -588,7 +588,7 @@ async function callModerationLLM(
   };
 
   let parsed: AnalysisResult[];
-  let result: OpenAI.Chat.Completions.ChatCompletion | null = null;
+  let result: ChatCompletion | null = null;
 
   try {
     const analysis = await retryWithBackoff(
