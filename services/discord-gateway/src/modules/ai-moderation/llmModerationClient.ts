@@ -504,6 +504,14 @@ function hasMediaContent(
 // Single-image vision analysis (reused by both text-only and media paths)
 // ---------------------------------------------------------------------------
 
+/**
+ * In-flight deduplication map — prevents concurrent vision API calls for
+ * the same cache key. Multiple concurrent requests for an identical image
+ * share the same promise, eliminating the race condition between cache
+ * check and cache write.
+ */
+const inFlightVisionCalls = new Map<string, Promise<string | null>>();
+
 const analyzeSingleMediaImage = async (
   messageId: string,
   image: MessageImagePart,
@@ -520,35 +528,59 @@ const analyzeSingleMediaImage = async (
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${cached}`;
   }
 
+  // Deduplicate in-flight vision calls: if another caller is already
+  // processing this exact image, wait for it instead of starting a duplicate.
+  const existing = inFlightVisionCalls.get(cacheKey);
+  if (existing) {
+    log.debug({ cacheKey }, "Media analysis in-flight dedupe — waiting for existing call");
+    const result = await existing;
+    if (!result) return null;
+    return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${result}`;
+  }
+
   const promptText = image.stickerName
     ? buildStickerVisionPrompt(image.stickerName, messageId)
     : image.customEmojiName
       ? buildCustomEmojiVisionPrompt(image.customEmojiName, messageId)
       : buildGeneralImageVisionPrompt(image.sourceLabel, messageId);
 
+  const visionPromise = (async (): Promise<string | null> => {
+    try {
+      const content = await llmVision(promptText, image.image_url);
+      if (!content) return null;
+
+      await upsertCachedMediaAnalysis(
+        cacheKey,
+        content,
+        "vision_llm",
+        Date.now() + 24 * 60 * 60 * 1000,
+      );
+
+      return content;
+    } catch (error) {
+      log.warn(
+        {
+          messageId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Vision analysis failed after retries — image not analyzed",
+      );
+      // Return a clear signal that vision analysis FAILED — so batch LLM knows
+      // the image could not be described and must NOT assume it's clean.
+      return null;
+    }
+  })();
+
+  inFlightVisionCalls.set(cacheKey, visionPromise);
+
   try {
-    const content = await llmVision(promptText, image.image_url);
-    if (!content) return null;
-
-    await upsertCachedMediaAnalysis(
-      cacheKey,
-      content,
-      "vision_llm",
-      Date.now() + 24 * 60 * 60 * 1000,
-    );
-
+    const content = await visionPromise;
+    if (!content) {
+      return `[Media analysis for message ${messageId}] ${image.sourceLabel}: GAGAL DIANALISIS — gambar tidak dapat diunduh atau vision API gagal setelah 3x percobaan. JANGAN mengasumsikan gambar aman hanya karena gagal dianalisis. Gunakan metadata URL/nama file saja sebagai petunjuk.`;
+    }
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${content}`;
-  } catch (error) {
-    log.warn(
-      {
-        messageId,
-        error: error instanceof Error ? error.message : String(error),
-      },
-      "Vision analysis failed after retries — image not analyzed",
-    );
-    // Return a clear signal that vision analysis FAILED — so batch LLM knows
-    // the image could not be described and must NOT assume it's clean.
-    return `[Media analysis for message ${messageId}] ${image.sourceLabel}: GAGAL DIANALISIS — gambar tidak dapat diunduh atau vision API gagal setelah 3x percobaan. JANGAN mengasumsikan gambar aman hanya karena gagal dianalisis. Gunakan metadata URL/nama file saja sebagai petunjuk.`;
+  } finally {
+    inFlightVisionCalls.delete(cacheKey);
   }
 };
 
