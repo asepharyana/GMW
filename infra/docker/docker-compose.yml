@@ -3,17 +3,15 @@ version: '3.8'
 services:
   # Nginx Reverse Proxy — handles /api and /ws routing behind Traefik
   proxy:
-    build:
-      context: .
-      dockerfile: Dockerfile.nginx
-    container_name: bete-proxy
+    image: ghcr.io/${OWNER:-mytheclipse}/bete-proxy:latest
+    container_name: imphenbot-proxy
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.bete.rule=Host(`imphnen.asepharyana.my.id`)"
-      - "traefik.http.routers.bete.entrypoints=websecure"
-      - "traefik.http.routers.bete.tls=true"
-      - "traefik.http.services.bete.loadbalancer.server.port=80"
+      - "traefik.http.routers.imphenbot.rule=Host(`imphnen.asepharyana.my.id`)"
+      - "traefik.http.routers.imphenbot.entrypoints=websecure"
+      - "traefik.http.routers.imphenbot.tls=true"
+      - "traefik.http.services.imphenbot.loadbalancer.server.port=80"
     depends_on:
       - backend
       - frontend
@@ -22,17 +20,14 @@ services:
 
   # Backend Service (REST API + WebSocket)
   backend:
-    build:
-      context: ..
-      dockerfile: infra/docker/Dockerfile.backend
-    container_name: bete-backend
+    image: ghcr.io/${OWNER:-mytheclipse}/bete-backend:latest
+    container_name: imphenbot-backend
     restart: unless-stopped
     env_file:
-      - ../../.env
+      - .env
     environment:
       NODE_ENV: production
-      WEBSERVER_PORT: 3001
-    # No Traefik labels — nginx handles routing
+      WEBSERVER_PORT: 3000
     depends_on:
       - discord-gateway
     networks:
@@ -40,32 +35,23 @@ services:
 
   # Discord Gateway Service (Event capture and processing — no HTTP)
   discord-gateway:
-    build:
-      context: ..
-      dockerfile: infra/docker/Dockerfile.discord-gateway
-    container_name: bete-discord-gateway
+    image: ghcr.io/${OWNER:-mytheclipse}/bete-discord-gateway:latest
+    container_name: imphenbot-discord-gateway
     restart: unless-stopped
     env_file:
-      - ../../.env
+      - .env
     environment:
       NODE_ENV: production
     volumes:
-      - ../recordings:/app/recordings
+      - ./recordings:/app/recordings
     networks:
       - app-shared-net
 
   # Frontend Service (React Dashboard)
   frontend:
-    build:
-      context: ..
-      dockerfile: infra/docker/Dockerfile.frontend
-    container_name: bete-frontend
+    image: ghcr.io/${OWNER:-mytheclipse}/bete-frontend:latest
+    container_name: imphenbot-frontend
     restart: unless-stopped
-    environment:
-      # Point to the same domain — nginx routes /api and /ws to backend
-      VITE_BE_API_URL: https://imphnen.asepharyana.my.id
-      VITE_BE_WS_URL: wss://imphnen.asepharyana.my.id
-    # No Traefik labels — nginx handles routing
     networks:
       - app-shared-net
 

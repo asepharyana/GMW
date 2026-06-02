@@ -19,6 +19,7 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         service: [frontend, backend, discord-gateway, proxy]
     steps:
@@ -55,20 +56,8 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: SCP deploy files to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "infra/docker/*"
-          target: "/tmp/bete-deploy"
-          strip_components: 2
-
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.2.5
         env:
@@ -84,20 +73,25 @@ jobs:
             set -eu
 
             APP_DIR=/opt/imphenbot
-            mkdir -p "$APP_DIR" "$APP_DIR/nginx"
+            REPO_URL=https://github.com/MythEclipse/bete.git
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              mkdir -p "$APP_DIR"
+              git clone "$REPO_URL" "$APP_DIR"
+            fi
+
             cd "$APP_DIR"
+            git fetch origin master
+            git checkout master
+            git reset --hard origin/master
 
             printf '%s\n' "$ENV_FILE" > .env
-
-            # Copy deploy files from SCP staging dir
-            cp /tmp/bete-deploy/docker-compose.yml "$APP_DIR/docker-compose.yml"
-            cp /tmp/bete-deploy/nginx.conf "$APP_DIR/nginx/nginx.conf"
 
             mkdir -p recordings
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 
-            docker compose pull
-            docker compose down --remove-orphans || true
-            docker compose up -d --remove-orphans
+            docker compose -f infra/docker/docker-compose.yml pull
+            docker compose -f infra/docker/docker-compose.yml down --remove-orphans || true
+            docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans
             docker image prune -f
