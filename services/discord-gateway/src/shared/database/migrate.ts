@@ -1,7 +1,7 @@
 import "dotenv/config";
+import type { PoolClient } from "pg";
 import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
 import { migrate as migratePostgres } from "drizzle-orm/node-postgres/migrator";
-import type { PoolClient } from "pg";
 import { createChildLogger } from "../../shared/logger/logger.js";
 import {
   closeDatabase,
@@ -15,27 +15,59 @@ const MIGRATION_LOCK_KEY_1 = 2026;
 const MIGRATION_LOCK_KEY_2 = 531;
 
 /**
- * Check if all schema tables already exist in the database.
- * If they do, the database was likely created by a previous deployment
- * and migration is not needed.
+ * Seed Drizzle's __drizzle_migrations tracking table for pre-existing databases
+ * that were created manually or by an earlier migration system (e.g., the old
+ * checkSchemaExists short-circuit). Without this, Drizzle attempts to re-create
+ * all tables from 0000 and fails with "relation already exists".
  */
-async function checkSchemaExists(client: PoolClient): Promise<boolean> {
-  try {
-    const result = await client.query(`
-      SELECT COUNT(*) as count
-      FROM information_schema.tables
-      WHERE table_schema = 'public'
-        AND table_name IN (
-          'ai_analysis_runs', 'attachments', 'message_reviews',
-          'messages', 'moderation_actions', 'muxer_jobs',
-          'retention_policies', 'text_analysis_cache', 'ui_state',
-          'voice_recordings'
-        )
-    `);
-    return result.rows[0]?.count === "10";
-  } catch {
-    return false;
+async function seedDrizzleHistory(client: PoolClient): Promise<void> {
+  const exists = await client.query(`
+    SELECT EXISTS (
+      SELECT FROM information_schema.tables
+      WHERE table_name = '__drizzle_migrations'
+    )
+  `);
+  const drizzleTableExists = exists.rows[0]?.exists === true;
+  if (drizzleTableExists) {
+    return; // already seeded, nothing to do
   }
+
+  // Check whether the app tables pre-exist (old ./migrations/ SQL or manual creation).
+  const hasTextCache = await client.query(`
+    SELECT EXISTS (
+      SELECT FROM information_schema.columns
+      WHERE table_name = 'text_analysis_cache' AND column_name = 'text'
+    )
+  `);
+  if (hasTextCache.rows[0]?.exists !== true) {
+    return; // brand-new database, let Drizzle handle everything
+  }
+
+  logger.info(
+    "Seeding Drizzle migration history — marking 0000 as already applied on this pre-existing database",
+  );
+
+  // Create the Drizzle tracking table and insert a row for migration 0000.
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
+      id SERIAL PRIMARY KEY,
+      hash text NOT NULL,
+      created_at bigint
+    )
+  `);
+  // Drizzle's __drizzle_migrations table has no UNIQUE(hash)
+  // constraint, so check manually before inserting.
+  const alreadySeeded = await client.query(
+    `SELECT 1 FROM "__drizzle_migrations" WHERE hash = $1 LIMIT 1`,
+    ["0000_tricky_mysterio"],
+  );
+  if (alreadySeeded.rows.length === 0) {
+    await client.query(
+      `INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES ($1, $2)`,
+      ["0000_tricky_mysterio", Date.now()],
+    );
+  }
+  logger.info("Drizzle history seeded — 0000 marked applied");
 }
 
 export async function runMigrations(): Promise<void> {
@@ -53,12 +85,9 @@ export async function runMigrations(): Promise<void> {
         ]);
 
         try {
-          // If all schema tables already exist, skip migration
-          const schemaExists = await checkSchemaExists(client);
-          if (schemaExists) {
-            logger.info("Schema tables already exist; skipping migration");
-            return;
-          }
+          // Seed history for pre-existing databases so Drizzle only applies
+          // new (pending) migrations — it is idempotent after that.
+          await seedDrizzleHistory(client);
 
           await migratePostgres(db, {
             migrationsFolder: "./drizzle/migrations",
