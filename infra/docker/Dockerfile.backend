@@ -10,6 +10,9 @@ COPY pnpm-workspace.yaml .
 COPY pnpm-lock.yaml .
 COPY package.json .
 
+# Copy packages (workspace dependencies)
+COPY packages/shared ./packages/shared
+
 # Copy patches (pnpm patchedDependencies)
 COPY patches ./patches
 
