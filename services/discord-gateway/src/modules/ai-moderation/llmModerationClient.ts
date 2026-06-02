@@ -36,12 +36,9 @@ import {
 } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 import {
-  logVisionAnalysis,
   logCacheEvent,
   logModerationAnalysis,
   logModerationError,
-  logVisionError,
-  logRetryAttempt,
 } from "./responseLogger.js";
 
 const SeveritySchema = z.enum(["none", "low", "medium", "high", "critical"]);

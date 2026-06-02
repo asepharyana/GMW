@@ -29,8 +29,6 @@ import { attemptAutoDeleteFlaggedMessage } from "./autoDeleteManager.js";
 import { buildConversationContext } from "./conversationContext.js";
 import { runModerationAnalysis } from "./llmModerationClient.js";
 import {
-  logAnalysisSummary,
-  logFalsePositiveDetected,
   logModerationError,
 } from "./responseLogger.js";
 
