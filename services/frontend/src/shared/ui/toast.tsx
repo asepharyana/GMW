@@ -6,6 +6,7 @@ import {
   useContext,
   useState,
 } from "react";
+import { cn } from "../lib/utils";
 
 interface Toast {
   id: string;
@@ -56,6 +57,20 @@ export function useToast() {
   return useContext(ToastContext);
 }
 
+const typeStyles: Record<Toast["type"], string> = {
+  info: "border-l-primary bg-white text-foreground",
+  success: "border-l-green-500 bg-white text-foreground",
+  error: "border-l-red-500 bg-white text-foreground",
+  warning: "border-l-amber-500 bg-white text-foreground",
+};
+
+const typeIcons: Record<Toast["type"], string> = {
+  info: "💠",
+  success: "🌸",
+  error: "😿",
+  warning: "⚠️",
+};
+
 function ToastContainer() {
   const { toasts, removeToast } = useContext(ToastContext);
 
@@ -66,18 +81,14 @@ function ToastContainer() {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur-xl cursor-pointer transition-all hover:scale-[1.02] ${
-            toast.type === "error"
-              ? "border-destructive/30 bg-destructive/20 text-destructive"
-              : toast.type === "success"
-                ? "border-green-500/30 bg-green-500/10 text-green-300"
-                : toast.type === "warning"
-                  ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"
-                  : "border-border/30 bg-card/80 text-foreground"
-          }`}
+          className={cn(
+            "flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm shadow-md cursor-pointer transition-all hover:scale-[1.02] border-l-4",
+            typeStyles[toast.type],
+          )}
           onClick={() => removeToast(toast.id)}
         >
-          {toast.message}
+          <span className="text-base leading-none">{typeIcons[toast.type]}</span>
+          <span>{toast.message}</span>
         </div>
       ))}
     </div>

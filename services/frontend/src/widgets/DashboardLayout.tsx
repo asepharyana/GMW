@@ -1,8 +1,11 @@
+import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 import type { DashboardTab } from "../entities/ui/types";
 import type { VoiceStatus } from "../shared/api/client";
+import { fadeSlideUp } from "../shared/hooks/useFramerStagger";
 import type { WsStatus } from "../shared/ws/socket";
 import { Header } from "./Header";
+import { ParticleBackground } from "./particles/ParticleBackground";
 import { Sidebar } from "./Sidebar";
 
 interface DashboardLayoutProps {
@@ -21,8 +24,11 @@ export function DashboardLayout({
   children,
 }: DashboardLayoutProps) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="flex min-h-screen">
+    <div className="relative min-h-screen bg-background text-foreground">
+      {/* Sakura particle layer */}
+      <ParticleBackground />
+
+      <div className="relative flex min-h-screen">
         <Sidebar activeTab={activeTab} onTabChange={onTabChange} />
         <main className="flex min-w-0 flex-1 flex-col">
           <Header
@@ -30,9 +36,16 @@ export function DashboardLayout({
             wsStatus={wsStatus}
             voiceStatus={voiceStatus}
           />
-          <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+          <motion.main
+            key={activeTab}
+            variants={fadeSlideUp}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="flex-1 overflow-auto p-4 md:p-6 lg:p-8"
+          >
             {children}
-          </div>
+          </motion.main>
         </main>
       </div>
     </div>

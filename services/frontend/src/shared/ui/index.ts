@@ -16,3 +16,4 @@ export { Select } from "./select";
 export { Skeleton } from "./skeleton";
 export { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";
 export { ToastProvider, useToast } from "./toast";
+export { EmptyStateMascot } from "../../widgets/mascot/ChibiMascot";

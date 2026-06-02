@@ -11,11 +11,12 @@ type BadgeVariant =
 
 const variants: Record<BadgeVariant, string> = {
   default: "border-transparent bg-primary text-primary-foreground",
-  secondary: "border-transparent bg-secondary text-secondary-foreground",
-  destructive: "border-transparent bg-destructive text-destructive-foreground",
-  outline: "text-foreground",
-  success: "border-transparent bg-emerald-500/15 text-emerald-300",
-  warning: "border-transparent bg-amber-500/15 text-amber-300",
+  secondary:
+    "border-transparent bg-muted text-muted-foreground",
+  destructive: "border-transparent bg-[#FCA5A5] text-red-800",
+  outline: "border-border text-foreground",
+  success: "border-transparent bg-[#BBF7D0] text-green-800",
+  warning: "border-transparent bg-[#FDE68A] text-amber-800",
 };
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -30,7 +31,7 @@ export function Badge({
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors",
+        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
         variants[variant],
         className,
       )}
