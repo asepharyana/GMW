@@ -76,7 +76,7 @@ export async function getStickerFromCache(
   const key = sanitizeKey(stickerName);
   try {
     const row = await executeGet(
-      "SELECT base64, mime_type, size, fetched_at FROM sticker_cache WHERE name = $1 AND fetched_at > $2",
+      "SELECT base64, mime_type, size, fetched_at FROM sticker_cache WHERE name = ? AND fetched_at > ?",
       [key, Date.now() - TTL_MS],
     );
     if (!row) return null;
