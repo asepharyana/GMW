@@ -463,6 +463,7 @@ export const moderationActionsTable = pgModerationActionsTable;
 export const retentionPoliciesTable = pgRetentionPoliciesTable;
 export const textAnalysisCacheTable = pgTextAnalysisCacheTable;
 export const stickerCacheTable = pgStickerCacheTable;
+export const correctedModerationsTable = pgCorrectedModerationsTable;
 
 // Export table types for use in queries
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;
