@@ -296,3 +296,91 @@ export async function computeImagePhash(
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Corrected Moderation (false-positive) helpers for dynamic few-shot injection
+// ---------------------------------------------------------------------------
+
+export interface CorrectedModerationEntry {
+  id: string;
+  originalFlags: string[];
+  correctedFlags: string[];
+  correctionNotes: string | null;
+  contentSnippet: string;
+}
+
+/**
+ * Fetch the most recent corrected false positives from the database.
+ * Used to inject dynamic few-shot examples into the moderation prompt.
+ * Limit: 5 most recent entries.
+ */
+export async function getRecentCorrectedModerations(
+  limit: number = 5,
+): Promise<CorrectedModerationEntry[]> {
+  try {
+    const rows = await executeAll(
+      `SELECT id, original_flags, corrected_flags, correction_notes, content_snippet
+       FROM corrected_moderations
+       ORDER BY created_at DESC
+       LIMIT $1`,
+      [limit],
+    );
+
+    if (!rows || rows.length === 0) return [];
+
+    return (rows as Array<{
+      id: string;
+      original_flags: string;
+      corrected_flags: string;
+      correction_notes: string | null;
+      content_snippet: string;
+    }>).map((row) => ({
+      id: row.id,
+      originalFlags: JSON.parse(row.original_flags) as string[],
+      correctedFlags: JSON.parse(row.corrected_flags) as string[],
+      correctionNotes: row.correction_notes,
+      contentSnippet: row.content_snippet,
+    }));
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed to get recent corrected moderations",
+    );
+    return [];
+  }
+}
+
+/**
+ * Store a corrected moderation entry for future few-shot injection.
+ */
+export async function insertCorrectedModeration(entry: {
+  messageId: string;
+  originalFlags: string[];
+  correctedFlags: string[];
+  correctionNotes?: string | null;
+  contentSnippet: string;
+}): Promise<void> {
+  const id = `corr-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const created_at = Date.now();
+
+  try {
+    await executeAll(
+      `INSERT INTO corrected_moderations (id, message_id, original_flags, corrected_flags, correction_notes, content_snippet, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        id,
+        entry.messageId,
+        JSON.stringify(entry.originalFlags),
+        JSON.stringify(entry.correctedFlags),
+        entry.correctionNotes ?? null,
+        entry.contentSnippet,
+        created_at,
+      ],
+    );
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed to insert corrected moderation",
+    );
+  }
+}
