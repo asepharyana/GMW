@@ -7,7 +7,9 @@ tasks:
     preset: server
 
   build:
-    command: tsc --noEmit && NODE_NO_WARNINGS=1 vite build
+    script: 'tsc --noEmit && NODE_NO_WARNINGS=1 vite build'
+    options:
+      runFromWorkspaceRoot: false
     inputs:
       - src
       - tsconfig.json
@@ -22,16 +24,22 @@ tasks:
 
   typecheck:
     command: tsc --noEmit
+    options:
+      runFromWorkspaceRoot: false
     inputs:
       - src
       - tsconfig.json
 
   lint:
     command: biome check --diagnostic-level=error src/
+    options:
+      runFromWorkspaceRoot: false
     inputs:
       - src
 
   format:
     command: biome format --write src/
+    options:
+      runFromWorkspaceRoot: false
     inputs:
       - src

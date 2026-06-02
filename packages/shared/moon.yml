@@ -5,6 +5,8 @@ language: typescript
 tasks:
   typecheck:
     command: tsc --noEmit
+    options:
+      runFromWorkspaceRoot: false
     inputs:
       - src
       - tsconfig.json
