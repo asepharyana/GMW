@@ -683,7 +683,7 @@ async function processBatch(
       enqueueIndividualFallbacks(incompleteMessages);
     }
 
-    consecutiveErrors = 0; // Reset batch circuit breaker
+    resetConversationBatchFailures(conversationKey);
     conversationErrorCooldown.delete(conversationKey);
     shouldScheduleNext = true;
   } catch (error) {
