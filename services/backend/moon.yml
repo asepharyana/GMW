@@ -1,11 +1,10 @@
 # Backend service - Discord moderation monitoring
 language: typescript
-type: application
 
 tasks:
   dev:
     command: tsx watch src/index.ts
-    local: true
+    preset: server
 
   build:
     command: tsc

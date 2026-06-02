@@ -1,11 +1,10 @@
 # Frontend web application
 language: typescript
-type: application
 
 tasks:
   dev:
     command: vite --host 0.0.0.0
-    local: true
+    preset: server
 
   build:
     command: tsc --noEmit && NODE_NO_WARNINGS=1 vite build
@@ -19,7 +18,7 @@ tasks:
 
   preview:
     command: vite preview --host 0.0.0.0 --port 3000
-    local: true
+    preset: server
 
   typecheck:
     command: tsc --noEmit
