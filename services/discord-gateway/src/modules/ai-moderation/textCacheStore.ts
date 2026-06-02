@@ -1,8 +1,83 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 import { createChildLogger } from "../../shared/logger/logger.js";
+import {
+  logModelVersionChange,
+  logCacheInvalidation,
+} from "./responseLogger.js";
 
 const logger = createChildLogger("text-cache-store");
+
+/**
+ * Model version for vision/LLM cache entries.
+ * Dynamically derived from git branch name to ensure version control.
+ *
+ * Branch naming convention:
+ * - main/master → "main" or "master" (stable, original cache)
+ * - feature/terminal-fix → "feature-terminal-fix" (feature branch cache)
+ * - hotfix/gambling-false-positive → "hotfix-gambling-false-positive" (hotfix branch cache)
+ *
+ * Old cache entries with mismatched versions are automatically ignored.
+ * This ensures each branch/deployment gets fresh analyses if it changes moderation logic.
+ *
+ * Fallback: If git branch detection fails, uses environment variable or defaults to "v1".
+ */
+function getVisionModelVersion(): string {
+  try {
+    // Get current git branch name using execFileSync (safe, no shell injection)
+    const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+      encoding: "utf-8",
+    })
+      .trim()
+      .toLowerCase();
+
+    if (!branch || branch === "head") {
+      // Detached HEAD state — use commit hash prefix
+      const commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+        encoding: "utf-8",
+      })
+        .trim()
+        .toLowerCase();
+      return `commit-${commit}`;
+    }
+
+    // Normalize branch name: replace slashes with hyphens, remove special chars
+    const normalized = branch
+      .replace(/[^a-z0-9-]/g, "-") // Replace non-alphanumeric with hyphens
+      .replace(/-+/g, "-") // Collapse multiple hyphens
+      .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+
+    return normalized || "v1";
+  } catch (error) {
+    // Fallback to environment variable if git fails
+    const envVersion = process.env.CACHE_MODEL_VERSION;
+    if (envVersion) {
+      logger.info({ version: envVersion }, "Using CACHE_MODEL_VERSION from env");
+      return envVersion;
+    }
+
+    // Last resort: use stable default
+    logger.warn(
+      {
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Failed to detect git branch for cache version, using fallback 'v1'",
+    );
+    return "v1";
+  }
+}
+
+/**
+ * Get the current vision model version (cached at module load time).
+ * Version is derived from git branch name and remains constant for this process.
+ */
+export const VISION_MODEL_VERSION = getVisionModelVersion();
+
+logger.info({ version: VISION_MODEL_VERSION }, "Vision model version initialized");
+
+// Track version for invalidation logging
+let previousVersion = VISION_MODEL_VERSION;
 
 export interface TextCacheEntry {
   text: string;
@@ -15,17 +90,17 @@ export interface TextCacheEntry {
 
 /**
  * Lookup cached analysis result for a normalized text string.
- * Returns null if not found or expired.
+ * Returns null if not found, expired, or model version mismatch.
  */
 export async function getCachedText(
   text: string,
 ): Promise<TextCacheEntry | null> {
   try {
     const row = await executeGet(
-      `SELECT text, flags, source, analyzed_at, expires_at, hit_count
+      `SELECT text, flags, source, analyzed_at, expires_at, hit_count, model_version
        FROM text_analysis_cache
-       WHERE text = $1 AND expires_at > $2`,
-      [text, Date.now()],
+       WHERE text = $1 AND expires_at > $2 AND model_version = $3`,
+      [text, Date.now(), VISION_MODEL_VERSION],
     );
 
     if (!row) return null;
@@ -48,7 +123,7 @@ export async function getCachedText(
 }
 
 /**
- * Insert or update a text analysis cache entry.
+ * Insert or update a text analysis cache entry with model version.
  */
 export async function upsertCachedText(
   text: string,
@@ -60,14 +135,15 @@ export async function upsertCachedText(
 
   try {
     await executeAll(
-      `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count)
-       VALUES ($1, $2, $3, $4, $5, 0)
+      `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count, model_version)
+       VALUES ($1, $2, $3, $4, $5, 0, $6)
        ON CONFLICT (text) DO UPDATE SET
          flags = EXCLUDED.flags,
          source = EXCLUDED.source,
          analyzed_at = EXCLUDED.analyzed_at,
-         expires_at = EXCLUDED.expires_at`,
-      [text, JSON.stringify(flags), source, now, expiresAt],
+         expires_at = EXCLUDED.expires_at,
+         model_version = EXCLUDED.model_version`,
+      [text, JSON.stringify(flags), source, now, expiresAt, VISION_MODEL_VERSION],
     );
   } catch (error) {
     logger.error(
@@ -183,17 +259,17 @@ export function makeImageCacheKey(dataUrl: string): string {
 
 /**
  * Lookup a cached media analysis result.
- * Returns the full cached text (the analysis summary string) or null.
+ * Returns the full cached text (the analysis summary string) or null if not found, expired, or version mismatch.
  */
 export async function getCachedMediaAnalysis(
   cacheKey: string,
 ): Promise<string | null> {
   try {
     const row = await executeGet(
-      `SELECT flags, hit_count
+      `SELECT flags, hit_count, model_version
        FROM text_analysis_cache
-       WHERE text = $1 AND expires_at > $2`,
-      [cacheKey, Date.now()],
+       WHERE text = $1 AND expires_at > $2 AND model_version = $3`,
+      [cacheKey, Date.now(), VISION_MODEL_VERSION],
     );
 
     if (!row) return null;
@@ -211,7 +287,7 @@ export async function getCachedMediaAnalysis(
 }
 
 /**
- * Store a media analysis result in the cache.
+ * Store a media analysis result in the cache with model version tracking.
  */
 export async function upsertCachedMediaAnalysis(
   cacheKey: string,
@@ -223,14 +299,15 @@ export async function upsertCachedMediaAnalysis(
 
   try {
     await executeAll(
-      `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count)
-       VALUES ($1, $2, $3, $4, $5, 0)
+      `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count, model_version)
+       VALUES ($1, $2, $3, $4, $5, 0, $6)
        ON CONFLICT (text) DO UPDATE SET
          flags = EXCLUDED.flags,
          source = EXCLUDED.source,
          analyzed_at = EXCLUDED.analyzed_at,
-         expires_at = EXCLUDED.expires_at`,
-      [cacheKey, JSON.stringify(analysisResult), source, now, expiresAt],
+         expires_at = EXCLUDED.expires_at,
+         model_version = EXCLUDED.model_version`,
+      [cacheKey, JSON.stringify(analysisResult), source, now, expiresAt, VISION_MODEL_VERSION],
     );
   } catch (error) {
     logger.error(
