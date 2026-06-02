@@ -7,7 +7,7 @@ const logger = createChildLogger("text-cache-store");
 export interface TextCacheEntry {
   text: string;
   flags: string[];
-  source: "local" | "nvidia" | "primary_ai" | "groq" | "vision_llm";
+  source: "local" | "primary_ai" | "vision_llm";
   analyzed_at: number;
   expires_at: number;
   hit_count: number;
@@ -53,7 +53,7 @@ export async function getCachedText(
 export async function upsertCachedText(
   text: string,
   flags: string[],
-  source: "local" | "nvidia" | "primary_ai" | "groq" | "vision_llm",
+  source: "local" | "primary_ai" | "vision_llm",
   expiresAt: number,
 ): Promise<void> {
   const now = Date.now();

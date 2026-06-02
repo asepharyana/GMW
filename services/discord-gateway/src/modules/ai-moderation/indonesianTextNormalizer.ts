@@ -1,42 +1,11 @@
-import axios from "axios";
 import OpenAI from "openai";
-import { AbortError } from "p-retry";
 import { config } from "../../shared/config/config.js";
 import { createChildLogger } from "../../shared/logger/logger.js";
-import { retryWithBackoff } from "../../shared/utils/retry.js";
 import { getCachedText, upsertCachedText } from "./textCacheStore.js";
 
 const log = createChildLogger("indonesianTextNormalizer");
 
 const CUSTOM_EMOJI_PATTERN = /<a?:([a-zA-Z0-9_]+):(\d+)>/g;
-
-/** NVIDIA content safety categories that map to offensive/badword content. */
-const NVIDIA_BAD_CATEGORIES = new Set([
-  "hate",
-  "harassment",
-  "sexual",
-  "violence",
-  "self-harm",
-  "illicit",
-  "profanity",
-  "vulgar",
-  "insult",
-]);
-
-/**
- * Map NVIDIA Nemotron category labels to Indonesian badword-style labels.
- */
-const CATEGORY_TO_BADWORD_LABEL: Record<string, string> = {
-  hate: "hate_speech",
-  harassment: "harassment",
-  sexual: "sexual_content",
-  violence: "violence",
-  "self-harm": "self_harm",
-  illicit: "illegal_content",
-  profanity: "vulgar_language",
-  vulgar: "vulgar_language",
-  insult: "harassment",
-};
 
 const VALID_PRIMARY_AI_FLAGS = new Set([
   "spam",
@@ -75,13 +44,6 @@ const BADWORD_CACHE_TTL_MS = 10 * 60 * 1000;
  */
 const DB_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-const NEMOTRON_RATE_LIMIT_COOLDOWN_MS = 60_000; // 1 min backoff on 429
-const PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS = 60_000; // 1 min backoff on 429
-const GROQ_RATE_LIMIT_COOLDOWN_MS = 60_000; // 1 min backoff on 429
-
-/** How long to mark a provider unavailable after a transient (5xx/timeout) error. */
-const TRANSIENT_ERROR_COOLDOWN_MS = 30_000; // 30s backoff on 502/timeout
-
 interface BadwordCacheEntry {
   value: string[];
   expiresAt: number;
@@ -89,9 +51,6 @@ interface BadwordCacheEntry {
 
 const badwordCache = new Map<string, BadwordCacheEntry>();
 const inFlightBadwordLookups = new Map<string, Promise<string[]>>();
-let nemotronUnavailableUntil = 0;
-let primaryAiUnavailableUntil = 0;
-let groqUnavailableUntil = 0;
 let primaryModerationClient: OpenAI | null = null;
 
 export interface ModerationTextEvidence {
@@ -103,7 +62,7 @@ export interface ModerationTextEvidence {
 }
 
 // ---------------------------------------------------------------------------
-// Sync helpers (unchanged)
+// Sync helpers
 // ---------------------------------------------------------------------------
 
 export function normalizeDiscordCustomEmoji(text: string): {
@@ -121,10 +80,6 @@ export function normalizeDiscordCustomEmoji(text: string): {
 
   return { text: normalized, emojiNames };
 }
-
-// Local badword detection removed (lines 121-198).
-// All detection now goes through the API pipeline (NVIDIA → Primary AI → Groq)
-// to eliminate false positives from substring matching and hardcoded whitelists.
 
 function normalizeBadwordCacheKey(text: string): string {
   return text.trim().replace(/\s+/g, " ").toLowerCase();
@@ -194,7 +149,7 @@ function normalizePrimaryAiFlag(value: string): string | null {
     return lower;
   }
 
-  return CATEGORY_TO_BADWORD_LABEL[lower] ?? null;
+  return null;
 }
 
 function extractFlagsFromPrimaryAiContent(content: string): string[] {
@@ -240,13 +195,6 @@ function extractFlagsFromPrimaryAiContent(content: string): string[] {
     }
   }
 
-  for (const category of Object.keys(CATEGORY_TO_BADWORD_LABEL)) {
-    if (lowerContent.includes(category)) {
-      const mapped = CATEGORY_TO_BADWORD_LABEL[category];
-      if (mapped) flags.add(mapped);
-    }
-  }
-
   return Array.from(flags);
 }
 
@@ -256,36 +204,25 @@ async function callPrimaryAiModeration(text: string): Promise<string[]> {
     return [];
   }
 
-  const completion = await retryWithBackoff(
-    async () => {
-      return client.chat.completions.create({
-        model: config.AI_LLM_MODEL,
-        messages: [
-          {
-            role: "user",
-            content:
-              "Deteksi kata kasar / pelanggaran ringan dari teks Indonesia berikut. " +
-              'Balas hanya JSON object dengan format {"flags":[...]} dan gunakan hanya flag valid ini: ' +
-              Array.from(VALID_PRIMARY_AI_FLAGS).join(", ") +
-              ". Jika tidak ada pelanggaran, flags harus array kosong. Teks: " +
-              text,
-          },
-        ],
-        temperature: 0.1,
-        top_p: 0.9,
-        max_tokens: 200,
-        stream: false,
-        response_format: { type: "json_object" },
-      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
-    },
-    {
-      retries: 2,
-      minTimeout: 2000,
-      maxTimeout: 5000,
-      factor: 2,
-      logger: log,
-    },
-  );
+  const completion = await client.chat.completions.create({
+    model: config.AI_LLM_MODEL,
+    messages: [
+      {
+        role: "user",
+        content:
+          "Deteksi kata kasar / pelanggaran ringan dari teks Indonesia berikut. " +
+          'Balas hanya JSON object dengan format {"flags":[...]} dan gunakan hanya flag valid ini: ' +
+          Array.from(VALID_PRIMARY_AI_FLAGS).join(", ") +
+          ". Jika tidak ada pelanggaran, flags harus array kosong. Teks: " +
+          text,
+      },
+    ],
+    temperature: 0.1,
+    top_p: 0.9,
+    max_tokens: 200,
+    stream: false,
+    response_format: { type: "json_object" },
+  } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
 
   const content = completion.choices[0]?.message?.content?.trim();
   if (!content) {
@@ -296,175 +233,18 @@ async function callPrimaryAiModeration(text: string): Promise<string[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Groq Llama Prompt Guard Moderation API (Fallback)
+// Two-tier cache + Primary AI pipeline
 // ---------------------------------------------------------------------------
 
 /**
- * Call Groq Llama Prompt Guard 2-86M model for moderation scoring.
- * Returns a probability score as a string (e.g. "0.9988824725151062").
- * Scores above ~0.5 indicate moderation violations.
- */
-async function callGrokModeration(text: string): Promise<string[]> {
-  const apiKey = config.GROQ_API_KEY;
-  if (!apiKey) {
-    return [];
-  }
-
-  const response = await retryWithBackoff(
-    async () => {
-      const res = await axios.post(
-        config.GROQ_MODERATION_BASE_URL,
-        {
-          model: config.GROQ_MODERATION_MODEL,
-          messages: [{ role: "user", content: text }],
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          timeout: 15_000,
-          validateStatus: (status: number) => status < 500,
-        },
-      );
-      // 429 should abort retry immediately — no point hammering a rate limit
-      if (res.status === 429) {
-        throw new AbortError("Groq rate limited");
-      }
-      return res;
-    },
-    {
-      retries: 2,
-      minTimeout: 2000,
-      maxTimeout: 5000,
-      factor: 2,
-      logger: log,
-    },
-  );
-
-  const scoreStr = response.data?.choices?.[0]?.message?.content?.trim();
-  if (!scoreStr) {
-    return [];
-  }
-
-  // Parse the score (Llama Prompt Guard returns a single probability score)
-  const score = parseFloat(scoreStr);
-  if (isNaN(score) || score < 0.5) {
-    return [];
-  }
-
-  // Map score to moderation flags based on severity
-  const flags: string[] = [];
-  if (score >= 0.9) {
-    flags.push("vulgar_language", "harassment");
-  } else if (score >= 0.7) {
-    flags.push("vulgar_language");
-  } else {
-    flags.push("spam");
-  }
-
-  return flags;
-}
-
-// ---------------------------------------------------------------------------
-// NVIDIA Nemotron-3 Content Safety API
-// ---------------------------------------------------------------------------
-
-/**
- * Call NVIDIA Nemotron-3 Content Safety API to detect harmful content.
- * Returns categories/flags from the API response.
- */
-async function callNemotronContentSafety(text: string): Promise<string[]> {
-  const apiKey = config.NVIDIA_NEMOTRON_API_KEY;
-  if (!apiKey) {
-    return [];
-  }
-
-  const response = await retryWithBackoff(
-    async () => {
-      const res = await axios.post(
-        config.NVIDIA_NEMOTRON_BASE_URL,
-        {
-          model: config.NVIDIA_NEMOTRON_MODEL,
-          messages: [{ role: "user", content: text }],
-          max_tokens: 897,
-          temperature: 0.2,
-          top_p: 0.7,
-          stream: false,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            Accept: "application/json",
-          },
-          timeout: 15_000,
-          validateStatus: (status: number) => status < 500,
-        },
-      );
-      // 429 should abort retry immediately — no point hammering a rate limit
-      if (res.status === 429) {
-        throw new AbortError("NVIDIA rate limited");
-      }
-      return res;
-    },
-    {
-      retries: 2,
-      minTimeout: 2000,
-      maxTimeout: 5000,
-      factor: 2,
-      logger: log,
-    },
-  );
-
-  const data = response.data;
-  const categories: string[] = [];
-
-  // Parse the LLM response for category flags
-  const content = data?.choices?.[0]?.message?.content ?? "";
-  if (content) {
-    const lowerContent = content.toLowerCase();
-    for (const category of NVIDIA_BAD_CATEGORIES) {
-      if (lowerContent.includes(category)) {
-        categories.push(CATEGORY_TO_BADWORD_LABEL[category] ?? category);
-      }
-    }
-  }
-
-  // Also check for structured response fields
-  const choice = data?.choices?.[0];
-  if (choice?.message?.content) {
-    try {
-      const parsed = JSON.parse(choice.message.content);
-      if (parsed.categories && Array.isArray(parsed.categories)) {
-        for (const cat of parsed.categories) {
-          if (NVIDIA_BAD_CATEGORIES.has(cat.name ?? cat)) {
-            categories.push(CATEGORY_TO_BADWORD_LABEL[cat.name ?? cat] ?? cat);
-          }
-        }
-      }
-    } catch {
-      // Not JSON — already handled via text search above
-    }
-  }
-
-  return Array.from(new Set(categories));
-}
-
-// ---------------------------------------------------------------------------
-// Three-tier cache pipeline
-// ---------------------------------------------------------------------------
-
-/**
- * Detect badwords in text using a **two-tier cache + API pipeline**:
+ * Detect badwords in text using a **two-tier cache + Primary AI**:
  *
  * 1. **In-memory cache** (BADWORD_CACHE_TTL_MS, 10 min) — fastest path,
  *    keyed by the full normalized text string.
  * 2. **DB cache** (DB_CACHE_TTL_MS, 24 h) — same full-text key, persisted
  *    across restarts. Uses the FULL normalized text (not per-word) because
  *    context matters: "kau" alone is clean, but "awas kau" can be a threat.
- * 3. **API pipeline** (NVIDIA → Primary AI → Groq)
- *    only runs when both cache layers miss.
+ * 3. **Primary AI** (AI_LLM endpoint) — only runs when both cache layers miss.
  *
  * No local hardcoded badword list — all detection goes through AI APIs
  * to eliminate false positives from substring matching.
@@ -495,90 +275,16 @@ export async function detectIndonesianBadwords(
       return flags;
     }
 
-    // ── Tier 3: API pipeline ──
-
-    const hits = new Set<string>();
-    let sourceUsed: "nvidia" | "primary_ai" | "groq" = "primary_ai";
-
-    // 3a. Try NVIDIA API if key is configured and not rate limited.
-    const apiKey = config.NVIDIA_NEMOTRON_API_KEY;
-    if (apiKey && Date.now() >= nemotronUnavailableUntil) {
-      try {
-        const apiCategories = await callNemotronContentSafety(text);
-        for (const hit of apiCategories) {
-          hits.add(hit);
-        }
-        if (apiCategories.length > 0) sourceUsed = "nvidia";
-      } catch (error) {
-        const status = axios.isAxiosError(error)
-          ? error.response?.status
-          : null;
-        if (status === 429) {
-          nemotronUnavailableUntil =
-            Date.now() + NEMOTRON_RATE_LIMIT_COOLDOWN_MS;
-        } else {
-          // 502, timeout, or other transient error — cooldown briefly
-          nemotronUnavailableUntil = Date.now() + TRANSIENT_ERROR_COOLDOWN_MS;
-        }
-        log.warn(
-          { error },
-          "NVIDIA Nemotron API call failed, falling back to primary AI",
-        );
-      }
+    // ── Tier 3: Primary AI only ──
+    let finalHits: string[] = [];
+    try {
+      finalHits = await callPrimaryAiModeration(text);
+    } catch (error) {
+      log.warn(
+        { error: error instanceof Error ? error.message : String(error) },
+        "Primary AI badword detection failed",
+      );
     }
-
-    // 3b. Try the main AI model next.
-    if (hits.size === 0 && Date.now() >= primaryAiUnavailableUntil) {
-      try {
-        const primaryHits = await callPrimaryAiModeration(text);
-        for (const hit of primaryHits) {
-          hits.add(hit);
-        }
-        if (primaryHits.length > 0) sourceUsed = "primary_ai";
-      } catch (error) {
-        const status = axios.isAxiosError(error)
-          ? error.response?.status
-          : null;
-        if (status === 429) {
-          primaryAiUnavailableUntil =
-            Date.now() + PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS;
-        } else {
-          // 502, timeout, or other transient error — cooldown briefly
-          primaryAiUnavailableUntil = Date.now() + TRANSIENT_ERROR_COOLDOWN_MS;
-        }
-        log.warn(
-          { error },
-          "Primary AI badword detection failed, falling back to Groq",
-        );
-      }
-    }
-
-    // 3c. Try Groq Llama Prompt Guard as final API fallback.
-    if (hits.size === 0 && Date.now() >= groqUnavailableUntil) {
-      const groqKey = config.GROQ_API_KEY;
-      if (groqKey) {
-        try {
-          const groqHits = await callGrokModeration(text);
-          for (const hit of groqHits) {
-            hits.add(hit);
-          }
-          if (groqHits.length > 0) sourceUsed = "groq";
-        } catch (error) {
-          const status = axios.isAxiosError(error)
-            ? error.response?.status
-            : null;
-          if (status === 429) {
-            groqUnavailableUntil = Date.now() + GROQ_RATE_LIMIT_COOLDOWN_MS;
-          } else {
-            // 502, timeout, or other transient error — cooldown briefly
-            groqUnavailableUntil = Date.now() + TRANSIENT_ERROR_COOLDOWN_MS;
-          }
-          log.warn({ error }, "Groq Llama Prompt Guard moderation failed");
-        }
-      }
-    }
-
-    const finalHits = Array.from(hits);
 
     // Populate all cache tiers so the same text never triggers another API call
     // within the TTL window.
@@ -586,7 +292,7 @@ export async function detectIndonesianBadwords(
     await upsertCachedText(
       cacheKey,
       finalHits,
-      sourceUsed,
+      "primary_ai",
       Date.now() + DB_CACHE_TTL_MS,
     );
 
