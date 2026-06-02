@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import type { ChatCompletion } from "openai/resources/chat/completions";
 import { AbortError } from "p-retry";
 import { z } from "zod";
 import { config } from "../config.js";
@@ -168,71 +168,6 @@ const MODERATION_JSON_SCHEMA = {
   required: ["results"],
   additionalProperties: false,
 };
-
-// ---------------------------------------------------------------------------
-// OpenAI client with Cloudflare WAF bypass (unchanged)
-// ---------------------------------------------------------------------------
-
-const openai = new OpenAI({
-  apiKey: config.AI_LLM_API_KEY,
-  baseURL: config.AI_LLM_BASE_URL,
-  maxRetries: 0,
-  timeout: 30000,
-  fetch: async (url, init) => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
-
-    const headers = new Headers(init?.headers);
-    headers.set(
-      "User-Agent",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    );
-    for (const key of Array.from(headers.keys())) {
-      if (key.toLowerCase().startsWith("x-stainless")) {
-        headers.delete(key);
-      }
-    }
-
-    const fetchInit = { ...init, headers, signal: controller.signal };
-
-    try {
-      const response = await globalThis.fetch(url, fetchInit);
-      const body =
-        typeof response.text === "function"
-          ? await response.text()
-          : JSON.stringify(await response.json());
-
-      let normalizedBody = body;
-      if (response.ok !== false) {
-        try {
-          JSON.parse(body);
-        } catch (error) {
-          log.warn(
-            {
-              error: error instanceof Error ? error.message : String(error),
-              status: response.status ?? 200,
-              bodyLength: body.length,
-              body,
-            },
-            "LLM provider returned malformed JSON response body",
-          );
-          normalizedBody = JSON.stringify(extractJson(body));
-        }
-      }
-
-      const responseHeaders = new Headers(response.headers ?? undefined);
-      responseHeaders.set("Content-Type", "application/json");
-      responseHeaders.delete("Content-Length");
-
-      return new Response(normalizedBody, {
-        status: response.status ?? 200,
-        headers: responseHeaders,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-  },
-});
 
 /**
  * Helper to extract JSON from a potentially conversational or markdown-wrapped string.
@@ -642,7 +577,7 @@ async function callModerationLLM(
   label: string,
 ): Promise<{
   results: AnalysisResult[];
-  raw: OpenAI.Chat.Completions.ChatCompletion | null;
+  raw: ChatCompletion | null;
 }> {
   const state: RetryState = {
     lastParseError: null,
@@ -650,7 +585,7 @@ async function callModerationLLM(
   };
 
   let parsed: AnalysisResult[];
-  let result: OpenAI.Chat.Completions.ChatCompletion | null = null;
+  let result: ChatCompletion | null = null;
 
   try {
     const analysis = await retryWithBackoff(
