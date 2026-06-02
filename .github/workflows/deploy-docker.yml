@@ -93,8 +93,8 @@ jobs:
 
             cd "$APP_DIR"
 
-            printf '%s\n' "$ENV_FILE" > .env
-            mkdir -p recordings
+            mkdir -p infra/docker/recordings
+            printf '%s\n' "$ENV_FILE" > infra/docker/.env
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 
