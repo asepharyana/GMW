@@ -1,5 +1,4 @@
 import { Activity, BarChart3 } from "lucide-react";
-import type { Channel, Guild } from "../../../shared/api/client";
 import { cn } from "../../../shared/lib/utils";
 import {
   Button,
@@ -8,7 +7,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Select,
 } from "../../../shared/ui";
 
 const TIME_RANGES = [
@@ -22,27 +20,17 @@ const TIME_RANGES = [
 ];
 
 interface ControlBarProps {
-  guilds: Guild[];
-  channels: Channel[];
-  selectedGuild: string;
-  selectedChannel: string;
+  guildName: string | null;
   hours: number;
   isFetching: boolean;
-  onGuildChange: (guildId: string) => void;
-  onChannelChange: (channelId: string) => void;
   onHoursChange: (hours: number) => void;
   onRefresh: () => void;
 }
 
 export function ControlBar({
-  guilds,
-  channels,
-  selectedGuild,
-  selectedChannel,
+  guildName,
   hours,
   isFetching,
-  onGuildChange,
-  onChannelChange,
   onHoursChange,
   onRefresh,
 }: ControlBarProps) {
@@ -54,28 +42,19 @@ export function ControlBar({
           Analisis Moderasi
         </CardTitle>
         <CardDescription>
-          Pantau statistik, tren topik, dan aktivitas user.
+          {guildName ? (
+            <>
+              Pantau statistik, tren topik, dan aktivitas user di seluruh
+              channel{" "}
+              <span className="font-medium text-foreground">{guildName}</span>.
+            </>
+          ) : (
+            "Pantau statistik, tren topik, dan aktivitas user."
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap items-center gap-3">
-          <Select
-            value={selectedGuild}
-            onChange={(e) => onGuildChange(e.target.value)}
-            placeholder="Pilih guild"
-            options={guilds.map((g) => ({ value: g.id, label: g.name }))}
-            className="min-w-[180px]"
-          />
-          <Select
-            value={selectedChannel}
-            onChange={(e) => onChannelChange(e.target.value)}
-            placeholder="Semua channel"
-            options={[
-              { value: "", label: "Semua channel" },
-              ...channels.map((c) => ({ value: c.id, label: c.name })),
-            ]}
-            className="min-w-[160px]"
-          />
           <div className="flex items-center gap-1 rounded-md bg-muted p-0.5">
             {TIME_RANGES.map((tr) => (
               <button

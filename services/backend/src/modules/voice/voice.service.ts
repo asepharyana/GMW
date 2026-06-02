@@ -1,6 +1,6 @@
 import Redis from "ioredis";
-import { getPool } from "../../shared/database/index.js";
 import { config } from "../../shared/config/index.js";
+import { getPool } from "../../shared/database/index.js";
 import { createChildLogger } from "../../shared/logger/index.js";
 
 const logger = createChildLogger("voice.service");
@@ -100,7 +100,10 @@ async function sendCommand<T = unknown>(
     redis.on("message", handler);
 
     redis
-      .publish("backend:command", JSON.stringify({ id, type, payload, replyChannel }))
+      .publish(
+        "backend:command",
+        JSON.stringify({ id, type, payload, replyChannel }),
+      )
       .catch(() => {
         clearTimeout(timer);
         resolve(null);
@@ -118,9 +121,17 @@ async function readStatus<T>(key: string): Promise<T | null> {
 }
 
 /**
- * Get guilds from database (distinct guild_id from messages).
+ * Get guilds — query from discord-gateway via Redis command for real names.
+ * Falls back to database (distinct guild_id from messages) if gateway unreachable.
  */
 export async function getGuilds(): Promise<Guild[]> {
+  const fromGateway = await sendCommand<Guild[]>("guilds:list", {});
+  if (fromGateway && fromGateway.length > 0) return fromGateway;
+
+  // Fallback: Postgres with synthetic names
+  logger.warn(
+    "discord-gateway unreachable, falling back to Postgres for guilds",
+  );
   const pool = getPool();
   const { rows } = await pool.query(
     `SELECT DISTINCT guild_id FROM messages ORDER BY guild_id`,
@@ -134,9 +145,20 @@ export async function getGuilds(): Promise<Guild[]> {
 }
 
 /**
- * Get text channels from database (distinct channel_id for a guild).
+ * Get text channels — query from discord-gateway via Redis command for real names.
+ * Falls back to database if gateway unreachable.
  */
 export async function getTextChannels(guildId: string): Promise<Channel[]> {
+  const fromGateway = await sendCommand<Channel[]>("guilds:text-channels", {
+    guildId,
+  });
+  if (fromGateway && fromGateway.length > 0) return fromGateway;
+
+  // Fallback: Postgres with synthetic names
+  logger.warn(
+    { guildId },
+    "discord-gateway unreachable, falling back to Postgres for text channels",
+  );
   const pool = getPool();
   const { rows } = await pool.query(
     `SELECT DISTINCT channel_id FROM messages WHERE guild_id = $1 ORDER BY channel_id`,

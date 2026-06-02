@@ -1,9 +1,9 @@
-import Redis from "ioredis";
 import type { Client } from "discord.js-selfbot-v13";
-import type { VoiceController } from "../voice-recording/voiceController.js";
-import { discordPlayer } from "../voice-recording/player.js";
+import Redis from "ioredis";
 import { config } from "../../shared/config/config.js";
 import { createChildLogger } from "../../shared/logger/logger.js";
+import { discordPlayer } from "../voice-recording/player.js";
+import type { VoiceController } from "../voice-recording/voiceController.js";
 
 const logger = createChildLogger("command-handler");
 
@@ -125,6 +125,15 @@ export class CommandHandler {
         case "voice:disconnect":
           reply = await this.handleVoiceDisconnect(cmd);
           break;
+        case "voice:channels":
+          reply = await this.handleVoiceChannels(cmd);
+          break;
+        case "guilds:list":
+          reply = await this.handleListGuilds(cmd);
+          break;
+        case "guilds:text-channels":
+          reply = await this.handleTextChannels(cmd);
+          break;
         case "media:queue":
           reply = await this.handleMediaQueue(cmd);
           break;
@@ -148,7 +157,10 @@ export class CommandHandler {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error({ commandId: cmd.id, error: message }, "Command execution failed");
+      logger.error(
+        { commandId: cmd.id, error: message },
+        "Command execution failed",
+      );
       reply = {
         id: cmd.id,
         success: false,
@@ -175,7 +187,12 @@ export class CommandHandler {
 
   private async handleVoiceConnect(cmd: BackendCommand): Promise<CommandReply> {
     if (!this.client || !this.voiceController) {
-      return { id: cmd.id, success: false, data: null, error: "Gateway not initialized" };
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "Gateway not initialized",
+      };
     }
 
     const guildId = String(cmd.payload.guildId ?? "");
@@ -194,13 +211,122 @@ export class CommandHandler {
     return { id: cmd.id, success: true, data: status };
   }
 
-  private async handleVoiceDisconnect(cmd: BackendCommand): Promise<CommandReply> {
+  private async handleVoiceDisconnect(
+    cmd: BackendCommand,
+  ): Promise<CommandReply> {
     if (!this.voiceController) {
-      return { id: cmd.id, success: false, data: null, error: "Gateway not initialized" };
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "Gateway not initialized",
+      };
     }
 
     const status = await this.voiceController.disconnect();
     return { id: cmd.id, success: true, data: status };
+  }
+
+  private async handleVoiceChannels(
+    cmd: BackendCommand,
+  ): Promise<CommandReply> {
+    if (!this.client) {
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "Gateway not initialized",
+      };
+    }
+
+    const guildId = String(cmd.payload.guildId ?? "");
+    if (!guildId) {
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "guildId is required",
+      };
+    }
+
+    try {
+      const guild = await this.client.guilds.fetch(guildId);
+      const channels = await guild.channels.fetch();
+      const voiceChannels = channels
+        .filter((c) => c?.type === "GUILD_VOICE")
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          type: "voice" as const,
+        }));
+
+      return { id: cmd.id, success: true, data: voiceChannels };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { id: cmd.id, success: false, data: null, error: msg };
+    }
+  }
+
+  private async handleListGuilds(cmd: BackendCommand): Promise<CommandReply> {
+    if (!this.client) {
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "Gateway not initialized",
+      };
+    }
+
+    try {
+      const guilds = this.client.guilds.cache.map((g) => ({
+        id: g.id,
+        name: g.name,
+        icon: g.iconURL() ?? null,
+      }));
+
+      return { id: cmd.id, success: true, data: guilds };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { id: cmd.id, success: false, data: null, error: msg };
+    }
+  }
+
+  private async handleTextChannels(cmd: BackendCommand): Promise<CommandReply> {
+    if (!this.client) {
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "Gateway not initialized",
+      };
+    }
+
+    const guildId = String(cmd.payload.guildId ?? "");
+    if (!guildId) {
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "guildId is required",
+      };
+    }
+
+    try {
+      const guild = await this.client.guilds.fetch(guildId);
+      const channels = await guild.channels.fetch();
+      const textChannels = channels
+        .filter((c) => c?.type === "GUILD_TEXT")
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          type: "text" as const,
+        }));
+
+      return { id: cmd.id, success: true, data: textChannels };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { id: cmd.id, success: false, data: null, error: msg };
+    }
   }
 
   private async handleMediaQueue(_cmd: BackendCommand): Promise<CommandReply> {
@@ -235,7 +361,11 @@ export class CommandHandler {
       };
     }
     discordPlayer.setMusicVolume(volume);
-    return { id: cmd.id, success: true, data: { volume: discordPlayer.getMusicVolume() } };
+    return {
+      id: cmd.id,
+      success: true,
+      data: { volume: discordPlayer.getMusicVolume() },
+    };
   }
 
   // ---- Status publishing ----
@@ -243,7 +373,12 @@ export class CommandHandler {
   private publishVoiceStatus(): void {
     const status: VoiceStatusPayload = this.voiceController
       ? this.voiceController.getStatus()
-      : { connected: false, activeGuildId: null, activeChannelId: null, activeChannelName: null };
+      : {
+          connected: false,
+          activeGuildId: null,
+          activeChannelId: null,
+          activeChannelName: null,
+        };
 
     this.setKey(VOICE_STATUS_KEY, JSON.stringify(status));
   }
@@ -265,7 +400,8 @@ export class CommandHandler {
    */
   private setKey(key: string, value: string): void {
     const redis = new Redis(config.REDIS_URL);
-    redis.set(key, value)
+    redis
+      .set(key, value)
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn({ key, error: msg }, "Failed to update Redis status key");

@@ -64,14 +64,13 @@ export default function App() {
   const activeTab = uiState.activeTab || "live";
   const selectedVoiceGuild =
     uiState.selectedVoiceGuild || uiState.selectedGuild || "";
-  const selectedTextGuild =
-    monitorGuildId || uiState.selectedTextGuild || uiState.selectedGuild || "";
-  const selectedTextChannel = uiState.selectedTextChannel || "";
-  const monitorGuild = useMemo(
+
+  // Resolve monitor guild name from the full guild list (has real names now)
+  const monitorGuildName = useMemo(
     () =>
       monitorGuildId
-        ? voice.guilds.find((g) => g.id === monitorGuildId)
-        : undefined,
+        ? (voice.guilds.find((g) => g.id === monitorGuildId)?.name ?? null)
+        : null,
     [monitorGuildId, voice.guilds],
   );
 
@@ -97,7 +96,9 @@ export default function App() {
     onMessageAnalyzed: (m) =>
       messages.setMessages((prev) => mergeMessages(prev, [m as MessageRecord])),
     onAttachmentUploaded: () =>
-      messages.fetchMessages(selectedTextChannel).catch(() => undefined),
+      messages
+        .fetchMessages(monitorGuildId || undefined)
+        .catch(() => undefined),
     onMediaState: (state) => media.setMediaState(state as MediaState),
     onVoiceRecordingUploaded: (d) =>
       window.dispatchEvent(
@@ -107,43 +108,37 @@ export default function App() {
 
   const transmit = useAudioTransmit(socket.socketRef);
 
+  // Load app config on mount
   useEffect(() => {
     getAppConfig()
       .then((c) => {
         if (c.monitorGuildId) {
           setMonitorGuildId(c.monitorGuildId);
-          patchUIState({
-            selectedTextGuild: c.monitorGuildId,
-            selectedAnalyticsGuild: c.monitorGuildId,
-            selectedTextChannel: "",
-            selectedAnalyticsChannel: "",
-          });
         }
       })
       .catch(() => undefined);
-  }, [patchUIState]);
+  }, []);
 
+  // Load voice channels when guild changes (Live tab)
   useEffect(() => {
     if (selectedVoiceGuild)
       voice.loadVoiceChannels(selectedVoiceGuild).catch(() => undefined);
   }, [selectedVoiceGuild, voice.loadVoiceChannels]);
+
+  // Auto-fetch messages for the monitor guild (all channels)
   useEffect(() => {
     if (monitorGuildId)
-      voice.loadTextTargets(monitorGuildId).catch(() => undefined);
-  }, [monitorGuildId, voice.loadTextTargets]);
-  useEffect(() => {
-    if (selectedTextChannel)
-      messages.fetchMessages(selectedTextChannel).catch(() => undefined);
-  }, [selectedTextChannel, messages.fetchMessages]);
+      messages.fetchMessages(monitorGuildId).catch(() => undefined);
+  }, [monitorGuildId, messages.fetchMessages]);
 
-  // Periodic refetch — ensures dashboard stays in sync even if WS events were missed
+  // Periodic refetch — keeps dashboard in sync even if WS events missed
   useEffect(() => {
-    if (!selectedTextChannel) return;
+    if (!monitorGuildId) return;
     const interval = setInterval(() => {
-      messages.fetchMessages(selectedTextChannel).catch(() => undefined);
-    }, 15_000); // every 15s (longer than WS, shorter than stale cache)
+      messages.fetchMessages(monitorGuildId).catch(() => undefined);
+    }, 15_000);
     return () => clearInterval(interval);
-  }, [selectedTextChannel, messages.fetchMessages]);
+  }, [monitorGuildId, messages.fetchMessages]);
 
   return (
     <DashboardLayout
@@ -191,15 +186,8 @@ export default function App() {
         )
       ) : activeTab === "messages" ? (
         <MessagesPanel
-          guilds={monitorGuild ? [monitorGuild] : []}
-          channels={voice.textChannels}
-          selectedGuild={selectedTextGuild}
-          selectedChannel={selectedTextChannel}
+          guildName={monitorGuildName}
           messages={messages.messages}
-          onGuildChange={(id) =>
-            patchUIState({ selectedTextGuild: id, selectedTextChannel: "" })
-          }
-          onChannelChange={(id) => patchUIState({ selectedTextChannel: id })}
           onReanalyze={messages.reanalyze}
           onLoadMore={messages.loadMore}
           hasMore={messages.hasMore}
@@ -218,23 +206,8 @@ export default function App() {
             }
           >
             <AnalyticsPanel
-              guilds={monitorGuild ? [monitorGuild] : []}
-              channels={voice.textChannels}
-              selectedGuild={
-                uiState.selectedAnalyticsGuild || selectedTextGuild || ""
-              }
-              selectedChannel={
-                uiState.selectedAnalyticsChannel || selectedTextChannel || ""
-              }
-              onGuildChange={(id) =>
-                patchUIState({
-                  selectedAnalyticsGuild: id,
-                  selectedAnalyticsChannel: "",
-                })
-              }
-              onChannelChange={(id) =>
-                patchUIState({ selectedAnalyticsChannel: id })
-              }
+              guildId={monitorGuildId}
+              guildName={monitorGuildName}
             />
           </Suspense>
         </AnalyticsErrorBoundary>

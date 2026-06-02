@@ -1,16 +1,14 @@
 import { Filter, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { Channel, Guild, MessageRecord } from "../../shared/api/client";
+import type { MessageRecord } from "../../shared/api/client";
 import {
   Badge,
   Button,
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   Input,
-  Select,
   Tabs,
   TabsContent,
   TabsList,
@@ -20,13 +18,8 @@ import { ImageGrid } from "./components/ImageGrid";
 import { MessageFeed } from "./components/MessageFeed";
 
 interface MessagesPanelProps {
-  guilds: Guild[];
-  channels: Channel[];
-  selectedGuild: string;
-  selectedChannel: string;
+  guildName: string | null;
   messages: MessageRecord[];
-  onGuildChange: (guildId: string) => void;
-  onChannelChange: (channelId: string) => void;
   onReanalyze: (id: string) => Promise<void>;
   onLoadMore?: () => void;
   hasMore?: boolean;
@@ -36,13 +29,8 @@ interface MessagesPanelProps {
 type AiFilter = "all" | "clean" | "warn" | "flagged" | "error" | "pending";
 
 export function MessagesPanel({
-  guilds,
-  channels,
-  selectedGuild,
-  selectedChannel,
+  guildName,
   messages,
-  onGuildChange,
-  onChannelChange,
   onReanalyze,
   onLoadMore,
   hasMore,
@@ -63,11 +51,7 @@ export function MessagesPanel({
     }
     setIsSearching(true);
     try {
-      const params = new URLSearchParams({
-        q: searchQuery,
-        ...(selectedChannel && { channelId: selectedChannel }),
-        limit: "50",
-      });
+      const params = new URLSearchParams({ q: searchQuery, limit: "50" });
       const response = await fetch(`/api/analysis/search?${params}`);
       if (!response.ok) throw new Error("Search failed");
       const data = await response.json();
@@ -110,24 +94,19 @@ export function MessagesPanel({
     <div className="grid gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Message Source</CardTitle>
-          <CardDescription>
-            Pick a guild and channel/thread to inspect captures.
-          </CardDescription>
+          <CardTitle>Messages</CardTitle>
+          {guildName && (
+            <p className="text-sm text-muted-foreground">
+              Monitoring all text channels in{" "}
+              <span className="font-medium text-foreground">{guildName}</span>
+            </p>
+          )}
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <Select
-            value={selectedGuild}
-            onChange={(e) => onGuildChange(e.target.value)}
-            placeholder="Select text guild"
-            options={guilds.map((g) => ({ value: g.id, label: g.name }))}
-          />
-          <Select
-            value={selectedChannel}
-            onChange={(e) => onChannelChange(e.target.value)}
-            placeholder="Select channel or thread"
-            options={channels.map((c) => ({ value: c.id, label: c.name }))}
-          />
+        <CardContent>
+          <p className="text-xs text-muted-foreground">
+            Messages are automatically captured from all text channels in the
+            monitored guild. Real-time updates arrive via WebSocket.
+          </p>
         </CardContent>
       </Card>
 
@@ -257,9 +236,7 @@ export function MessagesPanel({
             emptyText={
               showSearch
                 ? "No messages found matching your search."
-                : selectedChannel
-                  ? "No captures yet."
-                  : "Select a channel to view captures."
+                : "No captures yet."
             }
             onLoadMore={showSearch ? undefined : onLoadMore}
             hasMore={showSearch ? false : hasMore}

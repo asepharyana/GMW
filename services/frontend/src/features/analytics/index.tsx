@@ -1,5 +1,4 @@
 import { useState } from "react";
-import type { Channel, Guild } from "../../shared/api/client";
 import { ActivityChart } from "./components/ActivityChart";
 import { ControlBar } from "./components/ControlBar";
 import { Heatmap } from "./components/Heatmap";
@@ -11,26 +10,16 @@ import { ViolatorTable } from "./components/ViolatorTable";
 import { useAnalytics } from "./hooks/useAnalytics";
 
 interface AnalyticsPanelProps {
-  guilds: Guild[];
-  channels: Channel[];
-  selectedGuild: string;
-  selectedChannel: string;
-  onGuildChange: (guildId: string) => void;
-  onChannelChange: (channelId: string) => void;
+  guildId: string;
+  guildName: string | null;
 }
 
-export function AnalyticsPanel({
-  guilds,
-  channels,
-  selectedGuild,
-  selectedChannel,
-  onGuildChange,
-  onChannelChange,
-}: AnalyticsPanelProps) {
+export function AnalyticsPanel({ guildId, guildName }: AnalyticsPanelProps) {
   const [hours, setHours] = useState(24);
   const analytics = useAnalytics({
-    guildId: selectedGuild,
-    channelId: selectedChannel || undefined,
+    guildId,
+    // No channelId — analytics for all channels in the guild
+    channelId: undefined,
     hours,
   });
 
@@ -60,11 +49,11 @@ export function AnalyticsPanel({
     );
   }
 
-  if (!selectedGuild) {
+  if (!guildId) {
     return (
       <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-8">
         <p className="text-sm text-muted-foreground">
-          Pilih guild untuk melihat analitik.
+          Menunggu konfigurasi guild...
         </p>
       </div>
     );
@@ -73,14 +62,9 @@ export function AnalyticsPanel({
   return (
     <div className="flex flex-col gap-4">
       <ControlBar
-        guilds={guilds}
-        channels={channels}
-        selectedGuild={selectedGuild}
-        selectedChannel={selectedChannel}
+        guildName={guildName}
         hours={hours}
         isFetching={isFetching}
-        onGuildChange={onGuildChange}
-        onChannelChange={onChannelChange}
         onHoursChange={setHours}
         onRefresh={() => {
           refresh();

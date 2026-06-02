@@ -12,8 +12,6 @@ export function mergeMessages(
   for (const message of incoming) {
     byId.set(message.id, { ...byId.get(message.id), ...message });
   }
-  // Removed .slice(0, 200) cap — let the message list grow unbounded.
-  // Infinite scroll handles the data volume via cursor pagination.
   return Array.from(byId.values()).sort(
     (a, b) => b.created_at - a.created_at || b.id.localeCompare(a.id),
   );
@@ -26,26 +24,25 @@ export function useMessages() {
   const [error, setError] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const currentChannel = useRef<string | null>(null);
+  const currentGuild = useRef<string | null>(null);
 
-  const fetchMessages = useCallback(async (channelId?: string) => {
-    if (!channelId) {
+  const fetchMessages = useCallback(async (guildId?: string) => {
+    if (!guildId) {
       setMessages([]);
       setCursor(null);
       setHasMore(false);
       return [];
     }
-    currentChannel.current = channelId;
+    currentGuild.current = guildId;
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({
         limit: String(PAGE_SIZE),
-        channelId,
+        guildId,
       });
       const result = await listMessages(params);
-      // Only update state if we're still on the same channel (avoid race conditions)
-      if (currentChannel.current === channelId) {
+      if (currentGuild.current === guildId) {
         setMessages(result.data);
         setCursor(result.nextCursor);
         setHasMore(!!result.nextCursor);
@@ -61,30 +58,23 @@ export function useMessages() {
   }, []);
 
   const loadMore = useCallback(async () => {
-    if (!cursor || !currentChannel.current || loadingMore) return;
+    if (!cursor || !currentGuild.current || loadingMore) return;
     setLoadingMore(true);
     try {
       const params = new URLSearchParams({
         limit: String(PAGE_SIZE),
-        channelId: currentChannel.current,
+        guildId: currentGuild.current,
         cursor,
       });
       const result = await listMessages(params);
-      // Only update if still on the same channel
-      if (
-        currentChannel.current === result.data[0]?.channel_id ||
-        currentChannel.current
-      ) {
-        setMessages((prev) => [...prev, ...result.data]);
-        setCursor(result.nextCursor);
-        setHasMore(!!result.nextCursor);
-      }
+      setMessages((prev) => [...prev, ...result.data]);
+      setCursor(result.nextCursor);
+      setHasMore(!!result.nextCursor);
     } finally {
       setLoadingMore(false);
     }
   }, [cursor, loadingMore]);
 
-  // BUG 5 FIX: reanalyze returns Promise<void> so callers can await it
   const reanalyze = useCallback(async (id: string): Promise<void> => {
     setMessages((prev) =>
       prev.map((message) =>
