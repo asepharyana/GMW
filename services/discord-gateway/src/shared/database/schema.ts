@@ -417,6 +417,38 @@ export const pgStickerCacheTable = pgTable(
   }),
 );
 
+/**
+ * Corrected Moderations Table (PostgreSQL)
+ * Stores manually corrected false positives from AI moderation.
+ * Used for dynamic few-shot injection in moderation prompts.
+ */
+export const pgCorrectedModerationsTable = pgTable(
+  "corrected_moderations",
+  {
+    id: pgText("id").primaryKey(),
+    /** The message_id that was originally flagged. */
+    message_id: pgText("message_id").notNull(),
+    /** JSON array of original flags assigned by the LLM. */
+    original_flags: pgText("original_flags").notNull(),
+    /** JSON array of corrected flags (may be empty [] for clean). */
+    corrected_flags: pgText("corrected_flags").notNull(),
+    /** Human-readable explanation of why the correction was made. */
+    correction_notes: pgText("correction_notes"),
+    /** Content snippet so the LLM can recognise similar patterns. */
+    content_snippet: pgText("content_snippet").notNull(),
+    /** When this correction was recorded. */
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    createdAtIdx: pgIndex("idx_corrected_moderations_created_at").on(
+      table.created_at,
+    ),
+    messageIdIdx: pgIndex("idx_corrected_moderations_message_id").on(
+      table.message_id,
+    ),
+  }),
+);
+
 // Runtime table exports
 // =====================
 
