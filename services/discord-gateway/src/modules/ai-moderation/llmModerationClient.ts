@@ -1094,7 +1094,14 @@ async function _runSingleMediaAnalysis(
 
   const maxDimension = config.AI_LLM_IMAGE_MAX_DIMENSION ?? 1024;
 
-  // ── 1. Download attachments for this message (with resize — R5) ──
+  // ── 1-3. Parallel download of ALL media sources ──
+  // Build all download promises upfront and execute them in one Promise.all.
+  // Attachment, URL, sticker/emoji downloads are fully independent of each other.
+  // An 8-image cap is enforced across all sources combined.
+
+  const downloadPromises: Array<Promise<void>> = [];
+
+  // ── Attachment downloads ──
   const msgAttachments = (allAttachments ?? [])
     .filter(
       (att) =>
@@ -1104,99 +1111,100 @@ async function _runSingleMediaAnalysis(
     )
     .slice(0, 8);
 
-  await Promise.all(
-    msgAttachments.map(async (att) => {
-      const urlToUse = getAttachmentImageUrl(att);
-      if (!urlToUse) return;
+  for (const att of msgAttachments) {
+    downloadPromises.push(
+      (async () => {
+        const urlToUse = getAttachmentImageUrl(att);
+        if (!urlToUse) return;
 
-      // Check vision cache BEFORE downloading
-      const attVisionKey = makeImageCacheKey(urlToUse);
-      const cachedVision = await getCachedMediaAnalysis(attVisionKey);
-      if (cachedVision) {
-        log.debug(
-          { attachmentId: att.id, cacheKey: attVisionKey },
-          "Vision cache HIT for attachment — skipped download",
-        );
-        const sourceLabel = `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`;
-        const analysisText = `[Media analysis for message ${att.message_id}] ${sourceLabel}: ${cachedVision}`;
-        const existing = mediaAnalysisMap.get(targetId) ?? [];
-        existing.push(analysisText);
-        mediaAnalysisMap.set(targetId, existing);
-        return;
-      }
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-      try {
-        const res = await fetch(urlToUse, { signal: controller.signal });
-        if (!res.ok || !res.body) return;
-
-        let totalBytes = 0;
-        const chunks: Uint8Array[] = [];
-        const reader = res.body.getReader();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            totalBytes += value.length;
-            if (totalBytes > 10 * 1024 * 1024) {
-              reader.cancel();
-              return;
-            }
-            chunks.push(value);
-          }
-        }
-
-        const imageBytes = Buffer.concat(chunks);
-        const sniffedMime = sniffImageMimeType(imageBytes);
-        if (!sniffedMime) {
-          log.warn(
-            { attachmentId: att.id },
-            "Skipping attachment: not a recognised image format",
+        // Check vision cache BEFORE downloading
+        const attVisionKey = makeImageCacheKey(urlToUse);
+        const cachedVision = await getCachedMediaAnalysis(attVisionKey);
+        if (cachedVision) {
+          log.debug(
+            { attachmentId: att.id, cacheKey: attVisionKey },
+            "Vision cache HIT for attachment — skipped download",
           );
+          const sourceLabel = `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`;
+          const analysisText = `[Media analysis for message ${att.message_id}] ${sourceLabel}: ${cachedVision}`;
+          const existing = mediaAnalysisMap.get(targetId) ?? [];
+          existing.push(analysisText);
+          mediaAnalysisMap.set(targetId, existing);
           return;
         }
 
-        // Resize before base64 encoding (R5)
-        const { data: resizedBuffer, mimeType: resizedMime } =
-          await resizeImageForVision(imageBytes, maxDimension);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-        const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
-        const part: MessageImagePart = {
-          type: "image_url",
-          image_url: { url: dataUrl },
-          sourceLabel: `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`,
-        };
-        const existing = imageMap.get(targetId) ?? [];
-        existing.push(part);
-        imageMap.set(targetId, existing);
-      } catch (err) {
-        log.warn(
-          {
-            attachmentId: att.id,
-            error: err instanceof Error ? err.message : String(err),
-          },
-          "Error downloading attachment",
-        );
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    }),
-  );
+        try {
+          const res = await fetch(urlToUse, { signal: controller.signal });
+          if (!res.ok || !res.body) return;
 
-  // ── 2. Fetch URLs found in message text ──
-  const content = target.edited_content ?? target.content;
+          let totalBytes = 0;
+          const chunks: Uint8Array[] = [];
+          const reader = res.body.getReader();
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) {
+              totalBytes += value.length;
+              if (totalBytes > 10 * 1024 * 1024) {
+                reader.cancel();
+                return;
+              }
+              chunks.push(value);
+            }
+          }
+
+          const imageBytes = Buffer.concat(chunks);
+          const sniffedMime = sniffImageMimeType(imageBytes);
+          if (!sniffedMime) {
+            log.warn(
+              { attachmentId: att.id },
+              "Skipping attachment: not a recognised image format",
+            );
+            return;
+          }
+
+          const { data: resizedBuffer, mimeType: resizedMime } =
+            await resizeImageForVision(imageBytes, maxDimension);
+
+          const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
+          const part: MessageImagePart = {
+            type: "image_url",
+            image_url: { url: dataUrl },
+            sourceLabel: `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`,
+          };
+          const existing = imageMap.get(targetId) ?? [];
+          if (existing.length < 8) {
+            existing.push(part);
+            imageMap.set(targetId, existing);
+          }
+        } catch (err) {
+          log.warn(
+            {
+              attachmentId: att.id,
+              error: err instanceof Error ? err.message : String(err),
+            },
+            "Error downloading attachment",
+          );
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      })(),
+    );
+  }
+
+  // ── URL fetch promises ──
   const urls = extractUrlsFromText(content).slice(0, 3);
+  const urlWebTexts: string[] = [];
 
-  if (urls.length > 0) {
-    const webTexts: string[] = [];
-    await Promise.all(
-      urls.map(async (url) => {
+  for (const url of urls) {
+    downloadPromises.push(
+      (async () => {
         const result = await fetchUrlSafely(url);
         if (result.type === "image" && result.data && result.mimeType) {
-          // Resize fetched images too (R5)
           const { data: resizedBuffer, mimeType: resizedMime } =
             await resizeImageForVision(result.data, maxDimension);
 
@@ -1207,17 +1215,18 @@ async function _runSingleMediaAnalysis(
             sourceLabel: `[gambar di atas berasal dari link ${url} pada pesan id=${targetId}]`,
           };
           const existing = imageMap.get(targetId) ?? [];
-          existing.push(part);
-          imageMap.set(targetId, existing);
+          if (existing.length < 8) {
+            existing.push(part);
+            imageMap.set(targetId, existing);
+          }
         } else if (result.type === "text" && result.textContent) {
-          webTexts.push(`[Isi Web dari ${url}]: ${result.textContent}`);
+          urlWebTexts.push(`[Isi Web dari ${url}]: ${result.textContent}`);
         }
-      }),
+      })(),
     );
-    if (webTexts.length > 0) webTextMap.set(targetId, webTexts);
   }
 
-  // ── 3. Sticker / embed / custom emoji images ──
+  // ── Sticker / embed / custom emoji download promises ──
   const mediaEvidence = extractMessageMediaEvidence(target.metadata);
   const mediaCandidates: Array<{
     messageId: string;
@@ -1273,81 +1282,91 @@ async function _runSingleMediaAnalysis(
     })),
   ];
 
-  const remainingSlots = Math.max(0, 8 - (imageMap.get(targetId)?.length ?? 0));
+  for (const candidate of mediaCandidates) {
+    downloadPromises.push(
+      (async () => {
+        // Skip if we already have 8 images
+        if ((imageMap.get(targetId)?.length ?? 0) >= 8) return;
 
-  await Promise.all(
-    mediaCandidates.slice(0, remainingSlots).map(async (candidate) => {
-      // Vision cache check before download
-      const visionCacheKey = candidate.customEmojiId
-        ? makeCustomEmojiCacheKey(candidate.customEmojiId)
-        : candidate.stickerName
-          ? makeStickerCacheKey(candidate.stickerName)
-          : makeImageCacheKey(candidate.url);
-      const cachedVision = await getCachedMediaAnalysis(visionCacheKey);
-      if (cachedVision) {
-        log.debug(
-          { cacheKey: visionCacheKey },
-          "Vision cache HIT for media candidate — skipped download",
-        );
-        const analysisText = `[Media analysis for message ${candidate.messageId}] ${candidate.label}: ${cachedVision}`;
-        const existing = mediaAnalysisMap.get(targetId) ?? [];
-        existing.push(analysisText);
-        mediaAnalysisMap.set(targetId, existing);
-        return;
-      }
-
-      // Sticker download cache
-      if (candidate.stickerName && isStickerCacheReady()) {
-        try {
-          const cached = await getStickerFromCache(candidate.stickerName);
-          if (cached) {
-            const part: MessageImagePart = {
-              type: "image_url",
-              image_url: {
-                url: `data:${cached.mimeType};base64,${cached.base64}`,
-              },
-              sourceLabel: candidate.label,
-              stickerName: candidate.stickerName,
-            };
-            const existing = imageMap.get(targetId) ?? [];
-            existing.push(part);
-            imageMap.set(targetId, existing);
-            return;
-          }
-        } catch {
-          // Fall through to fetch
+        // Vision cache check before download
+        const visionCacheKey = candidate.customEmojiId
+          ? makeCustomEmojiCacheKey(candidate.customEmojiId)
+          : candidate.stickerName
+            ? makeStickerCacheKey(candidate.stickerName)
+            : makeImageCacheKey(candidate.url);
+        const cachedVision = await getCachedMediaAnalysis(visionCacheKey);
+        if (cachedVision) {
+          log.debug(
+            { cacheKey: visionCacheKey },
+            "Vision cache HIT for media candidate — skipped download",
+          );
+          const analysisText = `[Media analysis for message ${candidate.messageId}] ${candidate.label}: ${cachedVision}`;
+          const existing = mediaAnalysisMap.get(targetId) ?? [];
+          existing.push(analysisText);
+          mediaAnalysisMap.set(targetId, existing);
+          return;
         }
-      }
 
-      const result = await fetchUrlSafely(candidate.url);
-      if (result.type !== "image" || !result.data || !result.mimeType) return;
+        // Sticker download cache
+        if (candidate.stickerName && isStickerCacheReady()) {
+          try {
+            const cached = await getStickerFromCache(candidate.stickerName);
+            if (cached) {
+              const part: MessageImagePart = {
+                type: "image_url",
+                image_url: {
+                  url: `data:${cached.mimeType};base64,${cached.base64}`,
+                },
+                sourceLabel: candidate.label,
+                stickerName: candidate.stickerName,
+              };
+              const existing = imageMap.get(targetId) ?? [];
+              if (existing.length < 8) {
+                existing.push(part);
+                imageMap.set(targetId, existing);
+              }
+              return;
+            }
+          } catch {
+            // Fall through to fetch
+          }
+        }
 
-      // Resize sticker/emoji images too (R5)
-      const { data: resizedBuffer, mimeType: resizedMime } =
-        await resizeImageForVision(result.data, maxDimension);
+        const result = await fetchUrlSafely(candidate.url);
+        if (result.type !== "image" || !result.data || !result.mimeType) return;
 
-      const base64 = resizedBuffer.toString("base64");
-      if (candidate.stickerName) {
-        setStickerInCache(candidate.stickerName, base64, resizedMime).catch(
-          () => {},
-        );
-      }
+        const { data: resizedBuffer, mimeType: resizedMime } =
+          await resizeImageForVision(result.data, maxDimension);
 
-      const part: MessageImagePart = {
-        type: "image_url",
-        image_url: {
-          url: `data:${resizedMime};base64,${base64}`,
-        },
-        sourceLabel: candidate.label,
-        stickerName: candidate.stickerName,
-        customEmojiId: candidate.customEmojiId,
-        customEmojiName: candidate.customEmojiName,
-      };
-      const existing = imageMap.get(targetId) ?? [];
-      existing.push(part);
-      imageMap.set(targetId, existing);
-    }),
-  );
+        const base64 = resizedBuffer.toString("base64");
+        if (candidate.stickerName) {
+          setStickerInCache(candidate.stickerName, base64, resizedMime).catch(
+            () => {},
+          );
+        }
+
+        const part: MessageImagePart = {
+          type: "image_url",
+          image_url: { url: `data:${resizedMime};base64,${base64}` },
+          sourceLabel: candidate.label,
+          stickerName: candidate.stickerName,
+          customEmojiId: candidate.customEmojiId,
+          customEmojiName: candidate.customEmojiName,
+        };
+        const existing = imageMap.get(targetId) ?? [];
+        if (existing.length < 8) {
+          existing.push(part);
+          imageMap.set(targetId, existing);
+        }
+      })(),
+    );
+  }
+
+  // Execute ALL media downloads in parallel
+  await Promise.all(downloadPromises);
+
+  // Collect web text results from URL fetches
+  if (urlWebTexts.length > 0) webTextMap.set(targetId, urlWebTexts);
 
   // ── 4. Vision analysis for every image ──
   await Promise.all(
