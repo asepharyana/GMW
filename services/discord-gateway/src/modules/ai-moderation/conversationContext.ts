@@ -1,11 +1,21 @@
 import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 import { formatMediaEvidenceForPrompt } from "../message-capture/messageMetadata.js";
 import type { MessageRecord } from "../message-capture/types.js";
+import { encodingForModel } from "tiktoken";
 
 export interface ConversationContextInput {
   contextBefore: MessageRecord[];
   targets: MessageRecord[];
   maxTokens: number;
+}
+
+let _encoder: ReturnType<typeof encodingForModel> | null = null;
+
+function getEncoder(): ReturnType<typeof encodingForModel> {
+  if (!_encoder) {
+    _encoder = encodingForModel("gpt-4o");
+  }
+  return _encoder;
 }
 
 /**
@@ -19,7 +29,8 @@ function formatTimestamp(ms: number): string {
  * Estimates token count for a string (pessimistic approximation for Indonesian slang & JSON overhead)
  */
 export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 3) + 15;
+  // Use tiktoken for accurate token counting (+15 overhead for JSON structure)
+  return getEncoder().encode(text).length + 15;
 }
 
 /**

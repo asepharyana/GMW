@@ -129,6 +129,51 @@ Input: [target] id=55555 user=promotor: [Media analysis for message 55555] [gamb
 Output: {"results":[{"message_id":"55555","status":"flagged","flags":["gambling"],"score":0.94,"categories":["gambling"],"severity":"high","confidence":0.94,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Gambar menampilkan antarmuka situs judi online dengan chip, roulette, tombol deposit, dan teks promosi judi"],"analysis":"Promosi situs judi melalui gambar dengan elemen judi jelas: chip, roulette, teks deposit dan bonus."}]}`;
 
 // ---------------------------------------------------------------------------
+// Section: Extracted Few-Shot Examples by Mode
+// ---------------------------------------------------------------------------
+
+/**
+ * Text-only examples extracted from FEW_SHOT_EXAMPLES for text-mode prompts.
+ * Includes Contoh 1 (slang), Contoh 2 (harassment), Contoh 3 (sticker text-only).
+ */
+const TEXT_ONLY_EXAMPLES = `## Contoh Output yang Benak
+
+Contoh 1 — Pesan bersih dengan slang:
+Input: [target] id=12345 user=budi: anjay wkwk gaskeun santuy bro
+Output: {"results":[{"message_id":"12345","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Slang Indonesia umum tanpa pelanggaran terdeteksi."}]}
+
+Contoh 2 — Harassment terarah:
+Input: [target] id=67890 user=anon: lu goblok banget sih kontol, mampus aja lo
+Output: {"results":[{"message_id":"67890","status":"flagged","flags":["harassment","vulgar_language"],"score":0.85,"categories":["harassment","vulgar_language"],"severity":"high","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["lu goblok banget sih kontol","mampus aja lo"],"analysis":"Insult langsung dengan kata kasar terarah ke individu."}]}
+
+Contoh 3 — Sticker kartun dengan nama provokatif:
+Input: [target] id=11111 user=citra: <:singa_injek:123456> [sticker: "Singa injek pejabat"]
+Output: {"results":[{"message_id":"11111","status":"clean","flags":[],"score":0.1,"categories":[],"severity":"none","confidence":0.8,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Sticker kartun satir dengan nama provokatif namun bukan ancaman nyata."}]}`;
+
+/**
+ * Media-capable examples extracted from FEW_SHOT_EXAMPLES for media-mode prompts.
+ * Includes Contoh 4 (normal chat + image), Contoh 5 (gambling promo),
+ * Contoh 6 (image-only terminal), Contoh 7 (image-only gambling site).
+ */
+const MEDIA_EXAMPLES = `## Contoh Output yang Benak — Mode Media
+
+Contoh 4 — Pesan biasa dengan gambar (JANGAN flag sebagai judi):
+Input: [target] id=22222 user=rina: Aku suka nasgor loh [Media analysis for message 22222] [gambar di atas adalah attachment foto.jpg dari pesan id=22222]: Gambar menampilkan tangkapan layar aplikasi chat dengan teks percakapan biasa. Tidak ada konten melanggar terlihat. Aman.
+Output: {"results":[{"message_id":"22222","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pesan berisi percakapan sehari-hari tentang makanan. Gambar menunjukkan screenshot chat biasa tanpa pelanggaran."}]}
+
+Contoh 5 — Pesan promosi judi dengan gambar situs judi:
+Input: [target] id=33333 user=spammer: MAIN DI SINI GACOR PARAH https://judionline.xyz [Media analysis for message 33333] [gambar di atas adalah attachment slot.jpg dari pesan id=33333]: Gambar menampilkan antarmuka situs judi online dengan mesin slot, chip, dan tombol deposit. Terlihat logo "JudiOnline" dan odds taruhan.
+Output: {"results":[{"message_id":"33333","status":"flagged","flags":["gambling"],"score":0.92,"categories":["gambling"],"severity":"high","confidence":0.92,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["MAIN DI SINI GACOR PARAH","https://judionline.xyz","Gambar menampilkan antarmuka situs judi online dengan mesin slot, chip, dan tombol deposit"],"analysis":"Promosi situs judi online dengan link, teks promosi, dan gambar antarmuka judi yang jelas."}]}
+
+Contoh 6 — Pesan HANYA GAMBAR tanpa teks (WAJIB analisis deskripsi):
+Input: [target] id=44444 user=dev: [Media analysis for message 44444] [gambar di atas adalah attachment screenshot.png dari pesan id=44444]: Screenshot terminal Linux dengan background hitam dan teks hijau. Terlihat output command 'ls -la' dan 'git status'. Tidak ada teks atau elemen mencurigakan.
+Output: {"results":[{"message_id":"44444","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"dev mengirim screenshot terminal Linux. Terlihat output command ls -la dan git status dengan teks hijau di background hitam. Aktivitas coding biasa, tidak ada konten melanggar."}]}
+
+Contoh 7 — Pesan HANYA GAMBAR situs judi (teks kosong, tapi gambar jelas):
+Input: [target] id=55555 user=promotor: [Media analysis for message 55555] [gambar di atas adalah attachment promo.jpg dari pesan id=55555]: Screenshot website dengan background merah dan emas. Terlihat teks "DEPOSIT NOW", "BONUS 100%", "SLOT GACOR", chip poker, dan roda roulette. Ada tombol "DAFTAR" dan "LOGIN".
+Output: {"results":[{"message_id":"55555","status":"flagged","flags":["gambling"],"score":0.94,"categories":["gambling"],"severity":"high","confidence":0.94,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Gambar menampilkan antarmuka situs judi online dengan chip, roulette, tombol deposit, dan teks promosi judi"],"analysis":"Promosi situs judi melalui gambar dengan elemen judi jelas: chip, roulette, teks deposit dan bonus."}]}`;
+
+// ---------------------------------------------------------------------------
 // Section: Output Schema + XML Delimiter Instructions
 // ---------------------------------------------------------------------------
 

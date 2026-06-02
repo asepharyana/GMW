@@ -131,6 +131,8 @@ const configSchema = z
       .int()
       .positive()
       .default(50),
+    /** Max Piscina worker threads for batch AI analysis (default: os.availableParallelism). */
+    PISCINA_MAX_THREADS: z.coerce.number().int().positive().optional(),
     // AI moderation uses the Primary LLM (AI_LLM_*) endpoint only.
     // No NVIDIA or Groq fallback.
     AUTO_DELETE_FLAGGED_ENABLED: z

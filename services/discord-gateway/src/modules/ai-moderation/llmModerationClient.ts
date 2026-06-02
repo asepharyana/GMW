@@ -509,6 +509,16 @@ function hasMediaContent(
 // ---------------------------------------------------------------------------
 
 /**
+ * In-memory LRU cache for vision analysis results.
+ * Fastest path — avoids DB round-trip for frequently seen images.
+ * Max 500 entries, 24-hour TTL.
+ */
+const visionLruCache = new LRUCache<string, string>({
+  max: 500,
+  ttl: 24 * 60 * 60 * 1000,
+});
+
+/**
  * In-flight deduplication map — prevents concurrent vision API calls for
  * the same cache key. Multiple concurrent requests for an identical image
  * share the same promise, eliminating the race condition between cache
