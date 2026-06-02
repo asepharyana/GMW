@@ -748,9 +748,7 @@ async function callModerationLLM(
         }
       },
       {
-        retries: 3,
-        minTimeout: 1000,
-        maxTimeout: 10000,
+        retries: 0,
         logger: log,
       },
     );

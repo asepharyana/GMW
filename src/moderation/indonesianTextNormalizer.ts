@@ -74,9 +74,9 @@ const BADWORD_CACHE_TTL_MS = 10 * 60 * 1000;
  */
 const DB_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-const NEMOTRON_RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
-const PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS = 30_000;
-const GROQ_RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
+const NEMOTRON_RATE_LIMIT_COOLDOWN_MS = 0;
+const PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS = 0;
+const GROQ_RATE_LIMIT_COOLDOWN_MS = 0;
 
 interface BadwordCacheEntry {
   value: string[];
@@ -275,9 +275,9 @@ async function callPrimaryAiModeration(text: string): Promise<string[]> {
       } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
     },
     {
-      retries: 1,
-      minTimeout: 500,
-      maxTimeout: 2000,
+      retries: 0,
+      minTimeout: 0,
+      maxTimeout: 0,
       factor: 2,
       logger: log,
     },
@@ -526,10 +526,7 @@ export async function detectIndonesianBadwords(
           if (status === 429) {
             groqUnavailableUntil = Date.now() + GROQ_RATE_LIMIT_COOLDOWN_MS;
           }
-          log.warn(
-            { error },
-            "Groq Llama Prompt Guard moderation failed",
-          );
+          log.warn({ error }, "Groq Llama Prompt Guard moderation failed");
         }
       }
     }

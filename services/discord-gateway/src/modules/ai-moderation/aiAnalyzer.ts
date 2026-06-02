@@ -41,15 +41,17 @@ function getModerationBroadcaster(): ModerationBroadcaster | undefined {
 function scheduleAutoDelete(row: MessageRecord): void {
   if (row.ai_status !== "flagged" && row.ai_status !== "warn") return;
   const run = () => {
-    attemptAutoDeleteFlaggedMessage(moderationClient, row).catch((error: unknown) => {
-      logger.error(
-        {
-          messageId: row.id,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        "Unexpected auto-delete error",
-      );
-    });
+    attemptAutoDeleteFlaggedMessage(moderationClient, row).catch(
+      (error: unknown) => {
+        logger.error(
+          {
+            messageId: row.id,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          "Unexpected auto-delete error",
+        );
+      },
+    );
   };
 
   if (config.AUTO_DELETE_FLAGGED_DELAY_MS > 0) {
@@ -349,9 +351,9 @@ async function processIndividualFallback(
         }
       },
       {
-        retries: 2,
-        minTimeout: 2000,
-        maxTimeout: 15000,
+        retries: 0,
+        minTimeout: 0,
+        maxTimeout: 0,
         logger,
       },
     );

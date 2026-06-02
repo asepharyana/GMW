@@ -349,9 +349,9 @@ async function processIndividualFallback(
         }
       },
       {
-        retries: 2,
-        minTimeout: 2000,
-        maxTimeout: 15000,
+        retries: 0,
+        minTimeout: 0,
+        maxTimeout: 0,
         logger,
       },
     );

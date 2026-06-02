@@ -6,7 +6,7 @@ import { createChildLogger } from "../logger.js";
 import { syncSelectedChannelBacklog } from "../moderation/backlogSync.js";
 
 const logger = createChildLogger("sync-routes");
-const BACKLOG_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+const BACKLOG_SYNC_COOLDOWN_MS = 0;
 const MAX_CONCURRENT_SYNCS = 3; // P3: cap concurrent backlogs
 
 const recentBacklogSyncs = new Map<string, number>();

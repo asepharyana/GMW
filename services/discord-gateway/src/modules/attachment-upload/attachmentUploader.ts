@@ -44,7 +44,7 @@ export async function uploadAttachmentToTele(
       contentType,
       uploadUrl: config.TELE_UPLOAD_URL,
       timeoutMs: config.ATTACHMENT_UPLOAD_TIMEOUT_MS,
-      retries: config.ATTACHMENT_RETRY_ATTEMPTS,
+      retries: 0,
       logger,
     });
 

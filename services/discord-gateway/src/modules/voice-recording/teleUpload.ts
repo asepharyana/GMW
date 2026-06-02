@@ -75,8 +75,8 @@ export async function uploadToTele(input: {
     },
     {
       retries,
-      minTimeout: 1000,
-      maxTimeout: 5000,
+      minTimeout: 0,
+      maxTimeout: 0,
       logger,
     },
   );

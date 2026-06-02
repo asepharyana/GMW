@@ -15,9 +15,9 @@ export async function retryWithBackoff<T>(
 ): Promise<T> {
   const {
     retries = 3,
-    minTimeout = 1000,
-    maxTimeout = 30000,
-    factor = 2,
+    minTimeout = 0,
+    maxTimeout = 0,
+    factor = 1,
     logger,
   } = options;
 

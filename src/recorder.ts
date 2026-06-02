@@ -92,9 +92,9 @@ export async function startRecording(
           config.VOICE_CONNECTION_TIMEOUT_MS,
         ),
       {
-        retries: 3,
-        minTimeout: 1000,
-        maxTimeout: 5000,
+        retries: 0,
+        minTimeout: 0,
+        maxTimeout: 0,
         logger,
       },
     );

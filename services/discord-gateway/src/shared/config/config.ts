@@ -21,7 +21,7 @@ const configSchema = z
     RECORDINGS_DIR: z.string().default("./recordings"),
     RECORDING_SEGMENT_MS: z.coerce.number().positive().default(5000),
     DECODER_ROTATE_MS: z.coerce.number().positive().default(5000),
-    DECODER_COOLDOWN_MS: z.coerce.number().positive().default(30000),
+    DECODER_COOLDOWN_MS: z.coerce.number().positive().default(0),
     WEBSERVER_PORT: z.coerce.number().positive().default(3000),
     VOICE_CONNECTION_TIMEOUT_MS: z.coerce.number().positive().default(15000),
     RECONNECT_TIMEOUT_MS: z.coerce.number().positive().default(5000),
@@ -96,7 +96,7 @@ const configSchema = z
       .number()
       .positive()
       .default(15000),
-    AI_ANALYSIS_ERROR_COOLDOWN_MS: z.coerce.number().positive().default(30000),
+    AI_ANALYSIS_ERROR_COOLDOWN_MS: z.coerce.number().positive().default(0),
     /** Max messages fetched per conversation batch (token budget is the real constraint). */
     AI_ANALYSIS_MAX_BATCH_SIZE: z.coerce.number().int().positive().default(200),
     AI_ANALYSIS_MAX_CONTEXT_TOKENS: z.coerce.number().positive().default(8000),
