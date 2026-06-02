@@ -591,39 +591,7 @@ const analyzeSingleMediaImage = async (
       : buildGeneralImageVisionPrompt(image.sourceLabel, messageId);
 
   try {
-    const completion = await retryWithBackoff(
-      async () => {
-        return withLlmConcurrency(async () =>
-          openai.chat.completions.create({
-            model: config.AI_LLM_VISION_MODEL ?? config.AI_LLM_MODEL,
-            messages: [
-              {
-                role: "user",
-                content: [
-                  {
-                    type: "text",
-                    text: promptText,
-                  },
-                  { type: "image_url", image_url: image.image_url },
-                ],
-              },
-            ],
-            temperature: 0.1,
-            top_p: 0.9,
-            max_tokens: 500,
-            stream: false,
-          } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming),
-        );
-      },
-      {
-        retries: 2,
-        minTimeout: 0,
-        maxTimeout: 0,
-        logger: log,
-      },
-    );
-
-    const content = completion.choices[0]?.message?.content?.trim();
+    const content = await llmVision(promptText, image.image_url);
     if (!content) return null;
 
     await upsertCachedMediaAnalysis(
@@ -690,26 +658,21 @@ async function callModerationLLM(
         try {
           const content = await buildContent(state);
 
-          const completion = await withLlmConcurrency(async () =>
-            openai.chat.completions.create({
-              model: config.AI_LLM_MODEL,
-              messages: [{ role: "user", content }],
-              temperature: 0.2,
-              top_p: 0.95,
-              // Sufficient for 20 moderation results (each ~70-150 tokens).
-              // Previous 4096 caused LLM truncation after ~6 results.
-              max_tokens: 16384,
-              response_format: {
-                type: "json_schema",
-                json_schema: {
-                  name: "moderation_result",
-                  schema: MODERATION_JSON_SCHEMA,
-                  strict: true,
-                },
-              },
-              stream: false,
-            } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming),
-          );
+          const completion = await llmChat({
+            messages: [{ role: "user", content }],
+            max_tokens: 16384,
+            jsonResponse: {
+              type: "json_schema",
+              name: "moderation_result",
+              schema: MODERATION_JSON_SCHEMA,
+              strict: true,
+            },
+            retries: 0,
+          });
+
+          if (!completion) {
+            throw new Error("LLM client unavailable (no API key)");
+          }
 
           if (
             !completion.choices ||
