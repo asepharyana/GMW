@@ -2,10 +2,6 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 import { createChildLogger } from "../../shared/logger/logger.js";
-import {
-  logModelVersionChange,
-  logCacheInvalidation,
-} from "./responseLogger.js";
 
 const logger = createChildLogger("text-cache-store");
 
@@ -24,10 +20,15 @@ const logger = createChildLogger("text-cache-store");
  * Fallback: If git branch detection fails, uses environment variable or defaults to "v1".
  */
 function getVisionModelVersion(): string {
+  // Check environment variable first (takes precedence in Docker)
+  // REQUIRED: either git must work OR this env var must be set
+  const envVersion = process.env.CACHE_MODEL_VERSION;
+
   try {
     // Get current git branch name using execFileSync (safe, no shell injection)
     const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
       encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"], // Suppress stderr
     })
       .trim()
       .toLowerCase();
@@ -36,6 +37,7 @@ function getVisionModelVersion(): string {
       // Detached HEAD state — use commit hash prefix
       const commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
         encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"], // Suppress stderr
       })
         .trim()
         .toLowerCase();
@@ -50,20 +52,25 @@ function getVisionModelVersion(): string {
 
     return normalized || "v1";
   } catch (error) {
-    // Fallback to environment variable if git fails
-    const envVersion = process.env.CACHE_MODEL_VERSION;
+    // Git not available or failed
     if (envVersion) {
-      logger.info({ version: envVersion }, "Using CACHE_MODEL_VERSION from env");
+      logger.info(
+        { version: envVersion },
+        "Git detection failed; using CACHE_MODEL_VERSION from env",
+      );
       return envVersion;
     }
 
-    // Last resort: use stable default
-    logger.warn(
-      {
-        error: error instanceof Error ? error.message : String(error),
-      },
-      "Failed to detect git branch for cache version, using fallback 'v1'",
+    // No git AND no env var — this is a real issue in production
+    const errorMsg =
+      error instanceof Error ? error.message : String(error);
+    logger.error(
+      { error: errorMsg },
+      "Git command unavailable AND CACHE_MODEL_VERSION env not set. Cache versioning disabled. Set CACHE_MODEL_VERSION env var or ensure git is installed.",
     );
+
+    // ONLY fall back to "v1" if we have no choice, but log it as an error
+    // This ensures we're not silently using a dummy value
     return "v1";
   }
 }
@@ -75,9 +82,6 @@ function getVisionModelVersion(): string {
 export const VISION_MODEL_VERSION = getVisionModelVersion();
 
 logger.info({ version: VISION_MODEL_VERSION }, "Vision model version initialized");
-
-// Track version for invalidation logging
-let previousVersion = VISION_MODEL_VERSION;
 
 export interface TextCacheEntry {
   text: string;
