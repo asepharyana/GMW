@@ -27,8 +27,23 @@ function sanitizeKey(name: string): string {
 export async function initStickerCache(): Promise<void> {
   if (ready) return;
   try {
+    // Ensure the table exists — belt-and-suspenders in case the migration
+    // hasn't run yet (e.g. pre-existing DB that Drizzle skips).
+    await executeAll(`
+      CREATE TABLE IF NOT EXISTS "sticker_cache" (
+        "name" text PRIMARY KEY NOT NULL,
+        "base64" text NOT NULL,
+        "mime_type" text NOT NULL,
+        "size" integer NOT NULL,
+        "fetched_at" bigint NOT NULL
+      )
+    `);
     await executeAll(
-      "DELETE FROM sticker_cache WHERE fetched_at < ?",
+      `CREATE INDEX IF NOT EXISTS "idx_sticker_cache_fetched_at" ON "sticker_cache" USING btree ("fetched_at")`,
+    );
+
+    await executeAll(
+      "DELETE FROM sticker_cache WHERE fetched_at < $1",
       [Date.now() - TTL_MS],
     );
     const row = await executeGet(

@@ -43,6 +43,13 @@
       "when": 1780218363791,
       "tag": "0006_fix_text_analysis_cache_source",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780396315249,
+      "tag": "0007_black_nova",
+      "breakpoints": true
     }
   ]
 }

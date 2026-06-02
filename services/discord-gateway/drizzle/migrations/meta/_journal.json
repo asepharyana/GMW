@@ -15,6 +15,13 @@
       "when": 1780329074000,
       "tag": "0001_add_model_version_to_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780396285346,
+      "tag": "0002_rainy_jazinda",
+      "breakpoints": true
     }
   ]
 }
