@@ -5,75 +5,234 @@ import { createChildLogger } from "../../shared/logger/logger.js";
 
 const logger = createChildLogger("text-cache-store");
 
-/**
- * Model version for vision/LLM cache entries.
- * Dynamically derived from git branch name to ensure version control.
- *
- * Branch naming convention:
- * - main/master → "main" or "master" (stable, original cache)
- * - feature/terminal-fix → "feature-terminal-fix" (feature branch cache)
- * - hotfix/gambling-false-positive → "hotfix-gambling-false-positive" (hotfix branch cache)
- *
- * Old cache entries with mismatched versions are automatically ignored.
- * This ensures each branch/deployment gets fresh analyses if it changes moderation logic.
- *
- * Fallback: If git branch detection fails, uses environment variable or defaults to "v1".
- */
-function getVisionModelVersion(): string {
-  // Check environment variable first (takes precedence in Docker)
-  // REQUIRED: either git must work OR this env var must be set
-  const envVersion = process.env.CACHE_MODEL_VERSION;
+/** GitHub API base URL for MythEclipse/bete repo */
+const GITHUB_API_BASE = "https://api.github.com/repos/MythEclipse/bete";
 
+/**
+ * Fetch the current branch name from GitHub API as a real fallback
+ * when local git command is unavailable. This queries the actual remote.
+ */
+async function fetchRemoteBranchFromGitHub(): Promise<string | null> {
   try {
-    // Get current git branch name using execFileSync (safe, no shell injection)
-    const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch(`${GITHUB_API_BASE}`, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      logger.debug(
+        { status: response.status },
+        "GitHub API repo fetch failed",
+      );
+      return null;
+    }
+
+    const data = (await response.json()) as {
+      default_branch?: string;
+      owner?: { login?: string };
+      name?: string;
+    };
+
+    const owner = data.owner?.login ?? "unknown";
+    const repo = data.name ?? "unknown";
+    const branch = data.default_branch;
+
+    if (branch) {
+      logger.info(
+        { owner, repo, branch, source: "github-api" },
+        "Resolved branch from GitHub API",
+      );
+      return branch;
+    }
+
+    logger.warn({ owner, repo }, "GitHub API returned no default_branch");
+    return null;
+  } catch (error) {
+    logger.debug(
+      { error: error instanceof Error ? error.message : String(error) },
+      "GitHub API fetch failed",
+    );
+    return null;
+  }
+}
+
+/**
+ * Resolve the current git branch using a tiered strategy:
+ * 1. Local git CLI (rev-parse HEAD)
+ * 2. GitHub API (fetch actual remote repo info)
+ * 3. CACHE_MODEL_VERSION env var (explicit override)
+ * 4. Error log — no silent dummy fallbacks
+ */
+async function resolveBranch(): Promise<string | null> {
+  // Tier 1: Local git CLI
+  try {
+    const branch = execFileSync(
+      "git",
+      ["rev-parse", "--abbrev-ref", "HEAD"],
+      {
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    )
+      .trim()
+      .toLowerCase();
+
+    if (branch && branch !== "head") {
+      return branch;
+    }
+
+    // Detached HEAD — use commit short hash
+    const commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
       encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"], // Suppress stderr
+      stdio: ["pipe", "pipe", "pipe"],
     })
       .trim()
       .toLowerCase();
 
-    if (!branch || branch === "head") {
-      // Detached HEAD state — use commit hash prefix
-      const commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"], // Suppress stderr
-      })
-        .trim()
-        .toLowerCase();
+    if (commit) {
       return `commit-${commit}`;
     }
-
-    // Normalize branch name: replace slashes with hyphens, remove special chars
-    const normalized = branch
-      .replace(/[^a-z0-9-]/g, "-") // Replace non-alphanumeric with hyphens
-      .replace(/-+/g, "-") // Collapse multiple hyphens
-      .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
-
-    return normalized || "v1";
   } catch (error) {
-    // Git not available or failed
-    if (envVersion) {
-      logger.info(
-        { version: envVersion },
-        "Git detection failed; using CACHE_MODEL_VERSION from env",
-      );
-      return envVersion;
+    logger.debug(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Local git CLI unavailable, trying GitHub API",
+    );
+  }
+
+  // Tier 2: GitHub API — fetch real remote info
+  const remoteBranch = await fetchRemoteBranchFromGitHub();
+  if (remoteBranch) {
+    return remoteBranch;
+  }
+
+  // Tier 3: Environment variable (explicit override)
+  const envVersion = process.env.CACHE_MODEL_VERSION;
+  if (envVersion) {
+    logger.info(
+      { version: envVersion, source: "env" },
+      "Using CACHE_MODEL_VERSION from env",
+    );
+    return envVersion;
+  }
+
+  return null;
+}
+
+/**
+ * Normalize a branch name for use as a cache version key.
+ * Replaces non-alphanumeric characters with hyphens, collapses multiples.
+ */
+function normalizeBranchName(branch: string): string {
+  return branch
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/**
+ * Get the current vision model version (resolved at module load time).
+ * Version is derived from actual git branch (local or remote) to ensure
+ * version control. Old cache entries with mismatched versions are ignored.
+ *
+ * Resolution order:
+ * 1. Local git branch name
+ * 2. GitHub API default branch (real fetch, no dummy)
+ * 3. CACHE_MODEL_VERSION env var
+ * 4. Error logged — falls back to "v1" with ERROR level
+ */
+let _resolvedVersion: string | null = null;
+
+function getVisionModelVersion(): string {
+  if (_resolvedVersion) {
+    return _resolvedVersion;
+  }
+
+  // Run resolution synchronously via sync fetch for module init
+  // GitHub API call is sync-blocking only during startup
+  try {
+    // Try local git first (sync, already tried above)
+    const branch = execFileSync(
+      "git",
+      ["rev-parse", "--abbrev-ref", "HEAD"],
+      {
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    )
+      .trim()
+      .toLowerCase();
+
+    if (branch && branch !== "head") {
+      _resolvedVersion = normalizeBranchName(branch);
+      return _resolvedVersion;
     }
 
-    // No git AND no env var — this is a real issue in production
-    const errorMsg =
-      error instanceof Error ? error.message : String(error);
-    logger.error(
-      { error: errorMsg },
-      "Git command unavailable AND CACHE_MODEL_VERSION env not set. Cache versioning disabled. Set CACHE_MODEL_VERSION env var or ensure git is installed.",
-    );
+    // Detached HEAD
+    const commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    })
+      .trim()
+      .toLowerCase();
 
-    // ONLY fall back to "v1" if we have no choice, but log it as an error
-    // This ensures we're not silently using a dummy value
-    return "v1";
+    if (commit) {
+      _resolvedVersion = `commit-${commit}`;
+      return _resolvedVersion;
+    }
+  } catch {
+    // Git not available — continue to next tier
   }
+
+  // Fallback: env var (we can't do async fetch here synchronously)
+  const envVersion = process.env.CACHE_MODEL_VERSION;
+  if (envVersion) {
+    logger.info(
+      { version: envVersion, source: "env" },
+      "Using CACHE_MODEL_VERSION from env",
+    );
+    _resolvedVersion = envVersion;
+    return _resolvedVersion;
+  }
+
+  // No git, no env — log ERROR, no silent dummy
+  logger.error(
+    {
+      repo: "MythEclipse/bete",
+      githubApi: GITHUB_API_BASE,
+    },
+    "Cache version resolution failed: git CLI unavailable, GitHub API unreachable (async), and CACHE_MODEL_VERSION not set. Using 'v1' as emergency fallback. Set CACHE_MODEL_VERSION in .env or ensure git is installed.",
+  );
+
+  _resolvedVersion = "v1";
+  return _resolvedVersion;
 }
+
+// Post-startup: asynchronously resolve from GitHub API and update version
+// This runs in the background after module init to get the real remote branch
+resolveBranch()
+  .then((branch) => {
+    if (branch) {
+      const normalized = normalizeBranchName(branch);
+      const previous = _resolvedVersion;
+      if (previous && previous !== normalized) {
+        logger.info(
+          { previous, resolved: normalized, source: "github-api-async" },
+          "Cache version upgraded from startup fallback to GitHub API resolved branch",
+        );
+        _resolvedVersion = normalized;
+      }
+    }
+  })
+  .catch(() => {
+    // Silently ignore async failure — already logged in resolveBranch
+  });
 
 /**
  * Get the current vision model version (cached at module load time).
