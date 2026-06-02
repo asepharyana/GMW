@@ -98,7 +98,9 @@ jobs:
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 
+            # Force stop any stale containers from previous deployments
+            docker rm -f imphenbot-proxy imphenbot-backend imphenbot-frontend imphenbot-discord-gateway 2>/dev/null || true
+
             docker compose -f infra/docker/docker-compose.yml pull
-            docker compose -f infra/docker/docker-compose.yml down --remove-orphans || true
             docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans
             docker image prune -f
