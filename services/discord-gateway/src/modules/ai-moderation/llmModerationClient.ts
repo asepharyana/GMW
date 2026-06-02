@@ -699,8 +699,9 @@ async function callModerationLLM(
               messages: [{ role: "user", content }],
               temperature: 0.2,
               top_p: 0.95,
-              // Reduced from 16384 — JSON Schema enforces structure (R2)
-              max_tokens: 4096,
+              // Sufficient for 20 moderation results (each ~70-150 tokens).
+              // Previous 4096 caused LLM truncation after ~6 results.
+              max_tokens: 16384,
               response_format: {
                 type: "json_schema",
                 json_schema: {
