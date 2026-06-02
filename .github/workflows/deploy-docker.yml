@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [frontend, backend, discord-gateway]
+        service: [frontend, backend, discord-gateway, proxy]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -59,6 +59,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: SCP deploy files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "infra/docker/*"
+          target: "/tmp/bete-deploy"
+          strip_components: 2
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.2.5
         env:
@@ -74,66 +84,14 @@ jobs:
             set -eu
 
             APP_DIR=/opt/imphenbot
-            mkdir -p "$APP_DIR"
+            mkdir -p "$APP_DIR" "$APP_DIR/nginx"
             cd "$APP_DIR"
 
             printf '%s\n' "$ENV_FILE" > .env
 
-            cat > docker-compose.yml <<'COMPOSE_EOF'
-            services:
-              backend:
-                image: ghcr.io/${OWNER:-mytheclipse}/bete-backend:latest
-                container_name: imphenbot-backend
-                restart: unless-stopped
-                env_file:
-                  - .env
-                environment:
-                  NODE_ENV: production
-                  WEBSERVER_PORT: 3000
-                labels:
-                  - "traefik.enable=true"
-                  - "traefik.http.routers.imphenbot-backend.rule=Host(`imphnen.asepharyana.my.id`) && PathPrefix(`/api`, `/ws`)"
-                  - "traefik.http.routers.imphenbot-backend.entrypoints=websecure"
-                  - "traefik.http.routers.imphenbot-backend.tls=true"
-                  - "traefik.http.services.imphenbot-backend.loadbalancer.server.port=3000"
-                depends_on:
-                  - discord-gateway
-                networks:
-                  - app-shared-net
-
-              discord-gateway:
-                image: ghcr.io/${OWNER:-mytheclipse}/bete-discord-gateway:latest
-                container_name: imphenbot-discord-gateway
-                restart: unless-stopped
-                env_file:
-                  - .env
-                environment:
-                  NODE_ENV: production
-                volumes:
-                  - ./recordings:/app/recordings
-                networks:
-                  - app-shared-net
-
-              frontend:
-                image: ghcr.io/${OWNER:-mytheclipse}/bete-frontend:latest
-                container_name: imphenbot-frontend
-                restart: unless-stopped
-                labels:
-                  - "traefik.enable=true"
-                  - "traefik.http.routers.imphenbot-frontend.rule=Host(`imphnen.asepharyana.my.id`)"
-                  - "traefik.http.routers.imphenbot-frontend.entrypoints=websecure"
-                  - "traefik.http.routers.imphenbot-frontend.tls=true"
-                  - "traefik.http.services.imphenbot-frontend.loadbalancer.server.port=3000"
-                depends_on:
-                  - backend
-                networks:
-                  - app-shared-net
-
-            networks:
-              app-shared-net:
-                name: app-shared-net
-                external: true
-            COMPOSE_EOF
+            # Copy deploy files from SCP staging dir
+            cp /tmp/bete-deploy/docker-compose.yml "$APP_DIR/docker-compose.yml"
+            cp /tmp/bete-deploy/nginx.conf "$APP_DIR/nginx/nginx.conf"
 
             mkdir -p recordings
 
