@@ -595,7 +595,8 @@ async function processBatch(
   messages: MessageRecord[],
 ): Promise<void> {
   if (messages.length === 0) return;
-  if (Date.now() < globalCooldownUntil) {
+  const cooldownUntil = conversationErrorCooldown.get(conversationKey) ?? 0;
+  if (Date.now() < cooldownUntil) {
     return;
   }
 
