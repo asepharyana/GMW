@@ -32,6 +32,7 @@ import {
   computeImagePhash,
   getCachedMediaAnalysis,
   getCachedMediaByPhash,
+  getRecentCorrectedModerations,
   makeCustomEmojiCacheKey,
   makeImageCacheKey,
   makeStickerCacheKey,
