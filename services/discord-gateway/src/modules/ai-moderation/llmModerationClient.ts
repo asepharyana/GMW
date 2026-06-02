@@ -1093,6 +1093,7 @@ async function _runSingleMediaAnalysis(
     att.uploaded_url ?? null;
 
   const maxDimension = config.AI_LLM_IMAGE_MAX_DIMENSION ?? 1024;
+  const content = target.edited_content ?? target.content;
 
   // ── 1-3. Parallel download of ALL media sources ──
   // Build all download promises upfront and execute them in one Promise.all.
