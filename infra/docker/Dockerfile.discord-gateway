@@ -13,6 +13,9 @@ COPY package.json .
 # Copy vendor packages (workspace dependencies)
 COPY vendor/discord.js-selfbot-v13 ./vendor/discord.js-selfbot-v13
 
+# Copy patches (pnpm patchedDependencies)
+COPY patches ./patches
+
 # Copy service
 COPY services/discord-gateway ./services/discord-gateway
 

@@ -13,6 +13,9 @@ COPY pnpm-workspace.yaml .
 COPY pnpm-lock.yaml .
 COPY package.json .
 
+# Copy patches (pnpm patchedDependencies)
+COPY patches ./patches
+
 # Copy service
 COPY services/frontend ./services/frontend
 
