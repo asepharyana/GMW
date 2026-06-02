@@ -37,7 +37,7 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-semibold">Tren Harian</CardTitle>
         <CardDescription className="text-xs">
-          Volume pesan per hari dengan status moderasi.
+          Volume pesan per hari dengan status moderasi — area pink = flagged.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -48,7 +48,7 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
             <LegendDot color="bg-accent" label="Flagged" />
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-border bg-background/50 p-4">
+          <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white/60 p-4">
             <div className="mb-3 flex items-center justify-between text-[11px] text-muted-foreground">
               <span>Rangkuman 7 hari terakhir</span>
               <span>{totalMessages} total pesan</span>
@@ -61,16 +61,24 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
               >
                 <defs>
                   <linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.35" />
+                    <stop offset="0%" stopColor="#7EC8E3" stopOpacity="0.35" />
                     <stop
                       offset="100%"
-                      stopColor="#3b82f6"
+                      stopColor="#7EC8E3"
+                      stopOpacity="0.02"
+                    />
+                  </linearGradient>
+                  <linearGradient id="trendFillPink" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#FF9EBB" stopOpacity="0.3" />
+                    <stop
+                      offset="100%"
+                      stopColor="#FF9EBB"
                       stopOpacity="0.02"
                     />
                   </linearGradient>
                 </defs>
 
-                <g stroke="#334155" strokeWidth="1" opacity="0.35">
+                <g stroke="#cbd5e1" strokeWidth="1" opacity="0.35">
                   {Array.from({ length: 4 }, (_, index) => {
                     const y = 40 + index * 45;
                     return (
@@ -89,31 +97,31 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
                   data={data}
                   keyName="total"
                   fill="url(#trendFill)"
-                  stroke="#3b82f6"
+                  stroke="#7EC8E3"
                 />
                 <TrendLine
                   data={data}
                   keyName="total"
-                  color="#3b82f6"
+                  color="#7EC8E3"
                   strokeWidth={2.5}
                 />
                 <TrendLine
                   data={data}
                   keyName="clean"
-                  color="#10b981"
-                  strokeWidth={1.8}
-                />
-                <TrendLine
-                  data={data}
-                  keyName="warned"
-                  color="#f59e0b"
+                  color="#34d399"
                   strokeWidth={1.8}
                 />
                 <TrendLine
                   data={data}
                   keyName="flagged"
-                  color="#ef4444"
+                  color="#FF9EBB"
                   strokeWidth={1.8}
+                />
+                <TrendArea
+                  data={data}
+                  keyName="flagged"
+                  fill="url(#trendFillPink)"
+                  stroke="#FF9EBB"
                 />
 
                 {data.map((item, index) => {
@@ -124,7 +132,7 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
                         Math.max((data.length - 1) * 56, 56);
                   return (
                     <g key={item.date} transform={`translate(${x}, 188)`}>
-                      <circle cx="0" cy="0" r="2.5" fill="#e2e8f0" />
+                      <circle cx="0" cy="0" r="2.5" fill="#7EC8E3" />
                       <text
                         x="0"
                         y="18"

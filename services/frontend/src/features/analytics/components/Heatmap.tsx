@@ -38,13 +38,13 @@ export function Heatmap({ cells, loading }: HeatmapProps) {
   }
 
   function getHeatClass(intensity: number): string {
-    if (intensity === 0) return "bg-muted/30";
-    if (intensity < 0.1) return "bg-blue-500/10";
-    if (intensity < 0.2) return "bg-blue-500/20";
-    if (intensity < 0.35) return "bg-blue-500/30";
-    if (intensity < 0.5) return "bg-blue-500/45";
-    if (intensity < 0.7) return "bg-blue-500/60";
-    return "bg-blue-500/80";
+    if (intensity === 0) return "bg-sky-50";
+    if (intensity < 0.1) return "bg-sky-200/30";
+    if (intensity < 0.2) return "bg-sky-300/30";
+    if (intensity < 0.35) return "bg-sky-400/35";
+    if (intensity < 0.5) return "bg-sky-400/55";
+    if (intensity < 0.7) return "bg-primary/60";
+    return "bg-primary/80";
   }
 
   return (
@@ -54,14 +54,14 @@ export function Heatmap({ cells, loading }: HeatmapProps) {
           Heatmap Aktivitas
         </CardTitle>
         <CardDescription className="text-xs">
-          Hari × jam — area biru = lebih ramai.
+          Hari × jam — area biru langit = lebih ramai.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
           <div className="min-w-[520px]">
             {/* Header row */}
-            <div className="mb-1 ml-8 flex gap-[2px]">
+            <div className="mb-1 ml-8 flex gap-[3px]">
               {Array.from({ length: 24 }, (_, h) => (
                 <div
                   key={h}
@@ -73,7 +73,7 @@ export function Heatmap({ cells, loading }: HeatmapProps) {
             </div>
             {/* Rows */}
             {DAYS.map((day, d) => (
-              <div key={d} className="mb-[2px] flex items-center gap-[2px]">
+              <div key={d} className="mb-[3px] flex items-center gap-[3px]">
                 <div className="w-8 shrink-0 text-right pr-1 text-[10px] text-muted-foreground">
                   {day}
                 </div>
@@ -84,7 +84,7 @@ export function Heatmap({ cells, loading }: HeatmapProps) {
                     <div
                       key={h}
                       className={cn(
-                        "flex-1 rounded-sm aspect-square",
+                        "flex-1 rounded-md aspect-square border border-sky-100/50",
                         getHeatClass(intensity),
                       )}
                       title={`${day} ${h}:00 — ${cell?.count ?? 0} pesan`}
@@ -98,10 +98,10 @@ export function Heatmap({ cells, loading }: HeatmapProps) {
         {/* Legend */}
         <div className="mt-3 flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <span>Sepi</span>
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-muted/30" />
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500/20" />
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500/45" />
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500/80" />
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-sky-50" />
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-sky-300/30" />
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-sky-400/55" />
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-primary/80" />
           <span>Ramai</span>
         </div>
       </CardContent>

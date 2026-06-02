@@ -1,5 +1,6 @@
 import { Filter, RotateCw, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import type { MessageRecord } from "../../shared/api/client";
 import {
   Badge,
@@ -14,6 +15,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "../../shared/ui";
+import { cardStagger, cardItem } from "../../shared/hooks/useFramerStagger";
 import { ImageGrid } from "./components/ImageGrid";
 import { MessageFeed } from "./components/MessageFeed";
 
@@ -94,53 +96,65 @@ export function MessagesPanel({
   }, [messages, searchResults, showSearch, aiFilter]);
 
   return (
-    <div className="grid gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Messages</CardTitle>
-          {guildName && (
-            <p className="text-sm text-muted-foreground">
-              Monitoring all text channels in{" "}
-              <span className="font-medium text-foreground">{guildName}</span>
+    <motion.div
+      className="grid gap-6"
+      variants={cardStagger}
+      initial="initial"
+      animate="animate"
+    >
+      <motion.div variants={cardItem}>
+        <Card className="border-primary/20">
+          <CardHeader>
+            <CardTitle className="text-primary">Messages</CardTitle>
+            {guildName && (
+              <p className="text-sm text-muted-foreground">
+                Monitoring all text channels in{" "}
+                <span className="font-medium text-foreground">
+                  {guildName}
+                </span>
+              </p>
+            )}
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              Messages are automatically captured from all text channels in the
+              monitored guild. Real-time updates arrive via WebSocket.
             </p>
-          )}
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground">
-            Messages are automatically captured from all text channels in the
-            monitored guild. Real-time updates arrive via WebSocket.
-          </p>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {stats.total > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="text-xs">
+        <motion.div
+          variants={cardItem}
+          className="flex flex-wrap items-center gap-2"
+        >
+          <Badge variant="outline" className="text-xs border-primary/40 text-primary">
             {stats.total} total{hasMore && !showSearch ? "+" : ""}
           </Badge>
           <Badge
             variant="outline"
-            className="text-xs text-green-400 border-green-400/30"
+            className="text-xs bg-emerald-100 text-emerald-700 border-emerald-200"
           >
             {stats.clean} clean
           </Badge>
           <Badge
             variant="outline"
-            className="text-xs text-red-400 border-red-400/30"
+            className="text-xs bg-pink-100 text-pink-700 border-pink-200"
           >
             {stats.flagged} flagged
           </Badge>
           <Badge
             variant="outline"
-            className="text-xs text-orange-400 border-orange-400/30"
+            className="text-xs bg-orange-100 text-orange-700 border-orange-200"
           >
             {stats.error} error
           </Badge>
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className="text-xs text-muted-foreground border-border">
             {stats.pending} pending
           </Badge>
           {stats.deleted > 0 && (
-            <Badge variant="destructive" className="text-xs">
+            <Badge variant="outline" className="text-xs bg-red-100 text-red-700 border-red-200">
               {stats.deleted} deleted
             </Badge>
           )}
@@ -149,14 +163,17 @@ export function MessagesPanel({
               {stats.edited} edited
             </Badge>
           )}
-        </div>
+        </motion.div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
+      <motion.div
+        variants={cardItem}
+        className="flex flex-wrap items-center gap-2"
+      >
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />
           <Input
-            className="pl-9"
+            className="pl-9 rounded-full focus-visible:ring-primary"
             placeholder="Search message content..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -168,6 +185,7 @@ export function MessagesPanel({
           onClick={handleSearch}
           disabled={isSearching || !searchQuery.trim()}
           size="sm"
+          className="rounded-xl"
         >
           {isSearching ? "Searching..." : "Search"}
         </Button>
@@ -199,6 +217,7 @@ export function MessagesPanel({
                 setRetryingAll(false);
               }
             }}
+            className="rounded-xl bg-pink-100 text-pink-700 hover:bg-pink-200 border-pink-200"
           >
             <RotateCw
               className={`mr-1.5 h-3.5 w-3.5 ${retryingAll ? "animate-spin" : ""}`}
@@ -209,13 +228,13 @@ export function MessagesPanel({
           </Button>
         )}
         {retriedCount !== null && (
-          <span className="text-xs text-green-400">
+          <span className="text-xs text-emerald-600">
             {retriedCount} message{retriedCount !== 1 ? "s" : ""} queued for
             re-analysis
           </span>
         )}
         <div className="ml-auto flex items-center gap-1.5">
-          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Filter className="h-4 w-4 text-primary" />
           {(
             [
               "all",
@@ -228,51 +247,60 @@ export function MessagesPanel({
             <button
               key={f}
               onClick={() => setAiFilter(f)}
-              className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${aiFilter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                aiFilter === f
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-primary-soft"
+              }`}
             >
               {f}
             </button>
           ))}
         </div>
-      </div>
+      </motion.div>
 
       {showSearch && searchResults.length > 0 && (
-        <div className="text-sm text-muted-foreground">
+        <motion.div
+          variants={cardItem}
+          className="text-sm text-muted-foreground"
+        >
           Found {searchResults.length} result
           {searchResults.length !== 1 ? "s" : ""}
-        </div>
+        </motion.div>
       )}
 
-      <Tabs
-        value={viewTab}
-        onValueChange={(v) => setViewTab(v as "all" | "images")}
-      >
-        <TabsList>
-          <TabsTrigger value="all">
-            {showSearch
-              ? `Search (${filteredMessages.length})`
-              : `All (${filteredMessages.length})`}
-          </TabsTrigger>
-          <TabsTrigger value="images">Images</TabsTrigger>
-        </TabsList>
-        <TabsContent value="all">
-          <MessageFeed
-            messages={filteredMessages}
-            onReanalyze={onReanalyze}
-            emptyText={
-              showSearch
-                ? "No messages found matching your search."
-                : "No captures yet."
-            }
-            onLoadMore={showSearch ? undefined : onLoadMore}
-            hasMore={showSearch ? false : hasMore}
-            loadingMore={loadingMore}
-          />
-        </TabsContent>
-        <TabsContent value="images">
-          <ImageGrid messages={filteredMessages} />
-        </TabsContent>
-      </Tabs>
-    </div>
+      <motion.div variants={cardItem}>
+        <Tabs
+          value={viewTab}
+          onValueChange={(v) => setViewTab(v as "all" | "images")}
+        >
+          <TabsList>
+            <TabsTrigger value="all">
+              {showSearch
+                ? `Search (${filteredMessages.length})`
+                : `All (${filteredMessages.length})`}
+            </TabsTrigger>
+            <TabsTrigger value="images">Images</TabsTrigger>
+          </TabsList>
+          <TabsContent value="all">
+            <MessageFeed
+              messages={filteredMessages}
+              onReanalyze={onReanalyze}
+              emptyText={
+                showSearch
+                  ? "No messages found matching your search."
+                  : "No captures yet."
+              }
+              onLoadMore={showSearch ? undefined : onLoadMore}
+              hasMore={showSearch ? false : hasMore}
+              loadingMore={loadingMore}
+            />
+          </TabsContent>
+          <TabsContent value="images">
+            <ImageGrid messages={filteredMessages} />
+          </TabsContent>
+        </Tabs>
+      </motion.div>
+    </motion.div>
   );
 }

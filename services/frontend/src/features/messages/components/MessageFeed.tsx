@@ -1,7 +1,13 @@
+import { motion } from "framer-motion";
 import { useEffect, useMemo, useRef } from "react";
 import type { MessageRecord } from "../../../shared/api/client";
+import {
+  cardStagger,
+  cardItem,
+} from "../../../shared/hooks/useFramerStagger";
 import { ScrollArea } from "../../../shared/ui";
 import { MessageCard, MessageCardSkeleton } from "./MessageCard";
+import { EmptyStateMascot } from "../../../widgets/mascot/ChibiMascot";
 
 export interface MessageFeedProps {
   messages: MessageRecord[];
@@ -81,27 +87,29 @@ export function MessageFeed({
   }
 
   if (messages.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-        {emptyText}
-      </div>
-    );
+    return <EmptyStateMascot variant="waving" message="No messages yet~" />;
   }
 
   return (
     <ScrollArea className="h-[calc(100vh-260px)] pr-3">
-      <div className="space-y-3">
+      <motion.div
+        className="space-y-3"
+        variants={cardStagger}
+        initial="initial"
+        animate="animate"
+      >
         {groupedMessages.map((group) =>
           group.messages.map((message, idx) => {
             const isFirstInGroup = idx === 0;
             const isCompact = !isFirstInGroup;
             return (
-              <MessageCard
-                key={message.id}
-                message={message}
-                onReanalyze={onReanalyze}
-                compact={isCompact}
-              />
+              <motion.div key={message.id} variants={cardItem}>
+                <MessageCard
+                  message={message}
+                  onReanalyze={onReanalyze}
+                  compact={isCompact}
+                />
+              </motion.div>
             );
           }),
         )}
@@ -115,11 +123,11 @@ export function MessageFeed({
             {loadingMore ? (
               <MessageCardSkeleton />
             ) : (
-              <div className="h-2 w-2 rounded-full bg-muted-foreground/40" />
+              <div className="h-2 w-2 rounded-full bg-primary/40" />
             )}
           </div>
         )}
-      </div>
+      </motion.div>
     </ScrollArea>
   );
 }

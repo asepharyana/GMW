@@ -1,4 +1,5 @@
 import { Siren } from "lucide-react";
+import { cn } from "../../../shared/lib/utils";
 import type { ViolatorStat } from "../../../shared/api/client";
 import {
   Badge,

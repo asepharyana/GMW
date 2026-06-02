@@ -1,4 +1,5 @@
 import { Users } from "lucide-react";
+import { cn } from "../../../shared/lib/utils";
 import type { UserStat } from "../../../shared/api/client";
 import {
   Badge,
@@ -37,7 +38,7 @@ export function UserTable({ users, loading }: UserTableProps) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-          <Users className="h-4 w-4 text-violet-400" />
+          <Users className="h-4 w-4 text-primary" />
           User Paling Aktif
         </CardTitle>
         <CardDescription className="text-xs">
@@ -48,7 +49,7 @@ export function UserTable({ users, loading }: UserTableProps) {
         <ScrollArea className="max-h-[260px]">
           <table className="w-full text-sm">
             <thead>
-              <tr className="sticky top-0 z-10 bg-card/95 backdrop-blur border-b border-border text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+              <tr className="sticky top-0 z-10 bg-white border-b border-sky-100 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                 <th className="py-2 pl-4 pr-2 font-semibold">#</th>
                 <th className="py-2 pr-2 font-semibold">User</th>
                 <th className="py-2 pr-2 font-semibold text-right">Pesan</th>
@@ -56,11 +57,14 @@ export function UserTable({ users, loading }: UserTableProps) {
                 <th className="py-2 pr-4 font-semibold text-right">Flag</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/20">
+            <tbody className="divide-y divide-sky-50">
               {users.map((user, i) => (
                 <tr
                   key={user.user_id}
-                  className="hover:bg-muted/20 transition-colors"
+                  className={cn(
+                    "transition-colors rounded-xl",
+                    i % 2 === 0 ? "bg-white" : "bg-sky-50/20",
+                  )}
                 >
                   <td className="py-1.5 pl-4 pr-2 font-mono text-[10px] text-muted-foreground tabular-nums">
                     {medals[i] ?? i + 1}
@@ -71,11 +75,11 @@ export function UserTable({ users, loading }: UserTableProps) {
                         <img
                           src={user.avatar_url}
                           alt=""
-                          className="h-6 w-6 rounded-full"
+                          className="h-6 w-6 rounded-full ring-2 ring-sky-100"
                           loading="lazy"
                         />
                       ) : (
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-bold">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-sky-100 text-[10px] font-bold text-primary">
                           {user.username.charAt(0).toUpperCase()}
                         </div>
                       )}
@@ -86,9 +90,9 @@ export function UserTable({ users, loading }: UserTableProps) {
                   </td>
                   <td className="py-1.5 pr-2 text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <div className="h-1 w-8 overflow-hidden rounded-full bg-muted">
+                      <div className="h-1.5 w-12 overflow-hidden rounded-full bg-sky-50">
                         <div
-                          className="h-full rounded-full bg-blue-500/60"
+                          className="h-full rounded-full bg-gradient-to-r from-primary to-pink-300"
                           style={{
                             width: `${(user.message_count / maxMsgs) * 100}%`,
                           }}

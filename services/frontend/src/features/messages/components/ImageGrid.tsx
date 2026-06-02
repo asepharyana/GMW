@@ -1,11 +1,23 @@
 import type { MessageRecord } from "../../../shared/api/client";
 import { parseMetadata } from "../../../entities/message/types";
+import { EmptyStateMascot } from "../../../widgets/mascot/ChibiMascot";
 
 interface ImageItem {
   url: string;
   title: string;
   kind: "attachment" | "embed" | "sticker";
   message: MessageRecord;
+}
+
+function kindBadge(kind: ImageItem["kind"]): string {
+  switch (kind) {
+    case "sticker":
+      return "bg-pink-100 text-pink-700 border-pink-200";
+    case "attachment":
+      return "bg-primary-soft text-primary border-primary/30";
+    case "embed":
+      return "bg-purple-100 text-purple-700 border-purple-200";
+  }
 }
 
 export function ImageGrid({ messages }: { messages: MessageRecord[] }) {
@@ -57,9 +69,7 @@ export function ImageGrid({ messages }: { messages: MessageRecord[] }) {
 
   if (images.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-        No images found.
-      </div>
+      <EmptyStateMascot variant="thinking" message="No images yet~" />
     );
   }
 
@@ -74,7 +84,7 @@ export function ImageGrid({ messages }: { messages: MessageRecord[] }) {
             href={image.url}
             target="_blank"
             rel="noreferrer"
-            className="group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
+            className="group overflow-hidden rounded-2xl border border-primary/20 bg-white shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
           >
             <div className="relative aspect-video overflow-hidden">
               {image.kind === "sticker" ? (
@@ -92,14 +102,16 @@ export function ImageGrid({ messages }: { messages: MessageRecord[] }) {
                   loading="lazy"
                 />
               )}
-              <div className="absolute right-2 top-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white backdrop-blur">
+              <span
+                className={`absolute right-2 top-2 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider shadow-sm backdrop-blur ${kindBadge(image.kind)}`}
+              >
                 {image.kind}
-              </div>
+              </span>
             </div>
             <div className="p-3">
               <div className="truncate text-sm font-medium">{image.title}</div>
               <div className="flex items-center gap-2">
-                <div className="h-4 w-4 overflow-hidden rounded-full">
+                <div className="h-4 w-4 overflow-hidden rounded-full ring-1 ring-primary/30">
                   <img
                     src={
                       image.message.avatar_url ??

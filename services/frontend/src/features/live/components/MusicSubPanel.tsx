@@ -43,7 +43,7 @@ export function MusicSubPanel({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="rounded-2xl border border-sky-200 bg-white p-4 shadow-md space-y-4">
       <Input
         value={source}
         onChange={(e) => setSource(e.target.value)}
@@ -51,7 +51,7 @@ export function MusicSubPanel({
         placeholder="YouTube URL, Spotify track, or search terms"
       />
       <div className="flex items-center gap-3">
-        <Volume2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <Volume2 className="h-4 w-4 shrink-0 text-[#7EC8E3]" />
         <input
           type="range"
           min={0}
@@ -59,14 +59,14 @@ export function MusicSubPanel({
           step={1}
           value={draftVolume}
           onChange={(e) => setDraftVolume(Number(e.target.value))}
-          className="h-2 w-full cursor-pointer accent-primary"
+          className="h-2 w-full cursor-pointer accent-[#7EC8E3]"
         />
         <span className="w-10 shrink-0 text-right text-sm tabular-nums text-muted-foreground">
           {draftVolume}%
         </span>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button disabled={loading || !source.trim()} onClick={submit}>
+        <Button className="bg-[#7EC8E3] text-white hover:bg-[#7EC8E3]/80" disabled={loading || !source.trim()} onClick={submit}>
           <Music2 className="mr-1.5 h-4 w-4" /> Queue
         </Button>
         <Button variant="secondary" disabled={loading} onClick={onSkip}>

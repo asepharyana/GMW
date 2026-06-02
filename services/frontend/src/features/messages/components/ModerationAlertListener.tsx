@@ -13,6 +13,22 @@ interface AlertDetail {
   brief: string;
 }
 
+function severityToToastType(
+  severity: string,
+): "error" | "warning" | "info" | "success" {
+  switch (severity) {
+    case "critical":
+    case "high":
+      return "error";
+    case "medium":
+      return "warning";
+    case "low":
+      return "info";
+    default:
+      return "warning";
+  }
+}
+
 export function ModerationAlertListener() {
   const { addToast } = useToast();
 
@@ -29,7 +45,7 @@ export function ModerationAlertListener() {
 
       addToast(
         `🚨 ${username} ${sevLabel}${catLabel}: ${brief}`,
-        "error",
+        severityToToastType(severity),
       );
     };
 

@@ -94,13 +94,13 @@ function aiVariant(status: string) {
 function severityColor(severity: string) {
   switch (severity) {
     case "critical":
-      return "bg-red-500/20 text-red-300 border-red-500/30";
+      return "bg-red-100 text-red-700 border-red-200";
     case "high":
-      return "bg-orange-500/20 text-orange-300 border-orange-500/30";
+      return "bg-orange-100 text-orange-700 border-orange-200";
     case "medium":
-      return "bg-yellow-500/20 text-yellow-300 border-yellow-500/30";
+      return "bg-yellow-100 text-yellow-700 border-yellow-200";
     case "low":
-      return "bg-blue-500/20 text-blue-300 border-blue-500/30";
+      return "bg-blue-100 text-blue-700 border-blue-200";
     default:
       return "bg-muted text-muted-foreground border-border";
   }
@@ -175,7 +175,13 @@ export function MessageCard({
 
   return (
     <article
-      className={`group rounded-2xl border border-border bg-card ${compact ? "px-4 py-1.5" : "p-4"} shadow-sm transition-all hover:border-primary/30 hover:shadow-md ${message.deleted_at ? "opacity-60" : ""}`}
+      className={`group rounded-2xl border bg-white shadow-sm transition-all hover:border-primary/30 hover:shadow-md ${
+        compact ? "px-4 py-1.5" : "p-4"
+      } ${
+        message.deleted_at
+          ? "border-red-200 opacity-60"
+          : "border-primary/20"
+      }`}
     >
       <div className={`flex ${compact ? "gap-2" : "gap-3"}`}>
         {!compact && (
@@ -185,7 +191,7 @@ export function MessageCard({
               "https://cdn.discordapp.com/embed/avatars/0.png"
             }
             alt=""
-            className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-border"
+            className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-primary/30"
           />
         )}
         <div
@@ -319,10 +325,10 @@ export function MessageCard({
 
           {message.ai_analysis ? (
             <div
-              className={`rounded-xl border-l-2 p-3 ${
+              className={`rounded-xl border-l-4 p-3 ${
                 aiStatus === "flagged"
-                  ? "border-l-red-500 bg-red-500/5"
-                  : "border-l-blue-500 bg-blue-500/5"
+                  ? "border-l-pink-400 bg-pink-50/50"
+                  : "border-l-emerald-400 bg-emerald-50/50"
               }`}
             >
               <button
@@ -331,9 +337,7 @@ export function MessageCard({
                 className="flex w-full items-center justify-between gap-2 text-left text-xs"
               >
                 <span className="font-medium text-foreground/80">
-                  {aiStatus === "flagged"
-                    ? "🚨"
-                    : "ℹ️"}{" "}
+                  {aiStatus === "flagged" ? "🚨 " : "ℹ️ "}
                   {analysisSummary}
                 </span>
                 {showAnalysis ? (
@@ -351,7 +355,7 @@ export function MessageCard({
           ) : null}
 
           {message.ai_error ? (
-            <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
+            <div className="rounded-xl bg-pink-50/50 p-3 text-sm text-pink-700">
               AI error: {message.ai_error}
             </div>
           ) : null}
@@ -370,7 +374,7 @@ export function MessageCard({
               {isReanalyzing ? "Reanalyzing..." : "Re-analyze"}
             </Button>
             {aiStatus === "error" && (
-              <span className="text-xs text-destructive/80">
+              <span className="text-xs text-pink-600/80">
                 Click to retry analysis
               </span>
             )}
@@ -383,7 +387,7 @@ export function MessageCard({
 
 export function MessageCardSkeleton() {
   return (
-    <article className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+    <article className="rounded-2xl border border-primary/20 bg-white p-4 shadow-sm">
       <div className="flex gap-3">
         <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
         <div className="min-w-0 flex-1 space-y-3">

@@ -2,7 +2,7 @@
 
 import { Download, Mic } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Badge, Button, Skeleton } from "../../../shared/ui";
+import { Badge, Button, EmptyStateMascot, Skeleton } from "../../../shared/ui";
 import { formatBytes, formatDate } from "../../../shared/lib/utils";
 
 interface VoiceRecording {
@@ -61,7 +61,7 @@ export function RecordingsSubPanel() {
         {[1, 2, 3].map((i) => (
           <div
             key={i}
-            className="flex items-center gap-4 rounded-xl border border-border bg-background/60 p-4"
+            className="flex items-center gap-4 rounded-xl border border-sky-200 bg-white p-4"
           >
             <Skeleton className="h-10 w-10 rounded-xl" />
             <div className="flex-1 space-y-2">
@@ -93,9 +93,7 @@ export function RecordingsSubPanel() {
 
   if (recordings.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-        No recordings found.
-      </div>
+      <EmptyStateMascot variant="sleeping" message="No recordings yet~" />
     );
   }
 
@@ -104,9 +102,9 @@ export function RecordingsSubPanel() {
       {recordings.map((rec) => (
         <div
           key={rec.id}
-          className="flex items-center gap-4 rounded-xl border border-border bg-background/60 p-4"
+          className="flex items-center gap-4 rounded-xl border border-sky-200 bg-white p-4"
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#7EC8E3]/15 text-[#7EC8E3]">
             <Mic className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -143,7 +141,7 @@ export function RecordingsSubPanel() {
                 href={rec.download_url}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                className="rounded-lg bg-[#7EC8E3] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#7EC8E3]/80"
               >
                 <Download className="h-4 w-4" />
               </a>
