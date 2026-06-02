@@ -591,26 +591,36 @@ const analyzeSingleMediaImage = async (
       : buildGeneralImageVisionPrompt(image.sourceLabel, messageId);
 
   try {
-    const completion = await withLlmConcurrency(async () =>
-      openai.chat.completions.create({
-        model: config.AI_LLM_VISION_MODEL ?? config.AI_LLM_MODEL,
-        messages: [
-          {
-            role: "user",
-            content: [
+    const completion = await retryWithBackoff(
+      async () => {
+        return withLlmConcurrency(async () =>
+          openai.chat.completions.create({
+            model: config.AI_LLM_VISION_MODEL ?? config.AI_LLM_MODEL,
+            messages: [
               {
-                type: "text",
-                text: promptText,
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: promptText,
+                  },
+                  { type: "image_url", image_url: image.image_url },
+                ],
               },
-              { type: "image_url", image_url: image.image_url },
             ],
-          },
-        ],
-        temperature: 0.1,
-        top_p: 0.9,
-        max_tokens: 500,
-        stream: false,
-      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming),
+            temperature: 0.1,
+            top_p: 0.9,
+            max_tokens: 500,
+            stream: false,
+          } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming),
+        );
+      },
+      {
+        retries: 2,
+        minTimeout: 0,
+        maxTimeout: 0,
+        logger: log,
+      },
     );
 
     const content = completion.choices[0]?.message?.content?.trim();
@@ -630,9 +640,11 @@ const analyzeSingleMediaImage = async (
         messageId,
         error: error instanceof Error ? error.message : String(error),
       },
-      "Separate media analysis failed",
+      "Vision analysis failed after retries — image not analyzed",
     );
-    return `[Media analysis for message ${messageId}] ${image.sourceLabel}: gagal dianalisis otomatis; gunakan metadata URL/nama media sebagai evidence.`;
+    // Return a clear signal that vision analysis FAILED — so batch LLM knows
+    // the image could not be described and must NOT assume it's clean.
+    return `[Media analysis for message ${messageId}] ${image.sourceLabel}: GAGAL DIANALISIS — gambar tidak dapat diunduh atau vision API gagal setelah 3x percobaan. JANGAN mengasumsikan gambar aman hanya karena gagal dianalisis. Gunakan metadata URL/nama file saja sebagai petunjuk.`;
   }
 };
 
