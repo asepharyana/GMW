@@ -16,10 +16,6 @@ import { Badge, Button, Skeleton } from "../../../shared/ui";
 
 const CUSTOM_EMOJI_REGEX = /<(a)?:([a-zA-Z0-9_]+):(\d+)>/g;
 
-/**
- * Renders message content with Discord custom emojis displayed as images
- * instead of raw text like `<:name:id>`.
- */
 function renderContentWithCustomEmojis(content: string): React.ReactNode {
   const parts: React.ReactNode[] = [];
   const regex = new RegExp(CUSTOM_EMOJI_REGEX.source, "g");
@@ -27,15 +23,12 @@ function renderContentWithCustomEmojis(content: string): React.ReactNode {
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(content)) !== null) {
-    // Text before the emoji
     if (match.index > lastIndex) {
       parts.push(content.slice(lastIndex, match.index));
     }
-
     const [, animated, name, id] = match;
     const ext = animated ? "gif" : "png";
     const url = `https://cdn.discordapp.com/emojis/${id}.${ext}?size=128`;
-
     parts.push(
       <img
         key={`${id}-${match.index}`}
@@ -47,28 +40,23 @@ function renderContentWithCustomEmojis(content: string): React.ReactNode {
         title={`:${name}:`}
       />,
     );
-
     lastIndex = regex.lastIndex;
   }
-
-  // Remaining text after last emoji
   if (lastIndex < content.length) {
     parts.push(content.slice(lastIndex));
   }
-
-  // If no emojis were found, just return the raw content
-  if (parts.length === 0) {
-    return content;
-  }
-
+  if (parts.length === 0) return content;
   return <Fragment>{parts}</Fragment>;
 }
 
+// ─── Props ───────────────────────────────────────────────────────────────────
+
 interface MessageCardProps {
-  message: MessageRecord;
+  messages: MessageRecord[];
   onReanalyze: (id: string) => Promise<void>;
-  compact?: boolean;
 }
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function parseStringList(value?: string | null): string[] {
   if (!value) return [];
@@ -114,11 +102,22 @@ function formatTimeAgo(ts: number): string {
   return new Date(ts).toLocaleDateString();
 }
 
-export function MessageCard({
+function formatTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// ─── Single message row inside a group ───────────────────────────────────────
+
+function MessageRow({
   message,
   onReanalyze,
-  compact,
-}: MessageCardProps) {
+}: {
+  message: MessageRecord;
+  onReanalyze: (id: string) => Promise<void>;
+}) {
   const metadata = useMemo(
     () => parseMetadata(message.metadata),
     [message.metadata],
@@ -136,7 +135,6 @@ export function MessageCard({
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(aiStatus === "flagged");
 
-  // Build a human-readable analysis summary from categories + confidence + severity
   const analysisSummary = useMemo(() => {
     const parts: string[] = [];
     if (categories.length > 0) {
@@ -172,214 +170,249 @@ export function MessageCard({
   };
 
   return (
+    <div className="space-y-2">
+      {/* Row header: time + edit/delete indicators + AI badges */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span
+          className="text-[11px] text-muted-foreground/70"
+          title={new Date(message.created_at).toLocaleString()}
+        >
+          {formatTime(message.created_at)}
+        </span>
+        {message.edited_at && (
+          <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground/70">
+            <Pencil className="h-2.5 w-2.5" /> edited
+          </span>
+        )}
+        {message.deleted_at && (
+          <span className="flex items-center gap-0.5 text-[11px] text-destructive/70">
+            <Trash2 className="h-2.5 w-2.5" /> deleted
+          </span>
+        )}
+        <div className="ml-auto flex items-center gap-1">
+          <Badge
+            variant={aiVariant(aiStatus)}
+            className="flex items-center gap-1 text-[10px] px-1.5 py-0"
+          >
+            {aiStatus === "clean" && <CheckCircle2 className="h-3 w-3" />}
+            {aiStatus === "flagged" && <AlertCircle className="h-3 w-3" />}
+            {aiStatus === "error" && <AlertCircle className="h-3 w-3" />}
+            {aiStatus}
+          </Badge>
+          {message.ai_severity && message.ai_severity !== "none" && (
+            <Badge
+              className={`text-[10px] px-1.5 py-0 ${severityColor(message.ai_severity)}`}
+            >
+              {message.ai_severity}
+            </Badge>
+          )}
+          {confidence != null && (
+            <Badge
+              variant="outline"
+              className="text-[10px] px-1.5 py-0 tabular-nums"
+            >
+              {Math.round(confidence * 100)}%
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {/* Content */}
+      {displayContent ? (
+        <p
+          className={`whitespace-pre-wrap break-words text-sm leading-6 ${
+            message.deleted_at ? "text-muted-foreground/60" : "text-foreground/90"
+          }`}
+        >
+          {renderContentWithCustomEmojis(displayContent)}
+        </p>
+      ) : null}
+
+      {/* Stickers */}
+      {stickers.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {stickers.map((sticker) => (
+            <div
+              key={sticker.name || sticker.url}
+              className="flex items-center gap-1.5"
+            >
+              {sticker.url ? (
+                <img
+                  src={sticker.url}
+                  alt={sticker.name || "sticker"}
+                  className="h-12 w-12 rounded-lg border border-border object-contain bg-muted/50"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-muted/50">
+                  <Smile className="h-6 w-6 text-muted-foreground" />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Attached images */}
+      {hasImages && (
+        <div className="flex gap-2 overflow-x-auto">
+          {imageAttachments.slice(0, 4).map((img) => (
+            <a
+              key={img.url}
+              href={img.url}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 overflow-hidden rounded-lg border border-border"
+            >
+              <img
+                src={img.url}
+                alt={img.name}
+                className="h-16 w-16 object-cover transition-transform hover:scale-105"
+                loading="lazy"
+              />
+            </a>
+          ))}
+          {imageAttachments.length > 4 && (
+            <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-border bg-muted text-[11px] text-muted-foreground">
+              +{imageAttachments.length - 4}
+              <ImageIcon className="ml-0.5 h-3 w-3" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Categories */}
+      {categories.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {categories.map((category) => (
+            <Badge key={category} variant="secondary" className="text-[10px]">
+              {category}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* AI Analysis */}
+      {message.ai_analysis ? (
+        <div
+          className={`rounded-lg border-l-[3px] px-3 py-2 ${
+            aiStatus === "flagged"
+              ? "border-l-pink-400 bg-pink-50/40"
+              : "border-l-emerald-400 bg-emerald-50/40"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => setShowAnalysis(!showAnalysis)}
+            className="flex w-full items-center justify-between gap-2 text-left text-[11px]"
+          >
+            <span className="font-medium text-foreground/70">
+              {aiStatus === "flagged" ? "🚨 " : "ℹ️ "}
+              {analysisSummary}
+            </span>
+            {showAnalysis ? (
+              <ChevronUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            )}
+          </button>
+          {showAnalysis && (
+            <div className="mt-1.5 border-t border-border/50 pt-1.5 text-[12px] text-muted-foreground leading-relaxed whitespace-pre-wrap">
+              {message.ai_analysis}
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {/* AI Error */}
+      {message.ai_error ? (
+        <div className="rounded-lg bg-pink-50/40 px-3 py-2 text-[12px] text-pink-600">
+          AI error: {message.ai_error}
+        </div>
+      ) : null}
+
+      {/* Re-analyze button */}
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant={aiStatus === "error" ? "destructive" : "outline"}
+          onClick={handleReanalyze}
+          disabled={aiStatus === "pending" || isReanalyzing}
+          className="text-[11px] h-7 px-2.5"
+        >
+          <RotateCw
+            className={`h-3 w-3 ${isReanalyzing ? "animate-spin" : ""}`}
+          />
+          {isReanalyzing ? "Reanalyzing..." : "Re-analyze"}
+        </Button>
+        {aiStatus === "error" && (
+          <span className="text-[11px] text-pink-600/70">
+            Click to retry analysis
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Group card: one card per user group ─────────────────────────────────────
+
+export function MessageCard({ messages, onReanalyze }: MessageCardProps) {
+  const firstMsg = messages[0];
+  const hasMultiple = messages.length > 1;
+
+  return (
     <article
       className={`group rounded-2xl border bg-white shadow-sm transition-all hover:border-primary/30 hover:shadow-md ${
-        compact ? "px-4 py-1.5" : "p-4"
-      } ${
-        message.deleted_at ? "border-red-200 opacity-60" : "border-primary/20"
+        firstMsg.deleted_at ? "border-red-200 opacity-60" : "border-primary/20"
       }`}
     >
-      <div className={`flex ${compact ? "gap-2" : "gap-3"}`}>
-        {!compact && (
-          <img
-            src={
-              message.avatar_url ??
-              "https://cdn.discordapp.com/embed/avatars/0.png"
-            }
-            alt=""
-            className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-primary/30"
-          />
-        )}
-        <div
-          className={`min-w-0 flex-1 ${compact ? "space-y-1" : "space-y-2.5"}`}
-        >
-          {!compact && (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="font-semibold text-foreground">
-                {message.username || message.user_id}
-              </span>
-              <span
-                className="text-xs text-muted-foreground"
-                title={new Date(message.created_at).toLocaleString()}
+      <div className="flex gap-3 p-4">
+        {/* Avatar — only for first message */}
+        <img
+          src={
+            firstMsg.avatar_url ??
+            "https://cdn.discordapp.com/embed/avatars/0.png"
+          }
+          alt=""
+          className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-primary/30"
+        />
+
+        <div className="min-w-0 flex-1">
+          {/* Group header: username + timestamp of first message */}
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className="font-semibold text-sm text-foreground">
+              {firstMsg.username || firstMsg.user_id}
+            </span>
+            <span
+              className="text-[11px] text-muted-foreground/60"
+              title={new Date(firstMsg.created_at).toLocaleString()}
+            >
+              {formatTimeAgo(firstMsg.created_at)}
+              {hasMultiple && ` · ${messages.length} messages`}
+            </span>
+          </div>
+
+          {/* Message rows — divided by separator when multiple */}
+          <div
+            className={hasMultiple ? "divide-y divide-border/30 space-y-2.5" : ""}
+          >
+            {messages.map((msg, idx) => (
+              <div
+                key={msg.id}
+                className={hasMultiple && idx > 0 ? "pt-2.5" : ""}
               >
-                {formatTimeAgo(message.created_at)}
-              </span>
-              {message.edited_at && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Pencil className="h-3 w-3" /> edited
-                </span>
-              )}
-              {message.deleted_at && (
-                <span className="flex items-center gap-1 text-xs text-destructive">
-                  <Trash2 className="h-3 w-3" /> deleted
-                </span>
-              )}
-              <div className="ml-auto flex items-center gap-1.5">
-                <Badge
-                  variant={aiVariant(aiStatus)}
-                  className="flex items-center gap-1 text-xs"
-                >
-                  {aiStatus === "clean" && (
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  )}
-                  {aiStatus === "flagged" && (
-                    <AlertCircle className="h-3.5 w-3.5" />
-                  )}
-                  {aiStatus === "error" && (
-                    <AlertCircle className="h-3.5 w-3.5" />
-                  )}
-                  {aiStatus}
-                </Badge>
-                {message.ai_severity && message.ai_severity !== "none" && (
-                  <Badge
-                    className={`text-xs ${severityColor(message.ai_severity)}`}
-                  >
-                    {message.ai_severity}
-                  </Badge>
-                )}
-                {confidence != null && (
-                  <Badge variant="outline" className="text-xs tabular-nums">
-                    {Math.round(confidence * 100)}%
-                  </Badge>
-                )}
+                <MessageRow message={msg} onReanalyze={onReanalyze} />
               </div>
-            </div>
-          )}
-
-          {displayContent ? (
-            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/90">
-              {renderContentWithCustomEmojis(displayContent)}
-            </p>
-          ) : null}
-
-          {stickers.length > 0 && (
-            <div className="flex flex-wrap gap-3">
-              {stickers.map((sticker) => (
-                <div
-                  key={sticker.name || sticker.url}
-                  className="flex items-center gap-2"
-                >
-                  {sticker.url ? (
-                    <img
-                      src={sticker.url}
-                      alt={sticker.name || "sticker"}
-                      className="h-16 w-16 rounded-xl border border-border object-contain bg-muted/50"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-border bg-muted/50">
-                      <Smile className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                  )}
-                  <span
-                    className="text-xs text-muted-foreground max-w-[120px] truncate"
-                    title={sticker.name}
-                  >
-                    {sticker.name}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {hasImages && (
-            <div className="flex gap-2 overflow-x-auto">
-              {imageAttachments.slice(0, 4).map((img) => (
-                <a
-                  key={img.url}
-                  href={img.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="shrink-0 overflow-hidden rounded-xl border border-border"
-                >
-                  <img
-                    src={img.url}
-                    alt={img.name}
-                    className="h-20 w-20 object-cover transition-transform hover:scale-105"
-                    loading="lazy"
-                  />
-                </a>
-              ))}
-              {imageAttachments.length > 4 && (
-                <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-border bg-muted text-xs text-muted-foreground">
-                  +{imageAttachments.length - 4}{" "}
-                  <ImageIcon className="ml-1 h-3 w-3" />
-                </div>
-              )}
-            </div>
-          )}
-
-          {categories.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {categories.map((category) => (
-                <Badge key={category} variant="secondary" className="text-xs">
-                  {category}
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          {message.ai_analysis ? (
-            <div
-              className={`rounded-xl border-l-4 p-3 ${
-                aiStatus === "flagged"
-                  ? "border-l-pink-400 bg-pink-50/50"
-                  : "border-l-emerald-400 bg-emerald-50/50"
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => setShowAnalysis(!showAnalysis)}
-                className="flex w-full items-center justify-between gap-2 text-left text-xs"
-              >
-                <span className="font-medium text-foreground/80">
-                  {aiStatus === "flagged" ? "🚨 " : "ℹ️ "}
-                  {analysisSummary}
-                </span>
-                {showAnalysis ? (
-                  <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                )}
-              </button>
-              {showAnalysis && (
-                <div className="mt-2 border-t border-border pt-2 text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                  {message.ai_analysis}
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {message.ai_error ? (
-            <div className="rounded-xl bg-pink-50/50 p-3 text-sm text-pink-700">
-              AI error: {message.ai_error}
-            </div>
-          ) : null}
-
-          <div className="flex items-center gap-2 pt-1">
-            <Button
-              size="sm"
-              variant={aiStatus === "error" ? "destructive" : "outline"}
-              onClick={handleReanalyze}
-              disabled={aiStatus === "pending" || isReanalyzing}
-              className="text-xs"
-            >
-              <RotateCw
-                className={`h-3.5 w-3.5 ${isReanalyzing ? "animate-spin" : ""}`}
-              />
-              {isReanalyzing ? "Reanalyzing..." : "Re-analyze"}
-            </Button>
-            {aiStatus === "error" && (
-              <span className="text-xs text-pink-600/80">
-                Click to retry analysis
-              </span>
-            )}
+            ))}
           </div>
         </div>
       </div>
     </article>
   );
 }
+
+// ─── Skeleton ────────────────────────────────────────────────────────────────
 
 export function MessageCardSkeleton() {
   return (

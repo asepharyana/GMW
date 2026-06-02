@@ -84,7 +84,7 @@ export function MessageFeed({
   }
 
   if (messages.length === 0) {
-    return <EmptyStateMascot variant="waving" message="No messages yet~" />;
+    return <EmptyStateMascot variant="waving" message={emptyText} />;
   }
 
   return (
@@ -95,21 +95,14 @@ export function MessageFeed({
         initial="initial"
         animate="animate"
       >
-        {groupedMessages.map((group) =>
-          group.messages.map((message, idx) => {
-            const isFirstInGroup = idx === 0;
-            const isCompact = !isFirstInGroup;
-            return (
-              <motion.div key={message.id} variants={cardItem}>
-                <MessageCard
-                  message={message}
-                  onReanalyze={onReanalyze}
-                  compact={isCompact}
-                />
-              </motion.div>
-            );
-          }),
-        )}
+        {groupedMessages.map((group) => (
+          <motion.div key={group.messages[0].id} variants={cardItem}>
+            <MessageCard
+              messages={group.messages}
+              onReanalyze={onReanalyze}
+            />
+          </motion.div>
+        ))}
 
         {/* Infinite-scroll sentinel */}
         {hasMore && (
