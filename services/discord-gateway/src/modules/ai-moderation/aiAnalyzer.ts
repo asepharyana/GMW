@@ -205,6 +205,9 @@ const individualInFlight = new Set<string>();
  */
 const individualInFlightByConversation = new Map<string, number>();
 
+/** Last-touched timestamp for pruning stale entries. */
+const individualInFlightLastTouched = new Map<string, number>();
+
 /** Counter for observability. */
 let activeIndividualRequests = 0;
 
@@ -330,6 +333,7 @@ async function processIndividualFallback(
     conversationKey,
     (individualInFlightByConversation.get(conversationKey) ?? 0) + 1,
   );
+  individualInFlightLastTouched.set(conversationKey, Date.now());
 
   // Track whether all retries were exhausted specifically because the LLM
   // consistently returned no result for this message (vs. a transient error).
@@ -527,8 +531,10 @@ async function processIndividualFallback(
     const prev = individualInFlightByConversation.get(conversationKey) ?? 1;
     if (prev <= 1) {
       individualInFlightByConversation.delete(conversationKey);
+      individualInFlightLastTouched.delete(conversationKey);
     } else {
       individualInFlightByConversation.set(conversationKey, prev - 1);
+      individualInFlightLastTouched.set(conversationKey, Date.now());
     }
   }
 }
@@ -554,7 +560,22 @@ function enqueueIndividualFallbacks(messages: MessageRecord[]): void {
     return;
   }
 
-  const newMessages = messages.filter((m) => !individualInFlight.has(m.id));
+  // FIX #5: Enforce concurrency cap — do not admit more individual fallbacks
+  // than the configured limit. Excess messages stay as error/analysis_incomplete
+  // and will be recovered on the next worker tick.
+  const maxConcurrent = config.AI_ANALYSIS_INDIVIDUAL_MAX_CONCURRENT ?? 50;
+  const availableSlots = Math.max(0, maxConcurrent - activeIndividualRequests);
+  if (availableSlots <= 0) {
+    logger.debug(
+      { maxConcurrent, active: activeIndividualRequests },
+      "Individual fallback concurrency cap reached — messages will be recovered later",
+    );
+    return;
+  }
+
+  const newMessages = messages
+    .filter((m) => !individualInFlight.has(m.id))
+    .slice(0, availableSlots);
   if (newMessages.length === 0) return;
 
   logger.info(
@@ -579,8 +600,10 @@ function enqueueIndividualFallbacks(messages: MessageRecord[]): void {
       const prev = individualInFlightByConversation.get(ck) ?? 1;
       if (prev <= 1) {
         individualInFlightByConversation.delete(ck);
+        individualInFlightLastTouched.delete(ck);
       } else {
         individualInFlightByConversation.set(ck, prev - 1);
+        individualInFlightLastTouched.set(ck, Date.now());
       }
     });
   }
@@ -744,18 +767,24 @@ function scheduleConversationAnalysis(conversationKey: string): void {
     return;
   }
 
-  const convoCooldown = conversationErrorCooldown.get(conversationKey) || 0;
-  const activeCooldown = Math.max(convoCooldown, globalCooldownUntil);
+  const convoCooldown = conversationErrorCooldown.get(conversationKey) ?? 0;
+  const convoErrors = conversationConsecutiveErrors.get(conversationKey) ?? 0;
 
-  if (activeCooldown && Date.now() < activeCooldown) {
+  if (convoCooldown && Date.now() < convoCooldown) {
     if (!conversationDebounceTimers.has(conversationKey)) {
-      const remaining = activeCooldown - Date.now();
+      const remaining = convoCooldown - Date.now();
       const timer = setTimeout(() => {
         conversationDebounceTimers.delete(conversationKey);
         scheduleConversationAnalysis(conversationKey);
       }, remaining + 500);
       conversationDebounceTimers.set(conversationKey, timer);
     }
+    return;
+  }
+
+  // Block scheduling if this conversation already hit the per-conversation
+  // error threshold — prevents rapid retry loops on the same broken convo.
+  if (convoErrors >= MAX_CONSECUTIVE_ERRORS && Date.now() < convoCooldown) {
     return;
   }
 
@@ -916,6 +945,30 @@ export function startPendingAIAnalysisWorker(
         for (const [key, startedAt] of conversationProcessing) {
           if (now - startedAt >= config.AI_ANALYSIS_PROCESSING_TIMEOUT_MS) {
             conversationProcessing.delete(key);
+          }
+        }
+
+        // FIX #7: Prune stale in-flight counters for conversations that have
+        // been idle longer than the processing timeout — prevents permanent
+        // blocking if a decrement was missed due to an uncaught exception.
+        const staleThreshold = config.AI_ANALYSIS_PROCESSING_TIMEOUT_MS * 2;
+        for (const [key, lastTouched] of individualInFlightLastTouched) {
+          if (now - lastTouched >= staleThreshold) {
+            individualInFlightLastTouched.delete(key);
+            individualInFlightByConversation.delete(key);
+            logger.warn(
+              { key },
+              "Pruned stale individualInFlightByConversation entry",
+            );
+          }
+        }
+
+        // Also prune stale per-conversation CB error counts that have cooled
+        // down so old conversations can be retried.
+        for (const [key, count] of conversationConsecutiveErrors) {
+          const cbExpire = conversationErrorCooldown.get(key) ?? 0;
+          if (cbExpire && now >= cbExpire) {
+            conversationConsecutiveErrors.delete(key);
           }
         }
 
