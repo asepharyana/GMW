@@ -861,11 +861,21 @@ async function runTextOnlyBatch(
       return `${systemText}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
     };
 
-    const batchResult = await callModerationLLM(
-      buildContent,
-      targetIds,
-      `text-batch-${i + 1}`,
-    );
+    const batchResult = await Promise.race([
+      callModerationLLM(buildContent, targetIds, `text-batch-${i + 1}`),
+      new Promise<{ results: AnalysisResult[]; raw: unknown }>((_, reject) => {
+        const timeout = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Text-only batch sub-batch ${i + 1} timed out for messages ${targetIds.join(", ")}`,
+              ),
+            ),
+          timeoutMs,
+        );
+        timeout.unref();
+      }),
+    ]);
 
     allResults.push(...batchResult.results);
     if (batchResult.raw) lastRaw = batchResult.raw;
