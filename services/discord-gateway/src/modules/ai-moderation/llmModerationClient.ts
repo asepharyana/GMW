@@ -878,6 +878,7 @@ async function runTextOnlyBatch(
       }),
     ])) as { results: AnalysisResult[]; raw: unknown };
 
+    const rawUsage = (batchResult.raw as { usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } })?.usage;
     allResults.push(...batchResult.results);
     if (batchResult.raw) lastRaw = batchResult.raw;
 
@@ -887,11 +888,11 @@ async function runTextOnlyBatch(
       config.AI_LLM_MODEL,
       batchResult.results,
       0, // Duration will be tracked at higher level
-      batchResult.raw?.usage
+      rawUsage
         ? {
-            prompt_tokens: batchResult.raw.usage.prompt_tokens,
-            completion_tokens: batchResult.raw.usage.completion_tokens,
-            total_tokens: batchResult.raw.usage.total_tokens,
+            prompt_tokens: rawUsage.prompt_tokens,
+            completion_tokens: rawUsage.completion_tokens,
+            total_tokens: rawUsage.total_tokens,
           }
         : undefined,
     );
