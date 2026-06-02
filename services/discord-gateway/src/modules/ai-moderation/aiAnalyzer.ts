@@ -6,10 +6,8 @@ import { Piscina } from "piscina";
 import { config } from "../../shared/config/config.js";
 import { createChildLogger } from "../../shared/logger/logger.js";
 import { retryWithBackoff } from "../../shared/utils/retry.js";
+import type { EventBroadcaster } from "../event-broadcaster/index.js";
 import { invalidateAnalyticsCache } from "../message-capture/analyticsStore.js";
-import { attemptAutoDeleteFlaggedMessage } from "./autoDeleteManager.js";
-import { buildConversationContext } from "./conversationContext.js";
-import { runModerationAnalysis } from "./llmModerationClient.js";
 import { isAgeRestrictedMetadata } from "../message-capture/messageMetadata.js";
 import {
   getAttachmentsForMessages,
@@ -27,6 +25,14 @@ import type {
   MessageRecord,
   ModerationBroadcaster,
 } from "../message-capture/types.js";
+import { attemptAutoDeleteFlaggedMessage } from "./autoDeleteManager.js";
+import { buildConversationContext } from "./conversationContext.js";
+import { runModerationAnalysis } from "./llmModerationClient.js";
+import {
+  logAnalysisSummary,
+  logFalsePositiveDetected,
+  logModerationError,
+} from "./responseLogger.js";
 
 const logger = createChildLogger("ai-analyzer");
 
@@ -36,6 +42,28 @@ type ModerationGlobal = typeof globalThis & {
 
 function getModerationBroadcaster(): ModerationBroadcaster | undefined {
   return (globalThis as ModerationGlobal).moderationBroadcaster;
+}
+
+// Redis EventBroadcaster — set by startPendingAIAnalysisWorker.
+// Used to publish analysis completion events so the backend
+// redis-bridge can forward them to frontend WebSocket clients.
+let _redisEventBroadcaster: EventBroadcaster | undefined;
+
+function broadcastAnalysisCompleted(row: MessageRecord): void {
+  // In-memory WS broadcast (direct-connected DG clients)
+  getModerationBroadcaster()?.messageAnalyzed(row);
+  // Redis pub/sub broadcast → backend → frontend WebSocket
+  if (_redisEventBroadcaster) {
+    _redisEventBroadcaster.messageAnalyzed(row).catch((err: unknown) =>
+      logger.warn(
+        {
+          messageId: row.id,
+          error: err instanceof Error ? err.message : String(err),
+        },
+        "Failed to publish message_analyzed via Redis EventBroadcaster",
+      ),
+    );
+  }
 }
 
 function scheduleAutoDelete(row: MessageRecord): void {
@@ -107,7 +135,7 @@ async function skipAgeRestrictedMessages(
   );
 
   for (const row of skippedRows) {
-    getModerationBroadcaster()?.messageAnalyzed(row);
+    broadcastAnalysisCompleted(row);
   }
 
   const skippedIds = new Set(
@@ -376,10 +404,25 @@ async function processIndividualFallback(
 
     const rows = await updateMessagesAIAnalysisBulk(updates);
     for (const row of rows) {
-      getModerationBroadcaster()?.messageAnalyzed(row);
+      broadcastAnalysisCompleted(row);
       invalidateAnalyticsCache(row.guild_id);
       scheduleAutoDelete(row);
     }
+
+    // Log individual analysis completion with comprehensive details
+    const resultSummary = analysisResult.results[0];
+    logModerationError(
+      [messageId],
+      config.AI_LLM_MODEL,
+      new Error("Success"), // For logging purposes only
+      {
+        phase: "individual_fallback",
+        status: resultSummary?.status,
+        flags: resultSummary?.flags,
+        severity: resultSummary?.severity,
+        confidence: resultSummary?.confidence,
+      },
+    );
 
     // Reset individual CB on success.
     individualConsecutiveErrors = 0;
@@ -405,6 +448,13 @@ async function processIndividualFallback(
     }
 
     lastError = error instanceof Error ? error.message : String(error);
+
+    // Log error with responseLogger
+    logModerationError([messageId], config.AI_LLM_MODEL, error, {
+      phase: "individual_fallback",
+      conversationKey,
+      exhaustedOnIncomplete,
+    });
 
     // Infinite-loop prevention: if all retries were exhausted because the LLM
     // consistently dropped this specific message (not a transient error),
@@ -543,7 +593,7 @@ async function processBatch(
     })) as AnalysisWorkerResponse;
 
     for (const row of result.rows) {
-      getModerationBroadcaster()?.messageAnalyzed(row);
+      broadcastAnalysisCompleted(row);
       scheduleAutoDelete(row);
     }
 
@@ -783,7 +833,7 @@ export async function queueMessageAnalysis(messageId: string): Promise<void> {
         buildAgeRestrictedSkipResult(),
       );
       if (updated) {
-        getModerationBroadcaster()?.messageAnalyzed(updated);
+        broadcastAnalysisCompleted(updated);
       }
       logger.info(
         { messageId },
@@ -833,8 +883,12 @@ export function getAnalysisQueueStatus(): AnalysisQueueStatus {
  * state (not just `pending`), and skips conversations that already have
  * individual fallback work in progress to avoid DB last-write-wins races.
  */
-export function startPendingAIAnalysisWorker(client?: Client): void {
+export function startPendingAIAnalysisWorker(
+  client?: Client,
+  eventBroadcaster?: EventBroadcaster,
+): void {
   moderationClient = client;
+  _redisEventBroadcaster = eventBroadcaster;
   if (!config.AI_ANALYSIS_ENABLED) return;
 
   setInterval(() => {

@@ -165,6 +165,17 @@ export function reanalyzeMessage(id: string): Promise<void> {
   return request<void>(`/api/messages/${id}/reanalyze`, { method: "POST" });
 }
 
+export function moderateMessage(
+  id: string,
+  actionType: string,
+  reason?: string,
+): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/messages/${id}/moderate`, {
+    method: "POST",
+    body: JSON.stringify({ actionType, reason }),
+  });
+}
+
 // ─── Guilds / Config ─────────────────────────────────────────────────────────
 
 export function getGuilds(): Promise<Guild[]> {
