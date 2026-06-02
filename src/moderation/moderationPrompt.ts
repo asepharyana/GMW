@@ -52,11 +52,22 @@ Prioritas rendah (PELANGGARAN RINGAN):
 5. Jika tidak ada pelanggaran jelas atau bukti ambigu → clean
 Jangan pernah flag hanya berdasarkan kecurigaan atau ketidakjelasan konteks.
 
-## ATURAN ANTI FALSE-POSITIVE UNTUK GAMBAR
-- Jika teks pesan adalah percakapan normal sehari-hari (seperti "Aku suka nasgor loh", "Halo guys", "Pagi semua", dll), maka gambar yang menyertainya SANGAT TIDAK MUNGKIN adalah konten judi atau pelanggaran berat.
-- Vision model sering salah mengklasifikasi screenshot biasa sebagai "antarmuka situs judi." Abaikan klaim vision model tentang judi KECUALI teks pesan juga mengandung promosi/link judi.
-- Jika teks clean dan vision bilang "gambling" tapi TANPA menyebutkan bukti spesifik (chip, kartu, odds, logo judi dikenal) → OVERRIDE ke clean.
-- Percaya teks terlebih dahulu. Bukti visual hanya pelengkap, bukan penentu utama.`;
+## ATURAN UNTUK GAMBAR — DUA MODE BERBEDA
+
+### Mode 1: Teks + Gambar (teks adalah bukti utama)
+- Jika ada teks percakapan normal ("Aku suka nasgor loh", "Halo guys") → gambar hampir pasti bukan pelanggaran.
+- Jika teks clean: OVERRIDE klaim vision tentang judi KECUALI ada bukti spesifik (chip, kartu, odds, logo dikenal).
+- Teks lebih penting dari gambar.
+
+### Mode 2: HANYA GAMBAR (teks kosong/sangat pendek/tidak bermakna)
+- **Deskripsi gambar MENJADI bukti utama.** Tidak ada teks untuk dijadikan acuan.
+- BACA Media analysis dengan teliti. Deskripsi itulah satu-satunya konteks.
+- Jika deskripsi menyebutkan "terminal", "console", "editor kode" → itu BUKAN gambling. Clean.
+- Jika deskripsi menyebutkan "aplikasi chat", "screenshot percakapan" → itu BUKAN gambling. Clean.
+- Jika deskripsi menyebutkan "foto makanan/pemandangan/selfie/hewan" → Clean.
+- **HANYA flag gambling jika deskripsi SECARA EKSPLISIT menyebutkan elemen judi NYATA: chip, kartu remi, meja taruhan, odds, deposit/withdraw, logo situs judi.**
+- JANGAN abaikan gambar hanya karena teks kosong. Analisis TETAP harus dilakukan berdasarkan deskripsi gambar.
+- **Jika pesan HANYA berisi gambar tanpa teks → WAJIB membaca Media analysis dan membuat keputusan berdasarkan deskripsi tersebut.**`;
 
 // ---------------------------------------------------------------------------
 // Section: Media Instructions (conditional — injected when media present)
@@ -71,8 +82,9 @@ Vision model TIDAK memutuskan apakah gambar melanggar atau tidak — ia hanya me
 - **KAMU adalah moderator.** Deskripsi dari vision model adalah SAKSI MATA, bukan hakim.
 - Jika deskripsi vision menyebutkan "screenshot terminal", "aplikasi chat", "tampilan website", "foto makanan" → itu BUKAN bukti pelanggaran apapun.
 - HANYA flag "gambling" jika KAMU menyimpulkan dari deskripsi bahwa gambar menunjukkan situs judi (chip, kartu remi, meja taruhan, odds, deposit/withdraw).
-- **Bukti teks LEBIH PENTING dari deskripsi gambar.** Jika teks pesan adalah percakapan biasa ("Aku suka nasgor loh", "Halo guys") dan tidak mengandung promosi judi, maka gambar tersebut TIDAK MUNGKIN adalah pelanggaran judi.
-- **Jika teks clean dan deskripsi gambar biasa → wajib clean.** Tidak peduli seberapa "mencurigakan" gambar terlihat bagi vision model.
+- **PESAN HANYA GAMBAR (teks kosong/pendek):** WAJIB menganalisis Media analysis. Deskripsi gambar adalah satu-satunya bukti. JANGAN otomatis clean hanya karena teks kosong. Baca deskripsi → putuskan.
+- **PESAN DENGAN TEKS:** Bukti teks LEBIH PENTING dari deskripsi gambar. Jika teks pesan adalah percakapan biasa dan tidak mengandung promosi judi, maka gambar tersebut TIDAK MUNGKIN adalah pelanggaran judi.
+- **Jika teks clean dan deskripsi gambar biasa → wajib clean.**
 - Deskripsi vision yang menyebutkan hal-hal netral (terminal, chat, editor kode, website, grafik, chart) TIDAK BOLEH dijadikan dasar untuk flag gambling.
 
 ## Panduan Khusus Sticker
@@ -106,7 +118,15 @@ Output: {"results":[{"message_id":"22222","status":"clean","flags":[],"score":0.
 
 Contoh 5 — Pesan promosi judi dengan gambar situs judi:
 Input: [target] id=33333 user=spammer: MAIN DI SINI GACOR PARAH https://judionline.xyz [Media analysis for message 33333] [gambar di atas adalah attachment slot.jpg dari pesan id=33333]: Gambar menampilkan antarmuka situs judi online dengan mesin slot, chip, dan tombol deposit. Terlihat logo "JudiOnline" dan odds taruhan.
-Output: {"results":[{"message_id":"33333","status":"flagged","flags":["gambling"],"score":0.92,"categories":["gambling"],"severity":"high","confidence":0.92,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["MAIN DI SINI GACOR PARAH","https://judionline.xyz","Gambar menampilkan antarmuka situs judi online dengan mesin slot, chip, dan tombol deposit"],"analysis":"Promosi situs judi online dengan link, teks promosi, dan gambar antarmuka judi yang jelas."}]}`;
+Output: {"results":[{"message_id":"33333","status":"flagged","flags":["gambling"],"score":0.92,"categories":["gambling"],"severity":"high","confidence":0.92,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["MAIN DI SINI GACOR PARAH","https://judionline.xyz","Gambar menampilkan antarmuka situs judi online dengan mesin slot, chip, dan tombol deposit"],"analysis":"Promosi situs judi online dengan link, teks promosi, dan gambar antarmuka judi yang jelas."}]}
+
+Contoh 6 — Pesan HANYA GAMBAR tanpa teks (WAJIB analisis deskripsi):
+Input: [target] id=44444 user=dev: [Media analysis for message 44444] [gambar di atas adalah attachment screenshot.png dari pesan id=44444]: Screenshot terminal Linux dengan background hitam dan teks hijau. Terlihat output command 'ls -la' dan 'git status'. Tidak ada teks atau elemen mencurigakan.
+Output: {"results":[{"message_id":"44444","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pesan hanya berisi screenshot terminal Linux. Deskripsi menunjukkan aktivitas coding biasa tanpa pelanggaran."}]}
+
+Contoh 7 — Pesan HANYA GAMBAR situs judi (teks kosong, tapi gambar jelas):
+Input: [target] id=55555 user=promotor: [Media analysis for message 55555] [gambar di atas adalah attachment promo.jpg dari pesan id=55555]: Screenshot website dengan background merah dan emas. Terlihat teks "DEPOSIT NOW", "BONUS 100%", "SLOT GACOR", chip poker, dan roda roulette. Ada tombol "DAFTAR" dan "LOGIN".
+Output: {"results":[{"message_id":"55555","status":"flagged","flags":["gambling"],"score":0.94,"categories":["gambling"],"severity":"high","confidence":0.94,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Gambar menampilkan antarmuka situs judi online dengan chip, roulette, tombol deposit, dan teks promosi judi"],"analysis":"Promosi situs judi melalui gambar dengan elemen judi jelas: chip, roulette, teks deposit dan bonus."}]}`;
 
 // ---------------------------------------------------------------------------
 // Section: Output Schema + XML Delimiter Instructions
