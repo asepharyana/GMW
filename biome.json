@@ -9,7 +9,8 @@
       "*.json",
       "*.ts",
       "!vendor/**",
-      "!.claude/**"
+      "!.claude/**",
+      "!services/**/dist/**"
     ]
   },
   "formatter": {
