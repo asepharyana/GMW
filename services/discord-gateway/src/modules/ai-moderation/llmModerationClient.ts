@@ -1346,7 +1346,7 @@ async function _runSingleMediaAnalysis(
   // Modular system prompt with XML delimiters (R1, R7, R8)
   const systemText = buildSystemPromptModular({
     contextText,
-    includeMediaInstructions: true,
+    mode: "mixed",
   });
 
   const userContent = `${systemText}\n\n<messages_to_analyze>\n${messageBlock}\n</messages_to_analyze>`;
