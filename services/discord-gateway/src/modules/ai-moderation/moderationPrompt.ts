@@ -122,7 +122,7 @@ Output: {"results":[{"message_id":"33333","status":"flagged","flags":["gambling"
 
 Contoh 6 — Pesan HANYA GAMBAR tanpa teks (WAJIB analisis deskripsi):
 Input: [target] id=44444 user=dev: [Media analysis for message 44444] [gambar di atas adalah attachment screenshot.png dari pesan id=44444]: Screenshot terminal Linux dengan background hitam dan teks hijau. Terlihat output command 'ls -la' dan 'git status'. Tidak ada teks atau elemen mencurigakan.
-Output: {"results":[{"message_id":"44444","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pesan hanya berisi screenshot terminal Linux. Deskripsi menunjukkan aktivitas coding biasa tanpa pelanggaran."}]}
+Output: {"results":[{"message_id":"44444","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"dev mengirim screenshot terminal Linux. Terlihat output command ls -la dan git status dengan teks hijau di background hitam. Aktivitas coding biasa, tidak ada konten melanggar."}]}
 
 Contoh 7 — Pesan HANYA GAMBAR situs judi (teks kosong, tapi gambar jelas):
 Input: [target] id=55555 user=promotor: [Media analysis for message 55555] [gambar di atas adalah attachment promo.jpg dari pesan id=55555]: Screenshot website dengan background merah dan emas. Terlihat teks "DEPOSIT NOW", "BONUS 100%", "SLOT GACOR", chip poker, dan roda roulette. Ada tombol "DAFTAR" dan "LOGIN".
@@ -148,24 +148,37 @@ Struktur wajib:
       "recommended_action": "none" | "monitor" | "warn" | "review" | "delete" | "escalate",
       "policy_version": "default-2026-05-30",
       "evidence": ["<kutipan/evidence singkat>"],
-      "analysis": "<penjelasan singkat dalam Bahasa Indonesia, maks 2 kalimat>"
+      "analysis": "<penjelasan singkat dalam Bahasa Indonesia, maks 2-3 kalimat>"
     }
   ]
 }
 
-Kriteria status:
-- "clean": tidak ada pelanggaran terdeteksi, atau kasus ambigu setelah semua evidence dianalisis
-- "warn": risiko ringan konkret terdeteksi (spam borderline, harassment ringan)
-- "flagged": pelanggaran jelas terdeteksi
+## FORMAT WAJIB — Field "analysis" HARUS deskriptif berdasarkan konten:
 
-Larangan output analysis:
-- Jangan tulis "kurang konteks", "perlu dicek admin", "perlu moderator periksa", "tidak bisa menentukan", atau frasa deferral sejenis.
-- Jika evidence tidak cukup kuat untuk pelanggaran, status harus "clean" dan analysis menjelaskan alasan langsung.
-- Jangan pernah menulis analisis yang meminta admin/moderator memeriksa ulang. Berikan kesimpulan langsung.
+### Jika HANYA TEKS (tidak ada gambar/media):
+Tulis: "[user] membahas tentang <topik>. <konteks percakapan>. <kesimpulan moderasi>."
+Contoh baik: "budi membahas tentang makan siang dengan teman-teman. Percakapan santai menggunakan slang Indonesia. Tidak ada pelanggaran."
+Contoh buruk: "Pesan hanya berisi teks tanpa pelanggaran."
 
-Flag yang valid: spam, hate_speech, sara, hoaks, harassment, vulgar_language, sexual_content, sexual_deviation, violence, self_harm, doxxing, scam, misinformation, nsfw_image, gore_image, illegal_content, gambling, drugs, child_safety, financial_scam, religious_insult, self_promo
+### Jika HANYA GAMBAR (teks kosong/tidak bermakna):
+Tulis: "Gambar berupa <jenis gambar dari Media analysis>. Terlihat <deskripsi isi dari Media analysis>. <kesimpulan moderasi>."
+Contoh baik: "Gambar berupa screenshot terminal Linux. Terlihat output command git dan ls dengan teks hijau di background hitam. Tidak ada konten melanggar."
+Contoh buruk: "Pesan hanya berisi attachment tanpa pelanggaran."
 
-CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan perlakukan ID sebagai angka.`;
+### Jika TEKS + GAMBAR:
+Tulis: "[user] mengirim <jenis gambar dari Media analysis> sambil membahas tentang <topik teks>. <korelasi teks dan gambar>. <kesimpulan moderasi>."
+Contoh baik: "rina mengirim screenshot chat sambil membahas tentang makanan favorit. Gambar dan teks sama-sama tentang percakapan sehari-hari. Tidak ada pelanggaran."
+Contoh buruk: "Pesan berisi teks dan gambar tanpa pelanggaran."
+
+### Jika melanggar:
+Tulis: "[user] <melakukan pelanggaran X>. <bukti dari teks dan/atau gambar>. <dampak/konteks>."
+Contoh baik: "spammer mempromosikan situs judi online dengan link dan gambar antarmuka judi. Gambar menunjukkan chip, roulette, dan tombol deposit. Melanggar kebijakan gambling."
+
+CRITICAL:
+- JANGAN PERNAH menulis "Pesan hanya berisi..." atau "Pesan tidak mengandung..." sebagai analysis.
+- Selalu sebutkan ISI KONTEN secara spesifik — apa yang dibicarakan, apa yang terlihat di gambar.
+- Gunakan informasi dari Media analysis untuk mendeskripsikan gambar.
+- Analisis harus MEMBERI KONTEKS, bukan hanya menyatakan status.`;
 
 // ---------------------------------------------------------------------------
 // Composer: assembles all sections with XML delimiters
