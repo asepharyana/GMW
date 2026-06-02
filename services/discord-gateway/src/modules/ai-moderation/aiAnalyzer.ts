@@ -687,11 +687,7 @@ async function processBatch(
     conversationErrorCooldown.delete(conversationKey);
     shouldScheduleNext = true;
   } catch (error) {
-    consecutiveErrors++;
-    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-      globalCooldownUntil = Date.now() + 60000;
-      logger.warn("Global circuit breaker triggered due to consecutive errors");
-    }
+    recordConversationBatchFailure(conversationKey);
 
     // Unhandled exception — route everything to individual fallback.
     logger.warn(
