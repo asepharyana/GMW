@@ -239,6 +239,11 @@ export interface BuildSystemPromptOptions {
   /** @deprecated Use `mode` instead. */
   includeMediaInstructions?: boolean;
   correction?: { error: string; preview: string };
+  /**
+   * Recent corrected false positives from the DB, formatted as few-shot
+   * examples. Injected between static examples and output instructions.
+   */
+  correctedExamples?: string;
 }
 
 export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
@@ -247,6 +252,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
     mode,
     includeMediaInstructions,
     correction,
+    correctedExamples,
   } = options;
 
   // Backward compatibility: if mode is not set but includeMediaInstructions is,
