@@ -131,17 +131,35 @@ export async function setStickerInCache(
 }
 
 async function evictIfNeeded(newSize: number): Promise<void> {
-  while (statsCache.totalSizeBytes + newSize > MAX_SIZE_BYTES) {
-    const oldest = await executeGet(
-      "SELECT name, size FROM sticker_cache ORDER BY fetched_at ASC LIMIT 1",
-    );
-    if (!oldest) break;
-    await executeAll("DELETE FROM sticker_cache WHERE name = ?", [
-      oldest.name,
-    ]);
-    statsCache.totalSizeBytes -= Number(oldest.size);
-    statsCache.entryCount--;
+  if (statsCache.totalSizeBytes + newSize <= MAX_SIZE_BYTES) return;
+
+  const targetToFree = statsCache.totalSizeBytes + newSize - MAX_SIZE_BYTES;
+
+  // Batch eviction: identify all rows to delete, then DELETE in one query.
+  const rowsToEvict = await executeAll(
+    "SELECT name, size FROM sticker_cache ORDER BY fetched_at ASC",
+  );
+  if (!rowsToEvict || rowsToEvict.length === 0) return;
+
+  const namesToDelete: string[] = [];
+  let freed = 0;
+  for (const row of rowsToEvict as Array<{ name: string; size: number }>) {
+    namesToDelete.push(row.name);
+    freed += Number(row.size);
+    if (freed >= targetToFree) break;
   }
+
+  await executeAll(
+    `DELETE FROM sticker_cache WHERE name = ANY($1)`,
+    [namesToDelete],
+  );
+  statsCache.totalSizeBytes -= freed;
+  statsCache.entryCount -= namesToDelete.length;
+
+  logger.debug(
+    { entriesRemoved: namesToDelete.length, freedBytes: freed },
+    "Batch-evicted sticker cache entries",
+  );
 }
 
 /**
