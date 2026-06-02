@@ -2,21 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../src/config";
 
 const mocks = vi.hoisted(() => ({
-  axiosPost: vi.fn(),
   openaiCreate: vi.fn(),
-}));
-
-vi.mock("axios", () => ({
-  default: {
-    post: mocks.axiosPost,
-    isAxiosError: (error: unknown) =>
-      Boolean(
-        error &&
-          typeof error === "object" &&
-          "isAxiosError" in error &&
-          (error as { isAxiosError?: unknown }).isAxiosError,
-      ),
-  },
 }));
 
 vi.mock("openai", () => ({
@@ -29,20 +15,13 @@ vi.mock("openai", () => ({
   },
 }));
 
-describe("detectIndonesianBadwords remote fallback", () => {
+describe("detectIndonesianBadwords primary AI", () => {
   beforeEach(() => {
-    mocks.axiosPost.mockReset();
     mocks.openaiCreate.mockReset();
-    config.NVIDIA_NEMOTRON_API_KEY = "test-nemotron-key";
     config.AI_LLM_API_KEY = "test-primary-key";
   });
 
-  it("falls back to primary AI after Nemotron rate limits and caches the result", async () => {
-    mocks.axiosPost.mockRejectedValue({
-      isAxiosError: true,
-      response: { status: 429 },
-      message: "Too Many Requests",
-    });
+  it("calls primary AI and caches the result", async () => {
     mocks.openaiCreate.mockResolvedValue({
       choices: [
         {
@@ -62,7 +41,17 @@ describe("detectIndonesianBadwords remote fallback", () => {
 
     expect(first).toEqual(["harassment"]);
     expect(second).toEqual(["harassment"]);
-    expect(mocks.axiosPost).toHaveBeenCalledTimes(1);
     expect(mocks.openaiCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns empty array when primary AI fails", async () => {
+    mocks.openaiCreate.mockRejectedValue(new Error("API down"));
+
+    const { detectIndonesianBadwords } = await import(
+      "../../src/moderation/indonesianTextNormalizer"
+    );
+
+    const result = await detectIndonesianBadwords("some text");
+    expect(result).toEqual([]);
   });
 });

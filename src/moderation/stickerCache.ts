@@ -33,6 +33,7 @@ export async function initStickerCache(): Promise<void> {
     );
     const row = await executeGet(
       "SELECT count(*) as cnt, COALESCE(SUM(size), 0) as total FROM sticker_cache",
+      [],
     );
     if (row) {
       statsCache = {

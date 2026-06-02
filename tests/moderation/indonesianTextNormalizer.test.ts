@@ -7,14 +7,10 @@ import {
   normalizeDiscordCustomEmoji,
 } from "../../src/moderation/indonesianTextNormalizer";
 
-const originalNemotronKey = config.NVIDIA_NEMOTRON_API_KEY;
 const originalPrimaryAiKey = config.AI_LLM_API_KEY;
-const originalGroqKey = config.GROQ_API_KEY;
 
 function disableRemoteModeration(): void {
-  config.NVIDIA_NEMOTRON_API_KEY = undefined;
   config.AI_LLM_API_KEY = undefined;
-  config.GROQ_API_KEY = undefined;
 }
 
 disableRemoteModeration();
@@ -24,9 +20,7 @@ afterEach(() => {
 });
 
 afterAll(() => {
-  config.NVIDIA_NEMOTRON_API_KEY = originalNemotronKey;
   config.AI_LLM_API_KEY = originalPrimaryAiKey;
-  config.GROQ_API_KEY = originalGroqKey;
 });
 
 describe("normalizeDiscordCustomEmoji", () => {
