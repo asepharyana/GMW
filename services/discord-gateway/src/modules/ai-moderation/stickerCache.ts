@@ -7,7 +7,6 @@ const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MAX_SIZE_BYTES = 100 * 1024 * 1024; // 100MB hardcoded
 
 let ready = false;
-// eslint-disable-next-line prefer-const -- reassigned in initStickerCache
 let statsCache = { entryCount: 0, totalSizeBytes: 0 };
 
 export interface StickerCacheEntry {
