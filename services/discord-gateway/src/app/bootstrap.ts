@@ -89,7 +89,7 @@ export async function initializeDiscordGateway() {
     logger.info({ user: client.user?.tag }, "Bot logged in");
     setEventBroadcaster(eventBroadcaster);
     registerMessageCapture(client);
-    startPendingAIAnalysisWorker(client);
+    startPendingAIAnalysisWorker(client, eventBroadcaster);
 
     // Start command handler after Discord is ready
     commandHandler.start(client, voiceController);

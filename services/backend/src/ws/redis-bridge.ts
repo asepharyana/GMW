@@ -27,8 +27,9 @@ const SUBSCRIPTIONS: ChannelMapping[] = [
 ];
 
 let subscriber: Redis | null = null;
+let publisher: Redis | null = null;
 
-function createSubscriber(): Redis {
+function createRedisInstance(): Redis {
   if (config.REDIS_URL) {
     return new Redis(config.REDIS_URL, { keyPrefix: "" });
   }
@@ -37,6 +38,35 @@ function createSubscriber(): Redis {
     port: config.REDIS_PORT,
     keyPrefix: "",
   });
+}
+
+function createSubscriber(): Redis {
+  return createRedisInstance();
+}
+
+function getPublisher(): Redis {
+  if (!publisher) {
+    publisher = createRedisInstance();
+  }
+  return publisher;
+}
+
+/**
+ * Publish a command to the Discord Gateway via Redis.
+ * The DG's commandHandler listens on "backend:command" channel.
+ */
+export async function publishCommand(
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const pub = getPublisher();
+  const envelope = {
+    type: "command",
+    data: payload,
+    timestamp: Date.now(),
+    source: "backend",
+  };
+  await pub.publish("backend:command", JSON.stringify(envelope));
+  logger.debug({ payload }, "Published command to DG");
 }
 
 function handleSubscriptionMessage(channel: string, message: string): void {

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
-import { getDatabase } from "../../shared/database/index.js";
 import { config } from "../../shared/config/index.js";
+import { getDatabase } from "../../shared/database/index.js";
 import { createChildLogger } from "../../shared/logger/index.js";
 
 const logger = createChildLogger("analysis.service");
@@ -10,6 +10,17 @@ export interface AnalysisSearchQuery {
   channelId?: string;
   limit?: number;
 }
+
+/** Full message columns for search results — matches MessageRecord from client.ts */
+const FULL_COLUMNS = sql.raw(`
+  id, guild_id, channel_id, thread_id,
+  user_id, username, avatar_url,
+  content, edited_content, created_at, edited_at, deleted_at,
+  type, metadata,
+  ai_status, ai_moderation_flags, ai_moderation_score,
+  ai_analysis, ai_categories, ai_severity, ai_confidence,
+  ai_recommended_action, ai_analyzed_at, ai_error
+`);
 
 export class AnalysisService {
   async search(query: AnalysisSearchQuery) {
@@ -25,8 +36,7 @@ export class AnalysisService {
     let sqlQuery;
     if (channelId && guildId) {
       sqlQuery = sql`
-        SELECT id, guild_id, channel_id, user_id, username, avatar_url,
-               content, type, created_at, ai_status, ai_severity, ai_confidence
+        SELECT ${FULL_COLUMNS}
         FROM messages
         WHERE guild_id = ${guildId}
           AND channel_id = ${channelId}
@@ -36,8 +46,7 @@ export class AnalysisService {
       `;
     } else if (channelId) {
       sqlQuery = sql`
-        SELECT id, guild_id, channel_id, user_id, username, avatar_url,
-               content, type, created_at, ai_status, ai_severity, ai_confidence
+        SELECT ${FULL_COLUMNS}
         FROM messages
         WHERE channel_id = ${channelId}
           AND content ILIKE ${searchPattern}
@@ -46,8 +55,7 @@ export class AnalysisService {
       `;
     } else if (guildId) {
       sqlQuery = sql`
-        SELECT id, guild_id, channel_id, user_id, username, avatar_url,
-               content, type, created_at, ai_status, ai_severity, ai_confidence
+        SELECT ${FULL_COLUMNS}
         FROM messages
         WHERE guild_id = ${guildId}
           AND content ILIKE ${searchPattern}
@@ -56,8 +64,7 @@ export class AnalysisService {
       `;
     } else {
       sqlQuery = sql`
-        SELECT id, guild_id, channel_id, user_id, username, avatar_url,
-               content, type, created_at, ai_status, ai_severity, ai_confidence
+        SELECT ${FULL_COLUMNS}
         FROM messages
         WHERE content ILIKE ${searchPattern}
         ORDER BY created_at DESC

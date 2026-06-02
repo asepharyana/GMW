@@ -2,6 +2,8 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Image as ImageIcon,
   Pencil,
   RotateCw,
@@ -10,6 +12,7 @@ import {
 } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import type { MessageRecord } from "../../../shared/api/client";
+import { moderateMessage } from "../../../shared/api/client";
 import { Badge, Button, Skeleton } from "../../../shared/ui";
 
 const CUSTOM_EMOJI_REGEX = /<(a)?:([a-zA-Z0-9_]+):(\d+)>/g;
@@ -65,6 +68,7 @@ function renderContentWithCustomEmojis(content: string): React.ReactNode {
 interface MessageCardProps {
   message: MessageRecord;
   onReanalyze: (id: string) => Promise<void>;
+  compact?: boolean;
 }
 
 interface MessageMetadata {
@@ -127,7 +131,11 @@ function formatTimeAgo(ts: number): string {
   return new Date(ts).toLocaleDateString();
 }
 
-export function MessageCard({ message, onReanalyze }: MessageCardProps) {
+export function MessageCard({
+  message,
+  onReanalyze,
+  compact,
+}: MessageCardProps) {
   const metadata = useMemo(
     () => parseMetadata(message.metadata),
     [message.metadata],
@@ -143,6 +151,26 @@ export function MessageCard({ message, onReanalyze }: MessageCardProps) {
   const confidence =
     message.ai_confidence ?? message.ai_moderation_score ?? null;
   const [isReanalyzing, setIsReanalyzing] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(
+    aiStatus === "warn" || aiStatus === "flagged",
+  );
+
+  // Build a human-readable analysis summary from categories + confidence + severity
+  const analysisSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (categories.length > 0) {
+      parts.push(categories.slice(0, 3).join(", "));
+      if (categories.length > 3) parts.push(`+${categories.length - 3} more`);
+    }
+    if (message.ai_severity && message.ai_severity !== "none") {
+      parts.push(message.ai_severity);
+    }
+    if (confidence != null) {
+      parts.push(`${Math.round(confidence * 100)}% confidence`);
+    }
+    if (parts.length === 0) return "View AI analysis";
+    return parts.join(" · ");
+  }, [categories, message.ai_severity, confidence]);
 
   const stickers = metadata.stickers ?? [];
   const attachments = metadata.attachments ?? [];
@@ -164,71 +192,77 @@ export function MessageCard({ message, onReanalyze }: MessageCardProps) {
 
   return (
     <article
-      className={`group rounded-2xl border border-border bg-card p-4 shadow-sm transition-all hover:border-primary/30 hover:shadow-md ${message.deleted_at ? "opacity-60" : ""}`}
+      className={`group rounded-2xl border border-border bg-card ${compact ? "px-4 py-1.5" : "p-4"} shadow-sm transition-all hover:border-primary/30 hover:shadow-md ${message.deleted_at ? "opacity-60" : ""}`}
     >
-      <div className="flex gap-3">
-        <img
-          src={
-            message.avatar_url ??
-            "https://cdn.discordapp.com/embed/avatars/0.png"
-          }
-          alt=""
-          className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-border"
-        />
-        <div className="min-w-0 flex-1 space-y-2.5">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-semibold text-foreground">
-              {message.username || message.user_id}
-            </span>
-            <span
-              className="text-xs text-muted-foreground"
-              title={new Date(message.created_at).toLocaleString()}
-            >
-              {formatTimeAgo(message.created_at)}
-            </span>
-            {message.edited_at && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Pencil className="h-3 w-3" /> edited
+      <div className={`flex ${compact ? "gap-2" : "gap-3"}`}>
+        {!compact && (
+          <img
+            src={
+              message.avatar_url ??
+              "https://cdn.discordapp.com/embed/avatars/0.png"
+            }
+            alt=""
+            className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-border"
+          />
+        )}
+        <div
+          className={`min-w-0 flex-1 ${compact ? "space-y-1" : "space-y-2.5"}`}
+        >
+          {!compact && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="font-semibold text-foreground">
+                {message.username || message.user_id}
               </span>
-            )}
-            {message.deleted_at && (
-              <span className="flex items-center gap-1 text-xs text-destructive">
-                <Trash2 className="h-3 w-3" /> deleted
-              </span>
-            )}
-            <div className="ml-auto flex items-center gap-1.5">
-              <Badge
-                variant={aiVariant(aiStatus)}
-                className="flex items-center gap-1 text-xs"
+              <span
+                className="text-xs text-muted-foreground"
+                title={new Date(message.created_at).toLocaleString()}
               >
-                {aiStatus === "clean" && (
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                )}
-                {aiStatus === "warn" && (
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                )}
-                {aiStatus === "flagged" && (
-                  <AlertCircle className="h-3.5 w-3.5" />
-                )}
-                {aiStatus === "error" && (
-                  <AlertCircle className="h-3.5 w-3.5" />
-                )}
-                {aiStatus}
-              </Badge>
-              {message.ai_severity && message.ai_severity !== "none" && (
+                {formatTimeAgo(message.created_at)}
+              </span>
+              {message.edited_at && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Pencil className="h-3 w-3" /> edited
+                </span>
+              )}
+              {message.deleted_at && (
+                <span className="flex items-center gap-1 text-xs text-destructive">
+                  <Trash2 className="h-3 w-3" /> deleted
+                </span>
+              )}
+              <div className="ml-auto flex items-center gap-1.5">
                 <Badge
-                  className={`text-xs ${severityColor(message.ai_severity)}`}
+                  variant={aiVariant(aiStatus)}
+                  className="flex items-center gap-1 text-xs"
                 >
-                  {message.ai_severity}
+                  {aiStatus === "clean" && (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  )}
+                  {aiStatus === "warn" && (
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                  )}
+                  {aiStatus === "flagged" && (
+                    <AlertCircle className="h-3.5 w-3.5" />
+                  )}
+                  {aiStatus === "error" && (
+                    <AlertCircle className="h-3.5 w-3.5" />
+                  )}
+                  {aiStatus}
                 </Badge>
-              )}
-              {confidence != null && (
-                <Badge variant="outline" className="text-xs tabular-nums">
-                  {Math.round(confidence * 100)}%
-                </Badge>
-              )}
+                {message.ai_severity && message.ai_severity !== "none" && (
+                  <Badge
+                    className={`text-xs ${severityColor(message.ai_severity)}`}
+                  >
+                    {message.ai_severity}
+                  </Badge>
+                )}
+                {confidence != null && (
+                  <Badge variant="outline" className="text-xs tabular-nums">
+                    {Math.round(confidence * 100)}%
+                  </Badge>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {displayContent ? (
             <p className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/90">
@@ -304,8 +338,39 @@ export function MessageCard({ message, onReanalyze }: MessageCardProps) {
           )}
 
           {message.ai_analysis ? (
-            <div className="rounded-xl bg-muted/60 p-3 text-sm text-muted-foreground leading-relaxed">
-              {message.ai_analysis}
+            <div
+              className={`rounded-xl border-l-2 p-3 ${
+                aiStatus === "flagged"
+                  ? "border-l-red-500 bg-red-500/5"
+                  : aiStatus === "warn"
+                    ? "border-l-yellow-500 bg-yellow-500/5"
+                    : "border-l-blue-500 bg-blue-500/5"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => setShowAnalysis(!showAnalysis)}
+                className="flex w-full items-center justify-between gap-2 text-left text-xs"
+              >
+                <span className="font-medium text-foreground/80">
+                  {aiStatus === "flagged"
+                    ? "🚨"
+                    : aiStatus === "warn"
+                      ? "⚠️"
+                      : "ℹ️"}{" "}
+                  {analysisSummary}
+                </span>
+                {showAnalysis ? (
+                  <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
+              </button>
+              {showAnalysis && (
+                <div className="mt-2 border-t border-border pt-2 text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                  {message.ai_analysis}
+                </div>
+              )}
             </div>
           ) : null}
 
@@ -332,6 +397,52 @@ export function MessageCard({ message, onReanalyze }: MessageCardProps) {
               <span className="text-xs text-destructive/80">
                 Click to retry analysis
               </span>
+            )}
+
+            {/* Moderation action buttons for flagged/warned messages */}
+            {(aiStatus === "flagged" || aiStatus === "warn") && (
+              <div className="flex items-center gap-1.5 border-l border-border pl-2">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="text-xs"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Delete message from ${message.username}?\n\n"${(message.edited_content ?? message.content).slice(0, 120)}"`,
+                      )
+                    ) {
+                      moderateMessage(
+                        message.id,
+                        "delete_message",
+                        "Manual moderation from dashboard",
+                      );
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3 w-3 mr-1" /> Delete
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Warn user ${message.username} for this message?`,
+                      )
+                    ) {
+                      moderateMessage(
+                        message.id,
+                        "warn_user",
+                        "Manual moderation from dashboard",
+                      );
+                    }
+                  }}
+                >
+                  <AlertTriangle className="h-3 w-3 mr-1" /> Warn
+                </Button>
+              </div>
             )}
           </div>
         </div>

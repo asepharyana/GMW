@@ -91,5 +91,72 @@ export function createMessagesRouter(): Router {
     }),
   );
 
+  // POST /api/messages/:id/moderate — Trigger moderation action via DG
+  router.post(
+    "/messages/:id/moderate",
+    asyncHandler(async (req: Request, res: Response) => {
+      const id = req.params.id;
+      if (!id) {
+        res.status(400).json({ error: "MISSING_ID" });
+        return;
+      }
+
+      const { actionType, reason } = (req.body ?? {}) as {
+        actionType?: string;
+        reason?: string;
+      };
+
+      const allowedActions = [
+        "delete_message",
+        "warn_user",
+        "kick_user",
+        "ban_user",
+        "mute_user",
+      ];
+
+      if (!actionType || !allowedActions.includes(actionType)) {
+        res.status(400).json({
+          error: "INVALID_ACTION",
+          message: `actionType must be one of: ${allowedActions.join(", ")}`,
+        });
+        return;
+      }
+
+      // Fetch the message to get guild/user context
+      const pool = getPool();
+      const { rows } = await pool.query(
+        `SELECT id, guild_id, channel_id, thread_id, user_id, content
+         FROM messages WHERE id = $1`,
+        [id],
+      );
+
+      if (rows.length === 0) {
+        res.status(404).json({ error: "MESSAGE_NOT_FOUND" });
+        return;
+      }
+
+      const msg = rows[0] as Record<string, unknown>;
+
+      // Publish command to DG via Redis
+      const { publishCommand } = await import("../../ws/redis-bridge.js");
+      await publishCommand({
+        id: crypto.randomUUID(),
+        type: "moderation:action",
+        payload: {
+          messageId: id,
+          guildId: String(msg.guild_id ?? ""),
+          channelId: (msg.thread_id as string) || String(msg.channel_id ?? ""),
+          userId: String(msg.user_id ?? ""),
+          actionType,
+          reason: reason ?? "Manual moderation from dashboard",
+          requestedAt: Date.now(),
+        },
+      });
+
+      logger.info({ id, actionType, reason }, "Moderation action dispatched");
+      res.json({ ok: true, actionType, messageId: id });
+    }),
+  );
+
   return router;
 }
