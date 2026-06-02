@@ -36,10 +36,10 @@ export function VoiceConnectionCard({
   onStreamingToggle,
 }: VoiceConnectionCardProps) {
   return (
-    <div className="rounded-2xl border border-border bg-card shadow-sm">
+    <div className="rounded-2xl border border-sky-200 bg-white shadow-md">
       <div className="p-6">
         <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          <Radio className="h-5 w-5" /> Voice Bridge
+          <Radio className="h-5 w-5 text-[#7EC8E3]" /> Voice Bridge
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Join a Discord voice channel, listen, and transmit audio.
@@ -47,7 +47,7 @@ export function VoiceConnectionCard({
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Guild</label>
+            <label className="text-sm font-medium text-foreground">Guild</label>
             <Select
               value={selectedGuild}
               onChange={(e) => onGuildChange(e.target.value)}
@@ -56,7 +56,7 @@ export function VoiceConnectionCard({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Voice Channel</label>
+            <label className="text-sm font-medium text-foreground">Voice Channel</label>
             <Select
               value={selectedChannel}
               onChange={(e) => onChannelChange(e.target.value)}
@@ -73,6 +73,7 @@ export function VoiceConnectionCard({
           <Button
             disabled={!selectedGuild || !selectedChannel || voiceLoading}
             onClick={onJoin}
+            className="bg-[#7EC8E3] text-white hover:bg-[#7EC8E3]/80"
           >
             {status.connected ? "Reconnect" : "Join Voice"}
           </Button>
@@ -91,7 +92,7 @@ export function VoiceConnectionCard({
             {isListening ? "Stop Listening" : "Listen"}
           </Button>
           <Button
-            variant={isStreaming ? "destructive" : "default"}
+            variant={isStreaming ? "secondary" : "outline"}
             onClick={onStreamingToggle}
           >
             <Radio className="mr-1.5 h-4 w-4" />{" "}

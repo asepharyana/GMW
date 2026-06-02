@@ -1,5 +1,6 @@
 import type { ActiveSpeaker } from "../../../shared/api/client";
 import { Skeleton } from "../../../shared/ui";
+import { EmptyStateMascot } from "../../../widgets/mascot/ChibiMascot";
 
 interface ActiveSpeakersProps {
   speakers: ActiveSpeaker[];
@@ -8,9 +9,7 @@ interface ActiveSpeakersProps {
 export function ActiveSpeakers({ speakers }: ActiveSpeakersProps) {
   if (speakers.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-        No active speakers.
-      </div>
+      <EmptyStateMascot variant="sleeping" message="No active speakers~" />
     );
   }
 
@@ -22,16 +21,18 @@ export function ActiveSpeakers({ speakers }: ActiveSpeakersProps) {
         return (
           <div
             key={key}
-            className="flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3"
+            className="flex items-center gap-3 rounded-xl border border-sky-200 bg-white p-3"
           >
             <img
               src={s.avatar}
               alt=""
-              className="h-8 w-8 rounded-full object-cover"
+              className="h-8 w-8 rounded-full object-cover ring-2 ring-[#7EC8E3]/40"
             />
             <div className="min-w-0">
               <div className="truncate text-sm font-medium">{s.username}</div>
-              <div className="text-xs text-emerald-300">Speaking</div>
+              <div className="text-xs font-medium text-emerald-700">
+                Speaking
+              </div>
             </div>
           </div>
         );

@@ -2,7 +2,13 @@ import { cn } from "../../shared/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type MascotVariant = "idle" | "waving" | "sleeping" | "thinking" | "peeking" | "crying";
+type MascotVariant =
+  | "idle"
+  | "waving"
+  | "sleeping"
+  | "thinking"
+  | "peeking"
+  | "crying";
 
 interface ChibiMascotProps {
   variant?: MascotVariant;
@@ -17,49 +23,64 @@ const sizes = { sm: 48, md: 80, lg: 120 } as const;
 // ─── Keyframes ───────────────────────────────────────────────────────────────
 
 const keyframes = `
-@keyframes chibi-bob {
+@keyframes cb-bob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
-@keyframes chibi-wave {
+@keyframes cb-wave {
   0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(15deg); }
-  75% { transform: rotate(-10deg); }
+  25% { transform: rotate(18deg); }
+  75% { transform: rotate(-8deg); }
 }
-@keyframes chibi-sleep {
+@keyframes cb-sleep {
   0%, 100% { transform: scaleY(1); }
-  50% { transform: scaleY(0.92); }
+  50% { transform: scaleY(0.94); }
 }
-@keyframes chibi-think {
+@keyframes cb-think {
   0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-4px) rotate(5deg); }
+  50% { transform: translateY(-3px) rotate(4deg); }
 }
-@keyframes chibi-cry {
+@keyframes cb-cry {
   0%, 100% { transform: translateY(0) scale(1); }
-  25% { transform: translateY(-2px) scale(1.02); }
-  75% { transform: translateY(1px) scale(0.98); }
+  25% { transform: translateY(-2px) scale(1.03); }
+  75% { transform: translateY(2px) scale(0.97); }
 }
-@keyframes chibi-peek {
+@keyframes cb-peek {
   0%, 100% { transform: translateX(0) rotate(0deg); }
-  50% { transform: translateX(-3px) rotate(-3deg); }
+  50% { transform: translateX(-4px) rotate(-4deg); }
 }
-@keyframes chibi-teardrop {
+@keyframes cb-teardrop {
   0% { opacity: 1; transform: translateY(0) scaleX(1); }
-  100% { opacity: 0; transform: translateY(12px) scaleX(0.5); }
+  100% { opacity: 0; transform: translateY(14px) scaleX(0.4); }
 }
-@keyframes chibi-blink {
-  0%, 90%, 100% { transform: scaleY(1); }
-  95% { transform: scaleY(0.1); }
+@keyframes cb-blink {
+  0%, 85%, 100% { transform: scaleY(1); }
+  90% { transform: scaleY(0.08); }
 }
-@keyframes chibi-zzz {
+@keyframes cb-zzz {
   0% { opacity: 0; transform: translateX(0) translateY(0); }
-  50% { opacity: 1; transform: translateX(6px) translateY(-6px); }
-  100% { opacity: 0; transform: translateX(12px) translateY(-12px); }
+  40% { opacity: 1; transform: translateX(5px) translateY(-5px); }
+  100% { opacity: 0; transform: translateX(14px) translateY(-14px); }
 }
-@keyframes chibi-dots {
-  0% { opacity: 0; }
-  50% { opacity: 1; }
-  100% { opacity: 0; }
+@keyframes cb-dots {
+  0% { opacity: 0; transform: scale(0.6); }
+  50% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.6); }
+}
+@keyframes cb-tear-wobble {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+@keyframes cb-ear-twitch {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(12deg); }
+  40% { transform: rotate(-6deg); }
+  60% { transform: rotate(8deg); }
+}
+@keyframes cb-arm-chin {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(6deg); }
 }
 `;
 
@@ -67,29 +88,26 @@ const keyframes = `
 
 function getAnimation(variant: MascotVariant): React.CSSProperties {
   const map: Record<MascotVariant, string> = {
-    idle: "chibi-bob 2.5s ease-in-out infinite",
-    waving: "chibi-bob 2.5s ease-in-out infinite",
-    sleeping: "chibi-sleep 3s ease-in-out infinite",
-    thinking: "chibi-think 2s ease-in-out infinite",
-    peeking: "chibi-peek 2s ease-in-out infinite",
-    crying: "chibi-cry 1.5s ease-in-out infinite",
+    idle: "cb-bob 2.5s ease-in-out infinite",
+    waving: "cb-bob 2.5s ease-in-out infinite",
+    sleeping: "cb-sleep 3.5s ease-in-out infinite",
+    thinking: "cb-think 2.2s ease-in-out infinite",
+    peeking: "cb-peek 2.4s ease-in-out infinite",
+    crying: "cb-cry 1.4s ease-in-out infinite",
   };
   return { animation: map[variant] };
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function ChibiMascot({ variant = "idle", size = "md", className }: ChibiMascotProps) {
+export function ChibiMascot({
+  variant = "idle",
+  size = "md",
+  className,
+}: ChibiMascotProps) {
   const px = sizes[size];
-  const scale = px / 80; // base design is 80px
-
-  // Parts of the chibi
-  const headSize = 50 * scale;
-  const earSize = 18 * scale;
-  const eyeSize = 8 * scale;
-  const blushSize = 10 * scale;
-  const bodyHeight = 30 * scale;
-  const bodyWidth = 40 * scale;
+  // Base design dimension is 80px, we scale everything from 0-100 percentage canvas
+  const ch = (pct: number) => (pct / 100) * px;
 
   // Colors
   const skin = "#FFE4D6";
@@ -100,508 +118,17 @@ export function ChibiMascot({ variant = "idle", size = "md", className }: ChibiM
   const eyeShine = "#FFFFFF";
   const blush = "#FFB7C5";
   const outfit = "#7EC8E3";
+  const outfitDark = "#6BB5D0";
   const outline = "#E8C4C9";
-
-  const parts: React.ReactNode[] = [];
-
-  // ─── Body ───
-  const Body = (
-    <div
-      key="body"
-      style={{
-        position: "absolute",
-        bottom: 0,
-        left: "50%",
-        marginLeft: -(bodyWidth / 2),
-        width: bodyWidth,
-        height: bodyHeight,
-        background: `linear-gradient(180deg, ${outfit} 0%, #6BB5D0 100%)`,
-        borderRadius: `${bodyWidth * 0.4}px ${bodyWidth * 0.4}px ${bodyWidth * 0.2}px ${bodyWidth * 0.2}px`,
-        border: `2px solid ${outline}`,
-        zIndex: 1,
-      }}
-    />
-  );
-  parts.push(Body);
-
-  // ─── Arms (waving variant) ───
-  if (variant === "waving") {
-    const Arm = (
-      <div
-        key="arm-right"
-        style={{
-          position: "absolute",
-          bottom: bodyHeight * 0.4,
-          right: "50%",
-          marginRight: -(bodyWidth / 2) - 8 * scale,
-          width: 8 * scale,
-          height: 20 * scale,
-          background: skin,
-          borderRadius: 4 * scale,
-          border: `1.5px solid ${outline}`,
-          transformOrigin: "bottom center",
-          animation: "chibi-wave 0.6s ease-in-out infinite",
-          zIndex: 2,
-        }}
-      />
-    );
-    parts.push(Arm);
-  }
-
-  // ─── Head ───
-  const Head = (
-    <div
-      key="head"
-      style={{
-        position: "absolute",
-        top: 0,
-        left: "50%",
-        marginLeft: -(headSize / 2),
-        width: headSize,
-        height: headSize,
-        background: skin,
-        borderRadius: "50%",
-        border: `2.5px solid ${outline}`,
-        zIndex: 3,
-        overflow: "visible",
-      }}
-    />
-  );
-  parts.push(Head);
-
-  // ─── Cat ears ───
-  const earStyle: React.CSSProperties = {
-    position: "absolute",
-    top: -earSize * 0.4,
-    width: 0,
-    height: 0,
-    borderLeft: `${earSize * 0.6}px solid transparent`,
-    borderRight: `${earSize * 0.6}px solid transparent`,
-    borderBottom: `${earSize}px solid ${hair}`,
-    zIndex: 4,
-    filter: `drop-shadow(0 1px 0 ${outline})`,
-  };
-
-  parts.push(
-    <div
-      key="ear-left"
-      style={{
-        ...earStyle,
-        left: "50%",
-        marginLeft: -(headSize * 0.4) - earSize * 0.3,
-      }}
-    />,
-  );
-  parts.push(
-    <div
-      key="ear-right"
-      style={{
-        ...earStyle,
-        right: "50%",
-        marginRight: -(headSize * 0.4) - earSize * 0.3,
-      }}
-    />,
-  );
-
-  // Inner ear (pink)
-  const innerEarStyle: React.CSSProperties = {
-    position: "absolute",
-    top: -earSize * 0.2,
-    width: 0,
-    height: 0,
-    borderLeft: `${earSize * 0.35}px solid transparent`,
-    borderRight: `${earSize * 0.35}px solid transparent`,
-    borderBottom: `${earSize * 0.6}px solid ${blush}`,
-    zIndex: 5,
-  };
-
-  parts.push(
-    <div
-      key="ear-inner-left"
-      style={{
-        ...innerEarStyle,
-        left: "50%",
-        marginLeft: -(headSize * 0.4) - earSize * 0.15,
-      }}
-    />,
-  );
-  parts.push(
-    <div
-      key="ear-inner-right"
-      style={{
-        ...innerEarStyle,
-        right: "50%",
-        marginRight: -(headSize * 0.4) - earSize * 0.15,
-      }}
-    />,
-  );
-
-  // ─── Hair bang ───
-  parts.push(
-    <div
-      key="hair-bang"
-      style={{
-        position: "absolute",
-        top: -2 * scale,
-        left: "50%",
-        marginLeft: -(headSize * 0.35),
-        width: headSize * 0.7,
-        height: headSize * 0.35,
-        background: hair,
-        borderRadius: `${headSize * 0.35}px ${headSize * 0.35}px 0 0`,
-        border: `1.5px solid ${hairDark}`,
-        zIndex: 6,
-      }}
-    />,
-  );
-
-  // ─── Eyes ───
-  if (variant === "sleeping") {
-    // Closed eyes (lines)
-    parts.push(
-      <div
-        key="eye-left"
-        style={{
-          position: "absolute",
-          top: headSize * 0.4,
-          left: "50%",
-          marginLeft: -(eyeSize * 1.2) - eyeSize,
-          width: eyeSize * 1.5,
-          height: 2.5 * scale,
-          background: "#555",
-          borderRadius: 2 * scale,
-          zIndex: 7,
-          animation: "chibi-sleep 3s ease-in-out infinite",
-        }}
-      />,
-    );
-    parts.push(
-      <div
-        key="eye-right"
-        style={{
-          position: "absolute",
-          top: headSize * 0.4,
-          left: "50%",
-          marginLeft: eyeSize * 0.8,
-          width: eyeSize * 1.5,
-          height: 2.5 * scale,
-          background: "#555",
-          borderRadius: 2 * scale,
-          zIndex: 7,
-          animation: "chibi-sleep 3s ease-in-out infinite",
-        }}
-      />,
-    );
-  } else if (variant === "crying") {
-    // Squeezed eyes
-    parts.push(
-      <div
-        key="eye-left"
-        style={{
-          position: "absolute",
-          top: headSize * 0.42,
-          left: "50%",
-          marginLeft: -(eyeSize * 1.2) - eyeSize,
-          width: eyeSize * 1.5,
-          height: eyeSize * 0.6,
-          background: "#555",
-          borderRadius: "50%",
-          zIndex: 7,
-          animation: "chibi-blink 3s 2s infinite",
-        }}
-      />,
-    );
-    parts.push(
-      <div
-        key="eye-right"
-        style={{
-          position: "absolute",
-          top: headSize * 0.42,
-          left: "50%",
-          marginLeft: eyeSize * 0.8,
-          width: eyeSize * 1.5,
-          height: eyeSize * 0.6,
-          background: "#555",
-          borderRadius: "50%",
-          zIndex: 7,
-          animation: "chibi-blink 3s 2s infinite",
-        }}
-      />,
-    );
-
-    // Teardrops
-    parts.push(
-      <div
-        key="tear-left"
-        style={{
-          position: "absolute",
-          top: headSize * 0.55,
-          left: "50%",
-          marginLeft: -(eyeSize * 1.5),
-          width: 3 * scale,
-          height: 6 * scale,
-          background: "#89CFF0",
-          borderRadius: "50%",
-          animation: "chibi-teardrop 1.5s ease-in infinite",
-          zIndex: 8,
-        }}
-      />,
-    );
-    parts.push(
-      <div
-        key="tear-right"
-        style={{
-          position: "absolute",
-          top: headSize * 0.58,
-          left: "50%",
-          marginLeft: eyeSize * 1.5,
-          width: 3 * scale,
-          height: 6 * scale,
-          background: "#89CFF0",
-          borderRadius: "50%",
-          animation: "chibi-teardrop 1.5s 0.5s ease-in infinite",
-          zIndex: 8,
-        }}
-      />,
-    );
-  } else {
-    // Normal big eyes
-    const eyeStyle: React.CSSProperties = {
-      position: "absolute",
-      top: headSize * 0.38,
-      width: eyeSize,
-      height: eyeSize * 1.1,
-      background: eyeColor,
-      borderRadius: "50%",
-      border: `1.5px solid #555`,
-      zIndex: 7,
-      animation: "chibi-blink 4s 1s infinite",
-    };
-
-    parts.push(
-      <div
-        key="eye-left"
-        style={{
-          ...eyeStyle,
-          left: "50%",
-          marginLeft: -(eyeSize * 1.2) - eyeSize * 0.5,
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: 1.5 * scale,
-            left: 1.5 * scale,
-            width: eyeSize * 0.35,
-            height: eyeSize * 0.35,
-            background: eyeShine,
-            borderRadius: "50%",
-          }}
-        />
-      </div>,
-    );
-    parts.push(
-      <div
-        key="eye-right"
-        style={{
-          ...eyeStyle,
-          left: "50%",
-          marginLeft: eyeSize * 0.3,
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: 1.5 * scale,
-            left: 1.5 * scale,
-            width: eyeSize * 0.35,
-            height: eyeSize * 0.35,
-            background: eyeShine,
-            borderRadius: "50%",
-          }}
-        />
-      </div>,
-    );
-  }
-
-  // ─── Blush ───
-  const blushStyle: React.CSSProperties = {
-    position: "absolute",
-    top: headSize * 0.52,
-    width: blushSize,
-    height: blushSize * 0.6,
-    background: blush,
-    borderRadius: "50%",
-    opacity: 0.5,
-    zIndex: 7,
-  };
-
-  parts.push(
-    <div key="blush-left" style={{ ...blushStyle, left: "50%", marginLeft: -(headSize * 0.4) }} />,
-  );
-  parts.push(
-    <div
-      key="blush-right"
-      style={{ ...blushStyle, right: "50%", marginRight: -(headSize * 0.4) }}
-    />,
-  );
-
-  // ─── Mouth ───
-  if (variant === "crying") {
-    parts.push(
-      <div
-        key="mouth"
-        style={{
-          position: "absolute",
-          top: headSize * 0.6,
-          left: "50%",
-          marginLeft: -(5 * scale),
-          width: 10 * scale,
-          height: 2 * scale,
-          borderBottom: `2px solid ${outline}`,
-          borderRadius: "50%",
-          zIndex: 8,
-        }}
-      />,
-    );
-  } else {
-    parts.push(
-      <div
-        key="mouth"
-        style={{
-          position: "absolute",
-          top: headSize * 0.6,
-          left: "50%",
-          marginLeft: -(3 * scale),
-          width: 6 * scale,
-          height: 3 * scale,
-          borderBottom: `2px solid ${outline}`,
-          borderLeft: `1px solid transparent`,
-          borderRight: `1px solid transparent`,
-          borderRadius: "0 0 50% 50%",
-          zIndex: 8,
-        }}
-      />,
-    );
-  }
-
-  // ─── Variant extras ───
-
-  // Thinking dots
-  if (variant === "thinking") {
-    parts.push(
-      <div
-        key="think-dot1"
-        style={{
-          position: "absolute",
-          top: -12 * scale,
-          right: -10 * scale,
-          width: 4 * scale,
-          height: 4 * scale,
-          background: "#999",
-          borderRadius: "50%",
-          animation: "chibi-dots 1.5s ease-in-out infinite",
-          zIndex: 10,
-        }}
-      />,
-    );
-    parts.push(
-      <div
-        key="think-dot2"
-        style={{
-          position: "absolute",
-          top: -18 * scale,
-          right: -14 * scale,
-          width: 5 * scale,
-          height: 5 * scale,
-          background: "#999",
-          borderRadius: "50%",
-          animation: "chibi-dots 1.5s 0.3s ease-in-out infinite",
-          zIndex: 10,
-        }}
-      />,
-    );
-    parts.push(
-      <div
-        key="think-dot3"
-        style={{
-          position: "absolute",
-          top: -25 * scale,
-          right: -12 * scale,
-          width: 6 * scale,
-          height: 6 * scale,
-          background: "#999",
-          borderRadius: "50%",
-          animation: "chibi-dots 1.5s 0.6s ease-in-out infinite",
-          zIndex: 10,
-        }}
-      />,
-    );
-  }
-
-  // Sleeping zzz
-  if (variant === "sleeping") {
-    parts.push(
-      <div
-        key="zzz1"
-        style={{
-          position: "absolute",
-          top: -14 * scale,
-          right: -8 * scale,
-          fontSize: 9 * scale,
-          fontWeight: 700,
-          color: "#7EC8E3",
-          animation: "chibi-zzz 2.5s ease-in-out infinite",
-          zIndex: 10,
-          fontFamily: "sans-serif",
-        }}
-      >
-        z
-      </div>,
-    );
-    parts.push(
-      <div
-        key="zzz2"
-        style={{
-          position: "absolute",
-          top: -22 * scale,
-          right: -2 * scale,
-          fontSize: 11 * scale,
-          fontWeight: 700,
-          color: "#7EC8E3",
-          animation: "chibi-zzz 2.5s 0.5s ease-in-out infinite",
-          zIndex: 10,
-          fontFamily: "sans-serif",
-        }}
-      >
-        z
-      </div>,
-    );
-    parts.push(
-      <div
-        key="zzz3"
-        style={{
-          position: "absolute",
-          top: -32 * scale,
-          right: 6 * scale,
-          fontSize: 13 * scale,
-          fontWeight: 700,
-          color: "#7EC8E3",
-          animation: "chibi-zzz 2.5s 1s ease-in-out infinite",
-          zIndex: 10,
-          fontFamily: "sans-serif",
-        }}
-      >
-        Z
-      </div>,
-    );
-  }
 
   return (
     <>
       <style>{keyframes}</style>
       <div
-        className={cn("relative inline-flex items-center justify-center", className)}
+        className={cn(
+          "relative inline-flex items-center justify-center overflow-visible",
+          className,
+        )}
         style={{
           width: px,
           height: px,
@@ -610,7 +137,722 @@ export function ChibiMascot({ variant = "idle", size = "md", className }: ChibiM
         aria-label={`Chibi mascot (${variant})`}
         role="img"
       >
-        {parts}
+        {/* Inner container — everything is positioned relative to this */}
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+          }}
+        >
+          {/* ─── PEEKING variant: a surface to peek over ─── */}
+          {variant === "peeking" && (
+            <div
+              key="peek-surface"
+              style={{
+                position: "absolute",
+                bottom: "28%",
+                left: "-10%",
+                width: "120%",
+                height: "38%",
+                background: "linear-gradient(180deg, #E0F2FE 0%, #BAE6FD 100%)",
+                borderRadius: "30% 30% 0 0",
+                border: `2px solid #7DD3FC`,
+                borderBottom: "none",
+                zIndex: 15,
+                boxShadow: "inset 0 -2px 4px rgba(0,0,0,0.06)",
+              }}
+            >
+              {/* Surface highlight */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: "20%",
+                  left: "15%",
+                  width: "70%",
+                  height: "30%",
+                  background: "rgba(255,255,255,0.4)",
+                  borderRadius: "50%",
+                }}
+              />
+            </div>
+          )}
+
+          {/* ─── Body ─── */}
+          <div
+            key="body"
+            style={{
+              position: "absolute",
+              bottom: "18%",
+              left: "50%",
+              marginLeft: ch(-20),
+              width: ch(40),
+              height: ch(28),
+              background: `linear-gradient(180deg, ${outfit} 0%, ${outfitDark} 100%)`,
+              borderRadius: `${ch(8)} ${ch(8)} ${ch(5)} ${ch(5)}`,
+              border: `2px solid ${outline}`,
+              zIndex: 1,
+            }}
+          >
+            {/* dress/collar detail */}
+            <div
+              style={{
+                position: "absolute",
+                top: "0%",
+                left: "10%",
+                width: "80%",
+                height: "30%",
+                background: "rgba(255,255,255,0.15)",
+                borderRadius: "0 0 50% 50%",
+              }}
+            />
+          </div>
+
+          {/* ─── Arms ─── */}
+          {/* Left arm (always visible, resting) */}
+          <div
+            key="arm-left"
+            style={{
+              position: "absolute",
+              bottom: "24%",
+              left: "50%",
+              marginLeft: ch(-38),
+              width: ch(7),
+              height: ch(18),
+              background: `linear-gradient(180deg, ${skinShadow} 0%, ${skin} 100%)`,
+              borderRadius: ch(4),
+              border: `1.5px solid ${outline}`,
+              transformOrigin: "bottom center",
+              transform: "rotate(12deg)",
+              zIndex: 2,
+            }}
+          />
+
+          {/* Right arm — varies by variant */}
+          {variant === "waving" && (
+            <div
+              key="arm-right-waving"
+              style={{
+                position: "absolute",
+                bottom: "26%",
+                right: "50%",
+                marginRight: ch(-36),
+                width: ch(7),
+                height: ch(18),
+                background: `linear-gradient(180deg, ${skin} 0%, ${skinShadow} 100%)`,
+                borderRadius: ch(4),
+                border: `1.5px solid ${outline}`,
+                transformOrigin: "bottom center",
+                animation: "cb-wave 0.5s ease-in-out infinite",
+                zIndex: 2,
+              }}
+            />
+          )}
+
+          {variant === "thinking" && (
+            <div
+              key="arm-right-thinking"
+              style={{
+                position: "absolute",
+                bottom: "36%",
+                right: "50%",
+                marginRight: ch(-32),
+                width: ch(6),
+                height: ch(15),
+                background: `linear-gradient(180deg, ${skin} 0%, ${skinShadow} 100%)`,
+                borderRadius: ch(3),
+                border: `1.5px solid ${outline}`,
+                transformOrigin: "bottom center",
+                transform: "rotate(-20deg)",
+                animation: "cb-arm-chin 2.2s ease-in-out infinite",
+                zIndex: 2,
+              }}
+            >
+              {/* tiny hand */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: -ch(2),
+                  left: "50%",
+                  marginLeft: ch(-2.5),
+                  width: ch(5),
+                  height: ch(4),
+                  background: skin,
+                  borderRadius: "50%",
+                  border: `1px solid ${outline}`,
+                }}
+              />
+            </div>
+          )}
+
+          {variant === "crying" && (
+            <div
+              key="arm-right-crying"
+              style={{
+                position: "absolute",
+                bottom: "24%",
+                right: "50%",
+                marginRight: ch(-36),
+                width: ch(7),
+                height: ch(16),
+                background: `linear-gradient(180deg, ${skin} 0%, ${skinShadow} 100%)`,
+                borderRadius: ch(4),
+                border: `1.5px solid ${outline}`,
+                transformOrigin: "bottom center",
+                transform: "rotate(-8deg)",
+                animation: "cb-tear-wobble 1.4s ease-in-out infinite",
+                zIndex: 2,
+              }}
+            />
+          )}
+
+          {variant === "idle" ||
+          variant === "sleeping" ||
+          variant === "peeking" ? (
+            <div
+              key="arm-right-rest"
+              style={{
+                position: "absolute",
+                bottom: "24%",
+                right: "50%",
+                marginRight: ch(-36),
+                width: ch(7),
+                height: ch(16),
+                background: `linear-gradient(180deg, ${skin} 0%, ${skinShadow} 100%)`,
+                borderRadius: ch(4),
+                border: `1.5px solid ${outline}`,
+                transformOrigin: "bottom center",
+                transform: "rotate(-8deg)",
+                zIndex: 2,
+              }}
+            />
+          ) : null}
+
+          {/* ─── Head (circle) ─── */}
+          <div
+            key="head"
+            style={{
+              position: "absolute",
+              top: "10%",
+              left: "50%",
+              marginLeft: ch(-30),
+              width: ch(60),
+              height: ch(60),
+              background: skin,
+              borderRadius: "50%",
+              border: `2.5px solid ${outline}`,
+              zIndex: 3,
+              overflow: "visible",
+            }}
+          >
+            {/* ─── SKIN SHADOW (subtle) ─── */}
+            <div
+              style={{
+                position: "absolute",
+                bottom: 0,
+                left: "15%",
+                width: "70%",
+                height: "25%",
+                background: skinShadow,
+                borderRadius: "0 0 50% 50%",
+                opacity: 0.4,
+                zIndex: 0,
+              }}
+            />
+
+            {/* ─── EARS ─── */}
+            {/* Left ear */}
+            <div
+              key="ear-left"
+              style={{
+                position: "absolute",
+                top: ch(-5),
+                left: ch(-7),
+                width: 0,
+                height: 0,
+                borderLeft: `${ch(6)}px solid transparent`,
+                borderRight: `${ch(6)}px solid transparent`,
+                borderBottom: `${ch(14)}px solid ${hair}`,
+                zIndex: 4,
+                filter: `drop-shadow(0 1px 0 ${outline})`,
+                transformOrigin: "bottom center",
+                ...(variant === "waving"
+                  ? { animation: "cb-ear-twitch 1.2s ease-in-out infinite" }
+                  : {}),
+              }}
+            >
+              {/* Inner ear */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: ch(2),
+                  left: ch(-3.5),
+                  width: 0,
+                  height: 0,
+                  borderLeft: `${ch(3.5)}px solid transparent`,
+                  borderRight: `${ch(3.5)}px solid transparent`,
+                  borderBottom: `${ch(8)}px solid #FFB7C5`,
+                  zIndex: 5,
+                }}
+              />
+            </div>
+
+            {/* Right ear */}
+            <div
+              key="ear-right"
+              style={{
+                position: "absolute",
+                top: ch(-5),
+                right: ch(-7),
+                width: 0,
+                height: 0,
+                borderLeft: `${ch(6)}px solid transparent`,
+                borderRight: `${ch(6)}px solid transparent`,
+                borderBottom: `${ch(14)}px solid ${hair}`,
+                zIndex: 4,
+                filter: `drop-shadow(0 1px 0 ${outline})`,
+                transformOrigin: "bottom center",
+                ...(variant === "waving"
+                  ? {
+                      animation:
+                        "cb-ear-twitch 1.2s 0.15s ease-in-out infinite",
+                    }
+                  : {}),
+              }}
+            >
+              {/* Inner ear */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: ch(2),
+                  left: ch(-3.5),
+                  width: 0,
+                  height: 0,
+                  borderLeft: `${ch(3.5)}px solid transparent`,
+                  borderRight: `${ch(3.5)}px solid transparent`,
+                  borderBottom: `${ch(8)}px solid #FFB7C5`,
+                  zIndex: 5,
+                }}
+              />
+            </div>
+
+            {/* ─── HAIR BANG ─── */}
+            <div
+              key="hair-bang"
+              style={{
+                position: "absolute",
+                top: ch(-1),
+                left: "12%",
+                width: "76%",
+                height: "36%",
+                background: hair,
+                borderRadius: "50% 50% 20% 20%",
+                border: `1.5px solid ${hairDark}`,
+                zIndex: 6,
+                overflow: "hidden",
+              }}
+            >
+              {/* Hair shine */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: "15%",
+                  left: "20%",
+                  width: "35%",
+                  height: "40%",
+                  background: "rgba(255,255,255,0.3)",
+                  borderRadius: "50%",
+                  transform: "rotate(-15deg)",
+                }}
+              />
+              {/* Side wisps */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "10%",
+                  left: "-5%",
+                  width: "30%",
+                  height: "50%",
+                  background: hair,
+                  borderRadius: "0 0 50% 50%",
+                  borderLeft: `1px solid ${hairDark}`,
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "10%",
+                  right: "-5%",
+                  width: "30%",
+                  height: "50%",
+                  background: hair,
+                  borderRadius: "0 0 50% 50%",
+                  borderRight: `1px solid ${hairDark}`,
+                }}
+              />
+            </div>
+
+            {/* ─── EYES ─── */}
+            {(variant === "sleeping" || variant === "crying") && (
+              <>
+                {/* Closed / squeezed eyes */}
+                <div
+                  key="eye-left"
+                  style={{
+                    position: "absolute",
+                    top: "40%",
+                    left: "22%",
+                    width: "24%",
+                    height: variant === "sleeping" ? "4%" : "8%",
+                    background: "#555",
+                    borderRadius: variant === "sleeping" ? "2px" : "50%",
+                    zIndex: 7,
+                    animation:
+                      variant === "sleeping"
+                        ? "cb-sleep 3.5s ease-in-out infinite"
+                        : "cb-blink 3s 2s infinite",
+                  }}
+                />
+                <div
+                  key="eye-right"
+                  style={{
+                    position: "absolute",
+                    top: "40%",
+                    right: "22%",
+                    width: "24%",
+                    height: variant === "sleeping" ? "4%" : "8%",
+                    background: "#555",
+                    borderRadius: variant === "sleeping" ? "2px" : "50%",
+                    zIndex: 7,
+                    animation:
+                      variant === "sleeping"
+                        ? "cb-sleep 3.5s ease-in-out infinite"
+                        : "cb-blink 3s 2s infinite",
+                  }}
+                />
+              </>
+            )}
+
+            {variant !== "sleeping" && variant !== "crying" && (
+              <>
+                {/* Normal big eyes */}
+                <div
+                  key="eye-left"
+                  style={{
+                    position: "absolute",
+                    top: "38%",
+                    left: "20%",
+                    width: "26%",
+                    height: "34%",
+                    background: eyeColor,
+                    borderRadius: "50%",
+                    border: `1.5px solid #555`,
+                    zIndex: 7,
+                    animation: "cb-blink 4s 1s infinite",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Pupil */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: "10%",
+                      left: "20%",
+                      width: "60%",
+                      height: "60%",
+                      background: "#5BA3C7",
+                      borderRadius: "50%",
+                    }}
+                  />
+                  {/* Highlight dot */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "15%",
+                      left: "20%",
+                      width: "35%",
+                      height: "35%",
+                      background: eyeShine,
+                      borderRadius: "50%",
+                    }}
+                  />
+                  {/* Small secondary highlight */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: "25%",
+                      right: "15%",
+                      width: "15%",
+                      height: "15%",
+                      background: "rgba(255,255,255,0.6)",
+                      borderRadius: "50%",
+                    }}
+                  />
+                </div>
+                <div
+                  key="eye-right"
+                  style={{
+                    position: "absolute",
+                    top: "38%",
+                    right: "20%",
+                    width: "26%",
+                    height: "34%",
+                    background: eyeColor,
+                    borderRadius: "50%",
+                    border: `1.5px solid #555`,
+                    zIndex: 7,
+                    animation: "cb-blink 4s 1s infinite",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Pupil */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: "10%",
+                      left: "20%",
+                      width: "60%",
+                      height: "60%",
+                      background: "#5BA3C7",
+                      borderRadius: "50%",
+                    }}
+                  />
+                  {/* Highlight dot */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "15%",
+                      left: "20%",
+                      width: "35%",
+                      height: "35%",
+                      background: eyeShine,
+                      borderRadius: "50%",
+                    }}
+                  />
+                  {/* Small secondary highlight */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: "25%",
+                      right: "15%",
+                      width: "15%",
+                      height: "15%",
+                      background: "rgba(255,255,255,0.6)",
+                      borderRadius: "50%",
+                    }}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* ─── NOSE (pink) ─── */}
+            <div
+              key="nose"
+              style={{
+                position: "absolute",
+                top: "58%",
+                left: "50%",
+                marginLeft: ch(-1.5),
+                width: ch(3),
+                height: ch(2.2),
+                background: "#FF9EBB",
+                borderRadius: "50% 50% 50% 50% / 60% 60% 40% 40%",
+                zIndex: 9,
+              }}
+            />
+
+            {/* ─── MOUTH ─── */}
+            <div
+              key="mouth"
+              style={{
+                position: "absolute",
+                top: "64%",
+                left: "50%",
+                marginLeft: ch(-3),
+                width: ch(6),
+                height: ch(2.5),
+                borderBottom: `2px solid ${outline}`,
+                borderLeft: "1px solid transparent",
+                borderRight: "1px solid transparent",
+                borderRadius: "0 0 50% 50%",
+                zIndex: 8,
+              }}
+            />
+
+            {/* ─── BLUSH ─── */}
+            <div
+              key="blush-left"
+              style={{
+                position: "absolute",
+                top: "52%",
+                left: "6%",
+                width: "16%",
+                height: "12%",
+                background: blush,
+                borderRadius: "50%",
+                opacity: 0.45,
+                zIndex: 7,
+              }}
+            />
+            <div
+              key="blush-right"
+              style={{
+                position: "absolute",
+                top: "52%",
+                right: "6%",
+                width: "16%",
+                height: "12%",
+                background: blush,
+                borderRadius: "50%",
+                opacity: 0.45,
+                zIndex: 7,
+              }}
+            />
+
+            {/* ─── CRYING: Teardrops ─── */}
+            {variant === "crying" && (
+              <>
+                <div
+                  key="tear-left"
+                  style={{
+                    position: "absolute",
+                    top: "70%",
+                    left: "14%",
+                    width: "6%",
+                    height: "12%",
+                    background:
+                      "linear-gradient(180deg, rgba(137,207,240,0.9) 0%, rgba(137,207,240,0.3) 100%)",
+                    borderRadius: "50% 50% 50% 50% / 60% 60% 40% 40%",
+                    animation: "cb-teardrop 1.6s ease-in infinite",
+                    zIndex: 10,
+                  }}
+                />
+                <div
+                  key="tear-right"
+                  style={{
+                    position: "absolute",
+                    top: "72%",
+                    right: "14%",
+                    width: "6%",
+                    height: "12%",
+                    background:
+                      "linear-gradient(180deg, rgba(137,207,240,0.9) 0%, rgba(137,207,240,0.3) 100%)",
+                    borderRadius: "50% 50% 50% 50% / 60% 60% 40% 40%",
+                    animation: "cb-teardrop 1.6s 0.3s ease-in infinite",
+                    zIndex: 10,
+                  }}
+                />
+              </>
+            )}
+          </div>
+
+          {/* ─── VARIANT EXTRAS (outside head) ─── */}
+
+          {/* Thinking dots */}
+          {variant === "thinking" && (
+            <>
+              <div
+                key="think-dot1"
+                style={{
+                  position: "absolute",
+                  top: "4%",
+                  right: "12%",
+                  width: ch(3.5),
+                  height: ch(3.5),
+                  background: "#A0A0A0",
+                  borderRadius: "50%",
+                  animation: "cb-dots 1.6s ease-in-out infinite",
+                  zIndex: 10,
+                }}
+              />
+              <div
+                key="think-dot2"
+                style={{
+                  position: "absolute",
+                  top: "-1%",
+                  right: "6%",
+                  width: ch(4.5),
+                  height: ch(4.5),
+                  background: "#909090",
+                  borderRadius: "50%",
+                  animation: "cb-dots 1.6s 0.3s ease-in-out infinite",
+                  zIndex: 10,
+                }}
+              />
+              <div
+                key="think-dot3"
+                style={{
+                  position: "absolute",
+                  top: "-7%",
+                  right: "3%",
+                  width: ch(5.5),
+                  height: ch(5.5),
+                  background: "#808080",
+                  borderRadius: "50%",
+                  animation: "cb-dots 1.6s 0.6s ease-in-out infinite",
+                  zIndex: 10,
+                }}
+              />
+            </>
+          )}
+
+          {/* Sleeping zzz */}
+          {variant === "sleeping" && (
+            <>
+              <div
+                key="zzz1"
+                style={{
+                  position: "absolute",
+                  top: "3%",
+                  right: "6%",
+                  fontSize: ch(8),
+                  fontWeight: 700,
+                  color: "#7EC8E3",
+                  animation: "cb-zzz 2.8s ease-in-out infinite",
+                  zIndex: 10,
+                  fontFamily: "sans-serif",
+                  lineHeight: 1,
+                }}
+              >
+                z
+              </div>
+              <div
+                key="zzz2"
+                style={{
+                  position: "absolute",
+                  top: "-4%",
+                  right: "12%",
+                  fontSize: ch(10),
+                  fontWeight: 700,
+                  color: "#7EC8E3",
+                  animation: "cb-zzz 2.8s 0.5s ease-in-out infinite",
+                  zIndex: 10,
+                  fontFamily: "sans-serif",
+                  lineHeight: 1,
+                }}
+              >
+                z
+              </div>
+              <div
+                key="zzz3"
+                style={{
+                  position: "absolute",
+                  top: "-12%",
+                  right: "16%",
+                  fontSize: ch(13),
+                  fontWeight: 700,
+                  color: "#5BA3C7",
+                  animation: "cb-zzz 2.8s 1s ease-in-out infinite",
+                  zIndex: 10,
+                  fontFamily: "sans-serif",
+                  lineHeight: 1,
+                }}
+              >
+                Z
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </>
   );

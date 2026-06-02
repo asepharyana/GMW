@@ -27,6 +27,16 @@ export function SummaryCards({
       ? Math.round((messages.flagged / messages.total) * 100)
       : 0;
 
+  const icons: Record<string, string> = {
+    "Total Pesan": "💬",
+    "Rata-rata/jam": "📊",
+    Clean: "✅",
+    Flagged: "🚩",
+    Pending: "⏳",
+    "User Aktif": "👤",
+    Channel: "📡",
+  };
+
   const cards = [
     {
       label: "Total Pesan",
@@ -41,37 +51,42 @@ export function SummaryCards({
     {
       label: "Clean",
       value: cleanPct > 0 ? `${cleanPct}%` : "—",
-      accent: "text-emerald-400",
+      accent: "text-primary",
     },
     {
       label: "Flagged",
       value: flaggedPct > 0 ? `${flaggedPct}%` : "—",
-      accent: "text-red-400",
+      accent: "text-accent",
     },
     {
       label: "Pending",
       value: formatNum(messages?.pending),
-      accent: "text-slate-400",
+      accent: "text-muted-foreground",
     },
     {
       label: "User Aktif",
       value: formatNum(activeUsersCount),
-      accent: "text-violet-400",
+      accent: "text-primary",
     },
     {
       label: "Channel",
       value: formatNum(totalChannels),
-      accent: "text-blue-400",
+      accent: "text-primary",
     },
   ];
 
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
       {cards.map((card) => (
-        <Card key={card.label} className="overflow-hidden glass border-white/5">
+        <Card key={card.label} className="overflow-hidden">
           <CardContent className="p-3">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              {card.label}
+            <div className="flex items-center gap-1.5">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px]">
+                {icons[card.label] ?? "📋"}
+              </span>
+              <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                {card.label}
+              </div>
             </div>
             <div
               className={cn(

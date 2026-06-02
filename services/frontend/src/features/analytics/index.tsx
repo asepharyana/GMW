@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { ActivityChart } from "./components/ActivityChart";
 import { ControlBar } from "./components/ControlBar";
 import { Heatmap } from "./components/Heatmap";
@@ -8,6 +9,8 @@ import { TrendChart } from "./components/TrendChart";
 import { UserTable } from "./components/UserTable";
 import { ViolatorTable } from "./components/ViolatorTable";
 import { useAnalytics } from "./hooks/useAnalytics";
+import { cardStagger, cardItem } from "../../shared/hooks/useFramerStagger";
+import { EmptyStateMascot } from "../../widgets/mascot/ChibiMascot";
 
 interface AnalyticsPanelProps {
   guildId: string;
@@ -43,7 +46,7 @@ export function AnalyticsPanel({ guildId, guildName }: AnalyticsPanelProps) {
 
   if (error && !analyticsMessages) {
     return (
-      <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">
+      <div className="rounded-2xl border border-red-300/40 bg-red-50/60 p-6 text-sm text-red-600 shadow-sm">
         {error}
       </div>
     );
@@ -51,46 +54,61 @@ export function AnalyticsPanel({ guildId, guildName }: AnalyticsPanelProps) {
 
   if (!guildId) {
     return (
-      <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-8">
-        <p className="text-sm text-muted-foreground">
-          Menunggu konfigurasi guild...
-        </p>
-      </div>
+      <EmptyStateMascot variant="thinking" message="Menunggu konfigurasi guild..." />
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <ControlBar
-        guildName={guildName}
-        hours={hours}
-        isFetching={isFetching}
-        onHoursChange={setHours}
-        onRefresh={() => {
-          refresh();
-          refreshViolators();
-        }}
-      />
-      <SummaryCards
-        messages={analyticsMessages}
-        activeUsersCount={activeUsersCount}
-        totalChannels={totalChannels}
-        loading={loading}
-      />
-      <div className="grid grid-cols-3 gap-4">
-        <ActivityChart hourly={hourly} loading={loading} />
-        <div className="col-span-1">
-          <TopicList topics={topics} loading={loading} />
+    <motion.div
+      className="flex flex-col gap-4"
+      variants={cardStagger}
+      initial="initial"
+      animate="animate"
+    >
+      <motion.div variants={cardItem}>
+        <ControlBar
+          guildName={guildName}
+          hours={hours}
+          isFetching={isFetching}
+          onHoursChange={setHours}
+          onRefresh={() => {
+            refresh();
+            refreshViolators();
+          }}
+        />
+      </motion.div>
+      <motion.div variants={cardItem}>
+        <SummaryCards
+          messages={analyticsMessages}
+          activeUsersCount={activeUsersCount}
+          totalChannels={totalChannels}
+          loading={loading}
+        />
+      </motion.div>
+      <motion.div variants={cardItem}>
+        <div className="grid grid-cols-3 gap-4">
+          <ActivityChart hourly={hourly} loading={loading} />
+          <div className="col-span-1">
+            <TopicList topics={topics} loading={loading} />
+          </div>
         </div>
-      </div>
-      {hours >= 48 && <TrendChart trend={trend} loading={loading} />}
-      <div className="grid grid-cols-3 gap-4">
-        <Heatmap cells={heatmap} loading={loading} />
-        <div className="col-span-1">
-          <UserTable users={topUsers} loading={loading} />
+      </motion.div>
+      {hours >= 48 && (
+        <motion.div variants={cardItem}>
+          <TrendChart trend={trend} loading={loading} />
+        </motion.div>
+      )}
+      <motion.div variants={cardItem}>
+        <div className="grid grid-cols-3 gap-4">
+          <Heatmap cells={heatmap} loading={loading} />
+          <div className="col-span-1">
+            <UserTable users={topUsers} loading={loading} />
+          </div>
         </div>
-      </div>
-      <ViolatorTable users={violators} loading={loading} />
-    </div>
+      </motion.div>
+      <motion.div variants={cardItem}>
+        <ViolatorTable users={violators} loading={loading} />
+      </motion.div>
+    </motion.div>
   );
 }

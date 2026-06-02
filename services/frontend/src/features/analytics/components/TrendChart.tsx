@@ -43,10 +43,9 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
       <CardContent>
         <div className="space-y-4">
           <div className="flex flex-wrap gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-            <LegendDot color="bg-blue-500" label="Total" />
-            <LegendDot color="bg-emerald-500" label="Clean" />
-            <LegendDot color="bg-amber-500" label="Warned" />
-            <LegendDot color="bg-red-500" label="Flagged" />
+            <LegendDot color="bg-primary" label="Total" />
+            <LegendDot color="bg-emerald-400" label="Clean" />
+            <LegendDot color="bg-accent" label="Flagged" />
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-border bg-background/50 p-4">

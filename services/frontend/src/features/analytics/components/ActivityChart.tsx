@@ -35,7 +35,7 @@ export function ActivityChart({ hourly, loading }: ActivityChartProps) {
   });
 
   return (
-    <Card className="col-span-1 lg:col-span-2 glass border-white/5">
+    <Card className="col-span-1 lg:col-span-2">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-semibold">
           Aktivitas per Jam
@@ -46,9 +46,8 @@ export function ActivityChart({ hourly, loading }: ActivityChartProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          <div className="grid grid-cols-4 gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="grid grid-cols-3 gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
             <span>Clean</span>
-            <span>Warned</span>
             <span>Flagged</span>
             <span>Error</span>
           </div>
@@ -56,13 +55,12 @@ export function ActivityChart({ hourly, loading }: ActivityChartProps) {
             {data.map((bucket) => {
               const total = Math.max(bucket.total, 1);
               const clean = bucket.clean / total;
-              const warned = bucket.warned / total;
               const flagged = bucket.flagged / total;
               const error = bucket.error / total;
               return (
                 <div
                   key={bucket.hour}
-                  className="grid gap-1 rounded-xl border border-border bg-background/50 p-3"
+                  className="grid gap-1 rounded-xl border border-sky-100 bg-white p-3"
                 >
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                     <span className="font-medium text-foreground">
@@ -70,21 +68,17 @@ export function ActivityChart({ hourly, loading }: ActivityChartProps) {
                     </span>
                     <span>{bucket.total} pesan</span>
                   </div>
-                  <div className="flex h-3 overflow-hidden rounded-full bg-muted">
+                  <div className="flex h-3 overflow-hidden rounded-full bg-sky-50">
                     <div
-                      className="bg-emerald-500/80"
+                      className="bg-gradient-to-r from-primary to-pink-300"
                       style={{ width: `${clean * 100}%` }}
                     />
                     <div
-                      className="bg-amber-500/80"
-                      style={{ width: `${warned * 100}%` }}
-                    />
-                    <div
-                      className="bg-red-500/80"
+                      className="bg-accent/70"
                       style={{ width: `${flagged * 100}%` }}
                     />
                     <div
-                      className="bg-orange-500/80"
+                      className="bg-orange-300/70"
                       style={{ width: `${error * 100}%` }}
                     />
                   </div>
@@ -100,8 +94,8 @@ export function ActivityChart({ hourly, loading }: ActivityChartProps) {
 
 function LoadingBox() {
   return (
-    <Card className="col-span-1 flex h-65 items-center justify-center text-sm text-muted-foreground lg:col-span-2 glass border-white/5">
-      <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+    <Card className="col-span-1 flex h-65 items-center justify-center text-sm text-muted-foreground lg:col-span-2">
+      <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       <span className="ml-2">Memuat data...</span>
     </Card>
   );
@@ -109,7 +103,7 @@ function LoadingBox() {
 
 function EmptyBox({ text }: { text: string }) {
   return (
-    <Card className="col-span-1 flex h-65 items-center justify-center text-sm text-muted-foreground lg:col-span-2 glass border-white/5">
+    <Card className="col-span-1 flex h-65 items-center justify-center text-sm text-muted-foreground lg:col-span-2">
       {text}
     </Card>
   );

@@ -1,5 +1,6 @@
 // ─── Live Panel — thin composition layer ────────────────────────────────────
 
+import { motion } from "framer-motion";
 import { Mic, MonitorUp, Music2 } from "lucide-react";
 import type {
   ActiveSpeaker,
@@ -8,6 +9,7 @@ import type {
   MediaState,
   VoiceStatus,
 } from "../../shared/api/client";
+import { cardItem, cardStagger } from "../../shared/hooks/useFramerStagger";
 import {
   Card,
   CardContent,
@@ -78,25 +80,35 @@ export function LivePanel({
   onVolumeChange,
 }: LivePanelProps) {
   return (
-    <div className="grid gap-6">
-      <VoiceConnectionCard
-        guilds={guilds}
-        voiceChannels={voiceChannels}
-        selectedGuild={selectedGuild}
-        selectedChannel={selectedChannel}
-        status={status}
-        voiceLoading={voiceLoading}
-        isListening={isListening}
-        isStreaming={isStreaming}
-        onGuildChange={onGuildChange}
-        onChannelChange={onChannelChange}
-        onJoin={onJoin}
-        onDisconnect={onDisconnect}
-        onListenToggle={onListenToggle}
-        onStreamingToggle={onStreamingToggle}
-      />
+    <motion.div
+      variants={cardStagger}
+      initial="initial"
+      animate="animate"
+      className="grid gap-6"
+    >
+      <motion.div variants={cardItem}>
+        <VoiceConnectionCard
+          guilds={guilds}
+          voiceChannels={voiceChannels}
+          selectedGuild={selectedGuild}
+          selectedChannel={selectedChannel}
+          status={status}
+          voiceLoading={voiceLoading}
+          isListening={isListening}
+          isStreaming={isStreaming}
+          onGuildChange={onGuildChange}
+          onChannelChange={onChannelChange}
+          onJoin={onJoin}
+          onDisconnect={onDisconnect}
+          onListenToggle={onListenToggle}
+          onStreamingToggle={onStreamingToggle}
+        />
+      </motion.div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+      <motion.div
+        variants={cardItem}
+        className="grid gap-6 xl:grid-cols-[1fr_320px]"
+      >
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Live Audio</CardTitle>
@@ -113,44 +125,48 @@ export function LivePanel({
             <ActiveSpeakers speakers={activeSpeakers} />
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
 
-      <NowPlaying current={mediaState.current} queue={mediaState.queue} />
+      <motion.div variants={cardItem}>
+        <NowPlaying current={mediaState.current} queue={mediaState.queue} />
+      </motion.div>
 
-      <Tabs defaultValue="music">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="music">
-            <Music2 className="mr-1.5 h-4 w-4" /> Music
-          </TabsTrigger>
-          <TabsTrigger value="screen">
-            <MonitorUp className="mr-1.5 h-4 w-4" /> Screen Share
-          </TabsTrigger>
-          <TabsTrigger value="recordings">
-            <Mic className="mr-1.5 h-4 w-4" /> Recordings
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="music">
-          <MusicSubPanel
-            volume={mediaState.musicVolume}
-            onVolumeChange={onVolumeChange}
-            onQueue={onQueueMusic}
-            onSkip={onSkip}
-            onStop={onStop}
-            loading={mediaLoading}
-          />
-        </TabsContent>
-        <TabsContent value="screen">
-          <ScreenSubPanel
-            onStart={onStartScreen}
-            onSkip={onSkip}
-            onStop={onStop}
-            loading={mediaLoading}
-          />
-        </TabsContent>
-        <TabsContent value="recordings">
-          <RecordingsSubPanel />
-        </TabsContent>
-      </Tabs>
-    </div>
+      <motion.div variants={cardItem}>
+        <Tabs defaultValue="music">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="music">
+              <Music2 className="mr-1.5 h-4 w-4" /> Music
+            </TabsTrigger>
+            <TabsTrigger value="screen">
+              <MonitorUp className="mr-1.5 h-4 w-4" /> Screen Share
+            </TabsTrigger>
+            <TabsTrigger value="recordings">
+              <Mic className="mr-1.5 h-4 w-4" /> Recordings
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="music">
+            <MusicSubPanel
+              volume={mediaState.musicVolume}
+              onVolumeChange={onVolumeChange}
+              onQueue={onQueueMusic}
+              onSkip={onSkip}
+              onStop={onStop}
+              loading={mediaLoading}
+            />
+          </TabsContent>
+          <TabsContent value="screen">
+            <ScreenSubPanel
+              onStart={onStartScreen}
+              onSkip={onSkip}
+              onStop={onStop}
+              loading={mediaLoading}
+            />
+          </TabsContent>
+          <TabsContent value="recordings">
+            <RecordingsSubPanel />
+          </TabsContent>
+        </Tabs>
+      </motion.div>
+    </motion.div>
   );
 }

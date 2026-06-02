@@ -38,7 +38,7 @@ export function ControlBar({
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg">
-          <BarChart3 className="h-5 w-5 text-muted-foreground" />
+          <BarChart3 className="h-5 w-5 text-primary" />
           Analisis Moderasi
         </CardTitle>
         <CardDescription>
@@ -46,7 +46,7 @@ export function ControlBar({
             <>
               Pantau statistik, tren topik, dan aktivitas user di seluruh
               channel{" "}
-              <span className="font-medium text-foreground">{guildName}</span>.
+              <span className="font-medium text-primary">{guildName}</span>.
             </>
           ) : (
             "Pantau statistik, tren topik, dan aktivitas user."
@@ -55,16 +55,16 @@ export function ControlBar({
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 rounded-md bg-muted p-0.5">
+          <div className="flex items-center gap-1 rounded-xl bg-sky-50 p-0.5 ring-1 ring-sky-200/50">
             {TIME_RANGES.map((tr) => (
               <button
                 key={tr.value}
                 type="button"
                 onClick={() => onHoursChange(tr.value)}
                 className={cn(
-                  "rounded-sm px-2.5 py-1 text-xs font-medium transition-colors",
+                  "rounded-lg px-2.5 py-1 text-xs font-medium transition-all",
                   hours === tr.value
-                    ? "bg-background text-foreground shadow-sm"
+                    ? "bg-primary text-white shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -77,11 +77,11 @@ export function ControlBar({
             disabled={isFetching}
             variant="outline"
             size="sm"
-            className="ml-auto shrink-0"
+            className="ml-auto shrink-0 rounded-xl border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
           >
             {isFetching ? (
               <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                 Memuat...
               </span>
             ) : (

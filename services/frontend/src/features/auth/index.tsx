@@ -1,6 +1,7 @@
 import { Lock } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { login } from "../../shared/api/client";
+import { useGsapTransition } from "../../shared/hooks/useGsapTransition";
 import {
   Button,
   Card,
@@ -10,6 +11,7 @@ import {
   CardTitle,
   Input,
 } from "../../shared/ui";
+import { ChibiMascot } from "../../widgets/mascot/ChibiMascot";
 
 interface AuthOverlayProps {
   onAuthenticated: () => void;
@@ -19,6 +21,11 @@ export function AuthOverlay({ onAuthenticated }: AuthOverlayProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { pageRef, animateIn } = useGsapTransition("auth");
+
+  useEffect(() => {
+    animateIn();
+  }, [animateIn]);
 
   const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
@@ -36,11 +43,14 @@ export function AuthOverlay({ onAuthenticated }: AuthOverlayProps) {
   };
 
   return (
-    <div className="flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <div ref={pageRef} className="flex items-center justify-center p-4">
+      <Card className="w-full max-w-md border-primary/30 shadow-lg shadow-primary/10">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Lock className="h-6 w-6" />
+          <div className="mx-auto mb-4 flex items-center justify-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Lock className="h-6 w-6" />
+            </div>
+            <ChibiMascot variant="peeking" size="sm" />
           </div>
           <CardTitle>Admin Access Required</CardTitle>
           <CardDescription>

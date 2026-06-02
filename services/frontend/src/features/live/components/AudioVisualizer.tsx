@@ -21,20 +21,21 @@ export function AudioVisualizer({ levels }: AudioVisualizerProps) {
     const barWidth = width / levels.length;
     const maxBarHeight = height * 0.85;
 
+    // Sky-blue to pink gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, "#7EC8E3");
+    gradient.addColorStop(1, "#FFB7C5");
+
     for (let i = 0; i < levels.length; i++) {
       const level = levels[i];
       const barHeight = Math.min(maxBarHeight, level * maxBarHeight);
       const x = i * barWidth;
       const y = height - barHeight;
 
-      // Gradient color based on level
-      const hue = 199 - level * 199;
-      const saturation = 89;
-      const lightness = 48 + level * 20;
-      ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+      ctx.fillStyle = gradient;
 
-      // Rounded bar
-      const radius = barWidth * 0.3;
+      // More rounded bar
+      const radius = barWidth * 0.4;
       ctx.beginPath();
       ctx.moveTo(x + radius, y);
       ctx.lineTo(x + barWidth - radius, y);
@@ -53,7 +54,7 @@ export function AudioVisualizer({ levels }: AudioVisualizerProps) {
         ref={canvasRef}
         width={512}
         height={128}
-        className="w-full rounded-xl bg-muted/30"
+        className="w-full rounded-xl bg-sky-50/30"
         style={{ height: "128px" }}
       />
     </div>
