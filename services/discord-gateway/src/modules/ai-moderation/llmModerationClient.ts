@@ -796,6 +796,7 @@ async function runTextOnlyBatch(
   if (!targets.length) return { results: [], raw: null };
 
   const maxBatchSize = config.AI_LLM_TEXT_BATCH_SIZE ?? 20;
+  const timeoutMs = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
 
   // Pre-compute text evidence (normalization + badword detection)
   const textEvidenceMap = new Map<string, string>();
