@@ -1,9 +1,9 @@
+import { createChildLogger } from "@bete/shared/logger";
+import { retryWithBackoff } from "@bete/shared/utils";
 import type { ChatCompletion } from "openai/resources/chat/completions";
 import { AbortError } from "p-retry";
 import { z } from "zod";
 import { config } from "../../shared/config/config.js";
-import { createChildLogger } from "@bete/shared/logger";
-import { retryWithBackoff } from "@bete/shared/utils";
 import { resizeImageForVision } from "../attachment-upload/imageResizer.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
 import type {
@@ -532,7 +532,10 @@ const analyzeSingleMediaImage = async (
   // processing this exact image, wait for it instead of starting a duplicate.
   const existing = inFlightVisionCalls.get(cacheKey);
   if (existing) {
-    log.debug({ cacheKey }, "Media analysis in-flight dedupe — waiting for existing call");
+    log.debug(
+      { cacheKey },
+      "Media analysis in-flight dedupe — waiting for existing call",
+    );
     const result = await existing;
     if (!result) return null;
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${result}`;
@@ -910,7 +913,15 @@ async function runTextOnlyBatch(
       }),
     ])) as { results: AnalysisResult[]; raw: unknown };
 
-    const rawUsage = (batchResult.raw as { usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } })?.usage;
+    const rawUsage = (
+      batchResult.raw as {
+        usage?: {
+          prompt_tokens: number;
+          completion_tokens: number;
+          total_tokens: number;
+        };
+      }
+    )?.usage;
     allResults.push(...batchResult.results);
     if (batchResult.raw) lastRaw = batchResult.raw;
 

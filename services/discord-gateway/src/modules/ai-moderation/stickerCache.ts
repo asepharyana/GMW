@@ -1,5 +1,5 @@
-import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 import { createChildLogger } from "@bete/shared/logger";
+import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 
 const logger = createChildLogger("sticker-cache");
 
@@ -42,10 +42,9 @@ export async function initStickerCache(): Promise<void> {
       `CREATE INDEX IF NOT EXISTS "idx_sticker_cache_fetched_at" ON "sticker_cache" USING btree ("fetched_at")`,
     );
 
-    await executeAll(
-      "DELETE FROM sticker_cache WHERE fetched_at < $1",
-      [Date.now() - TTL_MS],
-    );
+    await executeAll("DELETE FROM sticker_cache WHERE fetched_at < $1", [
+      Date.now() - TTL_MS,
+    ]);
     const row = await executeGet(
       "SELECT count(*) as cnt, COALESCE(SUM(size), 0) as total FROM sticker_cache",
       [],
@@ -149,10 +148,9 @@ async function evictIfNeeded(newSize: number): Promise<void> {
     if (freed >= targetToFree) break;
   }
 
-  await executeAll(
-    `DELETE FROM sticker_cache WHERE name = ANY($1)`,
-    [namesToDelete],
-  );
+  await executeAll(`DELETE FROM sticker_cache WHERE name = ANY($1)`, [
+    namesToDelete,
+  ]);
   statsCache.totalSizeBytes -= freed;
   statsCache.entryCount -= namesToDelete.length;
 

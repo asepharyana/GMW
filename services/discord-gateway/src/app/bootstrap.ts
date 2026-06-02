@@ -1,3 +1,4 @@
+import { createChildLogger } from "@bete/shared/logger";
 import { Client } from "discord.js-selfbot-v13";
 import { startPendingAIAnalysisWorker } from "../modules/ai-moderation/aiAnalyzer.js";
 import { CommandHandler } from "../modules/command-handler/commandHandler.js";
@@ -17,7 +18,6 @@ import {
 } from "../shared/database/drizzle.js";
 import { runMigrations } from "../shared/database/migrate.js";
 import { createDiscordClientOptions } from "../shared/discord/clientOptions.js";
-import { createChildLogger } from "@bete/shared/logger";
 import { createGracefulShutdown } from "./shutdown.js";
 
 const logger = createChildLogger("discord-gateway");

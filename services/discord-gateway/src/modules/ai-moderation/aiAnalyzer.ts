@@ -1,11 +1,11 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { createChildLogger } from "@bete/shared/logger";
+import { retryWithBackoff } from "@bete/shared/utils";
 import type { Client } from "discord.js-selfbot-v13";
 import { AbortError } from "p-retry";
 import { Piscina } from "piscina";
 import { config } from "../../shared/config/config.js";
-import { createChildLogger } from "@bete/shared/logger";
-import { retryWithBackoff } from "@bete/shared/utils";
 import type { EventBroadcaster } from "../event-broadcaster/index.js";
 import { invalidateAnalyticsCache } from "../message-capture/analyticsStore.js";
 import { isAgeRestrictedMetadata } from "../message-capture/messageMetadata.js";
@@ -28,9 +28,7 @@ import type {
 import { attemptAutoDeleteFlaggedMessage } from "./autoDeleteManager.js";
 import { buildConversationContext } from "./conversationContext.js";
 import { runModerationAnalysis } from "./llmModerationClient.js";
-import {
-  logModerationError,
-} from "./responseLogger.js";
+import { logModerationError } from "./responseLogger.js";
 
 const logger = createChildLogger("ai-analyzer");
 
@@ -163,7 +161,8 @@ const MAX_CONSECUTIVE_ERRORS = 5;
 const CONVERSATION_CB_COOLDOWN_MS = 60000;
 
 function recordConversationBatchFailure(conversationKey: string): void {
-  const nextCount = (conversationConsecutiveErrors.get(conversationKey) ?? 0) + 1;
+  const nextCount =
+    (conversationConsecutiveErrors.get(conversationKey) ?? 0) + 1;
   conversationConsecutiveErrors.set(conversationKey, nextCount);
 
   if (nextCount >= MAX_CONSECUTIVE_ERRORS) {
@@ -471,11 +470,16 @@ async function processIndividualFallback(
     lastError = error instanceof Error ? error.message : String(error);
 
     // Log error with responseLogger
-    logModerationError([messageId], config.AI_LLM_MODEL, error as Error | string, {
-      phase: "individual_fallback",
-      conversationKey,
-      exhaustedOnIncomplete,
-    });
+    logModerationError(
+      [messageId],
+      config.AI_LLM_MODEL,
+      error as Error | string,
+      {
+        phase: "individual_fallback",
+        conversationKey,
+        exhaustedOnIncomplete,
+      },
+    );
 
     // Infinite-loop prevention: if all retries were exhausted because the LLM
     // consistently dropped this specific message (not a transient error),
