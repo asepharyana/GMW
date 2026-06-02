@@ -242,15 +242,35 @@ export interface BuildSystemPromptOptions {
 }
 
 export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
-  const { contextText, includeMediaInstructions, correction } = options;
+  const {
+    contextText,
+    mode,
+    includeMediaInstructions,
+    correction,
+  } = options;
+
+  // Backward compatibility: if mode is not set but includeMediaInstructions is,
+  // derive mode from the legacy flag.
+  const effectiveMode: PromptMode =
+    mode ?? (includeMediaInstructions ? "mixed" : "text");
 
   const parts: string[] = [SYSTEM_RULES];
 
-  if (includeMediaInstructions) {
+  // Media instructions only for media and mixed modes
+  if (effectiveMode === "media" || effectiveMode === "mixed") {
     parts.push(MEDIA_INSTRUCTIONS);
   }
 
-  parts.push(FEW_SHOT_EXAMPLES);
+  // Tiered few-shot examples
+  if (effectiveMode === "text") {
+    parts.push(TEXT_ONLY_EXAMPLES);
+  } else if (effectiveMode === "media") {
+    parts.push(MEDIA_EXAMPLES);
+  } else {
+    // mixed mode: include all examples
+    parts.push(FEW_SHOT_EXAMPLES);
+  }
+
   parts.push(OUTPUT_INSTRUCTIONS);
 
   // XML-delimited context — prevents prompt injection
