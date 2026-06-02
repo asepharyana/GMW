@@ -14,6 +14,7 @@ import type {
 import { withLlmConcurrency } from "./concurrencyLimiter.js";
 import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
+import { logModerationAnalysis, logModerationError } from "./responseLogger.js";
 import {
   getStickerFromCache,
   initStickerCache,
@@ -32,14 +33,8 @@ import {
   makeImageCacheKey,
   makeStickerCacheKey,
   upsertCachedMediaAnalysis,
-  VISION_MODEL_VERSION,
 } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
-import {
-  logCacheEvent,
-  logModerationAnalysis,
-  logModerationError,
-} from "./responseLogger.js";
 
 const SeveritySchema = z.enum(["none", "low", "medium", "high", "critical"]);
 const RecommendedActionSchema = z.enum([
@@ -793,11 +788,16 @@ async function callModerationLLM(
     );
 
     // Log error with responseLogger
-    logModerationError(targetIds, config.AI_LLM_MODEL, parseError as Error | string, {
-      phase: "parse_response",
-      label,
-      contentLength: state.lastInvalidContent.length,
-    });
+    logModerationError(
+      targetIds,
+      config.AI_LLM_MODEL,
+      parseError as Error | string,
+      {
+        phase: "parse_response",
+        label,
+        contentLength: state.lastInvalidContent.length,
+      },
+    );
 
     // Sanitized error messages — no internal details exposed (R10)
     const errorCode = `MOD_${Date.now().toString(36).slice(0, 6)}`;
@@ -996,10 +996,7 @@ async function _runSingleMediaAnalysis(
 ): Promise<{ results: AnalysisResult[]; raw: unknown }> {
   // Lazy init sticker cache
   if (!isStickerCacheReady()) {
-    await initStickerCache({
-      cacheDir: config.STICKER_CACHE_DIR,
-      maxSizeBytes: config.STICKER_CACHE_MAX_SIZE_MB * 1024 * 1024,
-    }).catch((err: unknown) => {
+    await initStickerCache().catch((err: unknown) => {
       log.warn(
         { error: err instanceof Error ? err.message : String(err) },
         "Sticker cache init failed — continuing without cache",
@@ -1040,7 +1037,6 @@ async function _runSingleMediaAnalysis(
           { attachmentId: att.id, cacheKey: attVisionKey },
           "Vision cache HIT for attachment — skipped download",
         );
-        logCacheEvent("hit", attVisionKey, "media", VISION_MODEL_VERSION);
         const sourceLabel = `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`;
         const analysisText = `[Media analysis for message ${att.message_id}] ${sourceLabel}: ${cachedVision}`;
         const existing = mediaAnalysisMap.get(targetId) ?? [];
@@ -1048,8 +1044,6 @@ async function _runSingleMediaAnalysis(
         mediaAnalysisMap.set(targetId, existing);
         return;
       }
-
-      logCacheEvent("miss", attVisionKey, "media", VISION_MODEL_VERSION);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);

@@ -1,8 +1,13 @@
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { executeAll, executeGet } from "../database/drizzle.js";
 import { createChildLogger } from "../logger.js";
 
 const logger = createChildLogger("sticker-cache");
+
+const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const MAX_SIZE_BYTES = 100 * 1024 * 1024; // 100MB hardcoded
+
+let ready = false;
+let statsCache = { entryCount: 0, totalSizeBytes: 0 };
 
 export interface StickerCacheEntry {
   base64: string;
@@ -11,87 +16,38 @@ export interface StickerCacheEntry {
   size: number;
 }
 
-interface CacheIndexEntry {
-  file: string;
-  mimeType: string;
-  size: number;
-  fetchedAt: number;
-}
-
-interface CacheIndex {
-  entries: Record<string, CacheIndexEntry>;
-  totalSizeBytes: number;
-}
-
-export interface StickerCacheOptions {
-  cacheDir: string;
-  maxSizeBytes: number;
-  ttlMs?: number;
-}
-
-let cacheDir = "";
-let maxSizeBytes = 0;
-let ttlMs = 7 * 24 * 60 * 60 * 1000; // 7 days default
-let index: CacheIndex = { entries: {}, totalSizeBytes: 0 };
-let ready = false;
-
 function sanitizeKey(name: string): string {
   return encodeURIComponent(name).replace(/%/g, "_");
 }
 
-async function loadIndex(): Promise<CacheIndex> {
-  try {
-    const raw = await readFile(join(cacheDir, "index.json"), "utf-8");
-    return JSON.parse(raw) as CacheIndex;
-  } catch {
-    return { entries: {}, totalSizeBytes: 0 };
-  }
-}
-
-async function saveIndex(idx: CacheIndex): Promise<void> {
-  await writeFile(
-    join(cacheDir, "index.json"),
-    JSON.stringify(idx, null, 2),
-    "utf-8",
-  );
-}
-
 /**
- * Initialise the sticker cache: create directory, load index.
+ * Initialise the sticker cache from PostgreSQL.
  * Idempotent — safe to call multiple times.
  */
-export async function initStickerCache(
-  opts: StickerCacheOptions,
-): Promise<void> {
+export async function initStickerCache(): Promise<void> {
   if (ready) return;
-  cacheDir = opts.cacheDir;
-  maxSizeBytes = opts.maxSizeBytes;
-  ttlMs = opts.ttlMs ?? 7 * 24 * 60 * 60 * 1000;
-
-  await mkdir(cacheDir, { recursive: true });
-  index = await loadIndex();
-
-  // Prune expired entries on startup
-  const now = Date.now();
-  let changed = false;
-  for (const [key, meta] of Object.entries(index.entries)) {
-    if (now - meta.fetchedAt > ttlMs) {
-      await unlink(join(cacheDir, meta.file)).catch(() => {});
-      index.totalSizeBytes -= meta.size;
-      delete index.entries[key];
-      changed = true;
+  try {
+    await executeAll(
+      "DELETE FROM sticker_cache WHERE fetched_at < ?",
+      [Date.now() - TTL_MS],
+    );
+    const row = await executeGet(
+      "SELECT count(*) as cnt, COALESCE(SUM(size), 0) as total FROM sticker_cache",
+    );
+    if (row) {
+      statsCache = {
+        entryCount: Number(row.cnt),
+        totalSizeBytes: Number(row.total),
+      };
     }
+  } catch (err) {
+    logger.warn(
+      { error: String(err) },
+      "Failed to prune expired stickers on init",
+    );
   }
-  if (changed) await saveIndex(index);
-
   ready = true;
-  logger.info(
-    {
-      entryCount: Object.keys(index.entries).length,
-      totalSizeBytes: index.totalSizeBytes,
-    },
-    "Sticker cache initialized",
-  );
+  logger.info(statsCache, "Sticker cache initialized (PostgreSQL)");
 }
 
 /**
@@ -101,32 +57,24 @@ export async function getStickerFromCache(
   stickerName: string,
 ): Promise<StickerCacheEntry | null> {
   if (!ready) return null;
-
   const key = sanitizeKey(stickerName);
-  const meta = index.entries[key];
-  if (!meta) return null;
-
-  // TTL check
-  if (Date.now() - meta.fetchedAt > ttlMs) {
-    await unlink(join(cacheDir, meta.file)).catch(() => {});
-    index.totalSizeBytes -= meta.size;
-    delete index.entries[key];
-    await saveIndex(index);
-    return null;
-  }
-
   try {
-    const raw = await readFile(join(cacheDir, meta.file), "utf-8");
+    const row = await executeGet(
+      "SELECT base64, mime_type, size, fetched_at FROM sticker_cache WHERE name = ? AND fetched_at > ?",
+      [key, Date.now() - TTL_MS],
+    );
+    if (!row) return null;
     return {
-      base64: raw,
-      mimeType: meta.mimeType,
-      fetchedAt: meta.fetchedAt,
-      size: meta.size,
+      base64: row.base64,
+      mimeType: row.mime_type,
+      fetchedAt: Number(row.fetched_at),
+      size: Number(row.size),
     };
-  } catch {
-    // File missing — clean up index entry
-    delete index.entries[key];
-    await saveIndex(index);
+  } catch (err) {
+    logger.error(
+      { error: String(err), stickerName },
+      "Failed to get sticker from cache",
+    );
     return null;
   }
 }
@@ -140,52 +88,44 @@ export async function setStickerInCache(
   mimeType: string,
 ): Promise<void> {
   if (!ready) return;
-
   const key = sanitizeKey(stickerName);
-  const fileName = `${key}.dat`;
   const size = Buffer.byteLength(base64, "utf-8");
-
-  // Evict if needed
-  await evictIfNeeded(size);
-
+  const now = Date.now();
   try {
-    await writeFile(join(cacheDir, fileName), base64, "utf-8");
-    index.entries[key] = {
-      file: fileName,
-      mimeType,
-      size,
-      fetchedAt: Date.now(),
-    };
-    index.totalSizeBytes += size;
-    await saveIndex(index);
+    await evictIfNeeded(size);
+    await executeAll(
+      `INSERT INTO sticker_cache (name, base64, mime_type, size, fetched_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (name) DO UPDATE SET
+         base64 = EXCLUDED.base64,
+         mime_type = EXCLUDED.mime_type,
+         size = EXCLUDED.size,
+         fetched_at = EXCLUDED.fetched_at`,
+      [key, base64, mimeType, size, now],
+    );
+    statsCache.entryCount++;
+    statsCache.totalSizeBytes += size;
     logger.debug({ stickerName, size }, "Sticker cached");
   } catch (err) {
     logger.warn(
-      { stickerName, error: err instanceof Error ? err.message : String(err) },
+      { stickerName, error: String(err) },
       "Failed to write sticker to cache",
     );
   }
 }
 
 async function evictIfNeeded(newSize: number): Promise<void> {
-  while (index.totalSizeBytes + newSize > maxSizeBytes) {
-    // Find oldest entry
-    let oldestKey: string | null = null;
-    let oldestTime = Infinity;
-    for (const [key, meta] of Object.entries(index.entries)) {
-      if (meta.fetchedAt < oldestTime) {
-        oldestTime = meta.fetchedAt;
-        oldestKey = key;
-      }
-    }
-    if (!oldestKey) break;
-
-    const meta = index.entries[oldestKey];
-    await unlink(join(cacheDir, meta.file)).catch(() => {});
-    index.totalSizeBytes -= meta.size;
-    delete index.entries[oldestKey];
+  while (statsCache.totalSizeBytes + newSize > MAX_SIZE_BYTES) {
+    const oldest = await executeGet(
+      "SELECT name, size FROM sticker_cache ORDER BY fetched_at ASC LIMIT 1",
+    );
+    if (!oldest) break;
+    await executeAll("DELETE FROM sticker_cache WHERE name = ?", [
+      oldest.name,
+    ]);
+    statsCache.totalSizeBytes -= Number(oldest.size);
+    statsCache.entryCount--;
   }
-  await saveIndex(index);
 }
 
 /**
@@ -195,10 +135,7 @@ export function getStickerCacheStats(): {
   entryCount: number;
   totalSizeBytes: number;
 } {
-  return {
-    entryCount: Object.keys(index.entries).length,
-    totalSizeBytes: index.totalSizeBytes,
-  };
+  return { ...statsCache };
 }
 
 /**

@@ -43,7 +43,6 @@ export interface CacheHitEvent {
   type: "hit" | "miss";
   cacheKey: string;
   source: "text" | "media" | "sticker";
-  modelVersion: string;
   timestamp: number;
 }
 
@@ -154,27 +153,22 @@ export function logCacheEvent(
   type: "hit" | "miss",
   cacheKey: string,
   source: "text" | "media" | "sticker",
-  modelVersion: string,
 ): void {
   const event: CacheHitEvent = {
     type,
     cacheKey,
     source,
-    modelVersion,
     timestamp: Date.now(),
   };
 
-  const level = type === "hit" ? "debug" : "debug";
-  logger.log(
-    { level },
+  logger.debug(
     {
       cache_type: type.toUpperCase(),
       source,
       key_length: cacheKey.length,
       key_preview: cacheKey.substring(0, 50),
-      model_version: modelVersion,
     },
-    `Cache ${type.toUpperCase()}: ${source} (version: ${modelVersion})`,
+    `Cache ${type.toUpperCase()}: ${source}`,
   );
 }
 

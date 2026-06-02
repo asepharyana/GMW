@@ -361,9 +361,6 @@ export const pgRetentionPoliciesTable = pgTable(
  *
  * Uses the FULL normalized text (not per-word) because context matters:
  * "kau" alone is clean, but "awas kau" can be a threat.
- *
- * model_version tracks the vision/LLM model version that produced this cache entry.
- * On model updates, bump the version to invalidate all old cache entries automatically.
  */
 export const pgTextAnalysisCacheTable = pgTable(
   "text_analysis_cache",
@@ -384,20 +381,39 @@ export const pgTextAnalysisCacheTable = pgTable(
     expires_at: pgBigint("expires_at", { mode: "number" }).notNull(),
     /** How many times this cached text has been reused. */
     hit_count: pgInteger("hit_count").notNull().default(0),
-    /** Model version that produced this cache entry (e.g. "v1", "v2-2026-06-02"). Mismatched versions are ignored. */
-    model_version: pgText("model_version").notNull().default("v1"),
   },
   (table) => ({
     expiresAtIdx: pgIndex("idx_text_analysis_cache_expires_at").on(
       table.expires_at,
     ),
     sourceIdx: pgIndex("idx_text_analysis_cache_source").on(table.source),
-    modelVersionIdx: pgIndex("idx_text_analysis_cache_model_version").on(
-      table.model_version,
-    ),
-    sourceModelVersionIdx: pgIndex(
-      "idx_text_analysis_cache_source_model_version",
-    ).on(table.source, table.model_version),
+  }),
+);
+
+/**
+ * Sticker Cache Table (PostgreSQL)
+ * Stores base64-encoded sticker images for fast retrieval in media moderation.
+ * Replaces the file-based .dat + index.json cache.
+ *
+ * TTL: 7 days (enforced at query time via fetched_at)
+ * Eviction: LRU by fetched_at, max 100MB total
+ */
+export const pgStickerCacheTable = pgTable(
+  "sticker_cache",
+  {
+    /** Sanitized sticker name (encodeURIComponent + %→_) — primary key. */
+    name: pgText("name").primaryKey(),
+    /** Base64-encoded image data. */
+    base64: pgText("base64").notNull(),
+    /** MIME type of the image (e.g. "image/png", "image/gif"). */
+    mime_type: pgText("mime_type").notNull(),
+    /** Byte length of the base64 string (for efficient SUM() eviction queries). */
+    size: pgInteger("size").notNull(),
+    /** Epoch millis when this entry was stored. Used for TTL and LRU eviction. */
+    fetched_at: pgBigint("fetched_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    fetchedAtIdx: pgIndex("idx_sticker_cache_fetched_at").on(table.fetched_at),
   }),
 );
 
@@ -414,6 +430,7 @@ export const messageReviewsTable = pgMessageReviewsTable;
 export const moderationActionsTable = pgModerationActionsTable;
 export const retentionPoliciesTable = pgRetentionPoliciesTable;
 export const textAnalysisCacheTable = pgTextAnalysisCacheTable;
+export const stickerCacheTable = pgStickerCacheTable;
 
 // Export table types for use in queries
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;
@@ -442,3 +459,6 @@ export type ModerationActionInsert = typeof moderationActionsTable.$inferInsert;
 
 export type RetentionPolicy = typeof retentionPoliciesTable.$inferSelect;
 export type RetentionPolicyInsert = typeof retentionPoliciesTable.$inferInsert;
+
+export type StickerCacheRecord = typeof stickerCacheTable.$inferSelect;
+export type StickerCacheInsert = typeof stickerCacheTable.$inferInsert;

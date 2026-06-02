@@ -390,6 +390,33 @@ export const pgTextAnalysisCacheTable = pgTable(
   }),
 );
 
+/**
+ * Sticker Cache Table (PostgreSQL)
+ * Stores base64-encoded sticker images for fast retrieval in media moderation.
+ * Replaces the file-based .dat + index.json cache.
+ *
+ * TTL: 7 days (enforced at query time via fetched_at)
+ * Eviction: LRU by fetched_at, max 100MB total
+ */
+export const pgStickerCacheTable = pgTable(
+  "sticker_cache",
+  {
+    /** Sanitized sticker name (encodeURIComponent + %→_) — primary key. */
+    name: pgText("name").primaryKey(),
+    /** Base64-encoded image data. */
+    base64: pgText("base64").notNull(),
+    /** MIME type of the image (e.g. "image/png", "image/gif"). */
+    mime_type: pgText("mime_type").notNull(),
+    /** Byte length of the base64 string (for efficient SUM() eviction queries). */
+    size: pgInteger("size").notNull(),
+    /** Epoch millis when this entry was stored. Used for TTL and LRU eviction. */
+    fetched_at: pgBigint("fetched_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    fetchedAtIdx: pgIndex("idx_sticker_cache_fetched_at").on(table.fetched_at),
+  }),
+);
+
 // Runtime table exports
 // =====================
 
@@ -403,6 +430,7 @@ export const messageReviewsTable = pgMessageReviewsTable;
 export const moderationActionsTable = pgModerationActionsTable;
 export const retentionPoliciesTable = pgRetentionPoliciesTable;
 export const textAnalysisCacheTable = pgTextAnalysisCacheTable;
+export const stickerCacheTable = pgStickerCacheTable;
 
 // Export table types for use in queries
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;
@@ -431,3 +459,6 @@ export type ModerationActionInsert = typeof moderationActionsTable.$inferInsert;
 
 export type RetentionPolicy = typeof retentionPoliciesTable.$inferSelect;
 export type RetentionPolicyInsert = typeof retentionPoliciesTable.$inferInsert;
+
+export type StickerCacheRecord = typeof stickerCacheTable.$inferSelect;
+export type StickerCacheInsert = typeof stickerCacheTable.$inferInsert;

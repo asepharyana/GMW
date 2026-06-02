@@ -5,8 +5,8 @@ import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
 import { retryWithBackoff } from "../retry.js";
 import { withLlmConcurrency } from "./concurrencyLimiter.js";
-import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 import { resizeImageForVision } from "./imageResizer.js";
+import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 import { extractMessageMediaEvidence } from "./messageMetadata.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
 import {
@@ -966,10 +966,7 @@ async function _runSingleMediaAnalysis(
 ): Promise<{ results: AnalysisResult[]; raw: unknown }> {
   // Lazy init sticker cache
   if (!isStickerCacheReady()) {
-    await initStickerCache({
-      cacheDir: config.STICKER_CACHE_DIR,
-      maxSizeBytes: config.STICKER_CACHE_MAX_SIZE_MB * 1024 * 1024,
-    }).catch((err) => {
+    await initStickerCache().catch((err) => {
       log.warn(
         { error: err instanceof Error ? err.message : String(err) },
         "Sticker cache init failed — continuing without cache",
