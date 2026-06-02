@@ -1,6 +1,6 @@
 import { Users } from "lucide-react";
-import { cn } from "../../../shared/lib/utils";
 import type { UserStat } from "../../../shared/api/client";
+import { cn } from "../../../shared/lib/utils";
 import {
   Badge,
   Card,

@@ -68,7 +68,13 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
                       stopOpacity="0.02"
                     />
                   </linearGradient>
-                  <linearGradient id="trendFillPink" x1="0" x2="0" y1="0" y2="1">
+                  <linearGradient
+                    id="trendFillPink"
+                    x1="0"
+                    x2="0"
+                    y1="0"
+                    y2="1"
+                  >
                     <stop offset="0%" stopColor="#FF9EBB" stopOpacity="0.3" />
                     <stop
                       offset="100%"

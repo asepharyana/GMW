@@ -35,7 +35,7 @@ export function TopicList({ topics, loading }: TopicListProps) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-          <Flame className="h-4 w-4 text-orange-400" />
+          <Flame className="h-4 w-4 text-primary" />
           Topik Trending
         </CardTitle>
         <CardDescription className="text-xs">
@@ -44,11 +44,11 @@ export function TopicList({ topics, loading }: TopicListProps) {
       </CardHeader>
       <CardContent className="p-0">
         <ScrollArea className="max-h-[260px]">
-          <div className="divide-y divide-border/30">
+          <div className="divide-y divide-sky-50">
             {topics.map((topic, i) => (
               <div
                 key={topic.topic}
-                className="flex items-center gap-3 px-5 py-2 text-sm"
+                className="flex items-center gap-3 px-5 py-2 text-sm border-l-2 border-l-primary"
               >
                 <span className="w-5 shrink-0 text-right font-mono text-[10px] text-muted-foreground">
                   {i + 1}
@@ -57,9 +57,9 @@ export function TopicList({ topics, loading }: TopicListProps) {
                   {topic.topic}
                 </span>
                 <div className="flex items-center gap-2">
-                  <div className="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
+                  <div className="h-1.5 w-12 overflow-hidden rounded-full bg-sky-50">
                     <div
-                      className="h-full rounded-full bg-blue-500/60"
+                      className="h-full rounded-full bg-gradient-to-r from-primary to-pink-300"
                       style={{ width: `${(topic.count / maxCount) * 100}%` }}
                     />
                   </div>

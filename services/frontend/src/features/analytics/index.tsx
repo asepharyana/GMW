@@ -1,5 +1,7 @@
-import { useState } from "react";
 import { motion } from "framer-motion";
+import { useState } from "react";
+import { cardItem, cardStagger } from "../../shared/hooks/useFramerStagger";
+import { EmptyStateMascot } from "../../widgets/mascot/ChibiMascot";
 import { ActivityChart } from "./components/ActivityChart";
 import { ControlBar } from "./components/ControlBar";
 import { Heatmap } from "./components/Heatmap";
@@ -9,8 +11,6 @@ import { TrendChart } from "./components/TrendChart";
 import { UserTable } from "./components/UserTable";
 import { ViolatorTable } from "./components/ViolatorTable";
 import { useAnalytics } from "./hooks/useAnalytics";
-import { cardStagger, cardItem } from "../../shared/hooks/useFramerStagger";
-import { EmptyStateMascot } from "../../widgets/mascot/ChibiMascot";
 
 interface AnalyticsPanelProps {
   guildId: string;
@@ -54,7 +54,10 @@ export function AnalyticsPanel({ guildId, guildName }: AnalyticsPanelProps) {
 
   if (!guildId) {
     return (
-      <EmptyStateMascot variant="thinking" message="Menunggu konfigurasi guild..." />
+      <EmptyStateMascot
+        variant="thinking"
+        message="Menunggu konfigurasi guild..."
+      />
     );
   }
 
