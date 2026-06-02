@@ -131,28 +131,8 @@ const configSchema = z
       .int()
       .positive()
       .default(50),
-    /** NVIDIA Nemotron-3 Content Safety API key for badword detection. */
-    NVIDIA_NEMOTRON_API_KEY: z.string().optional(),
-    /** NVIDIA Nemotron model identifier. */
-    NVIDIA_NEMOTRON_MODEL: z
-      .string()
-      .default("nvidia/nemotron-3-content-safety"),
-    /** NVIDIA Nemotron API base URL. */
-    NVIDIA_NEMOTRON_BASE_URL: z
-      .string()
-      .url()
-      .default("https://integrate.api.nvidia.com/v1/chat/completions"),
-    /** Groq API key for Llama Prompt Guard moderation fallback. */
-    GROQ_API_KEY: z.string().optional(),
-    /** Groq moderation model identifier. */
-    GROQ_MODERATION_MODEL: z
-      .string()
-      .default("meta-llama/llama-prompt-guard-2-86m"),
-    /** Groq API base URL. */
-    GROQ_MODERATION_BASE_URL: z
-      .string()
-      .url()
-      .default("https://api.groq.com/openai/v1/chat/completions"),
+    // AI moderation uses the Primary LLM (AI_LLM_*) endpoint only.
+    // No NVIDIA or Groq fallback.
     AUTO_DELETE_FLAGGED_ENABLED: z
       .string()
       .optional()

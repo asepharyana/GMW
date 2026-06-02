@@ -1,5 +1,6 @@
 import axios from "axios";
 import OpenAI from "openai";
+import { AbortError } from "p-retry";
 import { config } from "../../shared/config/config.js";
 import { createChildLogger } from "../../shared/logger/logger.js";
 import { retryWithBackoff } from "../../shared/utils/retry.js";
@@ -74,9 +75,12 @@ const BADWORD_CACHE_TTL_MS = 10 * 60 * 1000;
  */
 const DB_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-const NEMOTRON_RATE_LIMIT_COOLDOWN_MS = 0;
-const PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS = 0;
-const GROQ_RATE_LIMIT_COOLDOWN_MS = 0;
+const NEMOTRON_RATE_LIMIT_COOLDOWN_MS = 60_000; // 1 min backoff on 429
+const PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS = 60_000; // 1 min backoff on 429
+const GROQ_RATE_LIMIT_COOLDOWN_MS = 60_000; // 1 min backoff on 429
+
+/** How long to mark a provider unavailable after a transient (5xx/timeout) error. */
+const TRANSIENT_ERROR_COOLDOWN_MS = 30_000; // 30s backoff on 502/timeout
 
 interface BadwordCacheEntry {
   value: string[];
@@ -275,9 +279,9 @@ async function callPrimaryAiModeration(text: string): Promise<string[]> {
       } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
     },
     {
-      retries: 0,
-      minTimeout: 0,
-      maxTimeout: 0,
+      retries: 2,
+      minTimeout: 2000,
+      maxTimeout: 5000,
       factor: 2,
       logger: log,
     },
@@ -306,19 +310,36 @@ async function callGrokModeration(text: string): Promise<string[]> {
     return [];
   }
 
-  const response = await axios.post(
-    config.GROQ_MODERATION_BASE_URL,
-    {
-      model: config.GROQ_MODERATION_MODEL,
-      messages: [{ role: "user", content: text }],
+  const response = await retryWithBackoff(
+    async () => {
+      const res = await axios.post(
+        config.GROQ_MODERATION_BASE_URL,
+        {
+          model: config.GROQ_MODERATION_MODEL,
+          messages: [{ role: "user", content: text }],
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          timeout: 15_000,
+          validateStatus: (status: number) => status < 500,
+        },
+      );
+      // 429 should abort retry immediately — no point hammering a rate limit
+      if (res.status === 429) {
+        throw new AbortError("Groq rate limited");
+      }
+      return res;
     },
     {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      timeout: 10_000,
+      retries: 2,
+      minTimeout: 2000,
+      maxTimeout: 5000,
+      factor: 2,
+      logger: log,
     },
   );
 
@@ -360,22 +381,39 @@ async function callNemotronContentSafety(text: string): Promise<string[]> {
     return [];
   }
 
-  const response = await axios.post(
-    config.NVIDIA_NEMOTRON_BASE_URL,
-    {
-      model: config.NVIDIA_NEMOTRON_MODEL,
-      messages: [{ role: "user", content: text }],
-      max_tokens: 897,
-      temperature: 0.2,
-      top_p: 0.7,
-      stream: false,
+  const response = await retryWithBackoff(
+    async () => {
+      const res = await axios.post(
+        config.NVIDIA_NEMOTRON_BASE_URL,
+        {
+          model: config.NVIDIA_NEMOTRON_MODEL,
+          messages: [{ role: "user", content: text }],
+          max_tokens: 897,
+          temperature: 0.2,
+          top_p: 0.7,
+          stream: false,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: "application/json",
+          },
+          timeout: 15_000,
+          validateStatus: (status: number) => status < 500,
+        },
+      );
+      // 429 should abort retry immediately — no point hammering a rate limit
+      if (res.status === 429) {
+        throw new AbortError("NVIDIA rate limited");
+      }
+      return res;
     },
     {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-      },
-      timeout: 15_000,
+      retries: 2,
+      minTimeout: 2000,
+      maxTimeout: 5000,
+      factor: 2,
+      logger: log,
     },
   );
 
@@ -478,6 +516,9 @@ export async function detectIndonesianBadwords(
         if (status === 429) {
           nemotronUnavailableUntil =
             Date.now() + NEMOTRON_RATE_LIMIT_COOLDOWN_MS;
+        } else {
+          // 502, timeout, or other transient error — cooldown briefly
+          nemotronUnavailableUntil = Date.now() + TRANSIENT_ERROR_COOLDOWN_MS;
         }
         log.warn(
           { error },
@@ -501,6 +542,9 @@ export async function detectIndonesianBadwords(
         if (status === 429) {
           primaryAiUnavailableUntil =
             Date.now() + PRIMARY_AI_RATE_LIMIT_COOLDOWN_MS;
+        } else {
+          // 502, timeout, or other transient error — cooldown briefly
+          primaryAiUnavailableUntil = Date.now() + TRANSIENT_ERROR_COOLDOWN_MS;
         }
         log.warn(
           { error },
@@ -525,6 +569,9 @@ export async function detectIndonesianBadwords(
             : null;
           if (status === 429) {
             groqUnavailableUntil = Date.now() + GROQ_RATE_LIMIT_COOLDOWN_MS;
+          } else {
+            // 502, timeout, or other transient error — cooldown briefly
+            groqUnavailableUntil = Date.now() + TRANSIENT_ERROR_COOLDOWN_MS;
           }
           log.warn({ error }, "Groq Llama Prompt Guard moderation failed");
         }

@@ -750,6 +750,7 @@ async function callModerationLLM(
             throw parseError;
           }
         } catch (apiError: any) {
+          // 429/401/403 → abort immediately, never retry
           if (
             apiError?.status === 429 ||
             apiError?.status === 401 ||
@@ -757,63 +758,124 @@ async function callModerationLLM(
           ) {
             throw new AbortError(apiError);
           }
+          // 5xx server errors → retryable transient errors
+          // p-retry will retry these; on final exhaustion the outer catch
+          // will produce synthetic error results for all targets
+          if (
+            apiError?.status >= 500 ||
+            apiError?.code === "ECONNRESET" ||
+            apiError?.code === "ETIMEDOUT" ||
+            apiError?.name === "APIError"
+          ) {
+            // re-throw as-is so p-retry can retry
+            throw apiError;
+          }
           throw apiError;
         }
       },
       {
-        retries: 0,
+        retries: 2,
+        minTimeout: 3000,
+        maxTimeout: 8000,
+        factor: 2,
         logger: log,
       },
     );
     parsed = analysis.parsed;
     result = analysis.result;
-  } catch (parseError) {
-    if (!state.lastInvalidContent) {
-      throw parseError;
-    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    const isApiError = !state.lastInvalidContent;
 
-    const errorMsg =
-      parseError instanceof Error ? parseError.message : String(parseError);
+    // For API errors (502, timeout, etc.) where retries exhausted, produce
+    // synthetic error results so the batch doesn't crash entirely.
+    // For parse errors, we already have lastInvalidContent and the existing
+    // fallback path below handles it.
+    const apiErrorCode = isApiError
+      ? `MOD_${Date.now().toString(36).slice(0, 6)}`
+      : null;
 
-    log.error(
-      {
-        error: errorMsg,
-        contentLength: state.lastInvalidContent.length,
-        contentPreview: state.lastInvalidContent.substring(0, 500),
+    if (isApiError) {
+      log.warn(
+        {
+          error: errorMsg,
+          targetIds,
+          model: config.AI_LLM_MODEL,
+          label,
+        },
+        `LLM API error after retries exhausted (${label}) — marking all targets as analysis errors`,
+      );
+
+      logModerationError(
         targetIds,
-        model: config.AI_LLM_MODEL,
-        timestamp: new Date().toISOString(),
-      },
-      `Robust Fallback (${label}): Failed to parse moderation response. Marking all targets as analysis errors.`,
-    );
+        config.AI_LLM_MODEL,
+        err instanceof Error ? err : new Error(String(err)),
+        {
+          phase: "api_call",
+          label,
+        },
+      );
 
-    // Log error with responseLogger
-    logModerationError(
-      targetIds,
-      config.AI_LLM_MODEL,
-      parseError as Error | string,
-      {
-        phase: "parse_response",
-        label,
-        contentLength: state.lastInvalidContent.length,
-      },
-    );
+      parsed = targetIds.map((id) => ({
+        messageId: id,
+        status: "error",
+        flags: ["analysis_api_failed"],
+        score: 0,
+        analysis: `Analisis gagal karena error pada server AI dan memerlukan pemeriksaan manual. Error code: ${apiErrorCode}`,
+        categories: ["analysis_api_failed"],
+        severity: "none",
+        confidence: 0,
+        recommendedAction: "review",
+        policyVersion: "default-2026-05-30",
+        evidence: [],
+      }));
+    } else {
+      // Parse error fallback — existing path
+      const parseMsg = err instanceof Error ? err.message : String(err);
+      const contentPreview =
+        state.lastInvalidContent?.substring(0, 500) ?? "<empty>";
+      const contentLen = state.lastInvalidContent?.length ?? 0;
 
-    // Sanitized error messages — no internal details exposed (R10)
-    const errorCode = `MOD_${Date.now().toString(36).slice(0, 6)}`;
-    parsed = targetIds.map((id) => ({
-      messageId: id,
-      status: "error",
-      flags: ["analysis_parse_failed"],
-      score: 0,
-      analysis: `Analisis gagal dan memerlukan pemeriksaan manual. Error code: ${errorCode}`,
-      categories: ["analysis_parse_failed"],
-      severity: "none",
-      confidence: 0,
-      recommendedAction: "review",
-      policyVersion: "default-2026-05-30",
-      evidence: [],
-    }));
+      log.error(
+        {
+          error: parseMsg,
+          contentLength: contentLen,
+          contentPreview,
+          targetIds,
+          model: config.AI_LLM_MODEL,
+          timestamp: new Date().toISOString(),
+        },
+        `Robust Fallback (${label}): Failed to parse moderation response. Marking all targets as analysis errors.`,
+      );
+
+      // Log error with responseLogger
+      logModerationError(
+        targetIds,
+        config.AI_LLM_MODEL,
+        err instanceof Error ? err : new Error(String(err)),
+        {
+          phase: "parse_response",
+          label,
+          contentLength: contentLen,
+        },
+      );
+
+      // Sanitized error messages — no internal details exposed (R10)
+      const errorCode = `MOD_${Date.now().toString(36).slice(0, 6)}`;
+      parsed = targetIds.map((id) => ({
+        messageId: id,
+        status: "error",
+        flags: ["analysis_parse_failed"],
+        score: 0,
+        analysis: `Analisis gagal dan memerlukan pemeriksaan manual. Error code: ${errorCode}`,
+        categories: ["analysis_parse_failed"],
+        severity: "none",
+        confidence: 0,
+        recommendedAction: "review",
+        policyVersion: "default-2026-05-30",
+        evidence: [],
+      }));
+    }
   }
 
   return { results: parsed, raw: result };
