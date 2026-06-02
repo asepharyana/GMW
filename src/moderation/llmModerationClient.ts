@@ -4,9 +4,9 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
 import { retryWithBackoff } from "../retry.js";
-import { withLlmConcurrency } from "./concurrencyLimiter.js";
 import { resizeImageForVision } from "./imageResizer.js";
 import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
+import { llmChat, llmVision } from "./llmClient.js";
 import { extractMessageMediaEvidence } from "./messageMetadata.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
 import {
