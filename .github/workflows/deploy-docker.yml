@@ -73,7 +73,7 @@ jobs:
             set -eu
 
             APP_DIR=/opt/imphenbot
-            REPO_URL=https://github.com/MythEclipse/bete.git
+            REPO_URL=https://github.com/MythEclipse/GMW.git
 
             if [ ! -d "$APP_DIR/.git" ]; then
               mkdir -p "$APP_DIR"
