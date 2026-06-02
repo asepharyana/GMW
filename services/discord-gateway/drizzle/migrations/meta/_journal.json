@@ -29,6 +29,13 @@
       "when": 1780418603164,
       "tag": "0003_add_corrected_moderations",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780418800000,
+      "tag": "0004_drop_unused_ai_columns",
+      "breakpoints": true
     }
   ]
 }

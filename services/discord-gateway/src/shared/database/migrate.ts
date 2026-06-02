@@ -1,4 +1,6 @@
 import "dotenv/config";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { PoolClient } from "pg";
 import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
 import { migrate as migratePostgres } from "drizzle-orm/node-postgres/migrator";
@@ -13,6 +15,44 @@ import * as schema from "./schema.js";
 const logger = createChildLogger("migrate");
 const MIGRATION_LOCK_KEY_1 = 2026;
 const MIGRATION_LOCK_KEY_2 = 531;
+
+interface JournalEntry {
+  idx: number;
+  version: string;
+  when: number;
+  tag: string;
+  breakpoints: boolean;
+}
+
+interface MigrationJournal {
+  version: string;
+  dialect: string;
+  entries: JournalEntry[];
+}
+
+/**
+ * Read the Drizzle migration journal and return the tag (hash) of the
+ * first migration entry. This avoids hardcoding "0000_tricky_mysterio"
+ * which would break if the initial migration is ever regenerated.
+ */
+async function getFirstMigrationTag(): Promise<string> {
+  const journalPath = join(
+    process.cwd(),
+    "drizzle/migrations/meta/_journal.json",
+  );
+  const raw = await readFile(journalPath, "utf-8");
+  const journal: MigrationJournal = JSON.parse(raw);
+
+  if (!journal.entries || journal.entries.length === 0) {
+    throw new Error("Migration journal is empty — cannot determine first migration tag");
+  }
+
+  // Entries are ordered by idx — the first entry is the initial migration.
+  const first = journal.entries.reduce((earliest, entry) =>
+    entry.idx < earliest.idx ? entry : earliest,
+  );
+  return first.tag;
+}
 
 /**
  * Seed Drizzle's __drizzle_migrations tracking table for pre-existing databases
@@ -43,11 +83,14 @@ async function seedDrizzleHistory(client: PoolClient): Promise<void> {
     return; // brand-new database, let Drizzle handle everything
   }
 
+  const firstMigrationTag = await getFirstMigrationTag();
+
   logger.info(
-    "Seeding Drizzle migration history — marking 0000 as already applied on this pre-existing database",
+    { firstMigrationTag },
+    "Seeding Drizzle migration history — marking first migration as already applied on this pre-existing database",
   );
 
-  // Create the Drizzle tracking table and insert a row for migration 0000.
+  // Create the Drizzle tracking table and insert a row for the first migration.
   await client.query(`
     CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
       id SERIAL PRIMARY KEY,
@@ -59,15 +102,15 @@ async function seedDrizzleHistory(client: PoolClient): Promise<void> {
   // constraint, so check manually before inserting.
   const alreadySeeded = await client.query(
     `SELECT 1 FROM "__drizzle_migrations" WHERE hash = $1 LIMIT 1`,
-    ["0000_tricky_mysterio"],
+    [firstMigrationTag],
   );
   if (alreadySeeded.rows.length === 0) {
     await client.query(
       `INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES ($1, $2)`,
-      ["0000_tricky_mysterio", Date.now()],
+      [firstMigrationTag, Date.now()],
     );
   }
-  logger.info("Drizzle history seeded — 0000 marked applied");
+  logger.info({ firstMigrationTag }, "Drizzle history seeded — first migration marked applied");
 }
 
 export async function runMigrations(): Promise<void> {
