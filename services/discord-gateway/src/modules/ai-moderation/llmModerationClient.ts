@@ -908,10 +908,51 @@ async function runTextOnlyBatch(
     }),
   );
 
-  // Split into sub-batches if needed (R6)
+  // ── Group identical short messages (< 20 chars) to reduce redundant analysis ──
+  // Messages with identical normalized content share a single representative.
+  // Results are fanned out to all group members after the LLM call.
+  const shortContentGroups = new Map<string, MessageRecord[]>();
+  const deduplicatedTargets: MessageRecord[] = [];
+  const groupMapping = new Map<string, string[]>(); // representativeId → [all memberIds]
+
+  for (const msg of targets) {
+    const rawContent = (msg.edited_content ?? msg.content).trim();
+    if (rawContent.length > 0 && rawContent.length < 20) {
+      const groupKey = rawContent.toLowerCase();
+      if (shortContentGroups.has(groupKey)) {
+        shortContentGroups.get(groupKey)!.push(msg);
+      } else {
+        shortContentGroups.set(groupKey, [msg]);
+        deduplicatedTargets.push(msg); // first occurrence = representative
+      }
+    } else {
+      deduplicatedTargets.push(msg);
+    }
+  }
+
+  // Build group mapping for results fan-out
+  for (const [, members] of shortContentGroups) {
+    if (members.length > 1) {
+      const rep = members[0];
+      groupMapping.set(rep.id, members.map((m) => m.id));
+    }
+  }
+
+  if (groupMapping.size > 0) {
+    log.info(
+      {
+        originalCount: targets.length,
+        deduplicatedCount: deduplicatedTargets.length,
+        groupsFormed: groupMapping.size,
+      },
+      "Grouped identical short messages for text batch",
+    );
+  }
+
+  // Split into sub-batches if needed (R6) — using deduplicated targets
   const subBatches: MessageRecord[][] = [];
-  for (let i = 0; i < targets.length; i += maxBatchSize) {
-    subBatches.push(targets.slice(i, i + maxBatchSize));
+  for (let i = 0; i < deduplicatedTargets.length; i += maxBatchSize) {
+    subBatches.push(deduplicatedTargets.slice(i, i + maxBatchSize));
   }
 
   if (subBatches.length > 1) {
