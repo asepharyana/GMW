@@ -286,8 +286,10 @@ export async function computeImagePhash(
 ): Promise<string | null> {
   try {
     // Dynamic import to avoid issues if imghash native bindings aren't available
-    const imghash = await import("imghash");
-    const hash = await imghash.hash(buffer);
+    const imghashModule = await import("imghash");
+    const hashFn = imghashModule.default?.hash ?? imghashModule.hash;
+    if (typeof hashFn !== "function") return null;
+    const hash = await hashFn(buffer);
     return hash;
   } catch {
     return null;
