@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createChildLogger } from "@bete/shared/logger";
 import { retryWithBackoff } from "@bete/shared/utils";
@@ -26,7 +27,7 @@ import type {
   ModerationBroadcaster,
 } from "../message-capture/types.js";
 import { attemptAutoDeleteFlaggedMessage } from "./autoDeleteManager.js";
-import { buildConversationContext } from "./conversationContext.js";
+import { buildConversationContext, estimateTokens } from "./conversationContext.js";
 import { runModerationAnalysis } from "./llmModerationClient.js";
 import { logModerationError } from "./responseLogger.js";
 

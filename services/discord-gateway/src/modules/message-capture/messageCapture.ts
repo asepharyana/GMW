@@ -190,31 +190,18 @@ export async function captureMessage(
   }
 
   if (!isBacklog) {
-    if (attachmentUploadTasks.length > 0) {
-      let analysisQueued = false;
-      let fallbackTimer: NodeJS.Timeout | null = null;
-      const queueAnalysisOnce = () => {
-        if (analysisQueued) return;
-        analysisQueued = true;
-        if (fallbackTimer) {
-          clearTimeout(fallbackTimer);
-          fallbackTimer = null;
-        }
-        queueMessageAnalysis(message.id);
-      };
+    // AI analysis starts immediately — attachment upload runs in parallel.
+    // Media analysis path downloads images directly from Discord CDN,
+    // so it does NOT depend on the upload completing first.
+    queueMessageAnalysis(message.id);
 
-      fallbackTimer = setTimeout(queueAnalysisOnce, 30000);
-      Promise.allSettled(attachmentUploadTasks)
-        .then(queueAnalysisOnce)
-        .catch((err: unknown) => {
-          logger.error(
-            { messageId: message.id, error: err },
-            "Failed to queue message analysis after attachment upload",
-          );
-          queueAnalysisOnce();
-        });
-    } else {
-      queueMessageAnalysis(message.id);
+    if (attachmentUploadTasks.length > 0) {
+      Promise.allSettled(attachmentUploadTasks).catch((err: unknown) => {
+        logger.error(
+          { messageId: message.id, error: err },
+          "Attachment upload tasks failed",
+        );
+      });
     }
   }
 }
