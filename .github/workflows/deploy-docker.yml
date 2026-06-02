@@ -64,24 +64,26 @@ jobs:
           GHCR_USERNAME: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ENV_FILE: ${{ secrets.ENV_FILE }}
+          GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: GHCR_USERNAME,GHCR_TOKEN,ENV_FILE
+          envs: GHCR_USERNAME,GHCR_TOKEN,ENV_FILE,GIT_TOKEN
           script: |
             set -eu
 
             APP_DIR=/opt/imphenbot
             REPO_URL=https://github.com/MythEclipse/GMW.git
+            AUTH_URL=https://x-access-token:${GIT_TOKEN}@github.com/MythEclipse/GMW.git
 
             if [ ! -d "$APP_DIR/.git" ]; then
               mkdir -p "$APP_DIR"
-              git clone "$REPO_URL" "$APP_DIR"
+              git clone "$AUTH_URL" "$APP_DIR"
             fi
 
             cd "$APP_DIR"
-            git remote set-url origin "$REPO_URL"
+            git remote set-url origin "$AUTH_URL"
             git fetch origin master
             git checkout master
             git reset --hard origin/master
