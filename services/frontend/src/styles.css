@@ -3,26 +3,28 @@
 
 @layer base {
   :root {
-    --background: 222 47% 4%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 8%;
-    --card-glass: 222 47% 12% / 0.6;
-    --card-foreground: 210 40% 98%;
-    --primary: 199 89% 52%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217 33% 15%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 15%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 20%;
-    --accent-foreground: 210 40% 98%;
+    --background: 0 0% 98%;
+    --foreground: 222 20% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 20% 12%;
+    --primary: 199 80% 50%;
+    --primary-soft: 199 80% 92%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 94%;
+    --secondary-foreground: 222 20% 12%;
+    --muted: 210 20% 94%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 340 80% 65%;
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 55%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 20% / 0.5;
-    --input: 217 33% 20%;
-    --ring: 199 89% 52%;
-    --radius: 0.85rem;
-    --glow: 199 89% 52% / 0.15;
+    --destructive-foreground: 0 0% 100%;
+    --border: 199 30% 85%;
+    --input: 199 30% 85%;
+    --ring: 199 80% 50%;
+    --radius: 1rem;
+    --primary-glow: 199 80% 50% / 0.15;
+    --accent-glow: 340 80% 65% / 0.15;
+    --card-shadow: 199 30% 70% / 0.12;
   }
 
   * {
@@ -35,12 +37,6 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    
-    /* Mesh gradient background */
-    background-image: 
-      radial-gradient(circle at 15% 50%, hsl(260 50% 15% / 0.15) 0%, transparent 50%),
-      radial-gradient(circle at 85% 30%, hsl(var(--primary) / 0.1) 0%, transparent 50%);
-    background-attachment: fixed;
   }
 
   html,
@@ -51,16 +47,18 @@
 }
 
 @layer utilities {
-  .glass {
-    background-color: hsl(var(--card-glass));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid hsl(var(--border));
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  .card-shadow {
+    box-shadow: 0 1px 3px hsl(var(--card-shadow)), 0 1px 2px -1px hsl(var(--card-shadow));
   }
 
-  .glow {
-    box-shadow: 0 0 20px hsl(var(--glow));
+  .shine {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary-soft)) 0%,
+      hsl(var(--background)) 50%,
+      hsl(var(--primary-soft)) 100%
+    );
+    background-size: 200% 200%;
   }
 }
 
@@ -73,7 +71,37 @@
   }
 }
 
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
 .animate-bar-pulse {
   animation: bar-pulse 0.4s ease-in-out infinite;
   transform-origin: bottom;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(199 30% 90%) 0%,
+    hsl(199 30% 95%) 40%,
+    hsl(199 30% 90%) 80%,
+    hsl(199 30% 85%) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
