@@ -29,11 +29,3 @@ export type CustomLogger = Logger;
 export function createChildLogger(context: string) {
   return rootLogger.child({ context });
 }
-
-/**
- * Alias for createChildLogger for backwards compatibility.
- * @deprecated Use createChildLogger instead.
- */
-export function createLogger(context: string) {
-  return createChildLogger(context);
-}
