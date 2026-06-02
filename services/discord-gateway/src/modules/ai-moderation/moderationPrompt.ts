@@ -277,6 +277,11 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
     parts.push(FEW_SHOT_EXAMPLES);
   }
 
+  // Dynamic few-shot: corrected false positives from previous moderations
+  if (correctedExamples) {
+    parts.push(correctedExamples);
+  }
+
   parts.push(OUTPUT_INSTRUCTIONS);
 
   // XML-delimited context — prevents prompt injection
