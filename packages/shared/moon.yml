@@ -1,7 +1,6 @@
 $schema: 'https://moonrepo.dev/schema/config/v2.json'
 
 language: typescript
-type: library
 
 tasks:
   typecheck:
