@@ -26,6 +26,55 @@ interface BadwordCacheEntry {
 const badwordCache = new Map<string, BadwordCacheEntry>();
 const inFlightBadwordLookups = new Map<string, Promise<string[]>>();
 
+// ---------------------------------------------------------------------------
+// Local rule-based pre-filter — short-circuits definitively safe messages
+// without calling the LLM badword detection API.
+// Conservative: only flags messages that are 100% certainly clean.
+// ---------------------------------------------------------------------------
+
+const SAFE_PATTERNS: Array<{ test: (text: string) => boolean; reason: string }> = [
+  {
+    // Pure laughter patterns
+    test: (t) => /^(wkwk+|w+kw+k+|wkwkw+|haha+|hehe+|hihi+|huhu+|xixi+|wakak+|awkwa+)$/i.test(t),
+    reason: "laughter pattern",
+  },
+  {
+    // Single-word affirmatives (common in Indonesian Discord)
+    test: (t) => /^(ok|oke|okay|sip|siap|aman|mantap|gas|gass|gaskeun|santuy|gaskan|lah|wih|wah|eh|nah|loh|hmm|hm|heh)$/i.test(t),
+    reason: "single-word affirmative",
+  },
+  {
+    // Greetings / common short expressions
+    test: (t) => /^(hai|halo|hello|hi|oi|woy|woi|pagi|siang|sore|malam|mlm|p|w|L|F|gws|thx|thks|makasih|ty|thanks|yw|sama-sama|ok sip|ok bang|siap bang)$/i.test(t),
+    reason: "greeting/common expression",
+  },
+  {
+    // Very short messages (1-2 characters) — reactions, single letters
+    test: (t) => t.length <= 2,
+    reason: "very short message (1-2 chars)",
+  },
+  {
+    // Pure numeric or pure punctuation
+    test: (t) => /^[\d\s.,!?;:'"()\-_]+$/.test(t),
+    reason: "numeric/punctuation only",
+  },
+];
+
+/**
+ * Checks whether a text message is definitively safe and does not need
+ * LLM-based badword detection.  This is a conservative local pre-filter
+ * — it only returns true for patterns that CANNOT be violations.
+ */
+export function isDefinitivelySafe(text: string): boolean {
+  // Normalize: strip Discord custom emoji, trim whitespace
+  const { text: normalized } = normalizeDiscordCustomEmoji(text);
+  const trimmed = normalized.trim();
+
+  if (trimmed.length === 0) return true;
+
+  return SAFE_PATTERNS.some((p) => p.test(trimmed));
+}
+
 export interface ModerationTextEvidence {
   raw: string;
   normalized: string;
@@ -121,6 +170,11 @@ export async function detectIndonesianBadwords(
   const cached = getCachedBadwords(cacheKey);
   if (cached) {
     return cached;
+  }
+
+  // ── Tier 0: Local rule-based pre-filter (fastest — no API call) ──
+  if (isDefinitivelySafe(text)) {
+    return [];
   }
 
   // De-duplicate concurrent lookups

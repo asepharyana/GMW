@@ -184,9 +184,15 @@ CRITICAL:
 // Composer: assembles all sections with XML delimiters
 // ---------------------------------------------------------------------------
 
+/** Prompt mode — determines which few-shot example section is included. */
+export type PromptMode = "text" | "media" | "mixed";
+
 export interface BuildSystemPromptOptions {
   contextText: string;
-  includeMediaInstructions: boolean;
+  /** Prompt mode — determines which sections are included. */
+  mode: PromptMode;
+  /** @deprecated Use `mode` instead. */
+  includeMediaInstructions?: boolean;
   correction?: { error: string; preview: string };
 }
 

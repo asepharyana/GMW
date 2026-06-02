@@ -1,5 +1,6 @@
 import { createChildLogger } from "@bete/shared/logger";
 import { retryWithBackoff } from "@bete/shared/utils";
+import { LRUCache } from "lru-cache";
 import type { ChatCompletion } from "openai/resources/chat/completions";
 import { AbortError } from "p-retry";
 import { z } from "zod";
@@ -28,11 +29,14 @@ import {
   buildStickerVisionPrompt,
 } from "./stickerPrompt.js";
 import {
+  computeImagePhash,
   getCachedMediaAnalysis,
+  getCachedMediaByPhash,
   makeCustomEmojiCacheKey,
   makeImageCacheKey,
   makeStickerCacheKey,
   upsertCachedMediaAnalysis,
+  upsertCachedMediaByPhash,
 } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 

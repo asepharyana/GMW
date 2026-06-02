@@ -239,6 +239,7 @@ function getAnalysisWorkerUrl(): URL {
 const workerPool = new Piscina({
   filename: fileURLToPath(getAnalysisWorkerUrl()),
   execArgv: process.execArgv,
+  maxThreads: config.PISCINA_MAX_THREADS ?? availableParallelism(),
 });
 
 interface AnalysisWorkerResponse {
@@ -275,8 +276,8 @@ export function pickBatchWithinBudget(
 
   for (const msg of messages) {
     const content = msg.edited_content ?? msg.content;
-    // Rough token estimate: ~3 chars per token + metadata overhead
-    const msgTokens = Math.ceil(content.length / 3) + tokensPerMessage;
+    // Accurate token count via tiktoken (+ overhead for JSON structure)
+    const msgTokens = estimateTokens(content) + tokensPerMessage;
 
     if (usedTokens + msgTokens <= maxTokens) {
       batch.push(msg);
