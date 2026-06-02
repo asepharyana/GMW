@@ -72,6 +72,42 @@ const ModerationResponseSchema = z.object({
 const log = createChildLogger("llmModerationClient");
 
 /**
+ * Fetches recent corrected false positives from the DB and formats them
+ * as additional few-shot examples for the moderation prompt.
+ *
+ * Returns an empty string if no corrections are available (so the prompt
+ * builder simply skips the section).
+ */
+async function buildCorrectedFewShotExamples(): Promise<string> {
+  try {
+    const corrections = await getRecentCorrectedModerations(5);
+    if (corrections.length === 0) return "";
+
+    const lines = [
+      "## Contoh Koreksi False Positive (dari moderasi sebelumnya)",
+      "Berikut adalah koreksi manual dari false positive yang pernah terjadi. Gunakan sebagai panduan tambahan:",
+    ];
+
+    for (const c of corrections) {
+      const origFlags = c.originalFlags.join(", ") || "(none)";
+      const corrFlags = c.correctedFlags.join(", ") || "(clean)";
+      const notes = c.correctionNotes ? ` — ${c.correctionNotes}` : "";
+      lines.push(
+        `- Konten: "${c.contentSnippet.substring(0, 100)}" → sebelumnya di-flag sebagai [${origFlags}], dikoreksi menjadi [${corrFlags}]${notes}`,
+      );
+    }
+
+    lines.push(
+      "JANGAN ulangi kesalahan yang sama. Jika konten serupa dengan contoh di atas, gunakan koreksi yang sudah ditentukan.",
+    );
+
+    return lines.join("\n");
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Enhanced deferral detection pattern (R9).
  *
  * Only matches patterns where the model explicitly states it cannot make
