@@ -1,0 +1,39 @@
+# Discord Gateway service - handles message capture, voice recording, and AI moderation
+language: typescript
+type: application
+
+tasks:
+  dev:
+    command: tsx watch src/index.ts
+    local: true
+
+  build:
+    command: tsc
+    inputs:
+      - src
+      - tsconfig.json
+    outputs:
+      - dist
+
+  typecheck:
+    command: tsc --noEmit
+    inputs:
+      - src
+      - tsconfig.json
+
+  lint:
+    command: biome check --diagnostic-level=error .
+    inputs:
+      - src
+
+  format:
+    command: biome format --write .
+    inputs:
+      - src
+
+  test:
+    command: vitest run
+    inputs:
+      - src
+      - tests
+      - tsconfig.json

@@ -1,0 +1,11 @@
+$schema: 'https://moonrepo.dev/schema/config/v2.json'
+
+language: typescript
+type: library
+
+tasks:
+  typecheck:
+    command: tsc --noEmit
+    inputs:
+      - src
+      - tsconfig.json

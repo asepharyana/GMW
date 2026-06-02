@@ -1,0 +1,38 @@
+# Frontend web application
+language: typescript
+type: application
+
+tasks:
+  dev:
+    command: vite --host 0.0.0.0
+    local: true
+
+  build:
+    command: tsc --noEmit && NODE_NO_WARNINGS=1 vite build
+    inputs:
+      - src
+      - tsconfig.json
+      - vite.config.mts
+      - index.html
+    outputs:
+      - dist
+
+  preview:
+    command: vite preview --host 0.0.0.0 --port 3000
+    local: true
+
+  typecheck:
+    command: tsc --noEmit
+    inputs:
+      - src
+      - tsconfig.json
+
+  lint:
+    command: biome check --diagnostic-level=error src/
+    inputs:
+      - src
+
+  format:
+    command: biome format --write src/
+    inputs:
+      - src

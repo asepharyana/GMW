@@ -8,3 +8,6 @@ public/app/
 .env.test
 logs/
 .codegraph/
+# moon
+.moon/cache
+.moon/docker

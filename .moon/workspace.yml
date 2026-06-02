@@ -1,0 +1,8 @@
+# Moon Workspace Configuration
+projects:
+  - 'services/*'
+  - 'packages/*'
+
+vcs:
+  defaultBranch: main
+  provider: github
