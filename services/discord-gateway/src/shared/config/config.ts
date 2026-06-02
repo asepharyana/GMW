@@ -116,12 +116,12 @@ const configSchema = z
       .number()
       .positive()
       .default(120000),
-    /** Max concurrent individual-fallback LLM calls (effectively unlimited). */
+    /** Max concurrent individual-fallback jobs admitted by the main event loop. */
     AI_ANALYSIS_INDIVIDUAL_MAX_CONCURRENT: z.coerce
       .number()
       .int()
       .positive()
-      .default(1000),
+      .default(50),
     /**
      * How many consecutive individual-fallback errors trigger the individual
      * circuit breaker (separate from the batch circuit breaker).

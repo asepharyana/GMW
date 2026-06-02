@@ -158,9 +158,9 @@ let lastError: string | null = null;
 let moderationClient: Client | undefined;
 
 // Batch circuit breaker
-let consecutiveErrors = 0;
+const conversationConsecutiveErrors = new Map<string, number>();
 const MAX_CONSECUTIVE_ERRORS = 5;
-let globalCooldownUntil = 0;
+const CONVERSATION_CB_COOLDOWN_MS = 60000;
 
 // ---------------------------------------------------------------------------
 // Individual fallback queue — runs PARALLEL to the batch pipeline.
