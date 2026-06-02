@@ -56,15 +56,8 @@ export interface LlmCallOpts {
   temperature?: number;
   /** Top-p (defaults to 0.95). */
   top_p?: number;
-  /** Force JSON output.  When true, wraps schema in json_schema response_format. */
-  jsonResponse?:
-    | { type: "json_object" }
-    | {
-        type: "json_schema";
-        name: string;
-        schema: Record<string, unknown>;
-        strict: boolean;
-      };
+  /** Force JSON output via response_format: { type: "json_object" }. */
+  jsonResponse?: { type: "json_object" };
   /** Extra retries beyond DEFAULT_RETRIES (default 2). */
   retries?: number;
 }
@@ -91,39 +84,18 @@ export async function llmChat(
     retries = DEFAULT_RETRIES,
   } = opts;
 
-  const responseFormat:
-    | { type: "json_object" }
-    | {
-        type: "json_schema";
-        json_schema: {
-          name: string;
-          schema: Record<string, unknown>;
-          strict: boolean;
-        };
-      }
-    | undefined = jsonResponse
-    ? jsonResponse.type === "json_schema"
-      ? {
-          type: "json_schema",
-          json_schema: {
-            name: jsonResponse.name,
-            schema: jsonResponse.schema,
-            strict: jsonResponse.strict,
-          },
-        }
-      : jsonResponse
-    : undefined;
+  const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
+    model,
+    messages,
+    temperature,
+    top_p,
+    max_tokens,
+    stream: false,
+  };
 
-  const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
-    {
-      model,
-      messages,
-      temperature,
-      top_p,
-      max_tokens,
-      stream: false,
-      ...(responseFormat ? { response_format: responseFormat } : {}),
-    } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming;
+  if (jsonResponse) {
+    (params as unknown as Record<string, unknown>).response_format = jsonResponse;
+  }
 
   return retryWithBackoff(
     async () => {

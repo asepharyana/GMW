@@ -161,55 +161,6 @@ function deriveRecommendedAction(
   return "review";
 }
 
-/**
- * JSON Schema for OpenAI's response_format: { type: "json_schema" }.
- * This enforces the exact structure the LLM must output (R2).
- */
-const MODERATION_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    results: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          message_id: { type: "string" },
-          status: { type: "string", enum: ["clean", "warn", "flagged"] },
-          flags: { type: "array", items: { type: "string" } },
-          score: { type: "number", minimum: 0, maximum: 1 },
-          analysis: { type: "string" },
-          categories: { type: "array", items: { type: "string" } },
-          severity: {
-            type: "string",
-            enum: ["none", "low", "medium", "high", "critical"],
-          },
-          confidence: { type: "number", minimum: 0, maximum: 1 },
-          recommended_action: {
-            type: "string",
-            enum: ["none", "monitor", "warn", "review", "delete", "escalate"],
-          },
-          policy_version: { type: "string" },
-          evidence: { type: "array", items: { type: "string" } },
-        },
-        required: [
-          "message_id",
-          "status",
-          "flags",
-          "score",
-          "severity",
-          "confidence",
-          "recommended_action",
-          "policy_version",
-          "evidence",
-          "analysis",
-        ],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ["results"],
-  additionalProperties: false,
-};
 
 /**
  * Helper to extract JSON from a potentially conversational or markdown-wrapped string.
@@ -736,12 +687,7 @@ async function callModerationLLM(
           const completion = await llmChat({
             messages: [{ role: "user", content }],
             max_tokens: 16384,
-            jsonResponse: {
-              type: "json_schema",
-              name: "moderation_result",
-              schema: MODERATION_JSON_SCHEMA,
-              strict: true,
-            },
+            jsonResponse: { type: "json_object" },
             retries: 0,
           });
 
