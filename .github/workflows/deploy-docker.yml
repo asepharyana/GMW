@@ -73,75 +73,32 @@ jobs:
             set -eu
 
             APP_DIR=/opt/imphenbot
-            mkdir -p "$APP_DIR"
+            REPO_URL=https://github.com/MythEclipse/GMW.git
+
+            if [ -d "$APP_DIR/.git" ]; then
+              ORIGIN=$(git -C "$APP_DIR" remote get-url origin 2>/dev/null || true)
+              if [ "$ORIGIN" != "$REPO_URL" ]; then
+                rm -rf "$APP_DIR"
+              fi
+            fi
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              mkdir -p "$APP_DIR"
+              git clone --depth 1 --branch master "$REPO_URL" "$APP_DIR"
+            else
+              git -C "$APP_DIR" fetch --depth 1 origin master
+              git -C "$APP_DIR" checkout master
+              git -C "$APP_DIR" reset --hard origin/master
+            fi
+
             cd "$APP_DIR"
 
             printf '%s\n' "$ENV_FILE" > .env
             mkdir -p recordings
 
-            cat > docker-compose.yml <<'COMPOSE_EOF'
-            version: '3.8'
-
-            services:
-              proxy:
-                image: ghcr.io/${OWNER:-mytheclipse}/bete-proxy:latest
-                container_name: imphenbot-proxy
-                restart: unless-stopped
-                labels:
-                  - "traefik.enable=true"
-                  - "traefik.http.routers.imphenbot.rule=Host(`imphnen.asepharyana.my.id`)"
-                  - "traefik.http.routers.imphenbot.entrypoints=websecure"
-                  - "traefik.http.routers.imphenbot.tls=true"
-                  - "traefik.http.services.imphenbot.loadbalancer.server.port=80"
-                depends_on:
-                  - backend
-                  - frontend
-                networks:
-                  - app-shared-net
-
-              backend:
-                image: ghcr.io/${OWNER:-mytheclipse}/bete-backend:latest
-                container_name: imphenbot-backend
-                restart: unless-stopped
-                env_file:
-                  - .env
-                environment:
-                  NODE_ENV: production
-                  WEBSERVER_PORT: 3000
-                depends_on:
-                  - discord-gateway
-                networks:
-                  - app-shared-net
-
-              discord-gateway:
-                image: ghcr.io/${OWNER:-mytheclipse}/bete-discord-gateway:latest
-                container_name: imphenbot-discord-gateway
-                restart: unless-stopped
-                env_file:
-                  - .env
-                environment:
-                  NODE_ENV: production
-                volumes:
-                  - ./recordings:/app/recordings
-                networks:
-                  - app-shared-net
-
-              frontend:
-                image: ghcr.io/${OWNER:-mytheclipse}/bete-frontend:latest
-                container_name: imphenbot-frontend
-                restart: unless-stopped
-                networks:
-                  - app-shared-net
-
-            networks:
-              app-shared-net:
-                name: app-shared-net
-                external: true
-            COMPOSE_EOF
-
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 
-            docker compose pull
-            docker compose down --remove-orphans || true
-            docker compose up -d --remove-orphans
+            docker compose -f infra/docker/docker-compose.yml pull
+            docker compose -f infra/docker/docker-compose.yml down --remove-orphans || true
+            docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans
             docker image prune -f
