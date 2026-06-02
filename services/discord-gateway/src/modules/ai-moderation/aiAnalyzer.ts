@@ -450,7 +450,7 @@ async function processIndividualFallback(
     lastError = error instanceof Error ? error.message : String(error);
 
     // Log error with responseLogger
-    logModerationError([messageId], config.AI_LLM_MODEL, error, {
+    logModerationError([messageId], config.AI_LLM_MODEL, error as Error | string, {
       phase: "individual_fallback",
       conversationKey,
       exhaustedOnIncomplete,

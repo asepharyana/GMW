@@ -796,7 +796,7 @@ async function callModerationLLM(
     );
 
     // Log error with responseLogger
-    logModerationError(targetIds, config.AI_LLM_MODEL, parseError, {
+    logModerationError(targetIds, config.AI_LLM_MODEL, parseError as Error | string, {
       phase: "parse_response",
       label,
       contentLength: state.lastInvalidContent.length,
