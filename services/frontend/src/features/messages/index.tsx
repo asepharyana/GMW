@@ -1,4 +1,4 @@
-import { Filter, Search, X } from "lucide-react";
+import { Filter, RotateCw, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { MessageRecord } from "../../shared/api/client";
 import {
@@ -21,6 +21,7 @@ interface MessagesPanelProps {
   guildName: string | null;
   messages: MessageRecord[];
   onReanalyze: (id: string) => Promise<void>;
+  onReanalyzeAllErrors?: () => Promise<number>;
   onLoadMore?: () => void;
   hasMore?: boolean;
   loadingMore?: boolean;
@@ -32,6 +33,7 @@ export function MessagesPanel({
   guildName,
   messages,
   onReanalyze,
+  onReanalyzeAllErrors,
   onLoadMore,
   hasMore,
   loadingMore,
@@ -42,6 +44,8 @@ export function MessagesPanel({
   const [showSearch, setShowSearch] = useState(false);
   const [aiFilter, setAiFilter] = useState<AiFilter>("all");
   const [viewTab, setViewTab] = useState<"all" | "images">("all");
+  const [retryingAll, setRetryingAll] = useState(false);
+  const [retriedCount, setRetriedCount] = useState<number | null>(null);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -186,6 +190,36 @@ export function MessagesPanel({
           >
             <X className="mr-1 h-3 w-3" /> Clear
           </Button>
+        )}
+        {stats.error > 0 && onReanalyzeAllErrors && (
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={retryingAll}
+            onClick={async () => {
+              setRetryingAll(true);
+              setRetriedCount(null);
+              try {
+                const count = await onReanalyzeAllErrors();
+                setRetriedCount(count);
+              } finally {
+                setRetryingAll(false);
+              }
+            }}
+          >
+            <RotateCw
+              className={`mr-1.5 h-3.5 w-3.5 ${retryingAll ? "animate-spin" : ""}`}
+            />
+            {retryingAll
+              ? "Retrying..."
+              : `Retry All Errors (${stats.error})`}
+          </Button>
+        )}
+        {retriedCount !== null && (
+          <span className="text-xs text-green-400">
+            {retriedCount} message{retriedCount !== 1 ? "s" : ""} queued for
+            re-analysis
+          </span>
         )}
         <div className="ml-auto flex items-center gap-1.5">
           <Filter className="h-4 w-4 text-muted-foreground" />

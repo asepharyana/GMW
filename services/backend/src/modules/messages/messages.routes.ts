@@ -9,6 +9,7 @@ import {
   handleGetMessagesByChannel,
   handleListMessages,
 } from "./messages.controller.js";
+import { messagesService } from "./messages.service.js";
 
 const logger = createChildLogger("messages.routes");
 
@@ -28,7 +29,30 @@ export function createMessagesRouter(): Router {
   // (uses /detail/ prefix to avoid collision with :channelId route above)
   router.get("/messages/detail/:id", handleGetMessageById);
 
-  // POST /api/messages/:id/reanalyze - Mark message for re-analysis
+  // POST /api/messages/reanalyze-batch — Bulk retry all errored messages
+  // MUST be registered BEFORE /messages/:id/reanalyze so "reanalyze-batch"
+  // is not captured as an :id param.
+  router.post(
+    "/messages/reanalyze-batch",
+    asyncHandler(async (req: Request, res: Response) => {
+      const { guildId, channelId, messageIds } = (req.body ?? {}) as {
+        guildId?: string;
+        channelId?: string;
+        messageIds?: string[];
+      };
+
+      const count = await messagesService.reanalyzeErrorBatch({
+        guildId,
+        channelId,
+        messageIds,
+      });
+
+      logger.info({ count, guildId, channelId }, "Batch reanalyze completed");
+      res.status(200).json({ ok: true, count });
+    }),
+  );
+
+  // POST /api/messages/:id/reanalyze - Mark single message for re-analysis
   router.post(
     "/messages/:id/reanalyze",
     asyncHandler(async (req: Request, res: Response) => {

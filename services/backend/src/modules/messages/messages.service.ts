@@ -45,6 +45,21 @@ export class MessagesService {
     logger.debug({ channelId, query }, "Getting attachments by channel");
     return messagesRepository.getAttachmentsByChannel(channelId, query);
   }
+
+  async reanalyzeErrorBatch(opts: {
+    guildId?: string;
+    channelId?: string;
+    messageIds?: string[];
+  }) {
+    if (!opts.guildId && !opts.channelId && (!opts.messageIds || opts.messageIds.length === 0)) {
+      throw new ValidationError(
+        "At least one of guildId, channelId, or messageIds[] is required",
+      );
+    }
+
+    logger.info(opts, "Batch reanalyzing errored messages");
+    return messagesRepository.reanalyzeErrorBatch(opts);
+  }
 }
 
 export const messagesService = new MessagesService();

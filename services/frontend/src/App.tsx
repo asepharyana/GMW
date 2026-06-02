@@ -207,6 +207,7 @@ export default function App() {
           guildName={monitorGuildName}
           messages={messages.messages}
           onReanalyze={messages.reanalyze}
+          onReanalyzeAllErrors={messages.reanalyzeAllErrors}
           onLoadMore={messages.loadMore}
           hasMore={messages.hasMore}
           loadingMore={messages.loadingMore}

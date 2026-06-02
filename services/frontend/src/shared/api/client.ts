@@ -167,6 +167,17 @@ export function reanalyzeMessage(id: string): Promise<void> {
   return request<void>(`/api/messages/${id}/reanalyze`, { method: "POST" });
 }
 
+export function reanalyzeErrorBatch(opts: {
+  guildId?: string;
+  channelId?: string;
+  messageIds?: string[];
+}): Promise<{ ok: boolean; count: number }> {
+  return request<{ ok: boolean; count: number }>(
+    "/api/messages/reanalyze-batch",
+    { method: "POST", body: JSON.stringify(opts) },
+  );
+}
+
 export function moderateMessage(
   id: string,
   actionType: string,

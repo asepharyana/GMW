@@ -216,6 +216,50 @@ export class MessagesRepository {
     return mapMessageRow(rows[0] as Record<string, unknown>);
   }
 
+  /**
+   * Bulk-reset ai_status from 'error' to 'pending' so the DG recovery worker
+   * picks them up on its next poll cycle.
+   *
+   * Accepts optional scope filters (guildId, channelId) or a list of explicit
+   * message IDs. Returns the count of rows that were actually updated.
+   */
+  async reanalyzeErrorBatch(opts: {
+    guildId?: string;
+    channelId?: string;
+    messageIds?: string[];
+  }): Promise<number> {
+    const pool = getPool();
+    const clauses: string[] = ["ai_status = 'error'"];
+    const params: (string | number)[] = [];
+    let p = 1;
+
+    if (opts.messageIds && opts.messageIds.length > 0) {
+      const placeholders = opts.messageIds.map((_, i) => `$${p + i}`);
+      clauses.push(`id IN (${placeholders.join(", ")})`);
+      params.push(...opts.messageIds);
+      p += opts.messageIds.length;
+    }
+    if (opts.guildId) {
+      clauses.push(`guild_id = $${p}`);
+      params.push(opts.guildId);
+      p++;
+    }
+    if (opts.channelId) {
+      clauses.push(`channel_id = $${p}`);
+      params.push(opts.channelId);
+      p++;
+    }
+
+    const where = clauses.join(" AND ");
+    const { rowCount } = await pool.query(
+      `UPDATE messages SET ai_status = 'pending' WHERE ${where}`,
+      params,
+    );
+
+    logger.info({ count: rowCount ?? 0, ...opts }, "Batch reanalyze triggered");
+    return rowCount ?? 0;
+  }
+
   async delete(id: string): Promise<boolean> {
     const pool = getPool();
     const { rowCount } = await pool.query(
