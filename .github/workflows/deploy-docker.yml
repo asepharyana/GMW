@@ -81,6 +81,7 @@ jobs:
             fi
 
             cd "$APP_DIR"
+            git remote set-url origin "$REPO_URL"
             git fetch origin master
             git checkout master
             git reset --hard origin/master
