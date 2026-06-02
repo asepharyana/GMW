@@ -1,7 +1,7 @@
 import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 import { formatMediaEvidenceForPrompt } from "../message-capture/messageMetadata.js";
 import type { MessageRecord } from "../message-capture/types.js";
-import { encodingForModel } from "tiktoken";
+import { encoding_for_model as encodingForModel } from "tiktoken";
 
 export interface ConversationContextInput {
   contextBefore: MessageRecord[];

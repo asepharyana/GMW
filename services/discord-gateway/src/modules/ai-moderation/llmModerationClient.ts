@@ -893,7 +893,7 @@ async function runTextOnlyBatch(
       // Use modular system prompt with XML delimiters (R1, R7, R8)
       const systemText = buildSystemPromptModular({
         contextText,
-        includeMediaInstructions: false,
+        mode: "text",
         correction,
       });
 
