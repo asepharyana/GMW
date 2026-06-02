@@ -616,13 +616,7 @@ async function processBatch(
     }
 
     if (!result.ok) {
-      consecutiveErrors++;
-      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-        globalCooldownUntil = Date.now() + 60000;
-        logger.warn(
-          "Global circuit breaker triggered due to consecutive errors",
-        );
-      }
+      recordConversationBatchFailure(conversationKey);
 
       // Batch failed entirely — fall back all messages to individual queue
       // so no message is permanently lost behind a cooldown.
