@@ -14,6 +14,15 @@ export interface MessageMetadata {
   embeds?: Array<{ title?: string; image?: string; thumbnail?: string }>;
 }
 
+export function parseMetadata(value: string | null): MessageMetadata {
+  if (!value) return {};
+  try {
+    return JSON.parse(value) as MessageMetadata;
+  } catch {
+    return {};
+  }
+}
+
 export interface MessageRecord {
   id: string;
   guild_id: string;

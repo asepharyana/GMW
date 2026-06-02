@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Redis from "ioredis";
 import { config } from "../config/index.js";
-import { createChildLogger } from "../logger/index.js";
+import { createChildLogger } from "@bete/shared/logger";
 
 const logger = createChildLogger("redis.command-channel");
 

@@ -1,6 +1,6 @@
 import { getVoiceConnection, type VoiceConnection } from "@discordjs/voice";
 import type { Client, Guild, VoiceChannel } from "discord.js-selfbot-v13";
-import { AppError } from "../../shared/errors/errors.js";
+import { AppError } from "@bete/shared/errors";
 import { createChildLogger } from "../../shared/logger/logger.js";
 import { discordPlayer } from "./player.js";
 import { startRecording, stopRecording } from "./recorder.js";

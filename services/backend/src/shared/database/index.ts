@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { config } from "../config/index.js";
-import { createChildLogger } from "../logger/index.js";
+import { createChildLogger } from "@bete/shared/logger";
 
 const logger = createChildLogger("database");
 

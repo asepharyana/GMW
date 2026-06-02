@@ -1,6 +1,6 @@
 import type { Server } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
-import { createChildLogger } from "../shared/logger/index.js";
+import { createChildLogger } from "@bete/shared/logger";
 
 const logger = createChildLogger("ws.server");
 
@@ -10,7 +10,6 @@ interface BroadcastEvent {
   timestamp: string;
 }
 
-// Extend globalThis with broadcast function types
 declare global {
   var __broadcastFns:
     | {

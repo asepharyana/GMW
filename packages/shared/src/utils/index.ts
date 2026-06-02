@@ -13,7 +13,7 @@ export function formatBytes(bytes: number): string {
 }
 
 export function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 }
 
 export function isValidUrl(url: string): boolean {
@@ -26,7 +26,7 @@ export function isValidUrl(url: string): boolean {
 }
 
 export function sanitizeString(str: string): string {
-  return str.replace(/[<>]/g, "").trim().substring(0);
+  return str.replace(/[<>]/g, "").trim();
 }
 
 export interface PaginationParams {
@@ -58,4 +58,158 @@ export function calculatePagination(
 
 export function getOffset(page: number, limit: number): number {
   return (page - 1) * limit;
+}
+
+// ---------------------------------------------------------------------------
+// Retry with exponential backoff (port of discord-gateway retry utility)
+// ---------------------------------------------------------------------------
+
+export interface RetryOptions {
+  /** Number of retry attempts (default: 3) */
+  retries?: number;
+  /** Initial delay in ms (default: 1000) */
+  minTimeout?: number;
+  /** Maximum delay in ms (default: 30000) */
+  maxTimeout?: number;
+  /** Multiplication factor for each retry (default: 2) */
+  factor?: number;
+}
+
+export async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  options: RetryOptions = {},
+): Promise<T> {
+  const {
+    retries = 3,
+    minTimeout = 1_000,
+    maxTimeout = 30_000,
+    factor = 2,
+  } = options;
+
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt === retries) break;
+      const backoff = Math.min(
+        minTimeout * factor ** attempt + Math.random() * 100,
+        maxTimeout,
+      );
+      await delay(backoff);
+    }
+  }
+  throw lastError!;
+}
+
+// ---------------------------------------------------------------------------
+// Generic in-memory TTL cache with LRU-style pruning
+// ---------------------------------------------------------------------------
+
+interface CacheEntry<V> {
+  value: V;
+  expiresAt: number;
+}
+
+export interface TtlCacheOptions<K> {
+  /** Default TTL in ms for entries (default: 60000) */
+  defaultTtlMs?: number;
+  /** Maximum entries before pruning (default: 500) */
+  maxEntries?: number;
+  /** Called when an entry is evicted */
+  onEvict?: (key: K, value: unknown) => void;
+}
+
+export class TtlCache<K = string, V = unknown> {
+  private store = new Map<K, CacheEntry<V>>();
+  private readonly defaultTtlMs: number;
+  private readonly maxEntries: number;
+  private readonly onEvict?: (key: K, value: V) => void;
+
+  constructor(options: TtlCacheOptions<K> = {}) {
+    this.defaultTtlMs = options.defaultTtlMs ?? 60_000;
+    this.maxEntries = options.maxEntries ?? 500;
+    this.onEvict = options.onEvict;
+  }
+
+  /**
+   * Get a value by key. Returns undefined if missing or expired.
+   */
+  get(key: K): V | undefined {
+    const entry = this.store.get(key);
+    if (!entry) return undefined;
+    if (Date.now() > entry.expiresAt) {
+      this.store.delete(key);
+      return undefined;
+    }
+    return entry.value;
+  }
+
+  /**
+   * Set a value with optional custom TTL. Prunes oldest entries if at capacity.
+   */
+  set(key: K, value: V, ttlMs?: number): void {
+    if (this.store.size >= this.maxEntries) {
+      this.prune();
+    }
+    this.store.set(key, {
+      value,
+      expiresAt: Date.now() + (ttlMs ?? this.defaultTtlMs),
+    });
+  }
+
+  /**
+   * Check if a key exists and is not expired (without removing it).
+   */
+  has(key: K): boolean {
+    return this.get(key) !== undefined;
+  }
+
+  /**
+   * Remove a specific entry.
+   */
+  delete(key: K): boolean {
+    return this.store.delete(key);
+  }
+
+  /**
+   * Remove all expired entries.
+   */
+  prune(): void {
+    const now = Date.now();
+    const toDelete: K[] = [];
+    for (const [key, entry] of this.store) {
+      if (now > entry.expiresAt) {
+        toDelete.push(key);
+      }
+    }
+    for (const key of toDelete) {
+      const entry = this.store.get(key);
+      this.store.delete(key);
+      if (entry && this.onEvict) this.onEvict(key, entry.value);
+    }
+    // If still over limit after TTL pruning, drop oldest entries
+    if (this.store.size > this.maxEntries) {
+      const keysToDelete = Array.from(this.store.keys()).slice(
+        0,
+        this.store.size - this.maxEntries,
+      );
+      for (const key of keysToDelete) {
+        const entry = this.store.get(key);
+        this.store.delete(key);
+        if (entry && this.onEvict) this.onEvict(key, entry.value);
+      }
+    }
+  }
+
+  /** Current number of entries (including possibly expired ones). */
+  get size(): number {
+    return this.store.size;
+  }
+
+  /** Remove all entries. */
+  clear(): void {
+    this.store.clear();
+  }
 }

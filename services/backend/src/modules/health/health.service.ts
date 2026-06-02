@@ -1,4 +1,4 @@
-import { createChildLogger } from "../../shared/logger/index.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { healthRepository } from "./health.repository.js";
 
 const logger = createChildLogger("health.service");

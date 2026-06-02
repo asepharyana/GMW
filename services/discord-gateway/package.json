@@ -15,6 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@bete/shared": "workspace:*",
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.2",
     "@snazzah/davey": "^0.1.11",

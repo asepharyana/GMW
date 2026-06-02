@@ -112,6 +112,8 @@ export interface ActiveSpeaker {
   speaking: boolean;
 }
 
+export type MediaMode = "music" | "screen";
+
 export interface MediaItem {
   id?: string;
   source: string;

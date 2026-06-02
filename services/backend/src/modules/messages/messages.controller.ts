@@ -1,20 +1,13 @@
 import type { NextFunction, Request, Response } from "express";
-import { createChildLogger } from "../../shared/logger/index.js";
-import { asyncHandler } from "../../shared/middlewares/index.js";
+import { createChildLogger } from "@bete/shared/logger";
+import {
+  asyncHandler,
+  requireParam,
+} from "../../shared/middlewares/index.js";
 import { messageQuerySchema } from "./messages.schema.js";
 import { messagesService } from "./messages.service.js";
 
 const logger = createChildLogger("messages.controller");
-
-function requireRouteParam(
-  value: string | string[] | undefined,
-  name: string,
-): string {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`Missing route parameter: ${name}`);
-  }
-  return value;
-}
 
 export function handleListMessages(
   req: Request,
@@ -35,7 +28,7 @@ export function handleGetMessagesByChannel(
   next: NextFunction,
 ) {
   return asyncHandler(async (req: Request, res: Response) => {
-    const channelId = requireRouteParam(req.params.channelId, "channelId");
+    const channelId = requireParam(req.params.channelId, "route parameter", "channelId");
     const query = messageQuerySchema.parse(req.query);
     logger.debug({ channelId, query }, "Handling get messages by channel");
     const result = await messagesService.getMessagesByChannel(channelId, query);
@@ -49,7 +42,7 @@ export function handleGetMessageById(
   next: NextFunction,
 ) {
   return asyncHandler(async (req: Request, res: Response) => {
-    const id = requireRouteParam(req.params.id, "id");
+    const id = requireParam(req.params.id, "route parameter", "id");
     logger.debug({ id }, "Handling get message by ID");
     const result = await messagesService.getMessageById(id);
     res.json(result);
@@ -62,7 +55,7 @@ export function handleGetAttachmentsByChannel(
   next: NextFunction,
 ) {
   return asyncHandler(async (req: Request, res: Response) => {
-    const channelId = requireRouteParam(req.params.channelId, "channelId");
+    const channelId = requireParam(req.params.channelId, "route parameter", "channelId");
     const query = messageQuerySchema.parse(req.query);
     logger.debug({ channelId, query }, "Handling get attachments by channel");
     const result = await messagesService.getAttachmentsByChannel(

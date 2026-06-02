@@ -1,6 +1,7 @@
 import Redis from "ioredis";
 import { config } from "../shared/config/index.js";
-import { createChildLogger } from "../shared/logger/index.js";
+import { getCommandPublisher } from "../shared/redis/index.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { broadcastRaw } from "./broadcast.js";
 
 const logger = createChildLogger("ws.redis-bridge");
@@ -27,9 +28,8 @@ const SUBSCRIPTIONS: ChannelMapping[] = [
 ];
 
 let subscriber: Redis | null = null;
-let publisher: Redis | null = null;
 
-function createRedisInstance(): Redis {
+function createSubscriber(): Redis {
   if (config.REDIS_URL) {
     return new Redis(config.REDIS_URL, { keyPrefix: "" });
   }
@@ -40,17 +40,6 @@ function createRedisInstance(): Redis {
   });
 }
 
-function createSubscriber(): Redis {
-  return createRedisInstance();
-}
-
-function getPublisher(): Redis {
-  if (!publisher) {
-    publisher = createRedisInstance();
-  }
-  return publisher;
-}
-
 /**
  * Publish a command to the Discord Gateway via Redis.
  * The DG's commandHandler listens on "backend:command" channel.
@@ -58,7 +47,7 @@ function getPublisher(): Redis {
 export async function publishCommand(
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const pub = getPublisher();
+  const pub = getCommandPublisher();
   const envelope = {
     type: "command",
     data: payload,

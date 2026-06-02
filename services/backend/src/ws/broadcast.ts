@@ -12,7 +12,6 @@
 type BroadcastFn = (data: unknown) => void;
 type BroadcastRawFn = (type: string, data: unknown) => void;
 
-// Extend globalThis with broadcast function types
 declare global {
   // biome-ignore lint/suspicious/noAssignInExpressions: intentional global broadcast registry
   var __broadcastFns:

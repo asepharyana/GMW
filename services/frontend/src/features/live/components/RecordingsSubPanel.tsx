@@ -3,6 +3,7 @@
 import { Download, Mic } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge, Button, Skeleton } from "../../../shared/ui";
+import { formatBytes, formatDate } from "../../../shared/lib/utils";
 
 interface VoiceRecording {
   id: string;
@@ -19,16 +20,6 @@ interface VoiceRecording {
   upload_error: string | null;
   created_at: number;
   uploaded_at: number | null;
-}
-
-function formatDate(value: number): string {
-  return new Date(value).toLocaleString();
-}
-
-function formatBytes(value: number): string {
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export function RecordingsSubPanel() {

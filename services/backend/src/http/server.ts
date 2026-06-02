@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { config } from "../shared/config/index.js";
 import { initializeDatabase } from "../shared/database/index.js";
-import { createChildLogger } from "../shared/logger/index.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { createHttpApp } from "./app.js";
 import { createWebSocketServer } from "../ws/server.js";
 import { startRedisBridge } from "../ws/redis-bridge.js";

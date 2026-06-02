@@ -14,6 +14,7 @@ import { Fragment, useMemo, useState } from "react";
 import type { MessageRecord } from "../../../shared/api/client";
 import { moderateMessage } from "../../../shared/api/client";
 import { Badge, Button, Skeleton } from "../../../shared/ui";
+import { parseMetadata } from "../../../entities/message/types";
 
 const CUSTOM_EMOJI_REGEX = /<(a)?:([a-zA-Z0-9_]+):(\d+)>/g;
 
@@ -69,21 +70,6 @@ interface MessageCardProps {
   message: MessageRecord;
   onReanalyze: (id: string) => Promise<void>;
   compact?: boolean;
-}
-
-interface MessageMetadata {
-  stickers?: Array<{ name?: string; url?: string }>;
-  attachments?: Array<{ name: string; url: string; contentType?: string }>;
-  embeds?: Array<{ title?: string; image?: string; thumbnail?: string }>;
-}
-
-function parseMetadata(value: string | null): MessageMetadata {
-  if (!value) return {};
-  try {
-    return JSON.parse(value) as MessageMetadata;
-  } catch {
-    return {};
-  }
 }
 
 function parseStringList(value?: string | null): string[] {

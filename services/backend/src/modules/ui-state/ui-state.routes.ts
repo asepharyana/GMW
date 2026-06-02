@@ -1,6 +1,6 @@
 import type { Request, Response, Router } from "express";
 import express from "express";
-import { createChildLogger } from "../../shared/logger/index.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { asyncHandler } from "../../shared/middlewares/index.js";
 import { uiStateService } from "./ui-state.service.js";
 

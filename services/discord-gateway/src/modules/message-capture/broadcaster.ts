@@ -1,9 +1,9 @@
 import type { WebSocket } from "ws";
 import { createChildLogger } from "../../shared/logger/logger.js";
+import type { MediaState } from "../voice-recording/mediaTypes.js";
 import type {
   AnalysisQueueStatus,
   AttachmentRecord,
-  MediaState,
   MessageRecord,
   ModerationWsEvent,
 } from "../message-capture/types.js";

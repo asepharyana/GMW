@@ -1,6 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
-import { AppError, UnauthorizedError } from "../errors/index.js";
-import { createChildLogger } from "../logger/index.js";
+import {
+  AppError,
+  UnauthorizedError,
+  ValidationError,
+} from "@bete/shared/errors";
+import { createChildLogger } from "@bete/shared/logger";
 
 const logger = createChildLogger("middleware");
 
@@ -46,5 +50,13 @@ export function asyncHandler(
   };
 }
 
-// Import ValidationError for type checking
-import { ValidationError } from "../errors/index.js";
+/**
+ * Validate that a value is a non-empty string, or throw a descriptive error.
+ * Use for both route params and query string values.
+ */
+export function requireParam(value: unknown, kind: string, name: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`Missing ${kind}: ${name}`);
+  }
+  return value;
+}

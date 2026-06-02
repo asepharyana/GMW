@@ -1,6 +1,6 @@
 import { config } from "../../shared/config/index.js";
-import { ForbiddenError, ValidationError } from "../../shared/errors/index.js";
-import { createChildLogger } from "../../shared/logger/index.js";
+import { ForbiddenError, ValidationError } from "@bete/shared/errors";
+import { createChildLogger } from "@bete/shared/logger";
 import { analyticsRepository } from "./analytics.repository.js";
 import type { AnalyticsQuery } from "./analytics.schema.js";
 

@@ -1,5 +1,5 @@
 import { startHttpServer } from "./http/server.js";
-import { createChildLogger } from "./shared/logger/index.js";
+import { createChildLogger } from "@bete/shared/logger";
 import type { Server } from "node:http";
 
 const logger = createChildLogger("backend");

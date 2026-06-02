@@ -1,5 +1,5 @@
 import { getPool } from "../../shared/database/index.js";
-import { createChildLogger } from "../../shared/logger/index.js";
+import { createChildLogger } from "@bete/shared/logger";
 import type {
   MessageCreate,
   MessageQuery,

@@ -1,17 +1,13 @@
 import type { NextFunction, Request, Response } from "express";
-import { createChildLogger } from "../../shared/logger/index.js";
-import { asyncHandler } from "../../shared/middlewares/index.js";
+import { createChildLogger } from "@bete/shared/logger";
+import {
+  asyncHandler,
+  requireParam,
+} from "../../shared/middlewares/index.js";
 import { analyticsQuerySchema } from "./analytics.schema.js";
 import { analyticsService } from "./analytics.service.js";
 
 const logger = createChildLogger("analytics.controller");
-
-function requireQueryString(value: unknown, name: string): string {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`Missing query parameter: ${name}`);
-  }
-  return value;
-}
 
 export function handleGetOverview(
   req: Request,
@@ -32,7 +28,7 @@ export function handleGetDailyTrend(
   next: NextFunction,
 ) {
   return asyncHandler(async (req: Request, res: Response) => {
-    const guildId = requireQueryString(req.query.guildId, "guildId");
+    const guildId = requireParam(req.query.guildId, "query parameter", "guildId");
     const hours = req.query.hours ? Number(req.query.hours) : 24;
     logger.debug({ guildId, hours }, "Handling get daily trend");
     const result = await analyticsService.getDailyTrend(guildId, hours);

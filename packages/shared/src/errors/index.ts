@@ -2,9 +2,9 @@
 
 export class AppError extends Error {
   constructor(
-    public code: string,
-    public statusCode: number,
     message: string,
+    public code: string,
+    public statusCode: number = 500,
     public details?: Record<string, unknown>,
   ) {
     super(message);
@@ -14,35 +14,39 @@ export class AppError extends Error {
 
 export class ValidationError extends AppError {
   constructor(message: string, details?: Record<string, unknown>) {
-    super("VALIDATION_ERROR", 400, message, details);
+    super(message, "VALIDATION_ERROR", 400, details);
     this.name = "ValidationError";
   }
 }
 
 export class NotFoundError extends AppError {
   constructor(resource: string, id?: string) {
-    super("NOT_FOUND", 404, `${resource} not found${id ? `: ${id}` : ""}`);
+    super(
+      `${resource} not found${id ? `: ${id}` : ""}`,
+      "NOT_FOUND",
+      404,
+    );
     this.name = "NotFoundError";
   }
 }
 
 export class UnauthorizedError extends AppError {
   constructor(message = "Unauthorized") {
-    super("UNAUTHORIZED", 401, message);
+    super(message, "UNAUTHORIZED", 401);
     this.name = "UnauthorizedError";
   }
 }
 
 export class ForbiddenError extends AppError {
   constructor(message = "Forbidden") {
-    super("FORBIDDEN", 403, message);
+    super(message, "FORBIDDEN", 403);
     this.name = "ForbiddenError";
   }
 }
 
 export class ConflictError extends AppError {
   constructor(message: string) {
-    super("CONFLICT", 409, message);
+    super(message, "CONFLICT", 409);
     this.name = "ConflictError";
   }
 }
@@ -52,35 +56,35 @@ export class InternalServerError extends AppError {
     message = "Internal server error",
     details?: Record<string, unknown>,
   ) {
-    super("INTERNAL_SERVER_ERROR", 500, message, details);
+    super(message, "INTERNAL_SERVER_ERROR", 500, details);
     this.name = "InternalServerError";
   }
 }
 
 export class DatabaseError extends AppError {
   constructor(message: string, details?: Record<string, unknown>) {
-    super("DATABASE_ERROR", 500, message, details);
+    super(message, "DATABASE_ERROR", 500, details);
     this.name = "DatabaseError";
   }
 }
 
 export class ConfigError extends AppError {
   constructor(message: string) {
-    super("CONFIG_ERROR", 500, message);
+    super(message, "CONFIG_ERROR", 500);
     this.name = "ConfigError";
   }
 }
 
 export class DiscordError extends AppError {
   constructor(message: string, details?: Record<string, unknown>) {
-    super("DISCORD_ERROR", 500, message, details);
+    super(message, "DISCORD_ERROR", 500, details);
     this.name = "DiscordError";
   }
 }
 
 export class TimeoutError extends AppError {
   constructor(operation: string) {
-    super("TIMEOUT", 504, `${operation} timed out`);
+    super(`${operation} timed out`, "TIMEOUT", 504);
     this.name = "TimeoutError";
   }
 }

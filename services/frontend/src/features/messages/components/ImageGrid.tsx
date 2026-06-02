@@ -1,25 +1,11 @@
 import type { MessageRecord } from "../../../shared/api/client";
-
-interface MessageMetadata {
-  stickers?: Array<{ name?: string; url?: string }>;
-  attachments?: Array<{ name: string; url: string; contentType?: string }>;
-  embeds?: Array<{ title?: string; image?: string; thumbnail?: string }>;
-}
+import { parseMetadata } from "../../../entities/message/types";
 
 interface ImageItem {
   url: string;
   title: string;
   kind: "attachment" | "embed" | "sticker";
   message: MessageRecord;
-}
-
-function parseMetadata(value: string | null): MessageMetadata {
-  if (!value) return {};
-  try {
-    return JSON.parse(value) as MessageMetadata;
-  } catch {
-    return {};
-  }
 }
 
 export function ImageGrid({ messages }: { messages: MessageRecord[] }) {

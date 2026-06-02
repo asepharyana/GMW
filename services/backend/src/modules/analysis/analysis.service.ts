@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { config } from "../../shared/config/index.js";
 import { getDatabase } from "../../shared/database/index.js";
-import { createChildLogger } from "../../shared/logger/index.js";
+import { createChildLogger } from "@bete/shared/logger";
 
 const logger = createChildLogger("analysis.service");
 

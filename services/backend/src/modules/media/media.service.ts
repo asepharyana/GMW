@@ -1,4 +1,4 @@
-import { createChildLogger } from "../../shared/logger/index.js";
+import { createChildLogger } from "@bete/shared/logger";
 import { publishCommand, readRedisStatus } from "../../shared/redis/index.js";
 
 const logger = createChildLogger("media.service");
