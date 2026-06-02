@@ -1,13 +1,10 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useRef } from "react";
 import type { MessageRecord } from "../../../shared/api/client";
-import {
-  cardStagger,
-  cardItem,
-} from "../../../shared/hooks/useFramerStagger";
+import { cardItem, cardStagger } from "../../../shared/hooks/useFramerStagger";
 import { ScrollArea } from "../../../shared/ui";
-import { MessageCard, MessageCardSkeleton } from "./MessageCard";
 import { EmptyStateMascot } from "../../../widgets/mascot/ChibiMascot";
+import { MessageCard, MessageCardSkeleton } from "./MessageCard";
 
 export interface MessageFeedProps {
   messages: MessageRecord[];

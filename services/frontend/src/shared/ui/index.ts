@@ -1,5 +1,6 @@
 // ─── Shared UI barrel export ────────────────────────────────────────────────
 
+export { EmptyStateMascot } from "../../widgets/mascot/ChibiMascot";
 export { Badge } from "./badge";
 export { Button } from "./button";
 export {
@@ -16,4 +17,3 @@ export { Select } from "./select";
 export { Skeleton } from "./skeleton";
 export { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";
 export { ToastProvider, useToast } from "./toast";
-export { EmptyStateMascot } from "../../widgets/mascot/ChibiMascot";

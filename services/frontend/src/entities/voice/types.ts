@@ -1,1 +1,1 @@
-export { VoiceStatus, ActiveSpeaker } from "../../shared/api/client";
+export { ActiveSpeaker, VoiceStatus } from "../../shared/api/client";

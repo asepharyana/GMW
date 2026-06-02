@@ -45,13 +45,20 @@ function createPetals(count: number): PetalData[] {
   }));
 }
 
-function Petal({ data, mouseRef }: { data: PetalData; mouseRef: React.RefObject<{ x: number; y: number } | null> }) {
+function Petal({
+  data,
+  mouseRef,
+}: {
+  data: PetalData;
+  mouseRef: React.RefObject<{ x: number; y: number } | null>;
+}) {
   const meshRef = useRef(null);
 
   useFrame((_state, delta) => {
-    const mesh = meshRef.current as unknown as
-      | { position: { x: number; y: number; z: number }; rotation: { z: number; x: number } }
-      | null;
+    const mesh = meshRef.current as unknown as {
+      position: { x: number; y: number; z: number };
+      rotation: { z: number; x: number };
+    } | null;
     if (!mesh) return;
 
     // Slow drift downward

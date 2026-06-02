@@ -11,12 +11,10 @@ type ButtonVariant =
 type ButtonSize = "default" | "sm" | "lg" | "icon";
 
 const variants: Record<ButtonVariant, string> = {
-  default:
-    "bg-primary text-primary-foreground shadow hover:bg-primary/90",
+  default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
   secondary: "bg-[#FFB7C5] text-[#1a1a2e] hover:bg-[#FFB7C5]/80",
   destructive: "bg-[#FCA5A5] text-[#1a1a2e] hover:bg-[#FCA5A5]/80",
-  outline:
-    "border border-border bg-white hover:bg-primary-soft",
+  outline: "border border-border bg-white hover:bg-primary-soft",
   ghost: "hover:bg-primary-soft",
 };
 

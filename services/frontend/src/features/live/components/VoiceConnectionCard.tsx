@@ -56,7 +56,9 @@ export function VoiceConnectionCard({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Voice Channel</label>
+            <label className="text-sm font-medium text-foreground">
+              Voice Channel
+            </label>
             <Select
               value={selectedChannel}
               onChange={(e) => onChannelChange(e.target.value)}

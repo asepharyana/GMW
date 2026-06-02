@@ -87,7 +87,9 @@ function ToastContainer() {
           )}
           onClick={() => removeToast(toast.id)}
         >
-          <span className="text-base leading-none">{typeIcons[toast.type]}</span>
+          <span className="text-base leading-none">
+            {typeIcons[toast.type]}
+          </span>
           <span>{toast.message}</span>
         </div>
       ))}

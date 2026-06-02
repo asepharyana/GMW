@@ -103,9 +103,7 @@ export default function App() {
         const username = msg.username || msg.user_id || "unknown";
         const severity = msg.ai_severity || "";
         const categories = msg.ai_categories || "";
-        const brief =
-          msg.ai_analysis?.slice(0, 80) ??
-          "Message flagged by AI";
+        const brief = msg.ai_analysis?.slice(0, 80) ?? "Message flagged by AI";
         window.dispatchEvent(
           new CustomEvent("moderation_alert", {
             detail: { type: status, username, severity, categories, brief },

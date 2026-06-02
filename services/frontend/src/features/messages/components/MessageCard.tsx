@@ -10,9 +10,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
+import { parseMetadata } from "../../../entities/message/types";
 import type { MessageRecord } from "../../../shared/api/client";
 import { Badge, Button, Skeleton } from "../../../shared/ui";
-import { parseMetadata } from "../../../entities/message/types";
 
 const CUSTOM_EMOJI_REGEX = /<(a)?:([a-zA-Z0-9_]+):(\d+)>/g;
 
@@ -134,9 +134,7 @@ export function MessageCard({
   const confidence =
     message.ai_confidence ?? message.ai_moderation_score ?? null;
   const [isReanalyzing, setIsReanalyzing] = useState(false);
-  const [showAnalysis, setShowAnalysis] = useState(
-    aiStatus === "flagged",
-  );
+  const [showAnalysis, setShowAnalysis] = useState(aiStatus === "flagged");
 
   // Build a human-readable analysis summary from categories + confidence + severity
   const analysisSummary = useMemo(() => {
@@ -178,9 +176,7 @@ export function MessageCard({
       className={`group rounded-2xl border bg-white shadow-sm transition-all hover:border-primary/30 hover:shadow-md ${
         compact ? "px-4 py-1.5" : "p-4"
       } ${
-        message.deleted_at
-          ? "border-red-200 opacity-60"
-          : "border-primary/20"
+        message.deleted_at ? "border-red-200 opacity-60" : "border-primary/20"
       }`}
     >
       <div className={`flex ${compact ? "gap-2" : "gap-3"}`}>

@@ -1,6 +1,5 @@
 import type { ActiveSpeaker } from "../../../shared/api/client";
-import { Skeleton } from "../../../shared/ui";
-import { EmptyStateMascot } from "../../../shared/ui";
+import { EmptyStateMascot, Skeleton } from "../../../shared/ui";
 
 interface ActiveSpeakersProps {
   speakers: ActiveSpeaker[];

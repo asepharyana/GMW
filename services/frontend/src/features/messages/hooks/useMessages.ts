@@ -1,6 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import type { MessageRecord } from "../../../shared/api/client";
-import { listMessages, reanalyzeErrorBatch, reanalyzeMessage } from "../../../shared/api/client";
+import {
+  listMessages,
+  reanalyzeErrorBatch,
+  reanalyzeMessage,
+} from "../../../shared/api/client";
 
 const PAGE_SIZE = 100;
 
@@ -91,28 +95,25 @@ export function useMessages() {
     await reanalyzeMessage(id);
   }, []);
 
-  const reanalyzeAllErrors = useCallback(
-    async (): Promise<number> => {
-      // Optimistically mark all error messages as pending
-      setMessages((prev) =>
-        prev.map((message) =>
-          message.ai_status === "error"
-            ? {
-                ...message,
-                ai_status: "pending" as const,
-                ai_error: null,
-                ai_analysis: null,
-              }
-            : message,
-        ),
-      );
-      const { count } = await reanalyzeErrorBatch({
-        guildId: currentGuild.current ?? undefined,
-      });
-      return count;
-    },
-    [],
-  );
+  const reanalyzeAllErrors = useCallback(async (): Promise<number> => {
+    // Optimistically mark all error messages as pending
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.ai_status === "error"
+          ? {
+              ...message,
+              ai_status: "pending" as const,
+              ai_error: null,
+              ai_analysis: null,
+            }
+          : message,
+      ),
+    );
+    const { count } = await reanalyzeErrorBatch({
+      guildId: currentGuild.current ?? undefined,
+    });
+    return count;
+  }, []);
 
   return {
     messages,

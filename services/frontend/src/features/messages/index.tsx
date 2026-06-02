@@ -1,7 +1,8 @@
+import { motion } from "framer-motion";
 import { Filter, RotateCw, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
 import type { MessageRecord } from "../../shared/api/client";
+import { cardItem, cardStagger } from "../../shared/hooks/useFramerStagger";
 import {
   Badge,
   Button,
@@ -15,7 +16,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "../../shared/ui";
-import { cardStagger, cardItem } from "../../shared/hooks/useFramerStagger";
 import { ImageGrid } from "./components/ImageGrid";
 import { MessageFeed } from "./components/MessageFeed";
 
@@ -109,9 +109,7 @@ export function MessagesPanel({
             {guildName && (
               <p className="text-sm text-muted-foreground">
                 Monitoring all text channels in{" "}
-                <span className="font-medium text-foreground">
-                  {guildName}
-                </span>
+                <span className="font-medium text-foreground">{guildName}</span>
               </p>
             )}
           </CardHeader>
@@ -129,7 +127,10 @@ export function MessagesPanel({
           variants={cardItem}
           className="flex flex-wrap items-center gap-2"
         >
-          <Badge variant="outline" className="text-xs border-primary/40 text-primary">
+          <Badge
+            variant="outline"
+            className="text-xs border-primary/40 text-primary"
+          >
             {stats.total} total{hasMore && !showSearch ? "+" : ""}
           </Badge>
           <Badge
@@ -150,11 +151,17 @@ export function MessagesPanel({
           >
             {stats.error} error
           </Badge>
-          <Badge variant="outline" className="text-xs text-muted-foreground border-border">
+          <Badge
+            variant="outline"
+            className="text-xs text-muted-foreground border-border"
+          >
             {stats.pending} pending
           </Badge>
           {stats.deleted > 0 && (
-            <Badge variant="outline" className="text-xs bg-red-100 text-red-700 border-red-200">
+            <Badge
+              variant="outline"
+              className="text-xs bg-red-100 text-red-700 border-red-200"
+            >
               {stats.deleted} deleted
             </Badge>
           )}
@@ -222,9 +229,7 @@ export function MessagesPanel({
             <RotateCw
               className={`mr-1.5 h-3.5 w-3.5 ${retryingAll ? "animate-spin" : ""}`}
             />
-            {retryingAll
-              ? "Retrying..."
-              : `Retry All Errors (${stats.error})`}
+            {retryingAll ? "Retrying..." : `Retry All Errors (${stats.error})`}
           </Button>
         )}
         {retriedCount !== null && (
@@ -235,27 +240,21 @@ export function MessagesPanel({
         )}
         <div className="ml-auto flex items-center gap-1.5">
           <Filter className="h-4 w-4 text-primary" />
-          {(
-            [
-              "all",
-              "clean",
-              "flagged",
-              "error",
-              "pending",
-            ] as AiFilter[]
-          ).map((f) => (
-            <button
-              key={f}
-              onClick={() => setAiFilter(f)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                aiFilter === f
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-primary-soft"
-              }`}
-            >
-              {f}
-            </button>
-          ))}
+          {(["all", "clean", "flagged", "error", "pending"] as AiFilter[]).map(
+            (f) => (
+              <button
+                key={f}
+                onClick={() => setAiFilter(f)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                  aiFilter === f
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-primary-soft"
+                }`}
+              >
+                {f}
+              </button>
+            ),
+          )}
         </div>
       </motion.div>
 

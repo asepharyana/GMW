@@ -1,1 +1,1 @@
-export { Guild, Channel } from "../../shared/api/client";
+export { Channel, Guild } from "../../shared/api/client";

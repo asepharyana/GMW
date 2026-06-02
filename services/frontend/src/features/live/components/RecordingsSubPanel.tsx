@@ -2,8 +2,8 @@
 
 import { Download, Mic } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Badge, Button, EmptyStateMascot, Skeleton } from "../../../shared/ui";
 import { formatBytes, formatDate } from "../../../shared/lib/utils";
+import { Badge, Button, EmptyStateMascot, Skeleton } from "../../../shared/ui";
 
 interface VoiceRecording {
   id: string;
@@ -92,9 +92,7 @@ export function RecordingsSubPanel() {
   }
 
   if (recordings.length === 0) {
-    return (
-      <EmptyStateMascot variant="sleeping" message="No recordings yet~" />
-    );
+    return <EmptyStateMascot variant="sleeping" message="No recordings yet~" />;
   }
 
   return (

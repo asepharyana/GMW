@@ -66,7 +66,11 @@ export function MusicSubPanel({
         </span>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button className="bg-[#7EC8E3] text-white hover:bg-[#7EC8E3]/80" disabled={loading || !source.trim()} onClick={submit}>
+        <Button
+          className="bg-[#7EC8E3] text-white hover:bg-[#7EC8E3]/80"
+          disabled={loading || !source.trim()}
+          onClick={submit}
+        >
           <Music2 className="mr-1.5 h-4 w-4" /> Queue
         </Button>
         <Button variant="secondary" disabled={loading} onClick={onSkip}>

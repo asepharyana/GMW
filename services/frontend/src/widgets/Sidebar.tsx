@@ -59,8 +59,7 @@ export function Sidebar({
                   : "text-muted-foreground hover:bg-primary-soft/40 hover:text-primary/80",
               )}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform =
-                  "translateX(2px) scale(1.1)";
+                e.currentTarget.style.transform = "translateX(2px) scale(1.1)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateX(0) scale(1)";

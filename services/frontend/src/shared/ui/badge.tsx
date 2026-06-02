@@ -11,8 +11,7 @@ type BadgeVariant =
 
 const variants: Record<BadgeVariant, string> = {
   default: "border-transparent bg-primary text-primary-foreground",
-  secondary:
-    "border-transparent bg-muted text-muted-foreground",
+  secondary: "border-transparent bg-muted text-muted-foreground",
   destructive: "border-transparent bg-[#FCA5A5] text-red-800",
   outline: "border-border text-foreground",
   success: "border-transparent bg-[#BBF7D0] text-green-800",
