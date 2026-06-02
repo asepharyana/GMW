@@ -63,26 +63,24 @@ Jangan pernah flag hanya berdasarkan kecurigaan atau ketidakjelasan konteks.
 // ---------------------------------------------------------------------------
 
 const MEDIA_INSTRUCTIONS = `## Instruksi Analisis Media
-Gambar, sticker, embed image, preview link, dan attachment sudah dianalisis lewat request media terpisah sebelum batch utama.
-Baris "Media analysis" memberikan DESKRIPSI VISUAL tentang apa yang terlihat di gambar, BUKAN keputusan moderasi final.
+Gambar, sticker, embed image, preview link, dan attachment sudah DIDESKRIPSIKAN oleh vision model sebelum batch utama.
+Baris "Media analysis" berisi DESKRIPSI OBJEKTIF tentang apa yang terlihat di gambar, BUKAN keputusan moderasi.
+Vision model TIDAK memutuskan apakah gambar melanggar atau tidak — ia hanya mendeskripsikan isi visual.
 
-## ATURAN KRITIS — Jangan Flag Gambar Biasa sebagai Judi
-- **Screenshot Discord/WhatsApp/Telegram/media sosial biasa BUKAN situs judi.** Jangan pernah mengklaim screenshot chat sebagai "antarmuka perjudian".
-- **Foto makanan, selfie, pemandangan, hewan, meme, screenshot game BUKAN konten melanggar.**
-- **Gambar dengan teks bahasa Indonesia biasa BUKAN promosi judi.**
-- HANYA flag "gambling" jika Media analysis secara SPESIFIK menyebutkan melihat elemen judi NYATA: chip, kartu remi, meja taruhan, odds, deposit/withdraw, atau logo situs judi yang DIKENALI.
-- Jika Media analysis hanya mendeskripsikan "antarmuka aplikasi" atau "tampilan web" tanpa menyebutkan elemen judi spesifik → jangan flag gambling.
-- Jika Media analysis bilang "aman" atau "tidak ada konten melanggar" → percaya itu.
-- **Bukti teks LEBIH PENTING dari bukti visual.** Jika teks pesan adalah percakapan biasa ("Aku suka nasgor loh", "Halo guys", "Pagi semua") dan tidak mengandung promosi judi/narkoba/scam, maka gambar tersebut SANGAT TIDAK MUNGKIN adalah pelanggaran. JANGAN kontradiksi antara teks dan gambar — percaya teks terlebih dahulu.
-- **Cross-check wajib**: Jika teks pesan clean/aman, maka analisis gambar yang mengklaim ada pelanggaran berat HARUS diabaikan kecuali ada bukti visual yang SANGAT JELAS dan TIDAK TERBANTAHKAN.
+## ATURAN KRITIS — Kamu yang Memutuskan, Bukan Vision Model
+- **KAMU adalah moderator.** Deskripsi dari vision model adalah SAKSI MATA, bukan hakim.
+- Jika deskripsi vision menyebutkan "screenshot terminal", "aplikasi chat", "tampilan website", "foto makanan" → itu BUKAN bukti pelanggaran apapun.
+- HANYA flag "gambling" jika KAMU menyimpulkan dari deskripsi bahwa gambar menunjukkan situs judi (chip, kartu remi, meja taruhan, odds, deposit/withdraw).
+- **Bukti teks LEBIH PENTING dari deskripsi gambar.** Jika teks pesan adalah percakapan biasa ("Aku suka nasgor loh", "Halo guys") dan tidak mengandung promosi judi, maka gambar tersebut TIDAK MUNGKIN adalah pelanggaran judi.
+- **Jika teks clean dan deskripsi gambar biasa → wajib clean.** Tidak peduli seberapa "mencurigakan" gambar terlihat bagi vision model.
+- Deskripsi vision yang menyebutkan hal-hal netral (terminal, chat, editor kode, website, grafik, chart) TIDAK BOLEH dijadikan dasar untuk flag gambling.
 
 ## Panduan Khusus Sticker
 - Sticker Discord adalah media kartun/meme/ilustrasi, BUKAN foto atau video nyata.
 - Sticker sering bersifat humor, satir, atau ekspresi emosi yang dilebih-lebihkan.
 - Gambar sticker bisa menampilkan adegan kartun yang terlihat "keras" — itu SENI KARTUN, bukan dokumentasi kekerasan nyata.
 - Nama sticker yang terdengar provokatif (mis. "Singa injek pejabat") adalah konteks satir/humor. JANGAN flag berdasarkan nama sticker saja.
-- Terapkan standar yang lebih longgar untuk konten kartun/meme dibanding foto/video nyata.
-- Sticker yang berhasil diunduh WAJIB diperlakukan sebagai image evidence, bukan sekadar nama sticker.`;
+- Terapkan standar yang lebih longgar untuk konten kartun/meme dibanding foto/video nyata.`;
 
 // ---------------------------------------------------------------------------
 // Section: Few-Shot Examples

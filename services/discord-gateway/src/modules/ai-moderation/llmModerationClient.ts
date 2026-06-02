@@ -22,6 +22,7 @@ import {
 } from "./stickerCache.js";
 import {
   buildCustomEmojiVisionPrompt,
+  buildGeneralImageVisionPrompt,
   buildStickerTextOnlyWarning,
   buildStickerVisionPrompt,
 } from "./stickerPrompt.js";
@@ -587,34 +588,7 @@ const analyzeSingleMediaImage = async (
     ? buildStickerVisionPrompt(image.stickerName, messageId)
     : image.customEmojiName
       ? buildCustomEmojiVisionPrompt(image.customEmojiName, messageId)
-      : [
-          `Analisis media Discord berikut sebagai evidence moderasi. ${image.sourceLabel}`,
-          ``,
-          `Jelaskan SECARA SPESIFIK apa yang TERLIHAT di gambar (objek, teks, warna dominan, layout).`,
-          `Jangan menebak-nebak atau mengasumsikan konten yang tidak terlihat langsung.`,
-          ``,
-          `HANYA flag jika gambar secara JELAS dan TIDAK AMBIGU menampilkan:`,
-          `- Antarmuka situs judi yang JELAS TERLIHAT (ada chip, kartu, meja taruhan, odds, deposit/withdraw)`,
-
-          `- Konten seksual eksplisit/NSFW/pornografi`,
-          `- Darah/luka/gore nyata (BUKAN kartun/meme/animasi)`,
-          `- Narkoba atau obat terlarang yang bisa diidentifikasi spesifik`,
-          `- Simbol kebencian (swastika, simbol teroris) yang JELAS`,
-          `- Ajakan bunuh diri atau self-harm eksplisit`,
-          `- Informasi pribadi (alamat, nomor telepon, KTP) yang bocor`,
-          ``,
-          `Jika gambar HANYA berisi: chat biasa, meme lucu, foto makanan, selfie,`,
-          `screenshot discord/wa/media sosial biasa, landscape, hewan, screenshot game,`,
-          `atau konten sehari-hari lainnya → JELASKAN ISI YANG TERLIHAT dan KONFIRMASI AMAN.`,
-          ``,
-          `JANGAN PERNAH mengklaim gambar adalah "antarmuka judi" atau "situs perjudian"`,
-          `KECUALI ada BUKTI VISUAL SPESIFIK seperti chip, kartu remi, meja taruhan,`,
-          `odds, deposit/withdraw, atau logo situs judi yang DIKENALI.`,
-          `Screenshot aplikasi chat atau media sosial BUKAN situs judi.`,
-          ``,
-          `Jawab Bahasa Indonesia, maksimal 3 kalimat. Berikan deskripsi objektif,`,
-          `bukan asumsi. Jika aman, katakan "aman" dengan jelas.`,
-        ].join("\n");
+      : buildGeneralImageVisionPrompt(image.sourceLabel, messageId);
 
   try {
     const completion = await withLlmConcurrency(async () =>
