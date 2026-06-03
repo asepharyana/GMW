@@ -112,8 +112,8 @@ export function AIDistributionPanel({
           Distribusi Analisis AI
         </CardTitle>
         <CardDescription className="text-xs">
-          Sebaran tingkat keparahan dan rekomendasi dari {stats.total_analyzed} pesan
-          yang dianalisis.
+          Sebaran tingkat keparahan dan rekomendasi dari {stats.total_analyzed}{" "}
+          pesan yang dianalisis.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -133,10 +133,7 @@ export function AIDistributionPanel({
                 return (
                   <div key={key} className="flex items-center gap-2">
                     <span
-                      className={cn(
-                        "w-16 text-[10px] font-medium",
-                        s.color,
-                      )}
+                      className={cn("w-16 text-[10px] font-medium", s.color)}
                     >
                       {s.label}
                     </span>
@@ -172,10 +169,7 @@ export function AIDistributionPanel({
                 return (
                   <div key={key} className="flex items-center gap-2">
                     <span
-                      className={cn(
-                        "w-16 text-[10px] font-medium",
-                        a.color,
-                      )}
+                      className={cn("w-16 text-[10px] font-medium", a.color)}
                     >
                       {a.label}
                     </span>

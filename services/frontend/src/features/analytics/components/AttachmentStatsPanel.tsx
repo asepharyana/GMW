@@ -31,22 +31,36 @@ export function AttachmentStatsPanel({
     );
   }
 
-  const uploadPct = stats.total_attachments > 0
-    ? Math.round((stats.uploaded / stats.total_attachments) * 100)
-    : 0;
+  const uploadPct =
+    stats.total_attachments > 0
+      ? Math.round((stats.uploaded / stats.total_attachments) * 100)
+      : 0;
 
-  const failedPct = stats.total_attachments > 0
-    ? Math.round((stats.failed / stats.total_attachments) * 100)
-    : 0;
+  const failedPct =
+    stats.total_attachments > 0
+      ? Math.round((stats.failed / stats.total_attachments) * 100)
+      : 0;
 
   const totalSizeMB = stats.total_size_bytes / (1024 * 1024);
 
   const cards = [
-    { label: "Total Media", value: formatNum(stats.total_attachments), accent: "text-foreground" },
+    {
+      label: "Total Media",
+      value: formatNum(stats.total_attachments),
+      accent: "text-foreground",
+    },
     { label: "Upload Success", value: `${uploadPct}%`, accent: "text-primary" },
     { label: "Gagal Upload", value: `${failedPct}%`, accent: "text-accent" },
-    { label: "Total Ukuran", value: `${totalSizeMB.toFixed(1)} MB`, accent: "text-muted-foreground" },
-    { label: "Pengupload", value: formatNum(stats.unique_uploaders), accent: "text-primary" },
+    {
+      label: "Total Ukuran",
+      value: `${totalSizeMB.toFixed(1)} MB`,
+      accent: "text-muted-foreground",
+    },
+    {
+      label: "Pengupload",
+      value: formatNum(stats.unique_uploaders),
+      accent: "text-primary",
+    },
   ];
 
   const statusCards = [
@@ -81,7 +95,9 @@ export function AttachmentStatsPanel({
           {stats.top_mime_type ? (
             <>
               Upload status media — tipe dominan:{" "}
-              <span className="font-medium text-primary">{stats.top_mime_type}</span>
+              <span className="font-medium text-primary">
+                {stats.top_mime_type}
+              </span>
             </>
           ) : (
             "Upload status media di semua channel."
@@ -98,7 +114,12 @@ export function AttachmentStatsPanel({
               <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 {c.label}
               </div>
-              <div className={cn("mt-1 font-mono text-lg font-bold tabular-nums", c.accent)}>
+              <div
+                className={cn(
+                  "mt-1 font-mono text-lg font-bold tabular-nums",
+                  c.accent,
+                )}
+              >
                 {c.value}
               </div>
             </div>

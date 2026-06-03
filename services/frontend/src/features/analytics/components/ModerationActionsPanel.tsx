@@ -16,11 +16,26 @@ interface ModerationActionsPanelProps {
 }
 
 const ACTION_LABELS: Record<string, { label: string; color: string }> = {
-  delete_message: { label: "Hapus Pesan", color: "bg-red-100 text-red-700 border-red-200" },
-  warn_user: { label: "Peringatan", color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
-  mute_user: { label: "Mute", color: "bg-orange-100 text-orange-700 border-orange-200" },
-  kick_user: { label: "Kick", color: "bg-pink-100 text-pink-700 border-pink-200" },
-  ban_user: { label: "Ban", color: "bg-accent/20 text-accent border-accent/30" },
+  delete_message: {
+    label: "Hapus Pesan",
+    color: "bg-red-100 text-red-700 border-red-200",
+  },
+  warn_user: {
+    label: "Peringatan",
+    color: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  },
+  mute_user: {
+    label: "Mute",
+    color: "bg-orange-100 text-orange-700 border-orange-200",
+  },
+  kick_user: {
+    label: "Kick",
+    color: "bg-pink-100 text-pink-700 border-pink-200",
+  },
+  ban_user: {
+    label: "Ban",
+    color: "bg-accent/20 text-accent border-accent/30",
+  },
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {

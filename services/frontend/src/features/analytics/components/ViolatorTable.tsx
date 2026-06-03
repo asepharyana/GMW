@@ -142,17 +142,21 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
                     </td>
                     <td className="py-1.5 pr-4">
                       <div className="flex flex-wrap gap-1">
-                        {user.worst_flags?.length > 0
-                          ? user.worst_flags.slice(0, 3).map((flag) => (
-                              <Badge
-                                key={flag}
-                                variant="outline"
-                                className="text-[8px] px-1 py-0 border-accent/30 text-accent"
-                              >
-                                {flag}
-                              </Badge>
-                            ))
-                          : <span className="text-[10px] text-muted-foreground">—</span>}
+                        {user.worst_flags?.length > 0 ? (
+                          user.worst_flags.slice(0, 3).map((flag) => (
+                            <Badge
+                              key={flag}
+                              variant="outline"
+                              className="text-[8px] px-1 py-0 border-accent/30 text-accent"
+                            >
+                              {flag}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">
+                            —
+                          </span>
+                        )}
                       </div>
                     </td>
                   </tr>

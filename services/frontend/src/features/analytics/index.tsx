@@ -119,7 +119,10 @@ export function AnalyticsPanel({ guildId, guildName }: AnalyticsPanelProps) {
       <motion.div variants={cardItem}>
         <div className="grid grid-cols-2 gap-4">
           <ViolatorTable users={violators} loading={loading} />
-          <ModerationActionsPanel actions={moderationActions} loading={loading} />
+          <ModerationActionsPanel
+            actions={moderationActions}
+            loading={loading}
+          />
         </div>
       </motion.div>
     </motion.div>

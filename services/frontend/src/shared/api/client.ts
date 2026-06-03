@@ -522,7 +522,9 @@ export function fetchModerationActions(params: {
     ...(params.hours && { hours: String(params.hours) }),
     ...(params.limit && { limit: String(params.limit) }),
   });
-  return request<ModerationActionRecord[]>(`/api/analytics/moderation-actions?${sp}`);
+  return request<ModerationActionRecord[]>(
+    `/api/analytics/moderation-actions?${sp}`,
+  );
 }
 
 export function fetchAIStats(params: {
