@@ -105,21 +105,32 @@ export function Sidebar({
 
       {/* Mascot PNG with anchored chatbot */}
       <div className="relative flex justify-center pb-4">
+        {!mascotChat.isOpen && (
+          <motion.div
+            initial={{ opacity: 0, x: -8, y: 6, scale: 0.96 }}
+            animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+            transition={{ type: "spring", stiffness: 280, damping: 24 }}
+            className="pointer-events-none absolute bottom-20 left-12 z-40 w-64"
+          >
+            <div className="relative rounded-2xl border border-sky-200/80 bg-white/95 px-4 py-3 text-left shadow-xl shadow-sky-100/70 backdrop-blur-md">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/70">
+                Discord Watcher
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-700">
+                {mascotChatMessage ||
+                  "Halo! Saya mascot mu. Klik aku kalau mau tanya soal obrolan atau moderasi ✨"}
+              </p>
+              <div className="absolute -bottom-2 left-5 h-4 w-4 rotate-45 border-b border-r border-sky-200/80 bg-white/95" />
+            </div>
+          </motion.div>
+        )}
         <button
           type="button"
           onClick={() => mascotChat.setIsOpen(!mascotChat.isOpen)}
-          className="rounded-2xl p-1 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/40"
+          className="relative z-50 rounded-2xl p-1 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/40"
           title="Chat dengan mascot"
         >
-          <MascotImage
-            size="sm"
-            showChat={!mascotChat.isOpen}
-            chatMessage={
-              mascotChatMessage ||
-              "Halo! Saya mascot mu. Klik aku kalau mau tanya soal obrolan atau moderasi ✨"
-            }
-            persistChat
-          />
+          <MascotImage size="sm" />
         </button>
         <MascotChatbot
           isOpen={mascotChat.isOpen}
