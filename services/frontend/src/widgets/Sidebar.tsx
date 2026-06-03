@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import { BarChart3, MessageSquare, Radio } from "lucide-react";
-import { useEffect, useState } from "react";
 import type { DashboardTab } from "../entities/ui/types";
 import type { MessageRecord } from "../shared/api/client";
 import { useMascotChat } from "../shared/hooks/useMascotChat";
@@ -34,7 +33,6 @@ export function Sidebar({
   guildId,
   channelId,
 }: SidebarProps) {
-  const [showChat, setShowChat] = useState(false);
   const mascotChat = useMascotChat({
     messageCount: recentMessages.length,
     activeParticipants: new Set(recentMessages.map((message) => message.user_id)).size,
@@ -43,12 +41,6 @@ export function Sidebar({
     guildId,
     channelId,
   });
-
-  useEffect(() => {
-    if (mascotChatMessage) {
-      setShowChat(true);
-    }
-  }, [mascotChatMessage]);
   return (
     <motion.nav
       className={cn(
@@ -121,8 +113,12 @@ export function Sidebar({
         >
           <MascotImage
             size="sm"
-            showChat={showChat && !mascotChat.isOpen}
-            chatMessage={mascotChatMessage}
+            showChat={!mascotChat.isOpen}
+            chatMessage={
+              mascotChatMessage ||
+              "Halo! Saya mascot mu. Klik aku kalau mau tanya soal obrolan atau moderasi ✨"
+            }
+            persistChat
           />
         </button>
         <MascotChatbot

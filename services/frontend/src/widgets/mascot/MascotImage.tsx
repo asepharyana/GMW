@@ -13,6 +13,7 @@ interface MascotImageProps {
   className?: string;
   showChat?: boolean;
   chatMessage?: string;
+  persistChat?: boolean;
 }
 
 const sizeMap = {
@@ -32,6 +33,7 @@ export function MascotImage({
   className = "",
   showChat = false,
   chatMessage = "",
+  persistChat = false,
 }: MascotImageProps) {
   const sizeClass = sizeMap[size];
   const chatSizeClass = chatSizeMap[size];
@@ -40,10 +42,12 @@ export function MascotImage({
   useEffect(() => {
     if (showChat && chatMessage) {
       setIsVisible(true);
+      if (persistChat) return;
       const timer = setTimeout(() => setIsVisible(false), 8000); // Auto hide after 8s
       return () => clearTimeout(timer);
     }
-  }, [showChat, chatMessage]);
+    setIsVisible(false);
+  }, [showChat, chatMessage, persistChat]);
 
   return (
     <div className="relative inline-block">
