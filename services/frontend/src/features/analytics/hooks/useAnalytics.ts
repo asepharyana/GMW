@@ -1,17 +1,23 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
 import type {
+  AIStats,
   AnalyticsOverview,
+  AttachmentStats,
   HeatmapCell,
   HourlyBucket,
+  ModerationActionRecord,
   TopicTrend,
   TrendBucket,
   UserStat,
   ViolatorStat,
 } from "../../../shared/api/client";
 import {
+  fetchAIStats,
   fetchAnalyticsOverview,
+  fetchAttachmentStats,
   fetchHeatmap,
+  fetchModerationActions,
   fetchTrend,
   fetchViolators,
 } from "../../../shared/api/client";
@@ -21,23 +27,15 @@ function analyticsKeys(
   channelId: string | undefined,
   hours: number,
 ) {
+  const base = [guildId, channelId ?? "", hours] as const;
   return {
-    overview: [
-      "analytics",
-      "overview",
-      guildId,
-      channelId ?? "",
-      hours,
-    ] as const,
-    violators: [
-      "analytics",
-      "violators",
-      guildId,
-      channelId ?? "",
-      hours,
-    ] as const,
-    trend: ["analytics", "trend", guildId, channelId ?? "", hours] as const,
-    heatmap: ["analytics", "heatmap", guildId, channelId ?? "", hours] as const,
+    overview: ["analytics", "overview", ...base] as const,
+    violators: ["analytics", "violators", ...base] as const,
+    trend: ["analytics", "trend", ...base] as const,
+    heatmap: ["analytics", "heatmap", ...base] as const,
+    aiStats: ["analytics", "ai-stats", ...base] as const,
+    attachmentStats: ["analytics", "attachment-stats", ...base] as const,
+    moderationActions: ["analytics", "moderation-actions", ...base] as const,
   };
 }
 
@@ -86,6 +84,30 @@ export function useAnalytics({
     placeholderData: keepPreviousData,
   });
 
+  const aiStatsQuery = useQuery({
+    queryKey: keys.aiStats,
+    queryFn: () => fetchAIStats({ guildId, channelId, hours }),
+    enabled: !!guildId,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const attachmentStatsQuery = useQuery({
+    queryKey: keys.attachmentStats,
+    queryFn: () => fetchAttachmentStats({ guildId, channelId, hours }),
+    enabled: !!guildId,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const moderationActionsQuery = useQuery({
+    queryKey: keys.moderationActions,
+    queryFn: () => fetchModerationActions({ guildId, channelId, hours, limit: 50 }),
+    enabled: !!guildId,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+
   const refresh = useCallback(() => {
     if (!guildId) return;
     window.dispatchEvent(new CustomEvent("analytics_refresh"));
@@ -94,7 +116,6 @@ export function useAnalytics({
   useEffect(() => {
     const handler = () => {
       if (!guildId) return;
-      // Use queryClient.invalidateQueries from the React Query internals
       window.dispatchEvent(new CustomEvent("analytics_force_refresh"));
     };
     window.addEventListener("analytics_refresh", handler);
@@ -128,6 +149,17 @@ export function useAnalytics({
     heatmapLoading: heatmapQuery.isLoading && !heatmapQuery.data,
     heatmapFetching: heatmapQuery.isFetching && !heatmapQuery.isLoading,
 
+    aiStats: aiStatsQuery.data ?? null,
+    aiStatsLoading: aiStatsQuery.isLoading && !aiStatsQuery.data,
+
+    attachmentStats: attachmentStatsQuery.data ?? null,
+    attachmentStatsLoading:
+      attachmentStatsQuery.isLoading && !attachmentStatsQuery.data,
+
+    moderationActions: moderationActionsQuery.data ?? [],
+    moderationActionsLoading:
+      moderationActionsQuery.isLoading && !moderationActionsQuery.data,
+
     hourly: overview?.hourly ?? ([] as HourlyBucket[]),
     topics: overview?.topics ?? ([] as TopicTrend[]),
     topUsers: overview?.top_users ?? ([] as UserStat[]),
@@ -139,9 +171,12 @@ export function useAnalytics({
 }
 
 export type {
+  AIStats,
   AnalyticsOverview,
+  AttachmentStats,
   HeatmapCell,
   HourlyBucket,
+  ModerationActionRecord,
   TopicTrend,
   TrendBucket,
   UserStat,

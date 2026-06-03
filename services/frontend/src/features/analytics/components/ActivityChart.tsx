@@ -27,7 +27,7 @@ export function ActivityChart({ hourly, loading }: ActivityChartProps) {
     return {
       hour: `${String(jakartaHour).padStart(2, "0")}:00`,
       clean: b.clean,
-      warned: 0,
+      warned: b.warned,
       flagged: b.flagged,
       error: b.error,
       total: b.count,
@@ -46,8 +46,9 @@ export function ActivityChart({ hourly, loading }: ActivityChartProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="grid grid-cols-4 gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
             <span>Clean</span>
+            <span>Warned</span>
             <span>Flagged</span>
             <span>Error</span>
           </div>
@@ -55,6 +56,7 @@ export function ActivityChart({ hourly, loading }: ActivityChartProps) {
             {data.map((bucket) => {
               const total = Math.max(bucket.total, 1);
               const clean = bucket.clean / total;
+              const warned = bucket.warned / total;
               const flagged = bucket.flagged / total;
               const error = bucket.error / total;
               return (
@@ -70,8 +72,12 @@ export function ActivityChart({ hourly, loading }: ActivityChartProps) {
                   </div>
                   <div className="flex h-3 overflow-hidden rounded-full bg-sky-50">
                     <div
-                      className="bg-gradient-to-r from-primary to-pink-300"
+                      className="bg-gradient-to-r from-primary to-teal-300"
                       style={{ width: `${clean * 100}%` }}
+                    />
+                    <div
+                      className="bg-yellow-400/60"
+                      style={{ width: `${warned * 100}%` }}
                     />
                     <div
                       className="bg-accent/70"
