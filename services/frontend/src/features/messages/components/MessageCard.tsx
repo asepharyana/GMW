@@ -158,6 +158,12 @@ function MessageRow({
   );
   const hasImages = imageAttachments.length > 0;
 
+  /** Hide the fallback text ("[Attachment: ...]", "[Sticker: ...]", "[Embed]") when the actual media IS already shown visually. */
+  const isFallbackText =
+    /^\[(Attachment|Sticker):/i.test(displayContent) ||
+    /^\[Embed\]/i.test(displayContent);
+  const shouldShowContent = displayContent && !isFallbackText;
+
   const handleReanalyze = async () => {
     setIsReanalyzing(true);
     try {
@@ -215,8 +221,8 @@ function MessageRow({
         </div>
       </div>
 
-      {/* Content */}
-      {displayContent ? (
+      {/* Content — hidden when it's just an "[Attachment: ...]" fallback and the image is shown below */}
+      {shouldShowContent ? (
         <p
           className={`whitespace-pre-wrap break-words text-sm leading-6 ${
             message.deleted_at ? "text-muted-foreground/60" : "text-foreground/90"
