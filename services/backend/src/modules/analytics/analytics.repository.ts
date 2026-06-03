@@ -317,16 +317,45 @@ export class AnalyticsRepository {
 
     const { rows } = await pool.query(
       `
+        WITH word_list AS (
+          SELECT
+            LOWER(TRIM(BOTH '.,!?;:\"'()[]{}' FROM word)) AS word,
+            ai_moderation_score
+          FROM messages,
+          LATERAL regexp_split_to_table(content, E'\\\\s+') AS word
+          ${filter.where}
+            AND content IS NOT NULL
+            AND content != ''
+            AND LENGTH(TRIM(BOTH '.,!?;:\"()[]{}' FROM word)) >= 3
+            -- Skip sticker & custom emoji (<:name:id> or <a:name:id>)
+            AND word !~ '^<a?:.+:\\d+>$'
+            -- Skip URLs
+            AND word !~ '^https?://'
+            AND word !~ '^discord\\.(gg|app|com)'
+            -- Skip common Discord embed artifacts
+            AND word !~ '^cdn\\.discord'
+        )
         SELECT
-          TRIM(UNNEST(STRING_TO_ARRAY(ai_categories, ','))) AS topic,
+          word AS topic,
           COUNT(*)::int AS count,
           COALESCE(AVG(ai_moderation_score), 0)::real AS score
-        FROM messages
-        ${filter.where}
-          AND ai_categories IS NOT NULL
-          AND ai_categories != ''
-        GROUP BY topic
+        FROM word_list
+        WHERE word NOT IN (
+          'yang', 'dan', 'di', 'ke', 'dari', 'dengan', 'untuk', 'pada', 'ini', 'itu',
+          'ada', 'akan', 'telah', 'sudah', 'bisa', 'dapat', 'tidak', 'nggak', 'enggak',
+          'gak', 'gk', 'ga', 'aku', 'saya', 'kamu', 'dia', 'kami', 'kita', 'mereka',
+          'iya', 'ya', 'yah', 'oh', 'ah', 'eh', 'lah', 'pun', 'juga', 'masih',
+          'saja', 'hanya', 'sama', 'atau', 'tapi', 'namun', 'sedang', 'sangat',
+          'begitu', 'karena', 'sebab', 'kalau', 'jika', 'maka', 'lalu', 'setelah',
+          'seperti', 'antara', 'oleh', 'sebagai', 'secara', 'melalui', 'dalam',
+          'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'has',
+          'was', 'were', 'been', 'like', 'just', 'that', 'this', 'with', 'your',
+          'from', 'they', 'have', 'what', 'when', 'where', 'which', 'their',
+          'about', 'would', 'could', 'should', 'very', 'also', 'than', 'then'
+        )
+        GROUP BY word
         ORDER BY count DESC
+        LIMIT 10
       `,
       filter.params,
     );
