@@ -9,8 +9,8 @@ import {
   handleGetModerationActions,
   handleGetModerationStats,
   handleGetOverview,
-  handleGetTopViolators,
   handleGetTopics,
+  handleGetTopViolators,
   handleGetUserLeaderboard,
 } from "./analytics.controller.js";
 

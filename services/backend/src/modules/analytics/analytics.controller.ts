@@ -1,9 +1,6 @@
-import type { NextFunction, Request, Response } from "express";
 import { createChildLogger } from "@bete/shared/logger";
-import {
-  asyncHandler,
-  requireParam,
-} from "../../shared/middlewares/index.js";
+import type { NextFunction, Request, Response } from "express";
+import { asyncHandler, requireParam } from "../../shared/middlewares/index.js";
 import { analyticsQuerySchema } from "./analytics.schema.js";
 import { analyticsService } from "./analytics.service.js";
 
@@ -28,7 +25,11 @@ export function handleGetDailyTrend(
   next: NextFunction,
 ) {
   return asyncHandler(async (req: Request, res: Response) => {
-    const guildId = requireParam(req.query.guildId, "query parameter", "guildId");
+    const guildId = requireParam(
+      req.query.guildId,
+      "query parameter",
+      "guildId",
+    );
     const hours = req.query.hours ? Number(req.query.hours) : 24;
     logger.debug({ guildId, hours }, "Handling get daily trend");
     const result = await analyticsService.getDailyTrend(guildId, hours);

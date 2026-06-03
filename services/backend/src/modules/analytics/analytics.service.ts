@@ -1,6 +1,6 @@
-import { config } from "../../shared/config/index.js";
 import { ForbiddenError, ValidationError } from "@bete/shared/errors";
 import { createChildLogger } from "@bete/shared/logger";
+import { config } from "../../shared/config/index.js";
 import { analyticsRepository } from "./analytics.repository.js";
 import type { AnalyticsQuery } from "./analytics.schema.js";
 
@@ -99,7 +99,10 @@ export class AnalyticsService {
     limit = 20,
   ) {
     this.assertMonitorGuild(guildId);
-    logger.debug({ guildId, channelId, hours, limit }, "Getting moderation actions");
+    logger.debug(
+      { guildId, channelId, hours, limit },
+      "Getting moderation actions",
+    );
     return analyticsRepository.getModerationActions(
       guildId,
       channelId,

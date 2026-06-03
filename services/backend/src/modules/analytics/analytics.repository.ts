@@ -1,5 +1,5 @@
-import { getPool } from "../../shared/database/index.js";
 import { createChildLogger } from "@bete/shared/logger";
+import { getPool } from "../../shared/database/index.js";
 
 const logger = createChildLogger("analytics.repository");
 
@@ -153,10 +153,7 @@ export class AnalyticsRepository {
     hours = 24,
     limit = 10,
   ) {
-    logger.debug(
-      { guildId, channelId, hours, limit },
-      "Getting top violators",
-    );
+    logger.debug({ guildId, channelId, hours, limit }, "Getting top violators");
     const pool = getPool();
     const filter = buildTimeFilter(guildId, channelId, hours);
 
@@ -193,7 +190,10 @@ export class AnalyticsRepository {
       warned_count: Number(r.warned_count ?? 0),
       violation_score: Number(r.violation_score ?? 0),
       worst_flags: (r.worst_flags as string | null)
-        ? (r.worst_flags as string).split(",").map((s) => s.trim()).filter(Boolean)
+        ? (r.worst_flags as string)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
         : [],
       last_violation: Number(r.last_violation ?? 0),
     }));
@@ -346,7 +346,10 @@ export class AnalyticsRepository {
     hours = 24,
     limit = 20,
   ) {
-    logger.debug({ guildId, channelId, hours, limit }, "Getting moderation actions");
+    logger.debug(
+      { guildId, channelId, hours, limit },
+      "Getting moderation actions",
+    );
     const pool = getPool();
     const filter = buildTimeFilter(guildId, channelId, hours);
 
@@ -368,7 +371,7 @@ export class AnalyticsRepository {
           m.content
         FROM moderation_actions ma
         LEFT JOIN messages m ON m.id = ma.message_id
-        ${filter.where.replace('guild_id', 'ma.guild_id').replace('created_at', 'ma.created_at')}
+        ${filter.where.replace("guild_id", "ma.guild_id").replace("created_at", "ma.created_at")}
         ORDER BY ma.created_at DESC
         LIMIT $${filter.params.length + 1}
       `,
