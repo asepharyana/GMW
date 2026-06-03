@@ -17,11 +17,13 @@ import {
 } from "./shared/api/client";
 import { useAudioPlayback } from "./shared/hooks/useAudioPlayback";
 import { useAudioTransmit } from "./shared/hooks/useAudioTransmit";
+import { useMascotChat } from "./shared/hooks/useMascotChat";
 import { useUIState } from "./shared/hooks/useUIState";
 import { Skeleton } from "./shared/ui";
 import { MobileTabBar } from "./shared/ui/MobileTabBar";
 import { useDashboardSocket } from "./shared/ws/socket";
 import { DashboardLayout } from "./widgets/DashboardLayout";
+import { MascotChatbot } from "./widgets/mascot/MascotChatbot";
 
 const AnalyticsPanel = lazy(() =>
   import("./features/analytics").then((module) => ({
@@ -60,6 +62,15 @@ export default function App() {
     !!localStorage.getItem("admin-password"),
   );
   const [monitorGuildId, setMonitorGuildId] = useState("");
+  const [isMascotChatOpen, setIsMascotChatOpen] = useState(false);
+
+  // Mascot chat hook with message context
+  const mascotChat = useMascotChat({
+    messageCount: messages.messages.length,
+    activeParticipants: new Set(messages.messages.map((m) => m.user_id)).size,
+    lastActivity: messages.messages.length > 0 ? "Active" : "Idle",
+    topicsDiscussed: ["Analytics", "Conversation", "Insights"],
+  });
 
   const audio = useAudioPlayback();
   const activeTab = uiState.activeTab || "live";
@@ -235,6 +246,13 @@ export default function App() {
         onTabChange={(tab) => patchUIState({ activeTab: tab })}
       />
       <ModerationAlertListener />
+      <MascotChatbot
+        isOpen={isMascotChatOpen}
+        onSetIsOpen={setIsMascotChatOpen}
+        onSendMessage={mascotChat.handleSendMessage}
+        mascotName="Discord Watcher"
+        mascotAvatar="https://raw.githubusercontent.com/IMPHNEN/imphnen-frontend-service/develop/apps/dimentorin/public/image/mascot-1.png"
+      />
     </DashboardLayout>
   );
 }
