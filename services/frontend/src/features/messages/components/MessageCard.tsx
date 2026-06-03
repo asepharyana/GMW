@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   CheckCircle2,
+  Hash,
   Image as ImageIcon,
   Pencil,
   RotateCw,
@@ -350,6 +351,20 @@ function MessageRow({
 export function MessageCard({ messages, onReanalyze }: MessageCardProps) {
   const firstMsg = messages[0];
   const hasMultiple = messages.length > 1;
+  const meta = useMemo(
+    () => parseMetadata(firstMsg.metadata),
+    [firstMsg.metadata],
+  );
+  const channelMeta = meta.channel;
+  const locationLabel = useMemo(() => {
+    if (channelMeta?.threadName) {
+      return `# ${channelMeta.channelName || "unknown"} › ${channelMeta.threadName}`;
+    }
+    if (channelMeta?.channelName) {
+      return `# ${channelMeta.channelName}`;
+    }
+    return null;
+  }, [channelMeta]);
 
   return (
     <article
@@ -369,11 +384,17 @@ export function MessageCard({ messages, onReanalyze }: MessageCardProps) {
         />
 
         <div className="min-w-0 flex-1">
-          {/* Group header: username + timestamp of first message */}
+          {/* Group header: username + location + timestamp */}
           <div className="flex items-baseline gap-2 mb-2">
             <span className="font-semibold text-sm text-foreground">
               {firstMsg.username || firstMsg.user_id}
             </span>
+            {locationLabel && (
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground/50 bg-muted/50 px-1.5 py-0.5 rounded-full">
+                <Hash className="h-2.5 w-2.5" />
+                {locationLabel}
+              </span>
+            )}
             <span
               className="text-[11px] text-muted-foreground/60"
               title={new Date(firstMsg.created_at).toLocaleString()}
