@@ -42,6 +42,7 @@ export function Sidebar({
     channelId,
   });
   return (
+    <>
     <motion.nav
       className={cn(
         "relative hidden shrink-0 flex-col overflow-visible border-r border-[#7EC8E3]/20 bg-white/70 backdrop-blur-md transition-all duration-300 md:flex",
@@ -120,10 +121,10 @@ export function Sidebar({
                 {mascotChatMessage ||
                   "Halo! Saya mascot mu. Klik aku kalau mau tanya soal obrolan atau moderasi ✨"}
               </p>
-                                          {/* Border triangle (outer) — points left */}
-                                          <div className="absolute -left-[16px] bottom-[9px] z-10 h-0 w-0 border-b-[10px] border-r-[16px] border-t-[10px] border-b-transparent border-r-sky-200/80 border-t-transparent" />
-                                          {/* Fill triangle (inner) — offset 1px right for border effect */}
-                                          <div className="absolute -left-[14px] bottom-[10px] z-20 h-0 w-0 border-b-[9px] border-r-[15px] border-t-[9px] border-b-transparent border-r-white/95 border-t-transparent" />
+              {/* Outer: border layer — 1px larger, extends left & down to show border on diagonal/bottom edges */}
+              <div className="absolute -left-[13px] bottom-[7px] z-10 h-[21px] w-[21px] bg-sky-200/80 [clip-path:polygon(100%_0,0_100%,100%_70%)]" />
+              {/* Inner: fill layer — original position & size, matches bubble bg */}
+              <div className="absolute -left-3 bottom-2 z-20 h-5 w-5 bg-white/95 [clip-path:polygon(100%_0,0_100%,100%_70%)]" />
             </div>
           </motion.div>
         )}
@@ -135,14 +136,15 @@ export function Sidebar({
         >
           <MascotImage size="sm" />
         </button>
-        <MascotChatbot
-          isOpen={mascotChat.isOpen}
-          onClose={() => mascotChat.setIsOpen(false)}
-          onSendMessage={mascotChat.handleSendMessage}
-          mascotName="Discord Watcher"
-          className="absolute bottom-16 left-12 z-50"
-        />
       </div>
     </motion.nav>
+    <MascotChatbot
+      isOpen={mascotChat.isOpen}
+      onClose={() => mascotChat.setIsOpen(false)}
+      onSendMessage={mascotChat.handleSendMessage}
+      mascotName="Discord Watcher"
+      className="fixed bottom-20 left-[80px] z-[9999]"
+    />
+    </>
   );
 }
