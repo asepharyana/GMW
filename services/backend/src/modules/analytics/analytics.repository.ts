@@ -323,15 +323,15 @@ export class AnalyticsRepository {
               LOWER(TRIM(BOTH '.,!?;:\"()[]{}' FROM word)) AS word,
               ai_moderation_score
             FROM messages,
-            LATERAL regexp_split_to_table(content, E'\\\\s+') AS word
+            LATERAL UNNEST(STRING_TO_ARRAY(content, ' ')) AS word
             ${filter.where}
               AND content IS NOT NULL
               AND content != ''
               AND LENGTH(TRIM(BOTH '.,!?;:\"()[]{}' FROM word)) >= 3
               AND word !~ '^<.+:\\d+>$'
               AND word !~ '^https?://'
-              AND word !~ '^discord\\.(gg|app|com)'
-              AND word !~ '^cdn\\.discord'
+              AND word !~ '^discord\.(gg|app|com)'
+              AND word !~ '^cdn\.discord'
           )
           SELECT
             word AS topic,
