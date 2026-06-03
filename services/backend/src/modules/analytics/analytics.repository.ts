@@ -325,13 +325,13 @@ export class AnalyticsRepository {
             FROM messages,
             LATERAL UNNEST(STRING_TO_ARRAY(content, ' ')) AS word
             ${filter.where}
-              AND content IS NOT NULL
-              AND content != ''
-              AND LENGTH(TRIM(BOTH '.,!?;:\"()[]{}' FROM word)) >= 3
-              AND word !~ '^<.+:\\d+>$'
+              AND content IS NOT NULL AND content != ''
+              AND LENGTH(TRIM(BOTH '.,!?;:\"()[]{}' FROM word)) >= 4
+              AND word !~ '^<.+:\d+>$'
+              AND word !~ '^\['
               AND word !~ '^https?://'
-              AND word !~ '^discord\.(gg|app|com)'
-              AND word !~ '^cdn\.discord'
+              AND word !~ '^discord\.'
+              AND word !~ '^cdn\.'
           )
           SELECT
             word AS topic,
@@ -349,10 +349,20 @@ export class AnalyticsRepository {
             'the','and','for','are','but','not','you','all','can','has',
             'was','were','been','like','just','that','this','with','your',
             'from','they','have','what','when','where','which','their',
-            'about','would','could','should','very','also','than','then'
+            'about','would','could','should','very','also','than','then',
+            'mau','lagi','jadi','aja','nya','apa','orang',
+            'lihat','kak','bro','bang','mas','pack','sih','dong','kok',
+            'nih','deh','kali','loh','lho','doang',
+            'gue','lo','lu','gua','elo','ane','wkwk','wkwkwk',
+            'wkwkwkwk','wkwkwkwkwk','haha','hahaha','hehe','wk','wkwk',
+            'kalo','buat','udah','jir','kan','tuh','pake','dulu',
+            'banget','kayak','kya','kyk','klo','karna','soalnya',
+            'bikin','bilang','makan','minum','tidur','main','pergi','pulang',
+            'mana','cuma','kah','udh','gitu','gini','gtu','gni',
+            'mending','wkakak','wakak'
           )
           GROUP BY word
-          ORDER BY count DESC
+          ORDER BY COUNT(*) DESC
           LIMIT 10
         `,
         filter.params,
