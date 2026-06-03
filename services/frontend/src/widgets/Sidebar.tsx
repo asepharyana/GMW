@@ -111,12 +111,12 @@ export function Sidebar({
 
         {/* Mascot PNG with anchored chatbot */}
         <div className="relative flex justify-center pb-4">
-          {!collapsed && !mascotChat.isOpen && (
+          {!mascotChat.isOpen && (
             <motion.div
               initial={{ opacity: 0, x: -8, y: 6, scale: 0.96 }}
               animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
               transition={{ type: "spring", stiffness: 280, damping: 24 }}
-              className="pointer-events-none absolute -top-28 left-12 z-40 w-64"
+              className="pointer-events-none fixed bottom-[100px] left-20 z-[9999] w-64"
             >
               <div className="relative rounded-2xl border border-sky-200/80 bg-white/95 px-4 py-3 text-left shadow-xl shadow-sky-100/70 backdrop-blur-md">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/70">
