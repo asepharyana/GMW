@@ -91,6 +91,34 @@ export class AnalyticsService {
     logger.debug({ guildId, channelId, hours }, "Getting topics");
     return analyticsRepository.getTopics(guildId, channelId, hours);
   }
+
+  async getModerationActions(
+    guildId: string,
+    channelId?: string,
+    hours = 24,
+    limit = 20,
+  ) {
+    this.assertMonitorGuild(guildId);
+    logger.debug({ guildId, channelId, hours, limit }, "Getting moderation actions");
+    return analyticsRepository.getModerationActions(
+      guildId,
+      channelId,
+      hours,
+      limit,
+    );
+  }
+
+  async getAIStats(guildId: string, channelId?: string, hours = 24) {
+    this.assertMonitorGuild(guildId);
+    logger.debug({ guildId, channelId, hours }, "Getting AI stats");
+    return analyticsRepository.getAIStats(guildId, channelId, hours);
+  }
+
+  async getAttachmentStats(guildId: string, channelId?: string, hours = 24) {
+    this.assertMonitorGuild(guildId);
+    logger.debug({ guildId, channelId, hours }, "Getting attachment stats");
+    return analyticsRepository.getAttachmentStats(guildId, channelId, hours);
+  }
 }
 
 export const analyticsService = new AnalyticsService();

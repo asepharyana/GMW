@@ -337,6 +337,159 @@ export class AnalyticsRepository {
       score: Number(r.score ?? 0),
     }));
   }
+
+  // ── New endpoints ─────────────────────────────────────────────────────────
+
+  async getModerationActions(
+    guildId: string,
+    channelId?: string,
+    hours = 24,
+    limit = 20,
+  ) {
+    logger.debug({ guildId, channelId, hours, limit }, "Getting moderation actions");
+    const pool = getPool();
+    const filter = buildTimeFilter(guildId, channelId, hours);
+
+    const { rows } = await pool.query(
+      `
+        SELECT
+          ma.id,
+          ma.message_id,
+          ma.user_id,
+          ma.guild_id,
+          ma.action_type,
+          ma.reason,
+          ma.executed_by,
+          ma.status,
+          ma.error,
+          ma.created_at,
+          ma.executed_at,
+          m.username,
+          m.content
+        FROM moderation_actions ma
+        LEFT JOIN messages m ON m.id = ma.message_id
+        ${filter.where.replace('guild_id', 'ma.guild_id').replace('created_at', 'ma.created_at')}
+        ORDER BY ma.created_at DESC
+        LIMIT $${filter.params.length + 1}
+      `,
+      [...filter.params, limit],
+    );
+
+    return rows.map((r) => ({
+      id: r.id as string,
+      message_id: (r.message_id as string) ?? null,
+      user_id: r.user_id as string,
+      guild_id: r.guild_id as string,
+      action_type: r.action_type as string,
+      reason: (r.reason as string) ?? null,
+      executed_by: (r.executed_by as string) ?? null,
+      status: r.status as string,
+      error: (r.error as string) ?? null,
+      created_at: Number(r.created_at ?? 0),
+      executed_at: r.executed_at ? Number(r.executed_at) : null,
+      username: (r.username as string) ?? "Unknown",
+      content: (r.content as string) ?? null,
+    }));
+  }
+
+  async getAIStats(guildId: string, channelId?: string, hours = 24) {
+    logger.debug({ guildId, channelId, hours }, "Getting AI stats");
+    const pool = getPool();
+    const filter = buildTimeFilter(guildId, channelId, hours);
+
+    const { rows } = await pool.query(
+      `
+        SELECT
+          COUNT(*)::int AS total_analyzed,
+          COUNT(*) FILTER (WHERE ai_severity = 'none')::int    AS severity_none,
+          COUNT(*) FILTER (WHERE ai_severity = 'low')::int     AS severity_low,
+          COUNT(*) FILTER (WHERE ai_severity = 'medium')::int  AS severity_medium,
+          COUNT(*) FILTER (WHERE ai_severity = 'high')::int    AS severity_high,
+          COUNT(*) FILTER (WHERE ai_severity = 'critical')::int AS severity_critical,
+          COUNT(*) FILTER (WHERE ai_recommended_action = 'none')::int     AS action_none,
+          COUNT(*) FILTER (WHERE ai_recommended_action = 'monitor')::int  AS action_monitor,
+          COUNT(*) FILTER (WHERE ai_recommended_action = 'warn')::int     AS action_warn,
+          COUNT(*) FILTER (WHERE ai_recommended_action = 'review')::int   AS action_review,
+          COUNT(*) FILTER (WHERE ai_recommended_action = 'delete')::int   AS action_delete,
+          COUNT(*) FILTER (WHERE ai_recommended_action = 'escalate')::int AS action_escalate,
+          COUNT(*) FILTER (WHERE ai_status = 'error')::int      AS analysis_errors,
+          COUNT(*) FILTER (WHERE ai_status = 'pending')::int    AS analysis_pending,
+          COALESCE(AVG(ai_confidence), 0)::real                 AS avg_confidence,
+          COALESCE(AVG(ai_moderation_score), 0)::real           AS avg_score
+        FROM messages
+        ${filter.where}
+      `,
+      filter.params,
+    );
+
+    const row = rows[0] as Record<string, unknown> | undefined;
+
+    return {
+      total_analyzed: Number(row?.total_analyzed ?? 0),
+      severity: {
+        none: Number(row?.severity_none ?? 0),
+        low: Number(row?.severity_low ?? 0),
+        medium: Number(row?.severity_medium ?? 0),
+        high: Number(row?.severity_high ?? 0),
+        critical: Number(row?.severity_critical ?? 0),
+      },
+      recommended_actions: {
+        none: Number(row?.action_none ?? 0),
+        monitor: Number(row?.action_monitor ?? 0),
+        warn: Number(row?.action_warn ?? 0),
+        review: Number(row?.action_review ?? 0),
+        delete: Number(row?.action_delete ?? 0),
+        escalate: Number(row?.action_escalate ?? 0),
+      },
+      analysis_errors: Number(row?.analysis_errors ?? 0),
+      analysis_pending: Number(row?.analysis_pending ?? 0),
+      avg_confidence: Number(row?.avg_confidence ?? 0),
+      avg_score: Number(row?.avg_score ?? 0),
+    };
+  }
+
+  async getAttachmentStats(guildId: string, channelId?: string, hours = 24) {
+    logger.debug({ guildId, channelId, hours }, "Getting attachment stats");
+    const pool = getPool();
+    const filter = buildTimeFilter(guildId, channelId, hours);
+
+    const { rows } = await pool.query(
+      `
+        SELECT
+          COUNT(*)::int AS total_attachments,
+          COUNT(*) FILTER (WHERE a.upload_status = 'uploaded')::int  AS uploaded,
+          COUNT(*) FILTER (WHERE a.upload_status = 'pending')::int   AS pending,
+          COUNT(*) FILTER (WHERE a.upload_status = 'failed')::int    AS failed,
+          COALESCE(SUM(a.size), 0)::bigint                           AS total_size_bytes,
+          COUNT(DISTINCT a.user_id)::int                             AS unique_uploaders,
+          (SELECT a2.type FROM attachments a2
+           WHERE a2.guild_id = $1
+           ${channelId ? "AND a2.channel_id = $" + (filter.paramOffset - 1) : ""}
+           AND a2.created_at > (EXTRACT(EPOCH FROM NOW()) * 1000 - $${filter.paramOffset})
+           GROUP BY a2.type ORDER BY COUNT(*) DESC LIMIT 1
+          ) AS top_mime_type
+        FROM attachments a
+        WHERE a.guild_id = $1
+          ${channelId ? "AND a.channel_id = $" + (filter.paramOffset - 1) : ""}
+          AND a.created_at > (EXTRACT(EPOCH FROM NOW()) * 1000 - $${filter.paramOffset})
+      `,
+      channelId
+        ? [guildId, channelId, hours * 3_600_000]
+        : [guildId, hours * 3_600_000],
+    );
+
+    const row = rows[0] as Record<string, unknown> | undefined;
+
+    return {
+      total_attachments: Number(row?.total_attachments ?? 0),
+      uploaded: Number(row?.uploaded ?? 0),
+      pending: Number(row?.pending ?? 0),
+      failed: Number(row?.failed ?? 0),
+      total_size_bytes: Number(row?.total_size_bytes ?? 0),
+      unique_uploaders: Number(row?.unique_uploaders ?? 0),
+      top_mime_type: (row?.top_mime_type as string) ?? null,
+    };
+  }
 }
 
 export const analyticsRepository = new AnalyticsRepository();

@@ -454,3 +454,99 @@ export function fetchHeatmap(params: {
   });
   return request<HeatmapCell[]>(`/api/analytics/heatmap?${sp}`);
 }
+
+// ── New analytics types & endpoints ────────────────────────────────────────
+
+export interface ModerationActionRecord {
+  id: string;
+  message_id: string | null;
+  user_id: string;
+  guild_id: string;
+  action_type: string;
+  reason: string | null;
+  executed_by: string | null;
+  status: string;
+  error: string | null;
+  created_at: number;
+  executed_at: number | null;
+  username: string;
+  content: string | null;
+}
+
+export interface AISeverityBreakdown {
+  none: number;
+  low: number;
+  medium: number;
+  high: number;
+  critical: number;
+}
+
+export interface AIRecommendedActions {
+  none: number;
+  monitor: number;
+  warn: number;
+  review: number;
+  delete: number;
+  escalate: number;
+}
+
+export interface AIStats {
+  total_analyzed: number;
+  severity: AISeverityBreakdown;
+  recommended_actions: AIRecommendedActions;
+  analysis_errors: number;
+  analysis_pending: number;
+  avg_confidence: number;
+  avg_score: number;
+}
+
+export interface AttachmentStats {
+  total_attachments: number;
+  uploaded: number;
+  pending: number;
+  failed: number;
+  total_size_bytes: number;
+  unique_uploaders: number;
+  top_mime_type: string | null;
+}
+
+export function fetchModerationActions(params: {
+  guildId: string;
+  channelId?: string;
+  hours?: number;
+  limit?: number;
+}): Promise<ModerationActionRecord[]> {
+  const sp = new URLSearchParams({
+    guildId: params.guildId,
+    ...(params.channelId && { channelId: params.channelId }),
+    ...(params.hours && { hours: String(params.hours) }),
+    ...(params.limit && { limit: String(params.limit) }),
+  });
+  return request<ModerationActionRecord[]>(`/api/analytics/moderation-actions?${sp}`);
+}
+
+export function fetchAIStats(params: {
+  guildId: string;
+  channelId?: string;
+  hours?: number;
+}): Promise<AIStats> {
+  const sp = new URLSearchParams({
+    guildId: params.guildId,
+    ...(params.channelId && { channelId: params.channelId }),
+    ...(params.hours && { hours: String(params.hours) }),
+  });
+  return request<AIStats>(`/api/analytics/ai-stats?${sp}`);
+}
+
+export function fetchAttachmentStats(params: {
+  guildId: string;
+  channelId?: string;
+  hours?: number;
+}): Promise<AttachmentStats> {
+  const sp = new URLSearchParams({
+    guildId: params.guildId,
+    ...(params.channelId && { channelId: params.channelId }),
+    ...(params.hours && { hours: String(params.hours) }),
+  });
+  return request<AttachmentStats>(`/api/analytics/attachment-stats?${sp}`);
+}

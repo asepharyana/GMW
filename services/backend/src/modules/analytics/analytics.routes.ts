@@ -1,9 +1,12 @@
 import type { Router } from "express";
 import express from "express";
 import {
+  handleGetAIStats,
+  handleGetAttachmentStats,
   handleGetDailyTrend,
   handleGetHeatmap,
   handleGetHourlyStats,
+  handleGetModerationActions,
   handleGetModerationStats,
   handleGetOverview,
   handleGetTopViolators,
@@ -22,6 +25,9 @@ export function createAnalyticsRouter(): Router {
   router.get("/analytics/stats", handleGetModerationStats);
   router.get("/analytics/heatmap", handleGetHeatmap);
   router.get("/analytics/topics", handleGetTopics);
+  router.get("/analytics/moderation-actions", handleGetModerationActions);
+  router.get("/analytics/ai-stats", handleGetAIStats);
+  router.get("/analytics/attachment-stats", handleGetAttachmentStats);
 
   return router;
 }

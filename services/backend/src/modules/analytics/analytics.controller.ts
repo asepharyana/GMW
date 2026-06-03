@@ -141,3 +141,56 @@ export function handleGetTopics(
     res.json(result);
   })(req, res, next);
 }
+
+export function handleGetModerationActions(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const query = analyticsQuerySchema.parse(req.query);
+    const limit = req.query.limit ? Number(req.query.limit) : 20;
+    logger.debug({ query, limit }, "Handling get moderation actions");
+    const result = await analyticsService.getModerationActions(
+      query.guildId,
+      query.channelId,
+      query.hours,
+      limit,
+    );
+    res.json(result);
+  })(req, res, next);
+}
+
+export function handleGetAIStats(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const query = analyticsQuerySchema.parse(req.query);
+    logger.debug({ query }, "Handling get AI stats");
+    const result = await analyticsService.getAIStats(
+      query.guildId,
+      query.channelId,
+      query.hours,
+    );
+    res.json(result);
+  })(req, res, next);
+}
+
+export function handleGetAttachmentStats(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const query = analyticsQuerySchema.parse(req.query);
+    logger.debug({ query }, "Handling get attachment stats");
+    const result = await analyticsService.getAttachmentStats(
+      query.guildId,
+      query.channelId,
+      query.hours,
+    );
+    res.json(result);
+  })(req, res, next);
+}
