@@ -1,8 +1,6 @@
 import {
   AlertCircle,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Image as ImageIcon,
   Pencil,
   RotateCw,
@@ -133,7 +131,6 @@ function MessageRow({
   const confidence =
     message.ai_confidence ?? message.ai_moderation_score ?? null;
   const [isReanalyzing, setIsReanalyzing] = useState(false);
-  const [showAnalysis, setShowAnalysis] = useState(aiStatus === "flagged");
 
   const analysisSummary = useMemo(() => {
     const parts: string[] = [];
@@ -292,7 +289,7 @@ function MessageRow({
         </div>
       )}
 
-      {/* AI Analysis */}
+      {/* AI Analysis — always expanded */}
       {message.ai_analysis ? (
         <div
           className={`rounded-lg border-l-[3px] px-3 py-2 ${
@@ -301,26 +298,19 @@ function MessageRow({
               : "border-l-emerald-400 bg-emerald-50/40"
           }`}
         >
-          <button
-            type="button"
-            onClick={() => setShowAnalysis(!showAnalysis)}
-            className="flex w-full items-center justify-between gap-2 text-left text-[11px]"
-          >
-            <span className="font-medium text-foreground/70">
-              {aiStatus === "flagged" ? "🚨 " : "ℹ️ "}
-              {analysisSummary}
+          <div className="flex items-start gap-2 text-[11px]">
+            <span className="mt-0.5 shrink-0">
+              {aiStatus === "flagged" ? "🚨" : "ℹ️"}
             </span>
-            {showAnalysis ? (
-              <ChevronUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            )}
-          </button>
-          {showAnalysis && (
-            <div className="mt-1.5 border-t border-border/50 pt-1.5 text-[12px] text-muted-foreground leading-relaxed whitespace-pre-wrap">
-              {message.ai_analysis}
+            <div className="min-w-0 flex-1">
+              <span className="block font-medium text-foreground/70 mb-1">
+                {analysisSummary}
+              </span>
+              <div className="text-[12px] text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                {message.ai_analysis}
+              </div>
             </div>
-          )}
+          </div>
         </div>
       ) : null}
 
