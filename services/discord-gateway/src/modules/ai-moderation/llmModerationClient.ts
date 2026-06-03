@@ -477,6 +477,25 @@ type MessageImagePart = {
 };
 
 // ---------------------------------------------------------------------------
+// Content helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the real text content for AI analysis, stripping fallback text
+ * that getDisplayContent() synthesized ("[Attachment: ...]", "[Sticker: ...]",
+ * "[Embed]").  These filenames alone are meaningless to the LLM and can
+ * falsely inflate a "clean" verdict when the actual image failed to download.
+ */
+function getAnalysisContent(message: MessageRecord): string {
+  const raw = message.edited_content ?? message.content;
+  const stripped = raw.replace(
+    /\[(?:Attachment|Sticker):[^\]]*\]|\[Embed\]/g,
+    "",
+  );
+  return stripped.trim();
+}
+
+// ---------------------------------------------------------------------------
 // Media detection helper
 // ---------------------------------------------------------------------------
 
@@ -976,7 +995,7 @@ async function runTextOnlyBatch(
 
       const messagesBlock = batch
         .map((msg) => {
-          const content = msg.edited_content ?? msg.content;
+          const content = getAnalysisContent(msg);
           const textEvidence = textEvidenceMap.get(msg.id) ?? "";
           const textContext = textEvidence ? `\n${textEvidence}` : "";
           // XML delimiters wrap each message for prompt safety (R1)
@@ -1129,7 +1148,7 @@ async function _runSingleMediaAnalysis(
     att.uploaded_url ?? null;
 
   const maxDimension = config.AI_LLM_IMAGE_MAX_DIMENSION ?? 1024;
-  const content = target.edited_content ?? target.content;
+  const content = getAnalysisContent(target);
 
   // ── 1-3. Parallel download of ALL media sources ──
   // Build all download promises upfront and execute them in one Promise.all.
