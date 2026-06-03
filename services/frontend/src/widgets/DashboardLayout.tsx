@@ -1,8 +1,7 @@
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
-import { useMemo } from "react";
 import type { DashboardTab } from "../entities/ui/types";
-import type { VoiceStatus } from "../shared/api/client";
+import type { MessageRecord, VoiceStatus } from "../shared/api/client";
 import { fadeSlideUp } from "../shared/hooks/useFramerStagger";
 import { useMascotSummary } from "../shared/hooks/useMascotSummary";
 import type { WsStatus } from "../shared/ws/socket";
@@ -16,7 +15,9 @@ interface DashboardLayoutProps {
   voiceStatus: VoiceStatus;
   onTabChange: (tab: DashboardTab) => void;
   children: ReactNode;
-  recentMessages?: any[];
+  recentMessages?: MessageRecord[];
+  guildId?: string;
+  channelId?: string;
 }
 
 export function DashboardLayout({
@@ -26,6 +27,8 @@ export function DashboardLayout({
   onTabChange,
   children,
   recentMessages = [],
+  guildId,
+  channelId,
 }: DashboardLayoutProps) {
   // Generate mascot summary from recent messages
   const mascotSummary = useMascotSummary({
@@ -42,6 +45,9 @@ export function DashboardLayout({
           activeTab={activeTab}
           onTabChange={onTabChange}
           mascotChatMessage={mascotSummary}
+          recentMessages={recentMessages}
+          guildId={guildId}
+          channelId={channelId}
         />
         <main className="flex min-w-0 flex-1 flex-col">
           <Header

@@ -2,7 +2,10 @@ import { motion } from "framer-motion";
 import { BarChart3, MessageSquare, Radio } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { DashboardTab } from "../entities/ui/types";
+import type { MessageRecord } from "../shared/api/client";
+import { useMascotChat } from "../shared/hooks/useMascotChat";
 import { cn } from "../shared/lib/utils";
+import { MascotChatbot } from "./mascot/MascotChatbot";
 import { MascotImage } from "./mascot/MascotImage";
 
 const navItems: Array<{ id: DashboardTab; label: string; icon: typeof Radio }> =
@@ -17,6 +20,9 @@ interface SidebarProps {
   onTabChange: (tab: DashboardTab) => void;
   collapsed?: boolean;
   mascotChatMessage?: string;
+  recentMessages?: MessageRecord[];
+  guildId?: string;
+  channelId?: string;
 }
 
 export function Sidebar({
@@ -24,8 +30,19 @@ export function Sidebar({
   onTabChange,
   collapsed = true,
   mascotChatMessage = "",
+  recentMessages = [],
+  guildId,
+  channelId,
 }: SidebarProps) {
   const [showChat, setShowChat] = useState(false);
+  const mascotChat = useMascotChat({
+    messageCount: recentMessages.length,
+    activeParticipants: new Set(recentMessages.map((message) => message.user_id)).size,
+    lastActivity: recentMessages.length > 0 ? "Active" : "Idle",
+    topicsDiscussed: ["Messages", "Moderation", "Analytics"],
+    guildId,
+    channelId,
+  });
 
   useEffect(() => {
     if (mascotChatMessage) {
@@ -35,7 +52,7 @@ export function Sidebar({
   return (
     <motion.nav
       className={cn(
-        "hidden shrink-0 flex-col border-r border-[#7EC8E3]/20 bg-white/70 backdrop-blur-md transition-all duration-300 md:flex",
+        "relative hidden shrink-0 flex-col overflow-visible border-r border-[#7EC8E3]/20 bg-white/70 backdrop-blur-md transition-all duration-300 md:flex",
         collapsed ? "w-16" : "w-64",
       )}
       layout
@@ -94,12 +111,26 @@ export function Sidebar({
       {/* Spacer pushes mascot to bottom */}
       <div className="flex-1" />
 
-      {/* Mascot PNG with chat bubble */}
-      <div className="flex justify-center pb-4">
-        <MascotImage
-          size="sm"
-          showChat={showChat && !collapsed}
-          chatMessage={mascotChatMessage}
+      {/* Mascot PNG with anchored chatbot */}
+      <div className="relative flex justify-center pb-4">
+        <button
+          type="button"
+          onClick={() => mascotChat.setIsOpen(!mascotChat.isOpen)}
+          className="rounded-2xl p-1 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/40"
+          title="Chat dengan mascot"
+        >
+          <MascotImage
+            size="sm"
+            showChat={showChat && !mascotChat.isOpen}
+            chatMessage={mascotChatMessage}
+          />
+        </button>
+        <MascotChatbot
+          isOpen={mascotChat.isOpen}
+          onClose={() => mascotChat.setIsOpen(false)}
+          onSendMessage={mascotChat.handleSendMessage}
+          mascotName="Discord Watcher"
+          className="absolute bottom-16 left-12 z-50"
         />
       </div>
     </motion.nav>

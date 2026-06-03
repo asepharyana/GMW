@@ -1,5 +1,5 @@
-import { motion, AnimatePresence } from "framer-motion";
-import { Send, X, MessageCircle, Minimize2, Maximize2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Maximize2, MessageCircle, Minimize2, Send, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "../../shared/lib/utils";
 
@@ -12,23 +12,21 @@ export interface ChatMessage {
 }
 
 interface MascotChatbotProps {
-  onOpen?: () => void;
   onClose?: () => void;
   isOpen?: boolean;
-  onSetIsOpen?: (isOpen: boolean) => void;
   onSendMessage?: (message: string) => Promise<string>;
   mascotName?: string;
   mascotAvatar?: string;
+  className?: string;
 }
 
 export function MascotChatbot({
-  onOpen,
   onClose,
   isOpen = false,
-  onSetIsOpen,
   onSendMessage,
   mascotName = "Mascot",
   mascotAvatar = "https://raw.githubusercontent.com/IMPHNEN/imphnen-frontend-service/develop/apps/dimentorin/public/image/mascot-1.png",
+  className,
 }: MascotChatbotProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -51,7 +49,7 @@ export function MascotChatbot({
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
 
@@ -98,22 +96,7 @@ export function MascotChatbot({
     }
   };
 
-  if (!isOpen) {
-    return (
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => {
-          onSetIsOpen?.(true);
-          onOpen?.();
-        }}
-        className="fixed bottom-6 right-6 bg-gradient-to-br from-primary to-primary/80 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all"
-        title="Buka chat mascot"
-      >
-        <MessageCircle className="h-6 w-6" />
-      </motion.button>
-    );
-  }
+  if (!isOpen) return null;
 
   return (
     <AnimatePresence>
@@ -122,8 +105,9 @@ export function MascotChatbot({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.95 }}
         className={cn(
-          "fixed bottom-6 right-6 w-96 bg-white rounded-2xl shadow-2xl border border-primary/10 overflow-hidden flex flex-col",
-          isMinimized ? "h-16" : "h-[600px]"
+          "w-96 bg-white rounded-2xl shadow-2xl border border-primary/10 overflow-hidden flex flex-col",
+          isMinimized ? "h-16" : "h-[520px]",
+          className,
         )}
       >
         {/* Header */}

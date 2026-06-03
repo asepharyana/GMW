@@ -10,6 +10,7 @@ import { createAnalyticsRouter } from "../modules/analytics/analytics.routes.js"
 import { createAuthRouter } from "../modules/auth/auth.routes.js";
 import { createConfigRouter } from "../modules/config/config.routes.js";
 import { createHealthRouter } from "../modules/health/health.routes.js";
+import { createMascotChatRouter } from "../modules/mascot-chat/mascot-chat.routes.js";
 import { createMediaRouter } from "../modules/media/media.routes.js";
 import { createMessagesRouter } from "../modules/messages/messages.routes.js";
 import { createRecordingsRouter } from "../modules/recordings/recordings.routes.js";
@@ -66,6 +67,7 @@ export function createHttpApp(): Express {
   app.use("/api", createMessagesRouter());
   app.use("/api", createAnalysisRouter());
   app.use("/api", createAnalyticsRouter());
+  app.use("/api", createMascotChatRouter());
   app.use("/api", createMediaRouter());
   app.use("/api", createVoiceRouter());
   app.use("/api", createRecordingsRouter());
