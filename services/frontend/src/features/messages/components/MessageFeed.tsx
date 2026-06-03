@@ -97,7 +97,7 @@ function computeChannelSections(messages: MessageRecord[]): ChannelSection[] {
 export function MessageFeed({
   messages,
   onReanalyze,
-  emptyText = "No messages found.",
+  emptyText: _emptyText,
   loading,
   onLoadMore,
   hasMore,
