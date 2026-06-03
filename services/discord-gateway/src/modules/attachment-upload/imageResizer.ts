@@ -4,10 +4,10 @@ import { createChildLogger } from "@bete/shared/logger";
 const log = createChildLogger("imageResizer");
 
 /**
- * Resize an image buffer for optimal vision LLM analysis.
+ * Prepare an image buffer for optimal vision LLM analysis.
  *
- * - Resizes to maxDim x maxDim maintaining aspect ratio
- * - Converts to JPEG at quality 85 for size reduction
+ * - Resizes to maxDim x maxDim maintaining aspect ratio (only if larger)
+ * - Converts to PNG (lossless) to preserve full image detail
  * - Falls back to original buffer if sharp fails
  *
  * @param buf - Raw image buffer
@@ -22,31 +22,33 @@ export async function resizeImageForVision(
     const metadata = await sharp(buf).metadata();
     const inputFormat = metadata.format ?? "jpeg";
 
-    // Skip resize if already smaller than maxDim
+    // Skip resize entirely if already within max dimension
     if ((metadata.width ?? 0) <= maxDim && (metadata.height ?? 0) <= maxDim) {
       return { data: buf, mimeType: `image/${inputFormat}` };
     }
 
+    // Resize dimension only — convert to PNG lossless to preserve detail
     const resized = await sharp(buf)
       .resize(maxDim, maxDim, {
         fit: "inside",
         withoutEnlargement: true,
       })
-      .jpeg({ quality: 85 })
+      .png()
       .toBuffer();
 
     log.debug(
       {
         originalSize: buf.length,
+        originalFormat: inputFormat,
         resizedSize: resized.length,
         reductionPct: Math.round(
           ((buf.length - resized.length) / buf.length) * 100,
         ),
       },
-      "Image resized for vision analysis",
+      "Image resized for vision analysis (lossless PNG)",
     );
 
-    return { data: resized, mimeType: "image/jpeg" };
+    return { data: resized, mimeType: "image/png" };
   } catch (error) {
     log.warn(
       { error: error instanceof Error ? error.message : String(error) },
