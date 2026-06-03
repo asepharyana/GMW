@@ -30,11 +30,6 @@ export interface MascotChatHistoryRow {
   created_at: string;
 }
 
-interface LLMChatMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
-
 class MascotChatService {
   private initialized = false;
 
@@ -203,24 +198,27 @@ class MascotChatService {
     flagged: number;
     warned: number;
   }): string {
-    return `Kamu adalah mascot dari Discord Watcher — asisten moderasi yang ramah dan helpful untuk server Discord.
+    return `Kamu lagi ngobrol sama mascot Discord Watcher — temen ngobrol yang tau keadaan server.
 
 Data server saat ini:
-- Total pesan: ${insights.total_messages}
+- Pesan: ${insights.total_messages}
 - User aktif: ${insights.active_users}
-- Pesan flagged: ${insights.flagged}
-- Pesan warning: ${insights.warned}
+- Flagged: ${insights.flagged}
+- Warning: ${insights.warned}
 
-Kepribadianmu:
-- Ramah, pakai emoji sesekali
-- Jawab dalam Bahasa Indonesia
-- Berikan jawaban yang informatif berdasarkan data di atas
-- Kalau ditanya di luar konteks moderasi/obrolan Discord, tetap jawab dengan sopan tapi arahkan kembali ke topik server
-- Jangan mengulangi template jawaban — setiap respons harus natural dan kontekstual
-- Jika user menyapa (halo/hai), balas dengan ramah dan tawarkan bantuan`;
+Gaya ngobrol:
+- Santai, hangat, kayak ngobrol sama temen
+- Pake Bahasa Indonesia sehari-hari, ga perlu kaku
+- Sesekali pake emoji wajar aja, ga berlebihan
+- Kalo ditanya sesuatu yang kamu tau dari data server, jawab pake data itu
+- Kalo ga tau atau ga nyambung, bilang aja terus tanya balik biar ngobrolnya jalan
+- Jangan sebut "rule", "instruksi", "prompt" atau apapun soal cara kamu berpikir
+- Biasa aja, ga usaha lucu-lucu amat — natural`;
   }
 
-  private buildHistoryMessages(recentContext: string[]): LLMChatMessage[] {
+  private buildHistoryMessages(
+    recentContext: string[],
+  ): Array<{ role: "user" | "assistant"; content: string }> {
     // recentContext is alternating User/Mascot messages
     return recentContext.map((text) => {
       if (text.startsWith("User: ")) {
@@ -232,7 +230,7 @@ Kepribadianmu:
 
   private async callLLM(
     systemPrompt: string,
-    history: LLMChatMessage[],
+    history: Array<{ role: "user" | "assistant"; content: string }>,
     userMessage: string,
   ): Promise<string> {
     const apiKey = config.AI_LLM_API_KEY;
@@ -247,10 +245,12 @@ Kepribadianmu:
     try {
       const { default: axios } = await import("axios");
 
-      const messages: LLMChatMessage[] = [
-        { role: "system", content: systemPrompt },
+      // Gateway tidak handle role system — gabung konteks ke user message
+      const contextPrefixed = `${systemPrompt}\n\nPertanyaan user: ${userMessage}`;
+
+      const messages: Array<{ role: "user" | "assistant"; content: string }> = [
         ...history,
-        { role: "user", content: userMessage },
+        { role: "user", content: contextPrefixed },
       ];
 
       const response = await axios.post(
@@ -259,7 +259,7 @@ Kepribadianmu:
           model,
           messages,
           max_tokens: 500,
-          temperature: 0.7,
+          temperature: 0.4,
         },
         {
           headers: {
@@ -298,18 +298,10 @@ Kepribadianmu:
       lower.includes("siang") ||
       lower.includes("malam")
     ) {
-      return "Halo! Aku mascot Discord Watcher. Ada yang bisa aku bantu soal pantauan server ini? 😊";
+      return "Halo! 👋 Lagi offline bentar, coba chat lagi nanti ya.";
     }
 
-    if (
-      lower.includes("ringkasan") ||
-      lower.includes("summary") ||
-      lower.includes("rangkum")
-    ) {
-      return "Maaf, fitur AI sedang tidak tersedia. Coba tanya lagi nanti ya ✨";
-    }
-
-    return "Maaf, aku sedang gagal nyambung ke otakku (LLM) 😅. Coba tanya lagi sebentar lagi ya!";
+    return "Maaf, lagi ada masalah koneksi. Coba tanya lagi nanti!";
   }
 }
 
