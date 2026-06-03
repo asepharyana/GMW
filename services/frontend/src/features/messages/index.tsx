@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
-import { Filter, Hash, RotateCw, Search, X } from "lucide-react";
+import { Filter, RotateCw, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { Channel, MessageRecord } from "../../shared/api/client";
+import type { MessageRecord } from "../../shared/api/client";
 import { cardItem, cardStagger } from "../../shared/hooks/useFramerStagger";
 import {
   Badge,
@@ -11,7 +11,6 @@ import {
   CardHeader,
   CardTitle,
   Input,
-  Select,
   Tabs,
   TabsContent,
   TabsList,
@@ -28,9 +27,6 @@ interface MessagesPanelProps {
   onLoadMore?: () => void;
   hasMore?: boolean;
   loadingMore?: boolean;
-  textChannels?: Channel[];
-  selectedChannel?: string;
-  onChannelChange?: (channelId: string) => void;
 }
 
 type AiFilter = "all" | "clean" | "flagged" | "error" | "pending";
@@ -43,9 +39,6 @@ export function MessagesPanel({
   onLoadMore,
   hasMore,
   loadingMore,
-  textChannels,
-  selectedChannel,
-  onChannelChange,
 }: MessagesPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<MessageRecord[]>([]);
@@ -125,23 +118,6 @@ export function MessagesPanel({
               Messages are automatically captured from all text channels in the
               monitored guild. Real-time updates arrive via WebSocket.
             </p>
-            {textChannels && textChannels.length > 0 && (
-              <div className="mt-3 flex items-center gap-2">
-                <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
-                <Select
-                  value={selectedChannel || ""}
-                  onChange={(e) => onChannelChange?.(e.target.value === "__all" ? "" : e.target.value)}
-                  placeholder="All channels"
-                  options={[
-                    { value: "__all", label: "All channels" },
-                    ...textChannels.map((ch) => ({
-                      value: ch.id,
-                      label: `# ${ch.name}`,
-                    })),
-                  ]}
-                />
-              </div>
-            )}
           </CardContent>
         </Card>
       </motion.div>

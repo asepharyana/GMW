@@ -29,9 +29,8 @@ export function useMessages() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const currentGuild = useRef<string | null>(null);
-  const currentChannel = useRef<string | undefined>(undefined);
 
-  const fetchMessages = useCallback(async (guildId?: string, channelId?: string) => {
+  const fetchMessages = useCallback(async (guildId?: string) => {
     if (!guildId) {
       setMessages([]);
       setCursor(null);
@@ -39,13 +38,11 @@ export function useMessages() {
       return [];
     }
     currentGuild.current = guildId;
-    currentChannel.current = channelId;
     setLoading(true);
     setError(null);
     try {
       const result = await listMessages({
         guildId,
-        channelId,
         limit: PAGE_SIZE,
       });
       if (currentGuild.current === guildId) {
@@ -69,7 +66,6 @@ export function useMessages() {
     try {
       const result = await listMessages({
         guildId: currentGuild.current,
-        channelId: currentChannel.current,
         cursor,
         limit: PAGE_SIZE,
       });
@@ -113,7 +109,6 @@ export function useMessages() {
     );
     const { count } = await reanalyzeErrorBatch({
       guildId: currentGuild.current ?? undefined,
-      channelId: currentChannel.current,
     });
     return count;
   }, []);

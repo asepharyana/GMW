@@ -1,7 +1,5 @@
 import { motion } from "framer-motion";
-import { Hash } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
-import { parseMetadata } from "../../../entities/message/types";
 import type { MessageRecord } from "../../../shared/api/client";
 import { cardItem, cardStagger } from "../../../shared/hooks/useFramerStagger";
 import { ScrollArea, EmptyStateMascot } from "../../../shared/ui";
@@ -20,12 +18,12 @@ export interface MessageFeedProps {
 /** Messages from the same user within 5 minutes are visually grouped. */
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
-interface UserMessageGroup {
+interface MessageGroup {
   messages: MessageRecord[];
 }
 
-function groupByUser(messages: MessageRecord[]): UserMessageGroup[] {
-  const groups: UserMessageGroup[] = [];
+function groupMessages(messages: MessageRecord[]): MessageGroup[] {
+  const groups: MessageGroup[] = [];
   for (const msg of messages) {
     const lastGroup = groups[groups.length - 1];
     if (
@@ -41,57 +39,6 @@ function groupByUser(messages: MessageRecord[]): UserMessageGroup[] {
     }
   }
   return groups;
-}
-
-interface ChannelSection {
-  key: string;
-  channelId: string;
-  threadId: string | null;
-  label: string;
-  groups: UserMessageGroup[];
-}
-
-function computeChannelSections(messages: MessageRecord[]): ChannelSection[] {
-  if (messages.length === 0) return [];
-
-  // Group by (channel_id, thread_id)
-  const map = new Map<string, MessageRecord[]>();
-  for (const msg of messages) {
-    const key = msg.thread_id
-      ? `${msg.channel_id}:t:${msg.thread_id}`
-      : msg.channel_id;
-    const list = map.get(key);
-    if (list) list.push(msg);
-    else map.set(key, [msg]);
-  }
-
-  const sections: ChannelSection[] = [];
-  for (const [key, channelMessages] of map) {
-    const first = channelMessages[0];
-    const meta = parseMetadata(first.metadata);
-    const ch = meta?.channel;
-
-    let label: string;
-    if (ch?.threadName && ch?.channelName) {
-      label = `# ${ch.channelName} › ${ch.threadName}`;
-    } else if (ch?.channelName) {
-      label = `# ${ch.channelName}`;
-    } else if (first.thread_id) {
-      label = `thread:${first.thread_id.slice(0, 8)}`;
-    } else {
-      label = `# ${first.channel_id.slice(0, 8)}`;
-    }
-
-    sections.push({
-      key,
-      channelId: first.channel_id,
-      threadId: first.thread_id,
-      label,
-      groups: groupByUser(channelMessages),
-    });
-  }
-
-  return sections;
 }
 
 export function MessageFeed({
@@ -121,7 +68,7 @@ export function MessageFeed({
     return () => observer.disconnect();
   }, [onLoadMore, hasMore]);
 
-  const sections = useMemo(() => computeChannelSections(messages), [messages]);
+  const groupedMessages = useMemo(() => groupMessages(messages), [messages]);
 
   if (loading) {
     return (
@@ -147,27 +94,13 @@ export function MessageFeed({
         initial="initial"
         animate="animate"
       >
-        {sections.map((section) => (
-          <div key={section.key} className="space-y-2">
-            {/* Channel/Thread section header */}
-            <div className="sticky top-0 z-10 -mx-1 rounded-lg bg-muted/80 backdrop-blur-sm px-3 py-1.5 flex items-center gap-1.5">
-              <Hash className="h-3.5 w-3.5 text-primary/60" />
-              <span className="text-xs font-medium text-muted-foreground">
-                {section.label}
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {section.groups.map((group) => (
-                <motion.div key={group.messages[0].id} variants={cardItem}>
-                  <MessageCard
-                    messages={group.messages}
-                    onReanalyze={onReanalyze}
-                  />
-                </motion.div>
-              ))}
-            </div>
-          </div>
+        {groupedMessages.map((group) => (
+          <motion.div key={group.messages[0].id} variants={cardItem}>
+            <MessageCard
+              messages={group.messages}
+              onReanalyze={onReanalyze}
+            />
+          </motion.div>
         ))}
 
         {/* Infinite-scroll sentinel */}
