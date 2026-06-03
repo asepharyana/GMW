@@ -35,10 +35,19 @@ export function Sidebar({
       <div
         className={cn(
           "flex items-center py-5",
-          collapsed ? "justify-center" : "px-4",
+          collapsed ? "justify-center" : "flex-col px-4",
         )}
       >
-        <img src="/logo.svg" alt="GMW" className="h-8 w-8 rounded-xl" />
+        <img src="https://raw.githubusercontent.com/IMPHNEN/imphnen-frontend-service/develop/docs/logo.svg" alt="GMW" className="h-8 w-8 rounded-xl" />
+
+        {/* Mascot image — only when expanded */}
+        {!collapsed && (
+          <img
+            src="https://raw.githubusercontent.com/IMPHNEN/imphnen-frontend-service/develop/apps/dimentorin/public/image/mascot-1.png"
+            alt="Mascot"
+            className="mt-4 h-auto w-[140px] object-contain drop-shadow-md"
+          />
+        )}
       </div>
 
       {/* Navigation items */}
