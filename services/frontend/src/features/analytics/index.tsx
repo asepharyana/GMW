@@ -3,8 +3,11 @@ import { useState } from "react";
 import { cardItem, cardStagger } from "../../shared/hooks/useFramerStagger";
 import { EmptyStateMascot } from "../../shared/ui";
 import { ActivityChart } from "./components/ActivityChart";
+import { AIDistributionPanel } from "./components/AIDistributionPanel";
+import { AttachmentStatsPanel } from "./components/AttachmentStatsPanel";
 import { ControlBar } from "./components/ControlBar";
 import { Heatmap } from "./components/Heatmap";
+import { ModerationActionsPanel } from "./components/ModerationActionsPanel";
 import { SummaryCards } from "./components/SummaryCards";
 import { TopicList } from "./components/TopicList";
 import { TrendChart } from "./components/TrendChart";
@@ -35,6 +38,9 @@ export function AnalyticsPanel({ guildId, guildName }: AnalyticsPanelProps) {
     violators,
     trend,
     heatmap,
+    aiStats,
+    attachmentStats,
+    moderationActions,
     isLoading,
     isFetching,
     error,
@@ -105,7 +111,16 @@ export function AnalyticsPanel({ guildId, guildName }: AnalyticsPanelProps) {
         </div>
       </motion.div>
       <motion.div variants={cardItem}>
-        <ViolatorTable users={violators} loading={loading} />
+        <div className="grid grid-cols-2 gap-4">
+          <AIDistributionPanel stats={aiStats} loading={loading} />
+          <AttachmentStatsPanel stats={attachmentStats} loading={loading} />
+        </div>
+      </motion.div>
+      <motion.div variants={cardItem}>
+        <div className="grid grid-cols-2 gap-4">
+          <ViolatorTable users={violators} loading={loading} />
+          <ModerationActionsPanel actions={moderationActions} loading={loading} />
+        </div>
       </motion.div>
     </motion.div>
   );
