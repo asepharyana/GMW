@@ -120,7 +120,7 @@ export function Sidebar({
                 {mascotChatMessage ||
                   "Halo! Saya mascot mu. Klik aku kalau mau tanya soal obrolan atau moderasi ✨"}
               </p>
-              <div className="absolute -left-2 bottom-4 h-4 w-4 rotate-45 border-b border-l border-sky-200/80 bg-white/95" />
+              <div className="absolute -left-3 bottom-2 h-5 w-5 bg-white/95 [clip-path:polygon(100%_0,0_100%,100%_70%)]" />
             </div>
           </motion.div>
         )}
