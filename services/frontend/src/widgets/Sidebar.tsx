@@ -120,7 +120,10 @@ export function Sidebar({
                 {mascotChatMessage ||
                   "Halo! Saya mascot mu. Klik aku kalau mau tanya soal obrolan atau moderasi ✨"}
               </p>
-              <div className="absolute -left-3 bottom-2 h-5 w-5 bg-white/95 [clip-path:polygon(100%_0,0_100%,100%_70%)]" />
+                                          {/* Border triangle (outer) — points left */}
+                                          <div className="absolute -left-[16px] bottom-[9px] z-10 h-0 w-0 border-b-[10px] border-r-[16px] border-t-[10px] border-b-transparent border-r-sky-200/80 border-t-transparent" />
+                                          {/* Fill triangle (inner) — offset 1px right for border effect */}
+                                          <div className="absolute -left-[14px] bottom-[10px] z-20 h-0 w-0 border-b-[9px] border-r-[15px] border-t-[9px] border-b-transparent border-r-white/95 border-t-transparent" />
             </div>
           </motion.div>
         )}
