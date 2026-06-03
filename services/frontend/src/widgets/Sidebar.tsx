@@ -116,7 +116,7 @@ export function Sidebar({
               initial={{ opacity: 0, x: -8, y: 6, scale: 0.96 }}
               animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
               transition={{ type: "spring", stiffness: 280, damping: 24 }}
-              className="pointer-events-none absolute bottom-full left-1/2 z-[9999] mb-3 w-64 -translate-x-1/2"
+              className="pointer-events-none fixed bottom-[100px] left-[72px] z-[9999] w-64"
             >
               <div className="relative rounded-2xl border border-sky-200/80 bg-white/95 px-4 py-3 text-left shadow-xl shadow-sky-100/70 backdrop-blur-md">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/70">
@@ -126,10 +126,10 @@ export function Sidebar({
                   Halo! Saya mascot mu. Klik aku kalau mau tanya soal obrolan
                   atau moderasi ✨
                 </p>
-                {/* Outer: border layer — triangle pointing down at center */}
-                <div className="absolute -bottom-[13px] left-1/2 z-10 h-[21px] w-[21px] -translate-x-1/2 bg-sky-200/80 [clip-path:polygon(0_0,100%_0,50%_100%)]" />
+                {/* Outer: border layer — triangle pointing left at center-right */}
+                <div className="absolute -left-[13px] top-1/2 z-10 h-[21px] w-[21px] -translate-y-1/2 bg-sky-200/80 [clip-path:polygon(0_50%,100%_0,100%_100%)]" />
                 {/* Inner: fill layer — matches bubble bg */}
-                <div className="absolute -bottom-3 left-1/2 z-20 h-5 w-5 -translate-x-1/2 bg-white/95 [clip-path:polygon(0_0,100%_0,50%_100%)]" />
+                <div className="absolute -left-3 top-1/2 z-20 h-5 w-5 -translate-y-1/2 bg-white/95 [clip-path:polygon(0_50%,100%_0,100%_100%)]" />
               </div>
             </motion.div>
           )}

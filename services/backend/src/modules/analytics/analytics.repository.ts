@@ -315,56 +315,61 @@ export class AnalyticsRepository {
     const pool = getPool();
     const filter = buildTimeFilter(guildId, channelId, hours);
 
-    const { rows } = await pool.query(
-      `
-        WITH word_list AS (
+    try {
+      const { rows } = await pool.query(
+        `
+          WITH word_list AS (
+            SELECT
+              LOWER(TRIM(BOTH '.,!?;:\"()[]{}' FROM word)) AS word,
+              ai_moderation_score
+            FROM messages,
+            LATERAL regexp_split_to_table(content, E'\\\\s+') AS word
+            ${filter.where}
+              AND content IS NOT NULL
+              AND content != ''
+              AND LENGTH(TRIM(BOTH '.,!?;:\"()[]{}' FROM word)) >= 3
+              AND word !~ '^<.+:\\d+>$'
+              AND word !~ '^https?://'
+              AND word !~ '^discord\\.(gg|app|com)'
+              AND word !~ '^cdn\\.discord'
+          )
           SELECT
-            LOWER(TRIM(BOTH '.,!?;:\"'()[]{}' FROM word)) AS word,
-            ai_moderation_score
-          FROM messages,
-          LATERAL regexp_split_to_table(content, E'\\\\s+') AS word
-          ${filter.where}
-            AND content IS NOT NULL
-            AND content != ''
-            AND LENGTH(TRIM(BOTH '.,!?;:\"()[]{}' FROM word)) >= 3
-            -- Skip sticker & custom emoji (<:name:id> or <a:name:id>)
-            AND word !~ '^<a?:.+:\\d+>$'
-            -- Skip URLs
-            AND word !~ '^https?://'
-            AND word !~ '^discord\\.(gg|app|com)'
-            -- Skip common Discord embed artifacts
-            AND word !~ '^cdn\\.discord'
-        )
-        SELECT
-          word AS topic,
-          COUNT(*)::int AS count,
-          COALESCE(AVG(ai_moderation_score), 0)::real AS score
-        FROM word_list
-        WHERE word NOT IN (
-          'yang', 'dan', 'di', 'ke', 'dari', 'dengan', 'untuk', 'pada', 'ini', 'itu',
-          'ada', 'akan', 'telah', 'sudah', 'bisa', 'dapat', 'tidak', 'nggak', 'enggak',
-          'gak', 'gk', 'ga', 'aku', 'saya', 'kamu', 'dia', 'kami', 'kita', 'mereka',
-          'iya', 'ya', 'yah', 'oh', 'ah', 'eh', 'lah', 'pun', 'juga', 'masih',
-          'saja', 'hanya', 'sama', 'atau', 'tapi', 'namun', 'sedang', 'sangat',
-          'begitu', 'karena', 'sebab', 'kalau', 'jika', 'maka', 'lalu', 'setelah',
-          'seperti', 'antara', 'oleh', 'sebagai', 'secara', 'melalui', 'dalam',
-          'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'has',
-          'was', 'were', 'been', 'like', 'just', 'that', 'this', 'with', 'your',
-          'from', 'they', 'have', 'what', 'when', 'where', 'which', 'their',
-          'about', 'would', 'could', 'should', 'very', 'also', 'than', 'then'
-        )
-        GROUP BY word
-        ORDER BY count DESC
-        LIMIT 10
-      `,
-      filter.params,
-    );
+            word AS topic,
+            COUNT(*)::int AS count,
+            COALESCE(AVG(ai_moderation_score), 0)::real AS score
+          FROM word_list
+          WHERE word NOT IN (
+            'yang','dan','di','ke','dari','dengan','untuk','pada','ini','itu',
+            'ada','akan','telah','sudah','bisa','dapat','tidak','nggak','enggak',
+            'gak','gk','ga','aku','saya','kamu','dia','kami','kita','mereka',
+            'iya','ya','yah','oh','ah','eh','lah','pun','juga','masih',
+            'saja','hanya','sama','atau','tapi','namun','sedang','sangat',
+            'begitu','karena','sebab','kalau','jika','maka','lalu','setelah',
+            'seperti','antara','oleh','sebagai','secara','melalui','dalam',
+            'the','and','for','are','but','not','you','all','can','has',
+            'was','were','been','like','just','that','this','with','your',
+            'from','they','have','what','when','where','which','their',
+            'about','would','could','should','very','also','than','then'
+          )
+          GROUP BY word
+          ORDER BY count DESC
+          LIMIT 10
+        `,
+        filter.params,
+      );
 
-    return rows.map((r) => ({
-      topic: (r.topic as string) ?? "",
-      count: Number(r.count ?? 0),
-      score: Number(r.score ?? 0),
-    }));
+      return rows.map((r) => ({
+        topic: (r.topic as string) ?? "",
+        count: Number(r.count ?? 0),
+        score: Number(r.score ?? 0),
+      }));
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error), guildId },
+        "getTopics query failed — returning empty",
+      );
+      return [];
+    }
   }
 
   // ── New endpoints ─────────────────────────────────────────────────────────
