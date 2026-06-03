@@ -151,10 +151,19 @@ export type DashboardTab = "live" | "messages" | "analytics";
 
 // ─── Messages ────────────────────────────────────────────────────────────────
 
-export function listMessages(
-  params: URLSearchParams,
-): Promise<PageResult<MessageRecord>> {
-  return request<PageResult<MessageRecord>>(`/api/messages?${params}`);
+export function listMessages(params: {
+  guildId: string;
+  channelId?: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<PageResult<MessageRecord>> {
+  const sp = new URLSearchParams({
+    guildId: params.guildId,
+    limit: String(params.limit ?? 100),
+    ...(params.channelId && { channelId: params.channelId }),
+    ...(params.cursor && { cursor: params.cursor }),
+  });
+  return request<PageResult<MessageRecord>>(`/api/messages?${sp}`);
 }
 
 export function listReview(

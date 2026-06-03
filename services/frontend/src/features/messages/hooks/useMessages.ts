@@ -29,8 +29,9 @@ export function useMessages() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const currentGuild = useRef<string | null>(null);
+  const currentChannel = useRef<string | undefined>(undefined);
 
-  const fetchMessages = useCallback(async (guildId?: string) => {
+  const fetchMessages = useCallback(async (guildId?: string, channelId?: string) => {
     if (!guildId) {
       setMessages([]);
       setCursor(null);
@@ -38,14 +39,15 @@ export function useMessages() {
       return [];
     }
     currentGuild.current = guildId;
+    currentChannel.current = channelId;
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({
-        limit: String(PAGE_SIZE),
+      const result = await listMessages({
         guildId,
+        channelId,
+        limit: PAGE_SIZE,
       });
-      const result = await listMessages(params);
       if (currentGuild.current === guildId) {
         setMessages(result.data);
         setCursor(result.nextCursor);
@@ -65,12 +67,12 @@ export function useMessages() {
     if (!cursor || !currentGuild.current || loadingMore) return;
     setLoadingMore(true);
     try {
-      const params = new URLSearchParams({
-        limit: String(PAGE_SIZE),
+      const result = await listMessages({
         guildId: currentGuild.current,
+        channelId: currentChannel.current,
         cursor,
+        limit: PAGE_SIZE,
       });
-      const result = await listMessages(params);
       setMessages((prev) => [...prev, ...result.data]);
       setCursor(result.nextCursor);
       setHasMore(!!result.nextCursor);
