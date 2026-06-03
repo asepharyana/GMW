@@ -7,9 +7,7 @@ interface ActiveSpeakersProps {
 
 export function ActiveSpeakers({ speakers }: ActiveSpeakersProps) {
   if (speakers.length === 0) {
-    return (
-      <EmptyStateMascot variant="sleeping" message="No active speakers~" />
-    );
+    return <EmptyStateMascot />;
   }
 
   return (

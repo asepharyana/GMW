@@ -2,8 +2,7 @@ import { motion } from "framer-motion";
 import { useEffect, useMemo, useRef } from "react";
 import type { MessageRecord } from "../../../shared/api/client";
 import { cardItem, cardStagger } from "../../../shared/hooks/useFramerStagger";
-import { ScrollArea } from "../../../shared/ui";
-import { EmptyStateMascot } from "../../../widgets/mascot/ChibiMascot";
+import { ScrollArea, EmptyStateMascot } from "../../../shared/ui";
 import { MessageCard, MessageCardSkeleton } from "./MessageCard";
 
 export interface MessageFeedProps {
@@ -84,7 +83,7 @@ export function MessageFeed({
   }
 
   if (messages.length === 0) {
-    return <EmptyStateMascot variant="waving" message={emptyText} />;
+    return <EmptyStateMascot />;
   }
 
   return (

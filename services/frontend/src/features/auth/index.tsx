@@ -10,8 +10,8 @@ import {
   CardHeader,
   CardTitle,
   Input,
+  MascotImage,
 } from "../../shared/ui";
-import { ChibiMascot } from "../../widgets/mascot/ChibiMascot";
 
 interface AuthOverlayProps {
   onAuthenticated: () => void;
@@ -50,7 +50,7 @@ export function AuthOverlay({ onAuthenticated }: AuthOverlayProps) {
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
               <Lock className="h-6 w-6" />
             </div>
-            <ChibiMascot variant="peeking" size="sm" />
+            <MascotImage size="sm" />
           </div>
           <CardTitle>Admin Access Required</CardTitle>
           <CardDescription>

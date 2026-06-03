@@ -1,6 +1,6 @@
 // ─── Shared UI barrel export ────────────────────────────────────────────────
 
-export { EmptyStateMascot } from "../../widgets/mascot/ChibiMascot";
+export { EmptyStateMascot, MascotImage } from "../../widgets/mascot/MascotImage";
 export { Badge } from "./badge";
 export { Button } from "./button";
 export {

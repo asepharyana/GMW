@@ -1,6 +1,6 @@
 import { parseMetadata } from "../../../entities/message/types";
 import type { MessageRecord } from "../../../shared/api/client";
-import { EmptyStateMascot } from "../../../widgets/mascot/ChibiMascot";
+import { EmptyStateMascot } from "../../../shared/ui";
 
 interface ImageItem {
   url: string;
@@ -68,7 +68,7 @@ export function ImageGrid({ messages }: { messages: MessageRecord[] }) {
   }
 
   if (images.length === 0) {
-    return <EmptyStateMascot variant="thinking" message="No images yet~" />;
+    return <EmptyStateMascot />;
   }
 
   return (

@@ -92,7 +92,7 @@ export function RecordingsSubPanel() {
   }
 
   if (recordings.length === 0) {
-    return <EmptyStateMascot variant="sleeping" message="No recordings yet~" />;
+    return <EmptyStateMascot />;
   }
 
   return (

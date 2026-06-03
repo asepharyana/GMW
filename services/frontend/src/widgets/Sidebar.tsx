@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { BarChart3, MessageSquare, Radio } from "lucide-react";
 import type { DashboardTab } from "../entities/ui/types";
 import { cn } from "../shared/lib/utils";
-import { ChibiMascot } from "./mascot/ChibiMascot";
+import { MascotImage } from "./mascot/MascotImage";
 
 const navItems: Array<{ id: DashboardTab; label: string; icon: typeof Radio }> =
   [
@@ -84,9 +84,9 @@ export function Sidebar({
       {/* Spacer pushes mascot to bottom */}
       <div className="flex-1" />
 
-      {/* Chibi mascot */}
+      {/* Mascot PNG */}
       <div className="flex justify-center pb-4">
-        <ChibiMascot size="sm" variant="idle" />
+        <MascotImage size="sm" />
       </div>
     </motion.nav>
   );
