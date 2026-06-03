@@ -113,6 +113,7 @@ export function useMessages() {
     );
     const { count } = await reanalyzeErrorBatch({
       guildId: currentGuild.current ?? undefined,
+      channelId: currentChannel.current,
     });
     return count;
   }, []);

@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
-import { Filter, RotateCw, Search, X } from "lucide-react";
+import { Filter, Hash, RotateCw, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { MessageRecord } from "../../shared/api/client";
+import type { Channel, MessageRecord } from "../../shared/api/client";
 import { cardItem, cardStagger } from "../../shared/hooks/useFramerStagger";
 import {
   Badge,
@@ -11,6 +11,11 @@ import {
   CardHeader,
   CardTitle,
   Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tabs,
   TabsContent,
   TabsList,
@@ -27,6 +32,9 @@ interface MessagesPanelProps {
   onLoadMore?: () => void;
   hasMore?: boolean;
   loadingMore?: boolean;
+  textChannels?: Channel[];
+  selectedChannel?: string;
+  onChannelChange?: (channelId: string) => void;
 }
 
 type AiFilter = "all" | "clean" | "flagged" | "error" | "pending";
@@ -39,6 +47,9 @@ export function MessagesPanel({
   onLoadMore,
   hasMore,
   loadingMore,
+  textChannels,
+  selectedChannel,
+  onChannelChange,
 }: MessagesPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<MessageRecord[]>([]);
@@ -118,6 +129,27 @@ export function MessagesPanel({
               Messages are automatically captured from all text channels in the
               monitored guild. Real-time updates arrive via WebSocket.
             </p>
+            {textChannels && textChannels.length > 0 && (
+              <div className="mt-3 flex items-center gap-2">
+                <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
+                <Select
+                  value={selectedChannel || ""}
+                  onValueChange={(val) => onChannelChange?.(val)}
+                >
+                  <SelectTrigger className="w-full max-w-xs h-9 text-sm">
+                    <SelectValue placeholder="All channels" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all">All channels</SelectItem>
+                    {textChannels.map((ch) => (
+                      <SelectItem key={ch.id} value={ch.id}>
+                        # {ch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>

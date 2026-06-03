@@ -11,7 +11,9 @@ import {
 } from "./features/messages/hooks/useMessages";
 import {
   type ActiveSpeaker,
+  type Channel,
   getAppConfig,
+  getTextChannels,
   type MediaState,
   type MessageRecord,
 } from "./shared/api/client";
@@ -60,6 +62,8 @@ export default function App() {
     !!localStorage.getItem("admin-password"),
   );
   const [monitorGuildId, setMonitorGuildId] = useState("");
+  const [textChannels, setTextChannels] = useState<Channel[]>([]);
+  const [selectedMessageChannel, setSelectedMessageChannel] = useState<string>("");
 
   const audio = useAudioPlayback();
   const activeTab = uiState.activeTab || "live";
@@ -113,7 +117,7 @@ export default function App() {
     },
     onAttachmentUploaded: () =>
       messages
-        .fetchMessages(monitorGuildId || undefined)
+        .fetchMessages(monitorGuildId || undefined, selectedMessageChannel || undefined)
         .catch(() => undefined),
     onMediaState: (state) => media.setMediaState(state as MediaState),
     onVoiceRecordingUploaded: (d) =>
@@ -141,20 +145,38 @@ export default function App() {
       voice.loadVoiceChannels(selectedVoiceGuild).catch(() => undefined);
   }, [selectedVoiceGuild, voice.loadVoiceChannels]);
 
-  // Auto-fetch messages for the monitor guild (all channels)
+  // Load text channels when monitor guild changes (Messages tab)
   useEffect(() => {
     if (monitorGuildId)
-      messages.fetchMessages(monitorGuildId).catch(() => undefined);
+      getTextChannels(monitorGuildId)
+        .then(setTextChannels)
+        .catch(() => undefined);
+  }, [monitorGuildId]);
+
+  // Auto-fetch messages for the monitor guild
+  useEffect(() => {
+    if (monitorGuildId)
+      messages
+        .fetchMessages(monitorGuildId, selectedMessageChannel || undefined)
+        .catch(() => undefined);
   }, [monitorGuildId, messages.fetchMessages]);
+
+  // Re-fetch when channel filter changes
+  useEffect(() => {
+    if (monitorGuildId)
+      messages
+        .fetchMessages(monitorGuildId, selectedMessageChannel || undefined)
+        .catch(() => undefined);
+  }, [selectedMessageChannel, monitorGuildId, messages.fetchMessages]);
 
   // Periodic refetch — keeps dashboard in sync even if WS events missed
   useEffect(() => {
     if (!monitorGuildId) return;
     const interval = setInterval(() => {
-      messages.fetchMessages(monitorGuildId).catch(() => undefined);
+      messages.fetchMessages(monitorGuildId, selectedMessageChannel || undefined).catch(() => undefined);
     }, 15_000);
     return () => clearInterval(interval);
-  }, [monitorGuildId, messages.fetchMessages]);
+  }, [monitorGuildId, messages.fetchMessages, selectedMessageChannel]);
 
   return (
     <DashboardLayout
@@ -212,6 +234,9 @@ export default function App() {
           onLoadMore={messages.loadMore}
           hasMore={messages.hasMore}
           loadingMore={messages.loadingMore}
+          textChannels={textChannels}
+          selectedChannel={selectedMessageChannel}
+          onChannelChange={setSelectedMessageChannel}
         />
       ) : (
         <AnalyticsErrorBoundary>
