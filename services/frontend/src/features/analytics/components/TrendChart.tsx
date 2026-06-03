@@ -24,7 +24,7 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
   const data = trend.map((bucket) => ({
     date: bucket.date,
     clean: bucket.clean,
-    warned: 0,
+    warned: bucket.warned,
     flagged: bucket.flagged,
     error: bucket.error,
     total: bucket.count,
@@ -37,7 +37,7 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-semibold">Tren Harian</CardTitle>
         <CardDescription className="text-xs">
-          Volume pesan per hari dengan status moderasi — area pink = flagged.
+          Volume pesan per hari dengan status moderasi.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -45,7 +45,9 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
           <div className="flex flex-wrap gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
             <LegendDot color="bg-primary" label="Total" />
             <LegendDot color="bg-emerald-400" label="Clean" />
+            <LegendDot color="bg-yellow-400" label="Warned" />
             <LegendDot color="bg-accent" label="Flagged" />
+            <LegendDot color="bg-orange-300" label="Error" />
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white/60 p-4">
@@ -128,6 +130,18 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
                   keyName="flagged"
                   fill="url(#trendFillPink)"
                   stroke="#FF9EBB"
+                />
+                <TrendLine
+                  data={data}
+                  keyName="warned"
+                  color="#facc15"
+                  strokeWidth={1.4}
+                />
+                <TrendLine
+                  data={data}
+                  keyName="error"
+                  color="#fdba74"
+                  strokeWidth={1.2}
                 />
 
                 {data.map((item, index) => {

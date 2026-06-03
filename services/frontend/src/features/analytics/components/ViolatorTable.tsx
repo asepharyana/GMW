@@ -49,21 +49,23 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
               Pelanggar Terbanyak
             </CardTitle>
             <CardDescription className="text-xs">
-              Skor: flagged × 3.
+              Skor: flagged × 3 + warned. Flag terbanyak terakhir ditampilkan.
             </CardDescription>
           </div>
           <Badge variant="destructive">{users.length} pelanggar</Badge>
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <ScrollArea className="max-h-[260px]">
+        <ScrollArea className="max-h-[320px]">
           <table className="w-full text-sm">
             <thead>
               <tr className="sticky top-0 z-10 bg-white border-b border-sky-100 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                 <th className="py-2 pl-4 pr-2 font-semibold">#</th>
                 <th className="py-2 pr-2 font-semibold">User</th>
                 <th className="py-2 pr-2 font-semibold text-right">Flagged</th>
-                <th className="py-2 pr-4 font-semibold text-right">Skor</th>
+                <th className="py-2 pr-2 font-semibold text-right">Warned</th>
+                <th className="py-2 pr-2 font-semibold text-right">Skor</th>
+                <th className="py-2 pr-4 font-semibold">Flag</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-sky-50">
@@ -113,9 +115,12 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
                     <td className="py-1.5 pr-2 text-right font-mono text-xs text-accent tabular-nums">
                       {user.flagged_count}
                     </td>
-                    <td className="py-1.5 pr-4 text-right">
+                    <td className="py-1.5 pr-2 text-right font-mono text-xs text-yellow-600 tabular-nums">
+                      {user.warned_count > 0 ? user.warned_count : "—"}
+                    </td>
+                    <td className="py-1.5 pr-2 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <div className="h-1.5 w-14 overflow-hidden rounded-full bg-pink-50">
+                        <div className="h-1.5 w-12 overflow-hidden rounded-full bg-pink-50">
                           <div
                             className={cn(
                               "h-full rounded-full",
@@ -133,6 +138,21 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
                         <span className="font-mono text-xs font-bold tabular-nums">
                           {user.violation_score}
                         </span>
+                      </div>
+                    </td>
+                    <td className="py-1.5 pr-4">
+                      <div className="flex flex-wrap gap-1">
+                        {user.worst_flags?.length > 0
+                          ? user.worst_flags.slice(0, 3).map((flag) => (
+                              <Badge
+                                key={flag}
+                                variant="outline"
+                                className="text-[8px] px-1 py-0 border-accent/30 text-accent"
+                              >
+                                {flag}
+                              </Badge>
+                            ))
+                          : <span className="text-[10px] text-muted-foreground">—</span>}
                       </div>
                     </td>
                   </tr>

@@ -31,11 +31,17 @@ export function SummaryCards({
     "Total Pesan": "💬",
     "Rata-rata/jam": "📊",
     Clean: "✅",
+    Warned: "⚠️",
     Flagged: "🚩",
     Pending: "⏳",
     "User Aktif": "👤",
     Channel: "📡",
   };
+
+  const warnedPct =
+    messages && messages.total > 0
+      ? Math.round((messages.warned / messages.total) * 100)
+      : 0;
 
   const cards = [
     {
@@ -52,6 +58,11 @@ export function SummaryCards({
       label: "Clean",
       value: cleanPct > 0 ? `${cleanPct}%` : "—",
       accent: "text-primary",
+    },
+    {
+      label: "Warned",
+      value: warnedPct > 0 ? `${warnedPct}%` : "—",
+      accent: "text-yellow-600",
     },
     {
       label: "Flagged",
