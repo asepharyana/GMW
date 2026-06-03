@@ -361,6 +361,15 @@ export class AnalyticsRepository {
             'mana','cuma','kah','udh','gitu','gini','gtu','gni',
             'mending','wkakak','wakak'
           )
+          AND word NOT LIKE '%.jpg'
+          AND word NOT LIKE '%.jpeg'
+          AND word NOT LIKE '%.png'
+          AND word NOT LIKE '%.gif'
+          AND word NOT LIKE '%.webp'
+          AND word NOT LIKE '%.mp4'
+          AND word NOT LIKE '%.mp3'
+          AND word NOT LIKE '%.pdf'
+          AND word NOT LIKE '%.zip'
           GROUP BY word
           ORDER BY COUNT(*) DESC
           LIMIT 10
