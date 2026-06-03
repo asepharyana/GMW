@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import type { DashboardTab } from "../entities/ui/types";
 import type { MessageRecord, VoiceStatus } from "../shared/api/client";
 import { fadeSlideUp } from "../shared/hooks/useFramerStagger";
-import { useMascotSummary } from "../shared/hooks/useMascotSummary";
 import type { WsStatus } from "../shared/ws/socket";
 import { Header } from "./Header";
 import { ParticleBackground } from "./particles/ParticleBackground";
@@ -30,11 +29,6 @@ export function DashboardLayout({
   guildId,
   channelId,
 }: DashboardLayoutProps) {
-  // Generate mascot summary from recent messages
-  const mascotSummary = useMascotSummary({
-    messages: recentMessages,
-    enabled: activeTab === "messages" && recentMessages.length > 0,
-  });
   return (
     <div className="relative min-h-screen bg-background text-foreground">
       {/* Sakura particle layer */}
@@ -44,7 +38,6 @@ export function DashboardLayout({
         <Sidebar
           activeTab={activeTab}
           onTabChange={onTabChange}
-          mascotChatMessage={mascotSummary}
           recentMessages={recentMessages}
           guildId={guildId}
           channelId={channelId}
