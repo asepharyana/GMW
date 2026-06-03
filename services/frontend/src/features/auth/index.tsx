@@ -10,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
   Input,
-  MascotImage,
 } from "../../shared/ui";
 
 interface AuthOverlayProps {
@@ -46,11 +45,10 @@ export function AuthOverlay({ onAuthenticated }: AuthOverlayProps) {
     <div ref={pageRef} className="flex items-center justify-center p-4">
       <Card className="w-full max-w-md border-primary/30 shadow-lg shadow-primary/10">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex items-center justify-center gap-3">
+          <div className="mx-auto mb-4 flex items-center justify-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
               <Lock className="h-6 w-6" />
             </div>
-            <MascotImage size="sm" />
           </div>
           <CardTitle>Admin Access Required</CardTitle>
           <CardDescription>

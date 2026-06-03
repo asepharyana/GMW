@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { BarChart3, MessageSquare, Radio } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { DashboardTab } from "../entities/ui/types";
 import { cn } from "../shared/lib/utils";
 import { MascotImage } from "./mascot/MascotImage";
@@ -15,13 +16,22 @@ interface SidebarProps {
   activeTab: DashboardTab;
   onTabChange: (tab: DashboardTab) => void;
   collapsed?: boolean;
+  mascotChatMessage?: string;
 }
 
 export function Sidebar({
   activeTab,
   onTabChange,
   collapsed = true,
+  mascotChatMessage = "",
 }: SidebarProps) {
+  const [showChat, setShowChat] = useState(false);
+
+  useEffect(() => {
+    if (mascotChatMessage) {
+      setShowChat(true);
+    }
+  }, [mascotChatMessage]);
   return (
     <motion.nav
       className={cn(
@@ -84,9 +94,13 @@ export function Sidebar({
       {/* Spacer pushes mascot to bottom */}
       <div className="flex-1" />
 
-      {/* Mascot PNG */}
+      {/* Mascot PNG with chat bubble */}
       <div className="flex justify-center pb-4">
-        <MascotImage size="sm" />
+        <MascotImage
+          size="sm"
+          showChat={showChat && !collapsed}
+          chatMessage={mascotChatMessage}
+        />
       </div>
     </motion.nav>
   );

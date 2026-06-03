@@ -162,6 +162,7 @@ export default function App() {
       wsStatus={socket.status}
       voiceStatus={voice.voiceStatus}
       onTabChange={(tab) => patchUIState({ activeTab: tab })}
+      recentMessages={messages.messages}
     >
       {activeTab === "live" ? (
         !isAuthenticated ? (
