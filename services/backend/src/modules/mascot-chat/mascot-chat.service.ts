@@ -1,4 +1,5 @@
 import { createChildLogger } from "@bete/shared/logger";
+import { config } from "../../shared/config/index.js";
 import { getPool } from "../../shared/database/index.js";
 
 const logger = createChildLogger("mascot-chat.service");
@@ -29,6 +30,11 @@ export interface MascotChatHistoryRow {
   created_at: string;
 }
 
+interface LLMChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
 class MascotChatService {
   private initialized = false;
 
@@ -41,7 +47,17 @@ class MascotChatService {
 
     const recentContext = await this.getRecentConversationContext(userId);
     const serverInsights = await this.getServerInsights(context);
-    return this.generateResponse(message, context, serverInsights, recentContext);
+
+    // Build LLM messages
+    const systemPrompt = this.buildSystemPrompt(serverInsights);
+    const conversationHistory = this.buildHistoryMessages(recentContext);
+    const llmResponse = await this.callLLM(
+      systemPrompt,
+      conversationHistory,
+      message,
+    );
+
+    return llmResponse;
   }
 
   async saveConversation(input: SaveConversationInput): Promise<void> {
@@ -116,7 +132,9 @@ class MascotChatService {
     logger.info("Mascot chat schema ready");
   }
 
-  private async getRecentConversationContext(userId: string): Promise<string[]> {
+  private async getRecentConversationContext(
+    userId: string,
+  ): Promise<string[]> {
     const history = await this.getChatHistory(userId, 3);
     return history.flatMap((row) => [
       `User: ${row.user_message}`,
@@ -160,12 +178,14 @@ class MascotChatService {
         params,
       );
 
-      return rows[0] ?? {
-        total_messages: 0,
-        active_users: 0,
-        flagged: 0,
-        warned: 0,
-      };
+      return (
+        rows[0] ?? {
+          total_messages: 0,
+          active_users: 0,
+          flagged: 0,
+          warned: 0,
+        }
+      );
     } catch (error) {
       logger.warn({ error }, "Failed to load mascot server insights");
       return {
@@ -177,51 +197,119 @@ class MascotChatService {
     }
   }
 
-  private generateResponse(
-    input: string,
-    context: MascotChatContext | undefined,
-    insights: {
-      total_messages: number;
-      active_users: number;
-      flagged: number;
-      warned: number;
-    },
-    recentContext: string[],
-  ): string {
+  private buildSystemPrompt(insights: {
+    total_messages: number;
+    active_users: number;
+    flagged: number;
+    warned: number;
+  }): string {
+    return `Kamu adalah mascot dari Discord Watcher — asisten moderasi yang ramah dan helpful untuk server Discord.
+
+Data server saat ini:
+- Total pesan: ${insights.total_messages}
+- User aktif: ${insights.active_users}
+- Pesan flagged: ${insights.flagged}
+- Pesan warning: ${insights.warned}
+
+Kepribadianmu:
+- Ramah, pakai emoji sesekali
+- Jawab dalam Bahasa Indonesia
+- Berikan jawaban yang informatif berdasarkan data di atas
+- Kalau ditanya di luar konteks moderasi/obrolan Discord, tetap jawab dengan sopan tapi arahkan kembali ke topik server
+- Jangan mengulangi template jawaban — setiap respons harus natural dan kontekstual
+- Jika user menyapa (halo/hai), balas dengan ramah dan tawarkan bantuan`;
+  }
+
+  private buildHistoryMessages(recentContext: string[]): LLMChatMessage[] {
+    // recentContext is alternating User/Mascot messages
+    return recentContext.map((text) => {
+      if (text.startsWith("User: ")) {
+        return { role: "user" as const, content: text.slice(6) };
+      }
+      return { role: "assistant" as const, content: text.slice(7) };
+    });
+  }
+
+  private async callLLM(
+    systemPrompt: string,
+    history: LLMChatMessage[],
+    userMessage: string,
+  ): Promise<string> {
+    const apiKey = config.AI_LLM_API_KEY;
+    const baseUrl = config.AI_LLM_BASE_URL;
+    const model = config.AI_LLM_MODEL;
+
+    if (!apiKey) {
+      logger.warn("AI_LLM_API_KEY not configured, using fallback response");
+      return this.fallbackResponse(userMessage);
+    }
+
+    try {
+      const { default: axios } = await import("axios");
+
+      const messages: LLMChatMessage[] = [
+        { role: "system", content: systemPrompt },
+        ...history,
+        { role: "user", content: userMessage },
+      ];
+
+      const response = await axios.post(
+        `${baseUrl}/chat/completions`,
+        {
+          model,
+          messages,
+          max_tokens: 500,
+          temperature: 0.7,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 30_000,
+        },
+      );
+
+      const result = response.data as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const content = result?.choices?.[0]?.message?.content?.trim();
+
+      if (content) {
+        return content;
+      }
+
+      logger.warn({ response: result }, "LLM returned empty response");
+      return this.fallbackResponse(userMessage);
+    } catch (error) {
+      logger.warn({ error }, "LLM call failed, using fallback response");
+      return this.fallbackResponse(userMessage);
+    }
+  }
+
+  private fallbackResponse(input: string): string {
     const lower = input.toLowerCase();
-    const messageCount = insights.total_messages || context?.messageCount || 0;
-    const activeUsers = insights.active_users || context?.activeParticipants || 0;
 
-    if (lower.includes("ringkasan") || lower.includes("summary")) {
-      return `Aku rangkum ya ✨ Ada ${messageCount} pesan dari ${activeUsers} user aktif. Moderasi menemukan ${insights.flagged} flagged dan ${insights.warned} warning. Kesimpulannya: obrolan sedang ${messageCount > 50 ? "ramai" : "cukup tenang"}, dan aku sarankan fokus ke pesan yang punya status warn/flagged dulu.`;
+    if (
+      lower.includes("halo") ||
+      lower.includes("hai") ||
+      lower.includes("hi") ||
+      lower.includes("pagi") ||
+      lower.includes("siang") ||
+      lower.includes("malam")
+    ) {
+      return "Halo! Aku mascot Discord Watcher. Ada yang bisa aku bantu soal pantauan server ini? 😊";
     }
 
-    if (lower.includes("berapa") || lower.includes("jumlah")) {
-      if (lower.includes("pesan")) {
-        return `Ada ${messageCount} pesan yang tercatat di konteks ini 📊`;
-      }
-      if (lower.includes("orang") || lower.includes("user")) {
-        return `Ada ${activeUsers} user aktif yang ikut dalam obrolan ini 👥`;
-      }
+    if (
+      lower.includes("ringkasan") ||
+      lower.includes("summary") ||
+      lower.includes("rangkum")
+    ) {
+      return "Maaf, fitur AI sedang tidak tersedia. Coba tanya lagi nanti ya ✨";
     }
 
-    if (lower.includes("flag") || lower.includes("bahaya") || lower.includes("moderasi")) {
-      return `Status moderasi: ${insights.flagged} pesan flagged dan ${insights.warned} pesan warning. Kalau mau aman, mulai review dari daftar flagged karena itu prioritas tertinggi 🚨`;
-    }
-
-    if (lower.includes("saran") || lower.includes("apa yang harus")) {
-      return `Saran mascot: 1) review pesan flagged, 2) cek user paling aktif di Analytics, 3) pantau channel dengan traffic tinggi, 4) kalau obrolan mulai panas, lakukan follow-up manual sebelum eskalasi 🔎`;
-    }
-
-    if (lower.includes("halo") || lower.includes("hai") || lower.includes("hi")) {
-      return `Halo! Aku siap bantu baca situasi chat. Kamu bisa tanya "ringkasan obrolan", "berapa pesan", atau "ada yang perlu dimoderasi?" 😊`;
-    }
-
-    const previousHint = recentContext.length
-      ? ` Aku juga mengingat konteks chat mascot sebelumnya (${Math.ceil(recentContext.length / 2)} percakapan terakhir).`
-      : "";
-
-    return `Menurutku, pertanyaan "${input}" berkaitan dengan kondisi obrolan saat ini. Data cepat: ${messageCount} pesan, ${activeUsers} user aktif, ${insights.flagged} flagged.${previousHint} Coba tanya lebih spesifik seperti "ringkasan", "moderasi", atau "saran" ya.`;
+    return "Maaf, aku sedang gagal nyambung ke otakku (LLM) 😅. Coba tanya lagi sebentar lagi ya!";
   }
 }
 
