@@ -1248,7 +1248,7 @@ async function _runSingleMediaAnalysis(
   const mediaAnalysisMap = new Map<string, string[]>();
 
   const getAttachmentImageUrl = (att: AttachmentRecord): string | null =>
-    att.uploaded_url ?? null;
+    att.uploaded_url ?? att.discord_url ?? null;
 
   const maxDimension = config.AI_LLM_IMAGE_MAX_DIMENSION ?? 1024;
   const content = getAnalysisContent(target);
