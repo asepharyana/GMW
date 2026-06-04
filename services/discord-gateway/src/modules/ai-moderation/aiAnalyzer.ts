@@ -412,7 +412,7 @@ async function processIndividualFallback(
       );
 
       const simpleResult = await workerPool.run({
-        type: "individual_simple",
+        type: "individual",
         message,
         skipNormalAnalysis: true,
       } as any) as
@@ -654,6 +654,7 @@ async function processBatch(
   conversationProcessing.set(conversationKey, processingStartedAt);
   try {
     const result = (await workerPool.run({
+      type: "batch",
       conversationKey,
       messages,
     })) as AnalysisWorkerResponse;
