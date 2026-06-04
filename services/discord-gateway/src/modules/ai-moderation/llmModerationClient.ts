@@ -1740,23 +1740,40 @@ Jawab HANYA dengan satu kata: clean, warn, atau flagged`;
     status = "clean";
   }
 
-  // ── Step 2: Real analysis text (only if not clean) ──
-  // We ask the LLM for a real reason — no static/dummy text.
+  // ── Step 2: Real analysis text + category (only if not clean) ──
+  // We ask the LLM for a real reason and a category word — no complex JSON.
   let analysis: string;
+  let category = "";
 
   if (status === "clean") {
     analysis = `${message.username ?? "user"}: ${content.length > 200 ? content.slice(0, 200) + "..." : content}. Percakapan normal, tidak ada pelanggaran.`;
   } else {
+    category = status === "flagged" ? "harassment" : "spam"; // default fallback
+    const categoryOptions =
+      status === "flagged" ? "harassment, gambling, atau sara" : "spam";
     const reasonPrompt = `Pesan berikut telah diklasifikasikan sebagai "${status}".
 
 Pesan: "${truncatedContent}"
 
 Jelaskan dalam 1-2 kalimat Bahasa Indonesia: APA yang melanggar dan KENAPA. Jangan gunakan kata "mungkin" atau "sepertinya". Jangan tulis ulang pesan. Langsung ke alasan.
 
-Contoh jawaban untuk "flagged": "Mengandung kata kasar terarah ke individu tertentu sebagai hinaan."
-Contoh jawaban untuk "flagged": "Promosi situs judi online dengan link dan ajakan."
-Contoh jawaban untuk "warn": "Promosi channel Discord tanpa konteks, berpotensi spam."
-Contoh jawaban untuk "warn": "Bahasa kasar ringan yang tidak terarah, tidak melanggar berat tapi perlu diingatkan."`;
+Setelah alasan, sebutkan Kategori: ${categoryOptions}
+
+Contoh untuk "flagged":
+Mengandung kata kasar terarah ke individu tertentu sebagai hinaan.
+Kategori: harassment
+
+Contoh untuk "flagged":
+Promosi situs judi online dengan link dan ajakan.
+Kategori: gambling
+
+Contoh untuk "warn":
+Promosi channel Discord tanpa konteks, berpotensi spam.
+Kategori: spam
+
+Contoh untuk "warn":
+Bahasa kasar ringan yang tidak terarah.
+Kategori: spam`;
 
     try {
       const completion = await llmChat({
@@ -1772,9 +1789,25 @@ Contoh jawaban untuk "warn": "Bahasa kasar ringan yang tidak terarah, tidak mela
         analysis = `Pesan diklasifikasikan sebagai ${status} oleh sistem moderasi otomatis.`;
       }
 
+      // ── Parse category from "Kategori: xxx" line ──
+      const categoryMatch = analysis.match(
+        /[Kk]ategori:\s*(\w+)/i,
+      );
+      if (categoryMatch) {
+        const parsedCat = categoryMatch[1].toLowerCase();
+        // Only accept known categories
+        if (
+          ["harassment", "spam", "gambling", "sara"].includes(parsedCat)
+        ) {
+          category = parsedCat;
+        }
+        // Strip the "Kategori:" line from the analysis text so it's cleaner
+        analysis = analysis.replace(/[Kk]ategori:\s*\w+\s*/i, "").trim();
+      }
+
       log.info(
-        { messageId: message.id, status, analysis: analysis.slice(0, 100) },
-        "Simple fallback step 2 — reason",
+        { messageId: message.id, status, category, analysis: analysis.slice(0, 100) },
+        "Simple fallback step 2 — reason + category",
       );
     } catch (error) {
       analysis = `Pesan diklasifikasikan sebagai ${status} oleh sistem moderasi otomatis berdasarkan analisis konten.`;
@@ -1788,7 +1821,11 @@ Contoh jawaban untuk "warn": "Bahasa kasar ringan yang tidak terarah, tidak mela
     }
   }
 
-  // Build the result fields
+  // Build the result fields using parsed category
+  const flags: string[] =
+    status === "clean" ? [] : [category];
+  const categories: string[] =
+    status === "clean" ? [] : [category];
   const score = status === "flagged" ? 0.7 : status === "warn" ? 0.4 : 0;
   const severity: "none" | "low" | "medium" | "high" | "critical" =
     status === "flagged" ? "medium" : status === "warn" ? "low" : "none";
@@ -1797,12 +1834,10 @@ Contoh jawaban untuk "warn": "Bahasa kasar ringan yang tidak terarah, tidak mela
   return {
     messageId: message.id,
     status,
-    flags:
-      status === "flagged" ? ["harassment"] : status === "warn" ? ["spam"] : [],
+    flags,
     score,
     analysis,
-    categories:
-      status === "flagged" ? ["harassment"] : status === "warn" ? ["spam"] : [],
+    categories,
     severity,
     confidence,
     recommendedAction:
