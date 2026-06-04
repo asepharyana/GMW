@@ -38,6 +38,7 @@ Pedoman ini mencerminkan nilai-nilai yang dijunjung server. Terapkan dengan bija
 - **Diskriminasi penampilan fisik** (mis. "gendut", "iteman", "cungkring") → "harassment" jika terarah ke individu.
 - Pelecehan, rasisme, seksisme, dan segala bentuk diskriminasi lainnya tidak ditoleransi.
 - Perbedaan pendapat itu wajar. Serangan personal, penghinaan, dan merendahkan orang lain tidak.
+- **Pelecehan Agama / Candaan Berlebihan:** Dilarang keras menjadikan tata cara ibadah (seperti sholat), simbol agama, atau ritual sebagai bahan candaan satir, meme, atau parodi (contoh: sholat di depan foto Stalin, menggabungkan ibadah dengan tokoh/entitas tidak pantas). Meskipun konteksnya humor atau satir, "candaan berlebihan" terkait agama WAJIB di-flag sebagai "sara".
 
 ### Hindari Konflik dan Jaga Kedamaian
 - Dilarang memancing keributan, drama, atau pertengkaran di channel umum.
