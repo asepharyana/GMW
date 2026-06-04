@@ -75,7 +75,7 @@ export async function getStickerFromCache(
   const key = sanitizeKey(stickerName);
   try {
     const row = await executeGet(
-      "SELECT base64, mime_type, size, fetched_at FROM sticker_cache WHERE name = ? AND fetched_at > ?",
+      "SELECT base64, mime_type, size, fetched_at FROM sticker_cache WHERE name = $1 AND fetched_at > $2",
       [key, Date.now() - TTL_MS],
     );
     if (!row) return null;
@@ -110,7 +110,7 @@ export async function setStickerInCache(
     await evictIfNeeded(size);
     await executeAll(
       `INSERT INTO sticker_cache (name, base64, mime_type, size, fetched_at)
-       VALUES (?, ?, ?, ?, ?)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (name) DO UPDATE SET
          base64 = EXCLUDED.base64,
          mime_type = EXCLUDED.mime_type,

@@ -269,6 +269,7 @@ export function makeUserModerationCacheKey(
 export async function getCachedUserModeration(
   cacheKey: string,
 ): Promise<{
+  status: "clean" | "flagged";
   flags: string[];
   score: number;
   analysis: string;
@@ -288,9 +289,19 @@ export async function getCachedUserModeration(
     if (!row) return null;
 
     const parsed = JSON.parse(row.flags) as Record<string, unknown>;
+    const flags = (parsed.flags as string[]) ?? [];
+    // Use stored status if available (new entries), otherwise derive from flags (legacy compatibility)
+    const storedStatus = parsed.status as string | undefined;
+    const status: "clean" | "flagged" =
+      storedStatus === "clean" || storedStatus === "flagged"
+        ? storedStatus
+        : flags.length === 0
+          ? "clean"
+          : "flagged";
 
     return {
-      flags: (parsed.flags as string[]) ?? [],
+      status,
+      flags,
       score: (parsed.score as number) ?? 0,
       analysis: (parsed.analysis as string) ?? "",
       categories: (parsed.categories as string[]) ?? [],
