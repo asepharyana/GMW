@@ -84,17 +84,19 @@ export async function llmChat(
     retries = DEFAULT_RETRIES,
   } = opts;
 
-  const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
-    model,
-    messages,
-    temperature,
-    top_p,
-    max_tokens,
-    stream: false,
-  };
+  const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
+    {
+      model,
+      messages,
+      temperature,
+      top_p,
+      max_tokens,
+      stream: false,
+    };
 
   if (jsonResponse) {
-    (params as unknown as Record<string, unknown>).response_format = jsonResponse;
+    (params as unknown as Record<string, unknown>).response_format =
+      jsonResponse;
   }
 
   return retryWithBackoff(
@@ -198,10 +200,15 @@ const VALID_PRIMARY_AI_FLAGS = new Set([
   "financial_scam",
   "religious_insult",
   "self_promo",
+  "conflict_instigation",
+  "offensive_username",
 ]);
 
 function normalizeFlag(value: string): string | null {
-  const lower = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const lower = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
   if (!lower) return null;
   if (VALID_PRIMARY_AI_FLAGS.has(lower)) return lower;
   return null;
