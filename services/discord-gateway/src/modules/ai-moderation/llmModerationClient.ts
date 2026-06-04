@@ -953,7 +953,7 @@ async function runTextOnlyBatch(
   await Promise.all(
     targets.map(async (msg) => {
       const content = msg.edited_content ?? msg.content;
-      const evidence = await formatModerationTextEvidenceForPrompt(content);
+      const evidence = formatModerationTextEvidenceForPrompt(content);
       textEvidenceMap.set(msg.id, evidence);
     }),
   );
@@ -1568,7 +1568,7 @@ async function _runSingleMediaAnalysis(
   );
 
   // ── 5. Build single-message prompt with XML delimiters (R1) ──
-  const textEvidence = await formatModerationTextEvidenceForPrompt(content);
+  const textEvidence = formatModerationTextEvidenceForPrompt(content);
 
   const webTexts = webTextMap.get(targetId) ?? [];
   const mediaAnalyses = mediaAnalysisMap.get(targetId) ?? [];

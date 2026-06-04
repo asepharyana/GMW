@@ -153,6 +153,12 @@ const configSchema = z
     AUTO_DELETE_ALLOWED_CATEGORIES: z.string().default(""),
     AUTO_DELETE_EXCLUDED_CHANNEL_IDS: z.string().default(""),
     AUTO_DELETE_EXCLUDED_USER_IDS: z.string().default(""),
+    AUTO_DELETE_NOTIFY_USER: z
+      .string()
+      .optional()
+      .transform((v) => v === "true")
+      .default(false),
+    AUTO_DELETE_LOG_CHANNEL_ID: z.string().default(""),
     RETENTION_MESSAGES_DAYS: z.coerce.number().int().min(0).default(0),
     RETENTION_ATTACHMENTS_DAYS: z.coerce.number().int().min(0).default(0),
     RETENTION_VOICE_DAYS: z.coerce.number().int().min(0).default(0),

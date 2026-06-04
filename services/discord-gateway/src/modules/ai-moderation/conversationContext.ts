@@ -36,13 +36,13 @@ export function estimateTokens(text: string): number {
 /**
  * Formats a single message for context or target display
  */
-export async function formatMessageForPrompt(
+export function formatMessageForPrompt(
   msg: MessageRecord,
   label: "context" | "target",
-): Promise<string> {
+): string {
   const content = msg.edited_content ?? msg.content;
   const timestamp = formatTimestamp(msg.created_at);
-  const textEvidence = await formatModerationTextEvidenceForPrompt(content);
+  const textEvidence = formatModerationTextEvidenceForPrompt(content);
   const textSuffix = textEvidence ? ` ${textEvidence}` : "";
   const mediaEvidence = formatMediaEvidenceForPrompt(msg.metadata);
   const mediaSuffix = mediaEvidence ? ` ${mediaEvidence}` : "";
@@ -53,23 +53,19 @@ export async function formatMessageForPrompt(
  * Builds conversation historical context without including targets.
  * Calculates how much token budget targets use, and fills the rest with context.
  */
-export async function buildConversationContext(
+export function buildConversationContext(
   input: ConversationContextInput,
-): Promise<string[]> {
+): string[] {
   const { contextBefore, targets, maxTokens } = input;
 
   // Calculate tokens used by targets (parallel)
-  const targetLines = await Promise.all(
-    targets.map((msg) => formatMessageForPrompt(msg, "target")),
-  );
+  const targetLines = targets.map((msg) => formatMessageForPrompt(msg, "target"));
   let usedTokens = targetLines.reduce(
     (sum, line) => sum + estimateTokens(line),
     0,
   );
 
-  const contextLines = await Promise.all(
-    contextBefore.map((msg) => formatMessageForPrompt(msg, "context")),
-  );
+  const contextLines = contextBefore.map((msg) => formatMessageForPrompt(msg, "context"));
   const selectedContextLines: string[] = [];
 
   // Go backwards through context, taking most recent first

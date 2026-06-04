@@ -80,7 +80,7 @@ export default async function processAnalysisRequest({
       limit: config.AI_ANALYSIS_CONTEXT_MESSAGE_LIMIT,
     });
 
-    const contextLines = await buildConversationContext({
+    const contextLines = buildConversationContext({
       contextBefore,
       targets: messages,
       maxTokens: config.AI_ANALYSIS_MAX_CONTEXT_TOKENS,

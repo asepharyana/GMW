@@ -356,7 +356,7 @@ async function processIndividualFallback(
       limit: config.AI_ANALYSIS_CONTEXT_MESSAGE_LIMIT,
     });
 
-    const contextLines = await buildConversationContext({
+    const contextLines = buildConversationContext({
       contextBefore,
       targets: [message],
       maxTokens: config.AI_ANALYSIS_MAX_CONTEXT_TOKENS,

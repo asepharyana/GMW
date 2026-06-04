@@ -1,22 +1,11 @@
-import { createChildLogger } from "@bete/shared/logger";
-import { getCachedText, upsertCachedText } from "./textCacheStore.js";
-import { llmDetectBadwords } from "./llmClient.js";
-
-const log = createChildLogger("indonesianTextNormalizer");
+// No imports needed — pure rule-based, no external dependencies.
 
 const CUSTOM_EMOJI_PATTERN = /<a?:([a-zA-Z0-9_]+):(\d+)>/g;
 
 /**
- * In-memory cache TTL (10 min) — fastest path for repeated identical texts.
+ * In-memory cache TTL (10 min) — avoids re-scanning identical text.
  */
 const BADWORD_CACHE_TTL_MS = 10 * 60 * 1000;
-
-/**
- * DB cache TTL (24 hours) — survives restarts, stores full-text results
- * so context is preserved (e.g. "kaus" is clean, "kau" alone is clean,
- * but "awas kau" is harassment).
- */
-const DB_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 interface BadwordCacheEntry {
   value: string[];
@@ -24,68 +13,158 @@ interface BadwordCacheEntry {
 }
 
 const badwordCache = new Map<string, BadwordCacheEntry>();
-const inFlightBadwordLookups = new Map<string, Promise<string[]>>();
 
 // ---------------------------------------------------------------------------
-// Local rule-based pre-filter — short-circuits definitively safe messages
-// without calling the LLM badword detection API.
-// Conservative: only flags messages that are 100% certainly clean.
+// Safe pattern pre-filter — short-circuits definitively safe messages.
+// Conservative: only returns true for patterns that CANNOT be violations.
 // ---------------------------------------------------------------------------
 
 const SAFE_PATTERNS: Array<{ test: (text: string) => boolean; reason: string }> = [
   {
-    // Pure laughter patterns
     test: (t) => /^(wkwk+|w+kw+k+|wkwkw+|haha+|hehe+|hihi+|huhu+|xixi+|wakak+|awkwa+)$/i.test(t),
     reason: "laughter pattern",
   },
   {
-    // Single-word affirmatives (common in Indonesian Discord)
     test: (t) => /^(ok|oke|okay|sip|siap|aman|mantap|gas|gass|gaskeun|santuy|gaskan|lah|wih|wah|eh|nah|loh|hmm|hm|heh)$/i.test(t),
     reason: "single-word affirmative",
   },
   {
-    // Greetings / common short expressions
     test: (t) => /^(hai|halo|hello|hi|oi|woy|woi|pagi|siang|sore|malam|mlm|p|w|L|F|gws|thx|thks|makasih|ty|thanks|yw|sama-sama|ok sip|ok bang|siap bang)$/i.test(t),
     reason: "greeting/common expression",
   },
   {
-    // Very short messages (1-2 characters) — reactions, single letters
     test: (t) => t.length <= 2,
     reason: "very short message (1-2 chars)",
   },
   {
-    // Pure numeric or pure punctuation
     test: (t) => /^[\d\s.,!?;:'"()\-_]+$/.test(t),
     reason: "numeric/punctuation only",
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Rule-based Indonesian badword detection (NO LLM calls)
+//
+// Uses word-boundary regex matching to detect known Indonesian badwords.
+// Context-aware: matches only whole words to avoid false positives like
+// "asu" in "kasus", "kontol" in "rekontolasi".
+//
+// Each category maps to a flag the moderation LLM can use as context.
+// ---------------------------------------------------------------------------
+
+interface BadwordEntry {
+  words: string[];
+  flag: string;
+  description: string;
+}
+
+const BADWORD_CATEGORIES: BadwordEntry[] = [
+  {
+    description: "vulgar genitalia / sexual terms",
+    flag: "vulgar_language",
+    words: [
+      "kontol", "memek", "pepek", "tempik", "peler", "pelir", "pukimak", "pukima",
+      "jancok", "jancuk", "cok", "cuk", "pantek", "palek", "ngentot", "ngewe",
+      "entot", "ewe", "coli", "sange", "sangean", "ngocok", "bangkot",
+      "nenen", "tete", "tetek", "dodot", "kentu", "perek", "bispak", "bangsat",
+      "babi", "asu", "anjing", "anjir", "anjirt", "njing", "njir", "anjay",
+      "kampret", "kampang", "brengsek", "brengus", "bejad", "bajingan",
+      "goblok", "tolol", "bego", "dungu", "idiot", "beban", "keparat",
+      "setan", "iblis", "sialan", "sial", "kacang", "edan", "gila",
+    ],
+  },
+  {
+    description: "harassment / targeted insults",
+    flag: "harassment",
+    words: [
+      "mampus", "mati", "bunuh", "bacot", "cupu", "geblek", "kere",
+      "ngawur", "sembarangan", "nyampah", "nyampah", "sarap",
+      "ke laut aja", "gila lu", "sinting", "editan", "mending mati",
+      "monyet", "kuda", "unta", "bangke", "bangsat",
+    ],
+  },
+  {
+    description: "SARA / racial slurs (non-exhaustive)",
+    flag: "sara",
+    words: [
+      "cina", "tionghoa", "pribumi", "non-pribumi", "kaffir", "kafir",
+      "murtad", "sesat", "liberal", "komunis", "komunisme", "pki",
+    ],
+  },
+  {
+    description: "gambling / judi",
+    flag: "gambling",
+    words: [
+      "judi", "slot", "togel", "toto gelap", "casino", "roulette",
+      "poker", "domino", "gaple", "sabung ayam", "bola jalan",
+      "maxwin", "gacor", "scatter", "bonanza", "olympus",
+    ],
+  },
+  {
+    description: "hate speech / extreme discrimination",
+    flag: "hate_speech",
+    words: [
+      "bencina", "bencin", "bangsat", "dajjal", "laknat", "keparat",
+      "dasar cina", "dasar tionghoa", "dasar pribumi",
+    ],
+  },
+];
+
+/**
+ * Build a single combined regex per category that matches whole words only.
+ * Uses word boundaries (\b) so "asu" matches "asu" but not "kasus".
+ * For multi-word entries, builds an alternation of the full phrases.
+ */
+const BADWORD_REGEX_CACHE = new Map<string, RegExp>();
+
+function buildBadwordRegex(words: string[]): RegExp {
+  // Sort by length descending so longer phrases match before their substrings
+  const sorted = [...words].sort((a, b) => b.length - a.length);
+  // Escape regex special chars in each word
+  const escaped = sorted.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = escaped
+    .map((w) => {
+      // Multi-word phrases (containing space) — match as-is
+      if (w.includes("\\ ")) return w;
+      // Single word — word boundaries
+      return `\\b${w}\\b`;
+    })
+    .join("|");
+  return new RegExp(pattern, "i");
+}
+
+function matchBadwords(text: string): string[] {
+  const hits: Set<string> = new Set();
+  const lowerText = text.toLowerCase();
+
+  for (const category of BADWORD_CATEGORIES) {
+    let regex = BADWORD_REGEX_CACHE.get(category.flag);
+    if (!regex) {
+      regex = buildBadwordRegex(category.words);
+      BADWORD_REGEX_CACHE.set(category.flag, regex);
+    }
+    if (regex.test(lowerText)) {
+      hits.add(category.flag);
+    }
+  }
+
+  return Array.from(hits);
+}
+
+// ---------------------------------------------------------------------------
+// Exported utilities
+// ---------------------------------------------------------------------------
+
 /**
  * Checks whether a text message is definitively safe and does not need
- * LLM-based badword detection.  This is a conservative local pre-filter
- * — it only returns true for patterns that CANNOT be violations.
+ * badword detection at all.
  */
 export function isDefinitivelySafe(text: string): boolean {
-  // Normalize: strip Discord custom emoji, trim whitespace
   const { text: normalized } = normalizeDiscordCustomEmoji(text);
   const trimmed = normalized.trim();
-
   if (trimmed.length === 0) return true;
-
   return SAFE_PATTERNS.some((p) => p.test(trimmed));
 }
-
-export interface ModerationTextEvidence {
-  raw: string;
-  normalized: string;
-  notes: string[];
-  badwords: string[];
-  hasBadwords: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// Sync helpers
-// ---------------------------------------------------------------------------
 
 export function normalizeDiscordCustomEmoji(text: string): {
   text: string;
@@ -99,7 +178,6 @@ export function normalizeDiscordCustomEmoji(text: string): {
       return `[emoji:${name}]`;
     },
   );
-
   return { text: normalized, emojiNames };
 }
 
@@ -130,7 +208,6 @@ function setCachedBadwords(key: string, value: string[]): void {
         badwordCache.delete(cacheKey);
       }
     }
-
     if (badwordCache.size > 500) {
       const oldestKeys = Array.from(badwordCache.entries())
         .sort((a, b) => a[1].expiresAt - b[1].expiresAt)
@@ -144,96 +221,56 @@ function setCachedBadwords(key: string, value: string[]): void {
 }
 
 // ---------------------------------------------------------------------------
-// Two-tier cache + Primary AI pipeline
+// PURE RULE-BASED badword detection (synchronous, no LLM calls)
 // ---------------------------------------------------------------------------
 
 /**
- * Detect badwords in text using a **two-tier cache + Primary AI**:
+ * Detect badwords in text using pure rule-based matching.
  *
- * 1. **In-memory cache** (BADWORD_CACHE_TTL_MS, 10 min) — fastest path,
- *    keyed by the full normalized text string.
- * 2. **DB cache** (DB_CACHE_TTL_MS, 24 h) — same full-text key, persisted
- *    across restarts. Uses the FULL normalized text (not per-word) because
- *    context matters: "kau" alone is clean, but "awas kau" can be a threat.
- * 3. **Primary AI** (AI_LLM endpoint via llmClient) — only runs when both
- *    cache layers miss.
+ * Previously used a 3-tier pipeline (in-memory → DB → LLM API call) that
+ * caused N+1 LLM calls per batch, multiplying costs by ~10x.
  *
- * No local hardcoded badword list — all detection goes through AI APIs
- * to eliminate false positives from substring matching.
+ * Now uses word-boundary regex matching against known Indonesian badword
+ * categories. Fully synchronous — no DB, no API, no async overhead.
+ *
+ * Cache retained as a simple in-memory LRU for repeated identical texts.
  */
-export async function detectIndonesianBadwords(
-  text: string,
-): Promise<string[]> {
+export function detectIndonesianBadwords(text: string): string[] {
   const cacheKey = normalizeBadwordCacheKey(text);
 
-  // ── Tier 1: In-memory cache (fastest) ──
+  // ── In-memory cache (fastest) ──
   const cached = getCachedBadwords(cacheKey);
-  if (cached) {
-    return cached;
-  }
+  if (cached) return cached;
 
-  // ── Tier 0: Local rule-based pre-filter (fastest — no API call) ──
+  // ── Safe pre-filter ──
   if (isDefinitivelySafe(text)) {
+    setCachedBadwords(cacheKey, []);
     return [];
   }
 
-  // De-duplicate concurrent lookups
-  const inFlight = inFlightBadwordLookups.get(cacheKey);
-  if (inFlight) {
-    return inFlight;
-  }
-
-  const lookupPromise = (async () => {
-    // ── Tier 2: DB cache (survives restarts, preserves context) ──
-    const dbEntry = await getCachedText(cacheKey);
-    if (dbEntry) {
-      const flags = [...dbEntry.flags];
-      setCachedBadwords(cacheKey, flags); // populate in-memory too
-      return flags;
-    }
-
-    // ── Tier 3: Primary AI only (via centralized llmClient) ──
-    let finalHits: string[] = [];
-    try {
-      finalHits = await llmDetectBadwords(text);
-    } catch (error) {
-      log.warn(
-        { error: error instanceof Error ? error.message : String(error) },
-        "Primary AI badword detection failed",
-      );
-    }
-
-    // Populate all cache tiers so the same text never triggers another API call
-    // within the TTL window.
-    setCachedBadwords(cacheKey, finalHits);
-    await upsertCachedText(
-      cacheKey,
-      finalHits,
-      "primary_ai",
-      Date.now() + DB_CACHE_TTL_MS,
-    );
-
-    return finalHits;
-  })();
-
-  inFlightBadwordLookups.set(cacheKey, lookupPromise);
-
-  try {
-    return await lookupPromise;
-  } finally {
-    inFlightBadwordLookups.delete(cacheKey);
-  }
+  // ── Rule-based matching ──
+  const hits = matchBadwords(text);
+  setCachedBadwords(cacheKey, hits);
+  return hits;
 }
 
 // ---------------------------------------------------------------------------
-// Async evidence builders
+// Synchronous evidence builders (no async needed anymore)
 // ---------------------------------------------------------------------------
 
-export async function buildModerationTextEvidence(
+export interface ModerationTextEvidence {
+  raw: string;
+  normalized: string;
+  notes: string[];
+  badwords: string[];
+  hasBadwords: boolean;
+}
+
+export function buildModerationTextEvidence(
   text: string,
-): Promise<ModerationTextEvidence> {
+): ModerationTextEvidence {
   const emojiNormalized = normalizeDiscordCustomEmoji(text);
-  const badwordHits = await detectIndonesianBadwords(emojiNormalized.text);
+  const badwordHits = detectIndonesianBadwords(emojiNormalized.text);
   const notes: string[] = [];
 
   for (const emojiName of emojiNormalized.emojiNames) {
@@ -257,10 +294,10 @@ export async function buildModerationTextEvidence(
   };
 }
 
-export async function formatModerationTextEvidenceForPrompt(
+export function formatModerationTextEvidenceForPrompt(
   text: string,
-): Promise<string> {
-  const evidence = await buildModerationTextEvidence(text);
+): string {
+  const evidence = buildModerationTextEvidence(text);
   if (evidence.normalized === evidence.raw && evidence.notes.length === 0) {
     return "";
   }
