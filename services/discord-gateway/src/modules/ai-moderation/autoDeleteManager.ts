@@ -51,7 +51,7 @@ function isAutoDeleteEligible(message: MessageRecord): boolean {
 
   const confidence = message.ai_confidence ?? message.ai_moderation_score ?? 0;
   if (confidence < config.AUTO_DELETE_MIN_CONFIDENCE) {
-    logger.info(
+    logger.debug(
       {
         messageId: message.id,
         confidence,
@@ -68,7 +68,7 @@ function isAutoDeleteEligible(message: MessageRecord): boolean {
     .map((s) => s.trim())
     .filter(Boolean);
   if (allowedSeverities.length > 0 && !allowedSeverities.includes(severity)) {
-    logger.info(
+    logger.debug(
       { messageId: message.id, severity, allowed: allowedSeverities },
       "Auto-delete skipped: severity not in allowed list",
     );
@@ -77,7 +77,7 @@ function isAutoDeleteEligible(message: MessageRecord): boolean {
 
   const recommendedAction = deriveRecommendedAction(message);
   if (recommendedAction !== "delete" && recommendedAction !== "escalate") {
-    logger.info(
+    logger.debug(
       { messageId: message.id, recommendedAction },
       "Auto-delete skipped: recommended action is not delete/escalate",
     );
@@ -95,7 +95,7 @@ function isAutoDeleteEligible(message: MessageRecord): boolean {
       allowedCategories.includes(cat),
     );
     if (!hasAllowedCategory) {
-      logger.info(
+      logger.debug(
         {
           messageId: message.id,
           categories: messageCategories,
@@ -113,7 +113,7 @@ function isAutoDeleteEligible(message: MessageRecord): boolean {
   if (excludedChannels.length > 0) {
     const channelId = message.thread_id ?? message.channel_id;
     if (excludedChannels.includes(channelId)) {
-      logger.info(
+      logger.debug(
         { messageId: message.id, channelId },
         "Auto-delete skipped: channel excluded",
       );
@@ -123,7 +123,7 @@ function isAutoDeleteEligible(message: MessageRecord): boolean {
 
   const excludedUsers = parseStringList(config.AUTO_DELETE_EXCLUDED_USER_IDS);
   if (excludedUsers.length > 0 && excludedUsers.includes(message.user_id)) {
-    logger.info(
+    logger.debug(
       { messageId: message.id, userId: message.user_id },
       "Auto-delete skipped: user excluded",
     );
@@ -221,6 +221,10 @@ export async function attemptAutoDeleteFlaggedMessage(
   }
 
   if (message.ai_status !== "flagged" && message.ai_status !== "warn") {
+    logger.debug(
+      { messageId: message.id, status: message.ai_status },
+      "Auto-delete skipped: message not flagged or warned",
+    );
     const result = {
       deleted: false,
       skipped: true,
@@ -231,6 +235,10 @@ export async function attemptAutoDeleteFlaggedMessage(
   }
 
   if (!isAutoDeleteEligible(message)) {
+    logger.debug(
+      { messageId: message.id },
+      "Auto-delete skipped: not eligible (confidence/severity/action/category filter)",
+    );
     const result = {
       deleted: false,
       skipped: true,

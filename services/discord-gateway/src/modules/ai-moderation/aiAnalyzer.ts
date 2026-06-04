@@ -27,7 +27,10 @@ import type {
   ModerationBroadcaster,
 } from "../message-capture/types.js";
 import { attemptAutoDeleteFlaggedMessage } from "./autoDeleteManager.js";
-import { buildConversationContext, estimateTokens } from "./conversationContext.js";
+import {
+  buildConversationContext,
+  estimateTokens,
+} from "./conversationContext.js";
 import { runModerationAnalysis } from "./llmModerationClient.js";
 import { logModerationError } from "./responseLogger.js";
 
@@ -449,7 +452,7 @@ async function processIndividualFallback(
     // Reset individual CB on success.
     individualConsecutiveErrors = 0;
 
-    logger.info(
+    logger.debug(
       { messageId, status: analysisResult.results[0]?.status },
       "Individual fallback analysis complete",
     );
@@ -584,7 +587,7 @@ function enqueueIndividualFallbacks(messages: MessageRecord[]): void {
     .slice(0, availableSlots);
   if (newMessages.length === 0) return;
 
-  logger.info(
+  logger.debug(
     {
       count: newMessages.length,
       messageIds: newMessages.map((m) => m.id),
@@ -878,7 +881,7 @@ export async function queueMessageAnalysis(messageId: string): Promise<void> {
       if (updated) {
         broadcastAnalysisCompleted(updated);
       }
-      logger.info(
+      logger.debug(
         { messageId },
         "Skipped AI analysis for age-restricted message",
       );

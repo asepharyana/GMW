@@ -987,7 +987,7 @@ async function runTextOnlyBatch(
   }
 
   if (groupMapping.size > 0) {
-    log.info(
+    log.debug(
       {
         originalCount: targets.length,
         deduplicatedCount: deduplicatedTargets.length,
@@ -1004,7 +1004,7 @@ async function runTextOnlyBatch(
   }
 
   if (subBatches.length > 1) {
-    log.info(
+    log.debug(
       {
         totalTargets: targets.length,
         subBatchCount: subBatches.length,
@@ -1111,7 +1111,7 @@ async function runTextOnlyBatch(
     );
   }
 
-  log.info(
+  log.debug(
     {
       targetCount: targets.length,
       resultCount: allResults.length,
@@ -1615,7 +1615,7 @@ export async function runModerationAnalysis(
     }
   }
 
-  log.info(
+  log.debug(
     {
       total: targets.length,
       textOnly: textOnlyTargets.length,
@@ -1647,7 +1647,7 @@ export async function runModerationAnalysis(
     textBatchResult.raw ??
     (mediaResults.length > 0 ? mediaResults[0].raw : null);
 
-  log.info(
+  log.debug(
     {
       targetCount: targets.length,
       resultCount: allResults.length,
