@@ -1,7 +1,7 @@
-import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
+import { encoding_for_model as encodingForModel } from "tiktoken";
 import { formatMediaEvidenceForPrompt } from "../message-capture/messageMetadata.js";
 import type { MessageRecord } from "../message-capture/types.js";
-import { encoding_for_model as encodingForModel } from "tiktoken";
+import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 
 export interface ConversationContextInput {
   contextBefore: MessageRecord[];
@@ -59,13 +59,17 @@ export function buildConversationContext(
   const { contextBefore, targets, maxTokens } = input;
 
   // Calculate tokens used by targets (parallel)
-  const targetLines = targets.map((msg) => formatMessageForPrompt(msg, "target"));
+  const targetLines = targets.map((msg) =>
+    formatMessageForPrompt(msg, "target"),
+  );
   let usedTokens = targetLines.reduce(
     (sum, line) => sum + estimateTokens(line),
     0,
   );
 
-  const contextLines = contextBefore.map((msg) => formatMessageForPrompt(msg, "context"));
+  const contextLines = contextBefore.map((msg) =>
+    formatMessageForPrompt(msg, "context"),
+  );
   const selectedContextLines: string[] = [];
 
   // Go backwards through context, taking most recent first

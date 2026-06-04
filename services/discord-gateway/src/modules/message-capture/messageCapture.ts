@@ -1,6 +1,6 @@
+import { createChildLogger } from "@bete/shared/logger";
 import type { Client, Message } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
-import { createChildLogger } from "@bete/shared/logger";
 import { queueMessageAnalysis } from "../ai-moderation/aiAnalyzer.js";
 import { processAttachmentUpload } from "../attachment-upload/attachmentUploader.js";
 import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";
@@ -16,7 +16,10 @@ import {
   updateMessageAsEdited,
   upsertMessageForCapture,
 } from "../message-capture/messageStore.js";
-import type { AttachmentRecord, MessageRecord } from "../message-capture/types.js";
+import type {
+  AttachmentRecord,
+  MessageRecord,
+} from "../message-capture/types.js";
 
 const logger = createChildLogger("message-capture");
 

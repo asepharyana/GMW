@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { UserMetadata } from "../../message-capture/types.js";
 import {
   buildMuxFfmpegArgs,
   runFfmpeg as defaultRunFfmpeg,
 } from "../ffmpegProcess.js";
-import type { UserMetadata } from "../../message-capture/types.js";
 
 export type SessionRecordingStatus =
   | "pending"

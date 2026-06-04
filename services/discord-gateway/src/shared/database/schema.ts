@@ -497,4 +497,5 @@ export type StickerCacheRecord = typeof stickerCacheTable.$inferSelect;
 export type StickerCacheInsert = typeof stickerCacheTable.$inferInsert;
 
 export type CorrectedModeration = typeof correctedModerationsTable.$inferSelect;
-export type CorrectedModerationInsert = typeof correctedModerationsTable.$inferInsert;
+export type CorrectedModerationInsert =
+  typeof correctedModerationsTable.$inferInsert;

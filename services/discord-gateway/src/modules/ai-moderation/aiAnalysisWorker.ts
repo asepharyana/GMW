@@ -1,13 +1,19 @@
 import { config } from "../../shared/config/config.js";
 import { initializeDatabase } from "../../shared/database/drizzle.js";
-import { buildConversationContext } from "./conversationContext.js";
-import { runModerationAnalysis, runSimpleTextFallback } from "./llmModerationClient.js";
 import {
   getAttachmentsForMessages,
   getConversationContextBefore,
   updateMessagesAIAnalysisBulk,
 } from "../message-capture/messageStore.js";
-import type { MessageRecord, AnalysisResult } from "../message-capture/types.js";
+import type {
+  AnalysisResult,
+  MessageRecord,
+} from "../message-capture/types.js";
+import { buildConversationContext } from "./conversationContext.js";
+import {
+  runModerationAnalysis,
+  runSimpleTextFallback,
+} from "./llmModerationClient.js";
 
 let dbInitialized = false;
 let dbInitPromise: Promise<any> | null = null;
@@ -30,24 +36,44 @@ type WorkerJob =
   | { type: "batch"; conversationKey: string; messages: MessageRecord[] }
   | { type: "individual"; message: MessageRecord; skipNormalAnalysis: boolean };
 
-type BatchOkResponse = { ok: true; conversationKey: string; rows: MessageRecord[] };
-type BatchErrorResponse = { ok: false; conversationKey: string; rows: MessageRecord[]; error: string };
+type BatchOkResponse = {
+  ok: true;
+  conversationKey: string;
+  rows: MessageRecord[];
+};
+type BatchErrorResponse = {
+  ok: false;
+  conversationKey: string;
+  rows: MessageRecord[];
+  error: string;
+};
 type IndividualOkResponse = { ok: true; results: AnalysisResult[] };
-type IndividualErrorResponse = { ok: false; results: AnalysisResult[]; error: string };
+type IndividualErrorResponse = {
+  ok: false;
+  results: AnalysisResult[];
+  error: string;
+};
 
-type WorkerResponse = BatchOkResponse | BatchErrorResponse | IndividualOkResponse | IndividualErrorResponse;
+type WorkerResponse =
+  | BatchOkResponse
+  | BatchErrorResponse
+  | IndividualOkResponse
+  | IndividualErrorResponse;
 
 /**
  * Default export — Piscina worker entry point.
  * Routes to the correct handler based on `type` field.
  */
-export default async function workerRouter(job: WorkerJob): Promise<WorkerResponse> {
+export default async function workerRouter(
+  job: WorkerJob,
+): Promise<WorkerResponse> {
   if (!config.AI_LLM_API_KEY) {
     console.error(
       JSON.stringify({
         level: "FATAL",
         context: "aiAnalysisWorker",
-        error: "AI_LLM_API_KEY is missing from environment. Force closing worker operation.",
+        error:
+          "AI_LLM_API_KEY is missing from environment. Force closing worker operation.",
         timestamp: new Date().toISOString(),
       }),
     );
@@ -59,7 +85,12 @@ export default async function workerRouter(job: WorkerJob): Promise<WorkerRespon
   } catch (dbError) {
     const msg = dbError instanceof Error ? dbError.message : String(dbError);
     if (job.type === "batch") {
-      return { ok: false, conversationKey: job.conversationKey, rows: [], error: `Database init failed: ${msg}` };
+      return {
+        ok: false,
+        conversationKey: job.conversationKey,
+        rows: [],
+        error: `Database init failed: ${msg}`,
+      };
     }
     return { ok: false, results: [], error: `Database init failed: ${msg}` };
   }
@@ -72,16 +103,23 @@ export default async function workerRouter(job: WorkerJob): Promise<WorkerRespon
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
-    console.error(JSON.stringify({
-      level: "ERROR",
-      context: "aiAnalysisWorker",
-      type: job.type,
-      error: errorMessage,
-      stack: errorStack,
-      timestamp: new Date().toISOString(),
-    }));
+    console.error(
+      JSON.stringify({
+        level: "ERROR",
+        context: "aiAnalysisWorker",
+        type: job.type,
+        error: errorMessage,
+        stack: errorStack,
+        timestamp: new Date().toISOString(),
+      }),
+    );
     if (job.type === "batch") {
-      return { ok: false, conversationKey: job.conversationKey, rows: [], error: errorMessage };
+      return {
+        ok: false,
+        conversationKey: job.conversationKey,
+        rows: [],
+        error: errorMessage,
+      };
     }
     return { ok: false, results: [], error: errorMessage };
   }
@@ -91,7 +129,11 @@ export default async function workerRouter(job: WorkerJob): Promise<WorkerRespon
 // Batch handler
 // ---------------------------------------------------------------------------
 
-async function processBatch(job: { type: "batch"; conversationKey: string; messages: MessageRecord[] }): Promise<BatchOkResponse | BatchErrorResponse> {
+async function processBatch(job: {
+  type: "batch";
+  conversationKey: string;
+  messages: MessageRecord[];
+}): Promise<BatchOkResponse | BatchErrorResponse> {
   const { conversationKey, messages } = job;
   const firstMessage = messages[0];
   if (!firstMessage) return { ok: true, conversationKey, rows: [] };
@@ -150,7 +192,11 @@ async function processBatch(job: { type: "batch"; conversationKey: string; messa
 // Individual fallback handler (offloaded from main thread)
 // ---------------------------------------------------------------------------
 
-async function processIndividual(job: { type: "individual"; message: MessageRecord; skipNormalAnalysis: boolean }): Promise<IndividualOkResponse | IndividualErrorResponse> {
+async function processIndividual(job: {
+  type: "individual";
+  message: MessageRecord;
+  skipNormalAnalysis: boolean;
+}): Promise<IndividualOkResponse | IndividualErrorResponse> {
   const { message, skipNormalAnalysis } = job;
 
   const contextBefore = await getConversationContextBefore({
@@ -167,7 +213,10 @@ async function processIndividual(job: { type: "individual"; message: MessageReco
   });
 
   const contextIds = contextBefore.map((m) => m.id);
-  const attachments = await getAttachmentsForMessages([message.id, ...contextIds]);
+  const attachments = await getAttachmentsForMessages([
+    message.id,
+    ...contextIds,
+  ]);
 
   let results: AnalysisResult[];
 

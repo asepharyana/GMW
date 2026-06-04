@@ -1,8 +1,8 @@
+import { createChildLogger } from "@bete/shared/logger";
 import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
 import type { PoolClient } from "pg";
 import { Pool } from "pg";
 import { config } from "../../shared/config/config.js";
-import { createChildLogger } from "@bete/shared/logger";
 import * as schema from "./schema.js";
 
 const logger = createChildLogger("drizzle");

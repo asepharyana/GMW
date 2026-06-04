@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 import { createChildLogger } from "@bete/shared/logger";
+import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 
 const logger = createChildLogger("text-cache-store");
 
@@ -255,10 +255,7 @@ export function makeUserModerationCacheKey(
   userId: string,
   content: string,
 ): string {
-  const hash = createHash("sha256")
-    .update(content)
-    .digest("hex")
-    .slice(0, 16);
+  const hash = createHash("sha256").update(content).digest("hex").slice(0, 16);
   return `user_mod:${userId}:${hash}`;
 }
 
@@ -266,9 +263,7 @@ export function makeUserModerationCacheKey(
  * Lookup a cached moderation result for a (user, content) pair.
  * Returns the stored result fields or null.
  */
-export async function getCachedUserModeration(
-  cacheKey: string,
-): Promise<{
+export async function getCachedUserModeration(cacheKey: string): Promise<{
   status: "clean" | "flagged";
   flags: string[];
   score: number;
@@ -409,8 +404,9 @@ export async function computeImagePhash(
 ): Promise<string | null> {
   try {
     // Dynamic import — imghash is ESM with a default export containing { hash, hashRaw, ... }
-    const imghashModule: { default?: { hash?: (buf: Buffer) => Promise<string> } } =
-      await import("imghash");
+    const imghashModule: {
+      default?: { hash?: (buf: Buffer) => Promise<string> };
+    } = await import("imghash");
     const hashFn = imghashModule.default?.hash;
     if (typeof hashFn !== "function") return null;
     const hash = await hashFn(buffer);
@@ -451,13 +447,15 @@ export async function getRecentCorrectedModerations(
 
     if (!rows || rows.length === 0) return [];
 
-    return (rows as Array<{
-      id: string;
-      original_flags: string;
-      corrected_flags: string;
-      correction_notes: string | null;
-      content_snippet: string;
-    }>).map((row) => ({
+    return (
+      rows as Array<{
+        id: string;
+        original_flags: string;
+        corrected_flags: string;
+        correction_notes: string | null;
+        content_snippet: string;
+      }>
+    ).map((row) => ({
       id: row.id,
       originalFlags: JSON.parse(row.original_flags) as string[],
       correctedFlags: JSON.parse(row.corrected_flags) as string[],

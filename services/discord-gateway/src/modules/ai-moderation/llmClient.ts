@@ -6,11 +6,11 @@
  * defaults are maintained in one place.
  */
 
+import { createChildLogger } from "@bete/shared/logger";
+import { retryWithBackoff } from "@bete/shared/utils";
 import OpenAI from "openai";
 import { config } from "../../shared/config/config.js";
-import { retryWithBackoff } from "@bete/shared/utils";
 import { withLlmConcurrency } from "./concurrencyLimiter.js";
-import { createChildLogger } from "@bete/shared/logger";
 
 const log = createChildLogger("llm-client");
 

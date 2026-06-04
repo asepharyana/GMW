@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createChildLogger } from "@bete/shared/logger";
 import { config } from "../../../shared/config/config.js";
 import {
   insertVoiceRecording,
   updateVoiceRecordingAsFailed,
   updateVoiceRecordingAsUploaded,
 } from "../../../shared/database/voiceRecordingRepo.js";
-import { createChildLogger } from "@bete/shared/logger";
 import { uploadToTele } from "../teleUpload.js";
 
 const logger = createChildLogger("recording-uploader");

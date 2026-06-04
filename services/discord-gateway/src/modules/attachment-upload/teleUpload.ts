@@ -37,14 +37,8 @@ export async function uploadToTele(input: {
   timeoutMs?: number;
   retries: number;
 }): Promise<TeleUploadResult> {
-  const {
-    buffer,
-    filename,
-    contentType,
-    uploadUrl,
-    timeoutMs,
-    retries,
-  } = input;
+  const { buffer, filename, contentType, uploadUrl, timeoutMs, retries } =
+    input;
 
   const response = await retryWithBackoff(
     async () => {

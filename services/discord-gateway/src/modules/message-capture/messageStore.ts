@@ -1,3 +1,4 @@
+import { createChildLogger } from "@bete/shared/logger";
 import {
   and,
   asc,
@@ -17,7 +18,6 @@ import {
   moderationActionsTable,
   retentionPoliciesTable,
 } from "../../shared/database/schema.js";
-import { createChildLogger } from "@bete/shared/logger";
 import { decodeCursor, encodeCursor } from "../message-capture/pagination.js";
 import type {
   AttachmentRecord,

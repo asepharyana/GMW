@@ -1,9 +1,9 @@
+import type { createChildLogger } from "@bete/shared/logger";
 import type { Client } from "discord.js-selfbot-v13";
 import type { CommandHandler } from "../modules/command-handler/commandHandler.js";
 import type { EventBroadcaster } from "../modules/event-broadcaster/index.js";
 import type { VoiceController } from "../modules/voice-recording/voiceController.js";
 import type { closeDatabase } from "../shared/database/drizzle.js";
-import type { createChildLogger } from "@bete/shared/logger";
 
 type Logger = ReturnType<typeof createChildLogger>;
 type CloseDatabase = typeof closeDatabase;

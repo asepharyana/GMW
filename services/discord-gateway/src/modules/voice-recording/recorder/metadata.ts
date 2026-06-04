@@ -1,7 +1,11 @@
 import path from "node:path";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
 import { config } from "../../../shared/config/config.js";
-import type { SegmentMetadata, SegmentState, UserMetadata } from "../../message-capture/types.js";
+import type {
+  SegmentMetadata,
+  SegmentState,
+  UserMetadata,
+} from "../../message-capture/types.js";
 
 export async function collectUserMetadata(
   client: Client,

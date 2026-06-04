@@ -1,5 +1,5 @@
-import sharp from "sharp";
 import { createChildLogger } from "@bete/shared/logger";
+import sharp from "sharp";
 
 const log = createChildLogger("imageResizer");
 

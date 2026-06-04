@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createChildLogger } from "@bete/shared/logger";
+import { retryWithBackoff } from "@bete/shared/utils";
 import {
   type DiscordGatewayAdapterCreator,
   EndBehaviorType,
@@ -11,7 +13,7 @@ import {
 } from "@discordjs/voice";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
-import { createChildLogger } from "@bete/shared/logger";
+import type { PcmBroadcaster } from "../message-capture/types.js";
 import { PacketFilter } from "./packetFilter.js";
 import { subscribeToAudioStream } from "./recorder/audioStream.js";
 import { OpusDecoder } from "./recorder/decoder.js";
@@ -26,8 +28,6 @@ import {
   type RecordingSession,
 } from "./recorder/sessionRecording.js";
 import { uploadRecordingSegment } from "./recorder/uploader.js";
-import { retryWithBackoff } from "@bete/shared/utils";
-import type { PcmBroadcaster } from "../message-capture/types.js";
 
 const logger = createChildLogger("recorder");
 

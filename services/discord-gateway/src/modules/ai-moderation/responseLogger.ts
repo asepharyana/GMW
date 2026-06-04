@@ -83,7 +83,11 @@ export function logModerationAnalysis(
   model: string,
   results: AnalysisResult[],
   duration_ms: number,
-  tokenUsage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number },
+  tokenUsage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  },
   parseErrors: string[] = [],
 ): void {
   const response: ModerationAnalysisResponse = {

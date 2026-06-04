@@ -8,10 +8,7 @@ import {
   StreamType,
   VoiceConnection,
 } from "@discordjs/voice";
-import type {
-  DiscordPlayerOwner,
-  DiscordPlayOptions,
-} from "./mediaTypes.js";
+import type { DiscordPlayerOwner, DiscordPlayOptions } from "./mediaTypes.js";
 
 export class DiscordPlayer {
   private player: AudioPlayer;

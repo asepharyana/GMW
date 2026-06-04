@@ -1,11 +1,11 @@
-import { config } from "../../shared/config/config.js";
 import { createChildLogger } from "@bete/shared/logger";
-import { uploadToTele } from "./teleUpload.js";
+import { config } from "../../shared/config/config.js";
 import {
   updateAttachmentAsFailedUpload,
   updateAttachmentAsUploaded,
   updateAttachmentDiscordUrl,
 } from "../message-capture/messageStore.js";
+import { uploadToTele } from "./teleUpload.js";
 
 const logger = createChildLogger("attachment-uploader");
 

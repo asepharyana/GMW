@@ -32,19 +32,17 @@ import {
   computeImagePhash,
   getCachedMediaAnalysis,
   getCachedMediaByPhash,
+  getCachedUserModeration,
   getRecentCorrectedModerations,
   makeCustomEmojiCacheKey,
   makeImageCacheKey,
   makeStickerCacheKey,
+  makeUserModerationCacheKey,
+  setCachedUserModeration,
   upsertCachedMediaAnalysis,
   upsertCachedMediaByPhash,
 } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
-import {
-  getCachedUserModeration,
-  makeUserModerationCacheKey,
-  setCachedUserModeration,
-} from "./textCacheStore.js";
 
 const SeveritySchema = z.enum(["none", "low", "medium", "high", "critical"]);
 const RecommendedActionSchema = z.enum([
@@ -1690,7 +1688,11 @@ export async function runModerationAnalysis(
         // This guards against both legacy corrupt entries and any future write-path bugs.
         if (
           cached.flags.some((f) =>
-            ["analysis_api_failed", "analysis_parse_failed", "analysis_incomplete"].includes(f),
+            [
+              "analysis_api_failed",
+              "analysis_parse_failed",
+              "analysis_incomplete",
+            ].includes(f),
           )
         ) {
           log.warn(
@@ -1707,7 +1709,8 @@ export async function runModerationAnalysis(
             categories: cached.categories,
             severity: cached.severity as AnalysisResult["severity"],
             confidence: cached.confidence,
-            recommendedAction: cached.recommendedAction as AnalysisResult["recommendedAction"],
+            recommendedAction:
+              cached.recommendedAction as AnalysisResult["recommendedAction"],
             policyVersion: "cached-user-moderation-2026-06",
             evidence: [],
           });
@@ -1727,7 +1730,11 @@ export async function runModerationAnalysis(
 
   if (cacheHits.length > 0) {
     log.info(
-      { cacheHits: cacheHits.length, uncached: uncachedTargets.length, total: targets.length },
+      {
+        cacheHits: cacheHits.length,
+        uncached: uncachedTargets.length,
+        total: targets.length,
+      },
       "User moderation cache applied — skipping LLM call for cached targets",
     );
   }
@@ -1953,15 +1960,11 @@ Kategori: spam`;
       }
 
       // ── Parse category from "Kategori: xxx" line ──
-      const categoryMatch = analysis.match(
-        /[Kk]ategori:\s*(\w+)/i,
-      );
+      const categoryMatch = analysis.match(/[Kk]ategori:\s*(\w+)/i);
       if (categoryMatch) {
         const parsedCat = categoryMatch[1].toLowerCase();
         // Only accept known categories
-        if (
-          ["harassment", "spam", "gambling", "sara"].includes(parsedCat)
-        ) {
+        if (["harassment", "spam", "gambling", "sara"].includes(parsedCat)) {
           category = parsedCat;
         }
         // Strip the "Kategori:" line from the analysis text so it's cleaner
@@ -1969,7 +1972,12 @@ Kategori: spam`;
       }
 
       log.info(
-        { messageId: message.id, status, category, analysis: analysis.slice(0, 100) },
+        {
+          messageId: message.id,
+          status,
+          category,
+          analysis: analysis.slice(0, 100),
+        },
         "Simple fallback step 2 — reason + category",
       );
     } catch (error) {
@@ -1985,10 +1993,8 @@ Kategori: spam`;
   }
 
   // Build the result fields using parsed category
-  const flags: string[] =
-    status === "clean" ? [] : [category];
-  const categories: string[] =
-    status === "clean" ? [] : [category];
+  const flags: string[] = status === "clean" ? [] : [category];
+  const categories: string[] = status === "clean" ? [] : [category];
   const score = status === "flagged" ? 0.7 : status === "warn" ? 0.4 : 0;
   const severity: "none" | "low" | "medium" | "high" | "critical" =
     status === "flagged" ? "medium" : status === "warn" ? "low" : "none";

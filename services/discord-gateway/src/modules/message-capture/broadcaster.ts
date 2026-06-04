@@ -1,12 +1,12 @@
-import type { WebSocket } from "ws";
 import { createChildLogger } from "@bete/shared/logger";
-import type { MediaState } from "../voice-recording/mediaTypes.js";
+import type { WebSocket } from "ws";
 import type {
   AnalysisQueueStatus,
   AttachmentRecord,
   MessageRecord,
   ModerationWsEvent,
 } from "../message-capture/types.js";
+import type { MediaState } from "../voice-recording/mediaTypes.js";
 
 export type BroadcasterClient = Pick<WebSocket, "readyState" | "send">;
 

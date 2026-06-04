@@ -1,5 +1,5 @@
-import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 import { createChildLogger } from "@bete/shared/logger";
+import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 import type { MessageRecord } from "./types.js";
 
 const logger = createChildLogger("analytics-store");

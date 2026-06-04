@@ -2,8 +2,8 @@ import "./mock-crc.js";
 import "libsodium-wrappers";
 import "@snazzah/davey";
 import "dotenv/config";
-import { initializeDiscordGateway } from "./app/bootstrap.js";
 import { createChildLogger } from "@bete/shared/logger";
+import { initializeDiscordGateway } from "./app/bootstrap.js";
 
 const logger = createChildLogger("discord-gateway");
 

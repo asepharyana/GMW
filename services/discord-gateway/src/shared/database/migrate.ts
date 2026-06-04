@@ -1,10 +1,10 @@
 import "dotenv/config";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { PoolClient } from "pg";
+import { createChildLogger } from "@bete/shared/logger";
 import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
 import { migrate as migratePostgres } from "drizzle-orm/node-postgres/migrator";
-import { createChildLogger } from "@bete/shared/logger";
+import type { PoolClient } from "pg";
 import {
   closeDatabase,
   initializeDatabase,
@@ -44,7 +44,9 @@ async function getFirstMigrationTag(): Promise<string> {
   const journal: MigrationJournal = JSON.parse(raw);
 
   if (!journal.entries || journal.entries.length === 0) {
-    throw new Error("Migration journal is empty — cannot determine first migration tag");
+    throw new Error(
+      "Migration journal is empty — cannot determine first migration tag",
+    );
   }
 
   // Entries are ordered by idx — the first entry is the initial migration.
@@ -110,7 +112,10 @@ async function seedDrizzleHistory(client: PoolClient): Promise<void> {
       [firstMigrationTag, Date.now()],
     );
   }
-  logger.info({ firstMigrationTag }, "Drizzle history seeded — first migration marked applied");
+  logger.info(
+    { firstMigrationTag },
+    "Drizzle history seeded — first migration marked applied",
+  );
 }
 
 export async function runMigrations(): Promise<void> {

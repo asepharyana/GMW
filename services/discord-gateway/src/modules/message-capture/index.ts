@@ -1,4 +1,3 @@
-export { registerMessageCapture } from "./messageCapture.js";
 export {
   getDisplayContent,
   getMessageLocation,
@@ -19,3 +18,4 @@ export type {
   MessageRecord,
   VoiceSegmentRecord,
 } from "../message-capture/types.js";
+export { registerMessageCapture } from "./messageCapture.js";
