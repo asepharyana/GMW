@@ -1282,22 +1282,6 @@ async function _runSingleMediaAnalysis(
           return;
         }
 
-        // Check vision cache BEFORE downloading
-        const attVisionKey = makeImageCacheKey(urlToUse);
-        const cachedVision = await getCachedMediaAnalysis(attVisionKey);
-        if (cachedVision) {
-          log.debug(
-            { attachmentId: att.id, cacheKey: attVisionKey },
-            "Vision cache HIT for attachment — skipped download",
-          );
-          const sourceLabel = `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`;
-          const analysisText = `[Media analysis for message ${att.message_id}] ${sourceLabel}: ${cachedVision}`;
-          const existing = mediaAnalysisMap.get(targetId) ?? [];
-          existing.push(analysisText);
-          mediaAnalysisMap.set(targetId, existing);
-          return;
-        }
-
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
 
@@ -1463,23 +1447,25 @@ async function _runSingleMediaAnalysis(
         // Skip if we already have 8 images
         if ((imageMap.get(targetId)?.length ?? 0) >= 8) return;
 
-        // Vision cache check before download
-        const visionCacheKey = candidate.customEmojiId
-          ? makeCustomEmojiCacheKey(candidate.customEmojiId)
-          : candidate.stickerName
-            ? makeStickerCacheKey(candidate.stickerName)
-            : makeImageCacheKey(candidate.url);
-        const cachedVision = await getCachedMediaAnalysis(visionCacheKey);
-        if (cachedVision) {
-          log.debug(
-            { cacheKey: visionCacheKey },
-            "Vision cache HIT for media candidate — skipped download",
-          );
-          const analysisText = `[Media analysis for message ${candidate.messageId}] ${candidate.label}: ${cachedVision}`;
-          const existing = mediaAnalysisMap.get(targetId) ?? [];
-          existing.push(analysisText);
-          mediaAnalysisMap.set(targetId, existing);
-          return;
+        // Vision cache check before download (sticker & emoji keys only, since
+        // their cache keys are consistent between check and store — embed URLs
+        // use base64 data URL keys that never match the CDN URL).
+        if (candidate.customEmojiId || candidate.stickerName) {
+          const visionCacheKey = candidate.customEmojiId
+            ? makeCustomEmojiCacheKey(candidate.customEmojiId)
+            : makeStickerCacheKey(candidate.stickerName!);
+          const cachedVision = await getCachedMediaAnalysis(visionCacheKey);
+          if (cachedVision) {
+            log.debug(
+              { cacheKey: visionCacheKey },
+              "Vision cache HIT for media candidate — skipped download",
+            );
+            const analysisText = `[Media analysis for message ${candidate.messageId}] ${candidate.label}: ${cachedVision}`;
+            const existing = mediaAnalysisMap.get(targetId) ?? [];
+            existing.push(analysisText);
+            mediaAnalysisMap.set(targetId, existing);
+            return;
+          }
         }
 
         // Sticker download cache
