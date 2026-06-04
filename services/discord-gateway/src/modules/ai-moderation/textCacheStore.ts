@@ -241,6 +241,117 @@ export async function upsertCachedMediaAnalysis(
 }
 
 // ---------------------------------------------------------------------------
+// Per-user moderation result cache (for spammer deduplication)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a deterministic cache key for a per-user moderation result.
+ *
+ * Format: user_mod:<userId>:<sha256(content).slice(0,16)>
+ * Two users sending the same text get separate cache entries so that
+ * per-user action history (e.g. repeated spam) can be tracked later.
+ */
+export function makeUserModerationCacheKey(
+  userId: string,
+  content: string,
+): string {
+  const hash = createHash("sha256")
+    .update(content)
+    .digest("hex")
+    .slice(0, 16);
+  return `user_mod:${userId}:${hash}`;
+}
+
+/**
+ * Lookup a cached moderation result for a (user, content) pair.
+ * Returns the stored result fields or null.
+ */
+export async function getCachedUserModeration(
+  cacheKey: string,
+): Promise<{
+  flags: string[];
+  score: number;
+  analysis: string;
+  categories: string[];
+  severity: string;
+  confidence: number;
+  recommendedAction: string;
+} | null> {
+  try {
+    const row = await executeGet(
+      `SELECT flags, source, analyzed_at, expires_at, hit_count
+       FROM text_analysis_cache
+       WHERE text = $1 AND expires_at > $2`,
+      [cacheKey, Date.now()],
+    );
+
+    if (!row) return null;
+
+    const parsed = JSON.parse(row.flags) as Record<string, unknown>;
+
+    return {
+      flags: (parsed.flags as string[]) ?? [],
+      score: (parsed.score as number) ?? 0,
+      analysis: (parsed.analysis as string) ?? "",
+      categories: (parsed.categories as string[]) ?? [],
+      severity: (parsed.severity as string) ?? "none",
+      confidence: (parsed.confidence as number) ?? 0,
+      recommendedAction: (parsed.recommendedAction as string) ?? "none",
+    };
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed to get cached user moderation",
+    );
+    return null;
+  }
+}
+
+/**
+ * Store a moderation result for a (user, content) pair.
+ * The `flags` field stores the full result object as JSON.
+ */
+export async function setCachedUserModeration(
+  cacheKey: string,
+  result: {
+    flags: string[];
+    score: number;
+    analysis: string;
+    categories: string[];
+    severity: string;
+    confidence: number;
+    recommendedAction: string;
+  },
+): Promise<void> {
+  const now = Date.now();
+  const USER_MOD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+  try {
+    await executeAll(
+      `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count)
+       VALUES ($1, $2, $3, $4, $5, 0)
+       ON CONFLICT (text) DO UPDATE SET
+         flags = EXCLUDED.flags,
+         source = EXCLUDED.source,
+         analyzed_at = EXCLUDED.analyzed_at,
+         expires_at = EXCLUDED.expires_at`,
+      [
+        cacheKey,
+        JSON.stringify(result),
+        "user_moderation",
+        now,
+        now + USER_MOD_CACHE_TTL_MS,
+      ],
+    );
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed to set cached user moderation",
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Perceptual hash helpers for image deduplication
 // ---------------------------------------------------------------------------
 
