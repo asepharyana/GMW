@@ -55,14 +55,14 @@ export function ControlBar({
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 rounded-xl bg-sky-50 p-0.5 ring-1 ring-sky-200/50">
+          <div className="flex items-center gap-1 rounded-lg bg-muted/30 p-0.5 ring-1 ring-muted/50">
             {TIME_RANGES.map((tr) => (
               <button
                 key={tr.value}
                 type="button"
                 onClick={() => onHoursChange(tr.value)}
                 className={cn(
-                  "rounded-lg px-2.5 py-1 text-xs font-medium transition-all",
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
                   hours === tr.value
                     ? "bg-primary text-white shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
@@ -77,11 +77,11 @@ export function ControlBar({
             disabled={isFetching}
             variant="outline"
             size="sm"
-            className="ml-auto shrink-0 rounded-xl border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+            className="ml-auto shrink-0 rounded-lg border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
           >
             {isFetching ? (
               <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span className="h-3 w-3 animate-spin rounded-sm border-2 border-primary border-t-transparent" />
                 Memuat...
               </span>
             ) : (

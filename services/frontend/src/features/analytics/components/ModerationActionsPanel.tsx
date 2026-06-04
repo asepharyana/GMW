@@ -49,10 +49,7 @@ export function ModerationActionsPanel({
   actions,
   loading,
 }: ModerationActionsPanelProps) {
-  if (loading && !actions?.length) {
-    return <LoadingBox />;
-  }
-
+  if (loading && !actions?.length) return <LoadingBox />;
   if (!actions?.length) {
     return (
       <Card>
@@ -81,7 +78,7 @@ export function ModerationActionsPanel({
       </CardHeader>
       <CardContent className="p-0">
         <ScrollArea className="max-h-[320px]">
-          <div className="divide-y divide-sky-50">
+          <div className="divide-y divide-muted/30">
             {actions.map((action) => {
               const actionStyle = ACTION_LABELS[action.action_type] ?? {
                 label: action.action_type,
@@ -95,7 +92,7 @@ export function ModerationActionsPanel({
               return (
                 <div
                   key={action.id}
-                  className="px-5 py-3 text-sm hover:bg-sky-50/30 transition-colors"
+                  className="px-5 py-3 text-sm hover:bg-muted/10 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0">
@@ -108,7 +105,7 @@ export function ModerationActionsPanel({
                       >
                         {actionStyle.label}
                       </Badge>
-                      <span className="truncate text-xs font-medium">
+                      <span className="truncate text-xs font-medium text-foreground">
                         {action.username}
                       </span>
                     </div>
@@ -128,7 +125,7 @@ export function ModerationActionsPanel({
                     </p>
                   )}
                   {action.error && (
-                    <p className="mt-0.5 text-[10px] text-red-400 pl-1">
+                    <p className="mt-0.5 text-[10px] text-destructive pl-1">
                       Error: {action.error}
                     </p>
                   )}
@@ -154,7 +151,7 @@ function LoadingBox() {
   return (
     <Card>
       <CardContent className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <span className="h-4 w-4 animate-spin rounded-sm border-2 border-current border-t-transparent" />
         <span className="ml-2">Memuat data...</span>
       </CardContent>
     </Card>

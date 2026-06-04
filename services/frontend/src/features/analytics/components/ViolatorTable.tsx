@@ -17,10 +17,7 @@ interface ViolatorTableProps {
 }
 
 export function ViolatorTable({ users, loading }: ViolatorTableProps) {
-  if (loading && !users?.length) {
-    return <LoadingBox />;
-  }
-
+  if (loading && !users?.length) return <LoadingBox />;
   if (!users?.length) {
     return (
       <Card>
@@ -59,7 +56,7 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
         <ScrollArea className="max-h-[320px]">
           <table className="w-full text-sm">
             <thead>
-              <tr className="sticky top-0 z-10 bg-white border-b border-sky-100 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+              <tr className="sticky top-0 z-10 bg-white border-b border-muted/50 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                 <th className="py-2 pl-4 pr-2 font-semibold">#</th>
                 <th className="py-2 pr-2 font-semibold">User</th>
                 <th className="py-2 pr-2 font-semibold text-right">Flagged</th>
@@ -68,7 +65,7 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
                 <th className="py-2 pr-4 font-semibold">Flag</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-sky-50">
+            <tbody className="divide-y divide-muted/20">
               {users.map((user, i) => {
                 const danger = dangerLabel(user.violation_score);
                 return (
@@ -76,7 +73,7 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
                     key={user.user_id}
                     className={cn(
                       "transition-colors border-l-2",
-                      i % 2 === 0 ? "bg-white" : "bg-sky-50/20",
+                      i % 2 === 0 ? "bg-white" : "bg-muted/10",
                       danger.variant === "destructive"
                         ? "border-l-accent/60"
                         : danger.variant === "warning"
@@ -93,11 +90,11 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
                           <img
                             src={user.avatar_url}
                             alt=""
-                            className="h-6 w-6 rounded-full ring-2 ring-pink-100"
+                            className="h-6 w-6 rounded-md ring-1 ring-muted"
                             loading="lazy"
                           />
                         ) : (
-                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-pink-100 text-[10px] font-bold text-accent">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-accent/10 text-[10px] font-bold text-accent">
                             {user.username.charAt(0).toUpperCase()}
                           </div>
                         )}
@@ -120,10 +117,10 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
                     </td>
                     <td className="py-1.5 pr-2 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <div className="h-1.5 w-12 overflow-hidden rounded-full bg-pink-50">
+                        <div className="h-1.5 w-14 overflow-hidden rounded-sm bg-muted/30">
                           <div
                             className={cn(
-                              "h-full rounded-full",
+                              "h-full rounded-sm",
                               user.violation_score >= 10
                                 ? "bg-gradient-to-r from-accent to-pink-400"
                                 : user.violation_score >= 5
@@ -135,7 +132,7 @@ export function ViolatorTable({ users, loading }: ViolatorTableProps) {
                             }}
                           />
                         </div>
-                        <span className="font-mono text-xs font-bold tabular-nums">
+                        <span className="font-mono text-xs font-bold tabular-nums text-foreground">
                           {user.violation_score}
                         </span>
                       </div>
@@ -174,7 +171,7 @@ function LoadingBox() {
   return (
     <Card>
       <CardContent className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <span className="h-4 w-4 animate-spin rounded-sm border-2 border-current border-t-transparent" />
         <span className="ml-2">Memuat data...</span>
       </CardContent>
     </Card>
