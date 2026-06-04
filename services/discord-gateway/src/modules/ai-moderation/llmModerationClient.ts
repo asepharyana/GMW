@@ -1,5 +1,5 @@
 import { createChildLogger } from "@bete/shared/logger";
-import { retryWithBackoff } from "@bete/shared/utils";
+import { delay, retryWithBackoff } from "@bete/shared/utils";
 import { LRUCache } from "lru-cache";
 import type { ChatCompletion } from "openai/resources/chat/completions";
 import { AbortError } from "p-retry";
@@ -160,7 +160,6 @@ function deriveRecommendedAction(
   if (severity === "high") return "delete";
   return "review";
 }
-
 
 /**
  * Helper to extract JSON from a potentially conversational or markdown-wrapped string.
@@ -531,12 +530,15 @@ const visionLruCache = new LRUCache<string, string>({
  * share the same promise, eliminating the race condition between cache
  * check and cache write.
  */
-const inFlightVisionCalls = new Map<string, Promise<string | null>>();
+const inFlightVisionCalls = new Map<string, Promise<string>>();
+
+const FAILED_ANALYSIS_PREFIX =
+  "GAGAL DIANALISIS — gambar tidak dapat diunduh atau vision API gagal setelah 3x percobaan. JANGAN mengasumsikan gambar aman hanya karena gagal dianalisis. Gunakan metadata URL/nama file saja sebagai petunjuk.";
 
 const analyzeSingleMediaImage = async (
   messageId: string,
   image: MessageImagePart,
-): Promise<string | null> => {
+): Promise<string> => {
   const cacheKey = image.customEmojiId
     ? makeCustomEmojiCacheKey(image.customEmojiId)
     : image.stickerName
@@ -567,7 +569,7 @@ const analyzeSingleMediaImage = async (
       "Media analysis in-flight dedupe — waiting for existing call",
     );
     const result = await existing;
-    if (!result) return null;
+    // result is never null — the promise always returns a descriptive string
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${result}`;
   }
 
@@ -577,7 +579,7 @@ const analyzeSingleMediaImage = async (
       ? buildCustomEmojiVisionPrompt(image.customEmojiName, messageId)
       : buildGeneralImageVisionPrompt(image.sourceLabel, messageId);
 
-  const visionPromise = (async (): Promise<string | null> => {
+  const visionPromise = (async (): Promise<string> => {
     // Layer 2: Perceptual hash pre-check (before expensive vision API call)
     let phash: string | null = null;
     if (image.image_url.url.startsWith("data:")) {
@@ -610,49 +612,78 @@ const analyzeSingleMediaImage = async (
       }
     }
 
-    try {
-      const content = await llmVision(promptText, image.image_url);
-      if (!content) return null;
-
-      await upsertCachedMediaAnalysis(
-        cacheKey,
-        content,
-        "vision_llm",
-        Date.now() + 24 * 60 * 60 * 1000,
-      );
-      // Populate in-memory LRU and phash cache
-      visionLruCache.set(cacheKey, content);
-      if (phash) {
-        upsertCachedMediaByPhash(
-          phash,
-          content,
-          "vision_llm",
-          Date.now() + 7 * 24 * 60 * 60 * 1000,
-        ).catch(() => {});
+    // ── Vision API call with EXTERNAL exponential backoff ──
+    // Uses retryWithBackoff directly so each retry has proper backoff delay.
+    // llmVision calls llmChat which also has retryWithBackoff, but its
+    // inner backoff has minTimeout=0 (instant).  Our outer backoff ensures
+    // meaningful delay between full attempts.
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const content = await llmVision(promptText, image.image_url);
+        if (content) {
+          // Success — persist to all cache layers
+          await upsertCachedMediaAnalysis(
+            cacheKey,
+            content,
+            "vision_llm",
+            Date.now() + 24 * 60 * 60 * 1000,
+          );
+          visionLruCache.set(cacheKey, content);
+          if (phash) {
+            upsertCachedMediaByPhash(
+              phash,
+              content,
+              "vision_llm",
+              Date.now() + 7 * 24 * 60 * 60 * 1000,
+            ).catch(() => {});
+          }
+          return content;
+        }
+        // llmVision returned null (no API key / client unavailable) — no point retrying
+        log.warn(
+          { messageId },
+          "Vision API client unavailable (null response) — skipping retry",
+        );
+        break;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (attempt < 2) {
+          const backoffMs = Math.min(
+            1_000 * 2 ** attempt + Math.random() * 200,
+            8_000,
+          );
+          log.warn(
+            {
+              messageId,
+              attempt: attempt + 1,
+              backoffMs,
+              error: lastError.message,
+            },
+            "Vision API attempt failed — backing off before retry",
+          );
+          await delay(backoffMs);
+        }
       }
-
-      return content;
-    } catch (error) {
-      log.warn(
-        {
-          messageId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        "Vision analysis failed after retries — image not analyzed",
-      );
-      // Return a clear signal that vision analysis FAILED — so batch LLM knows
-      // the image could not be described and must NOT assume it's clean.
-      return null;
     }
+
+    // All attempts exhausted — return descriptive failure text.
+    // NOT null: the caller must always have a descriptive string to
+    // inject into the prompt so the LLM knows the image was skipped.
+    log.warn(
+      {
+        messageId,
+        lastError: lastError?.message ?? "null response",
+      },
+      "Vision analysis failed after all retry attempts",
+    );
+    return FAILED_ANALYSIS_PREFIX;
   })();
 
   inFlightVisionCalls.set(cacheKey, visionPromise);
 
   try {
     const content = await visionPromise;
-    if (!content) {
-      return `[Media analysis for message ${messageId}] ${image.sourceLabel}: GAGAL DIANALISIS — gambar tidak dapat diunduh atau vision API gagal setelah 3x percobaan. JANGAN mengasumsikan gambar aman hanya karena gagal dianalisis. Gunakan metadata URL/nama file saja sebagai petunjuk.`;
-    }
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${content}`;
   } finally {
     inFlightVisionCalls.delete(cacheKey);
@@ -936,7 +967,10 @@ async function runTextOnlyBatch(
   for (const [, members] of shortContentGroups) {
     if (members.length > 1) {
       const rep = members[0];
-      groupMapping.set(rep.id, members.map((m) => m.id));
+      groupMapping.set(
+        rep.id,
+        members.map((m) => m.id),
+      );
     }
   }
 
@@ -1033,15 +1067,19 @@ async function runTextOnlyBatch(
       }
     )?.usage;
     // Fan-out results from representative messages to all group members
-    const fannedOutResults = groupMapping.size > 0
-      ? batchResult.results.flatMap((result) => {
-          const members = groupMapping.get(result.messageId);
-          if (members) {
-            return members.map((memberId) => ({ ...result, messageId: memberId }));
-          }
-          return [result];
-        })
-      : batchResult.results;
+    const fannedOutResults =
+      groupMapping.size > 0
+        ? batchResult.results.flatMap((result) => {
+            const members = groupMapping.get(result.messageId);
+            if (members) {
+              return members.map((memberId) => ({
+                ...result,
+                messageId: memberId,
+              }));
+            }
+            return [result];
+          })
+        : batchResult.results;
     allResults.push(...fannedOutResults);
     if (batchResult.raw) lastRaw = batchResult.raw;
 
@@ -1429,7 +1467,7 @@ async function _runSingleMediaAnalysis(
     Array.from(imageMap.entries()).flatMap(([msgId, images]) =>
       images.map(async (image) => {
         const summary = await analyzeSingleMediaImage(msgId, image);
-        if (!summary) return;
+        // summary is never null — always returns either the analysis or a failure description
         const existing = mediaAnalysisMap.get(msgId) ?? [];
         existing.push(summary);
         mediaAnalysisMap.set(msgId, existing);

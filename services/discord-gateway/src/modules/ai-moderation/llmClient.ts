@@ -107,8 +107,8 @@ export async function llmChat(
     },
     {
       retries,
-      minTimeout: 0,
-      maxTimeout: 0,
+      minTimeout: 500,
+      maxTimeout: 4_000,
       factor: 2,
     },
   );
