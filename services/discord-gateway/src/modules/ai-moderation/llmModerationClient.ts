@@ -40,6 +40,11 @@ import {
   upsertCachedMediaByPhash,
 } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
+import {
+  getCachedUserModeration,
+  makeUserModerationCacheKey,
+  setCachedUserModeration,
+} from "./textCacheStore.js";
 
 const SeveritySchema = z.enum(["none", "low", "medium", "high", "critical"]);
 const RecommendedActionSchema = z.enum([
@@ -1651,11 +1656,92 @@ export async function runModerationAnalysis(
     throw new Error("No targets provided for analysis");
   }
 
-  // ── Split targets ──
+  // ── Per-user moderation cache check ──
+  // For text-only messages: check if we've already analyzed the same
+  // (user, content) pair within the last 24 hours.  If so, reuse the
+  // cached result to save LLM calls (especially for repeat spam).
+  const cacheHits: AnalysisResult[] = [];
+  const uncachedTargets: MessageRecord[] = [];
+  const seenCacheKeys = new Set<string>(); // dedupe identical content within same batch
+
+  for (const target of targets) {
+    // Only cache text-only messages (media has dynamic image fetches)
+    const hasMedia = hasMediaContent(target, attachments);
+    if (hasMedia) {
+      uncachedTargets.push(target);
+      continue;
+    }
+
+    const rawContent = target.edited_content ?? target.content;
+    if (!rawContent.trim()) {
+      uncachedTargets.push(target);
+      continue;
+    }
+
+    const cacheKey = makeUserModerationCacheKey(target.user_id, rawContent);
+    // Deduplicate: if two identical messages from same user in this batch,
+    // skip the cache lookup for the second and reuse the first's result.
+    if (seenCacheKeys.has(cacheKey)) {
+      // Synthesize a copy of the previous cache hit result for this duplicate
+      const previousHit = cacheHits.find((h) => h.messageId !== target.id);
+      if (previousHit) {
+        cacheHits.push({
+          ...previousHit,
+          messageId: target.id,
+        });
+      } else {
+        uncachedTargets.push(target);
+      }
+      continue;
+    }
+    seenCacheKeys.add(cacheKey);
+
+    try {
+      const cached = await getCachedUserModeration(cacheKey);
+      if (cached) {
+        cacheHits.push({
+          messageId: target.id,
+          status: "clean",
+          flags: cached.flags,
+          score: cached.score,
+          analysis: cached.analysis,
+          categories: cached.categories,
+          severity: cached.severity as AnalysisResult["severity"],
+          confidence: cached.confidence,
+          recommendedAction: cached.recommendedAction as AnalysisResult["recommendedAction"],
+          policyVersion: "cached-user-moderation-2026-06",
+          evidence: [],
+        });
+        log.debug(
+          { messageId: target.id, userId: target.user_id, cacheKey },
+          "User moderation cache HIT — reusing previous result",
+        );
+        continue;
+      }
+    } catch {
+      // Cache lookup failed — proceed with uncached path
+    }
+
+    uncachedTargets.push(target);
+  }
+
+  if (cacheHits.length > 0) {
+    log.info(
+      { cacheHits: cacheHits.length, uncached: uncachedTargets.length, total: targets.length },
+      "User moderation cache applied — skipping LLM call for cached targets",
+    );
+  }
+
+  // If all targets were cache hits, return early
+  if (uncachedTargets.length === 0) {
+    return { results: cacheHits, raw: null };
+  }
+
+  // ── Split uncached targets ──
   const textOnlyTargets: MessageRecord[] = [];
   const mediaTargets: MessageRecord[] = [];
 
-  for (const target of targets) {
+  for (const target of uncachedTargets) {
     if (hasMediaContent(target, attachments)) {
       mediaTargets.push(target);
     } else {
@@ -1668,8 +1754,9 @@ export async function runModerationAnalysis(
       total: targets.length,
       textOnly: textOnlyTargets.length,
       media: mediaTargets.length,
+      cacheHits: cacheHits.length,
     },
-    "Split targets for parallel moderation analysis",
+    "Split uncached targets for parallel moderation analysis",
   );
 
   // ── Run both paths in parallel ──
@@ -1685,9 +1772,31 @@ export async function runModerationAnalysis(
     ),
   ]);
 
-  // ── Merge ──
+  // ── Store uncached text-only results in cache ──
+  const textResults = textBatchResult.results;
+  for (const result of textResults) {
+    const target = textOnlyTargets.find((t) => t.id === result.messageId);
+    if (!target) continue;
+
+    const rawContent = target.edited_content ?? target.content;
+    if (!rawContent.trim()) continue;
+
+    const cacheKey = makeUserModerationCacheKey(target.user_id, rawContent);
+    setCachedUserModeration(cacheKey, {
+      flags: result.flags ?? [],
+      score: result.score ?? 0,
+      analysis: result.analysis ?? "",
+      categories: result.categories ?? result.flags ?? [],
+      severity: result.severity ?? "none",
+      confidence: result.confidence ?? result.score ?? 0,
+      recommendedAction: result.recommendedAction ?? "none",
+    }).catch(() => {});
+  }
+
+  // ── Merge cache hits + new results ──
   const allResults = [
-    ...textBatchResult.results,
+    ...cacheHits,
+    ...textResults,
     ...mediaResults.flatMap((r) => r.results),
   ];
 
@@ -1699,7 +1808,8 @@ export async function runModerationAnalysis(
     {
       targetCount: targets.length,
       resultCount: allResults.length,
-      textBatchResults: textBatchResult.results.length,
+      cacheHits: cacheHits.length,
+      textBatchResults: textResults.length,
       mediaResults: mediaResults.length,
     },
     "Moderation analysis complete",
