@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { TrendBucket } from "../../../shared/api/client";
 import {
   Card,
@@ -6,166 +7,284 @@ import {
   CardHeader,
   CardTitle,
 } from "../../../shared/ui";
+import { cn } from "../../../shared/lib/utils";
 
 interface TrendChartProps {
   trend: TrendBucket[];
   loading: boolean;
 }
 
+const LINE_COLORS: Array<{
+  key: keyof Omit<TrendBucket, "date">;
+  color: string;
+  label: string;
+  dash?: string;
+}> = [
+  { key: "count", color: "#38bdf8", label: "Total" },
+  { key: "clean", color: "#34d399", label: "Clean" },
+  { key: "flagged", color: "#f472b6", label: "Flagged" },
+  { key: "warned", color: "#facc15", label: "Warned" },
+  { key: "error", color: "#fb923c", label: "Error", dash: "4 3" },
+];
+
 export function TrendChart({ trend, loading }: TrendChartProps) {
-  if (loading && !trend?.length) {
-    return <LoadingBox />;
+  const [tooltip, setTooltip] = useState<{
+    date: string;
+    values: Array<{ key: string; label: string; value: number; color: string }>;
+  } | null>(null);
+
+  if (loading && !trend?.length) return <LoadingBox />;
+  if (!trend?.length) return null;
+
+  const CHART_HEIGHT = 200;
+  const CHART_PADDING = { top: 10, right: 16, bottom: 30, left: 40 };
+  const chartW = Math.max((trend.length - 1) * 64, 200);
+  const plotW = chartW - CHART_PADDING.left - CHART_PADDING.right;
+  const plotH = CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom;
+
+  const allValues = trend.flatMap((d) =>
+    LINE_COLORS.map((l) => Number(d[l.key] ?? 0)),
+  );
+  const maxValue = Math.max(...allValues, 1);
+
+  function getX(index: number): number {
+    if (trend.length <= 1) return CHART_PADDING.left;
+    return (
+      CHART_PADDING.left +
+      (index / (trend.length - 1)) * plotW
+    );
   }
 
-  if (!trend?.length) {
-    return null;
+  function getY(value: number): number {
+    return CHART_PADDING.top + plotH - (value / maxValue) * plotH;
   }
 
-  const data = trend.map((bucket) => ({
-    date: bucket.date,
-    clean: bucket.clean,
-    warned: bucket.warned,
-    flagged: bucket.flagged,
-    error: bucket.error,
-    total: bucket.count,
-  }));
+  function buildLinePath(
+    data: TrendBucket[],
+    key: keyof Omit<TrendBucket, "date">,
+  ): string {
+    const points = data.map((d, i) => ({
+      x: getX(i),
+      y: getY(Number(d[key] ?? 0)),
+    }));
+    if (points.length === 0) return "";
 
-  const totalMessages = data.reduce((sum, item) => sum + item.total, 0);
+    const segments: string[] = [`M ${points[0].x} ${points[0].y}`];
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const cx = (prev.x + curr.x) / 2;
+      segments.push(`Q ${cx} ${prev.y} ${curr.x} ${curr.y}`);
+    }
+    return segments.join(" ");
+  }
+
+  function buildAreaPath(
+    data: TrendBucket[],
+    key: keyof Omit<TrendBucket, "date">,
+  ): string {
+    const line = buildLinePath(data, key);
+    if (!line) return "";
+    const first = getX(0);
+    const last = getX(data.length - 1);
+    const bottom = CHART_PADDING.top + plotH;
+    return `${line} L ${last} ${bottom} L ${first} ${bottom} Z`;
+  }
+
+  const totalMessages = trend.reduce((sum, d) => sum + d.count, 0);
 
   return (
     <Card className="col-span-3">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-semibold">Tren Harian</CardTitle>
         <CardDescription className="text-xs">
-          Volume pesan per hari dengan status moderasi.
+          Volume pesan per hari — arahkan kursor ke titik untuk detail.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-            <LegendDot color="bg-primary" label="Total" />
-            <LegendDot color="bg-emerald-400" label="Clean" />
-            <LegendDot color="bg-yellow-400" label="Warned" />
-            <LegendDot color="bg-accent" label="Flagged" />
-            <LegendDot color="bg-orange-300" label="Error" />
+        {/* Legend */}
+        <div className="mb-3 flex flex-wrap gap-4 text-[11px]">
+          {LINE_COLORS.map((l) => (
+            <span key={l.key} className="flex items-center gap-1.5">
+              <svg width="14" height="3" className="overflow-visible">
+                <line
+                  x1="0"
+                  y1="1.5"
+                  x2="14"
+                  y2="1.5"
+                  stroke={l.color}
+                  strokeWidth={2}
+                  strokeDasharray={l.dash ?? "none"}
+                  strokeLinecap="round"
+                />
+              </svg>
+              {l.label}
+            </span>
+          ))}
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-muted/50 bg-white/60 p-4">
+          <div className="mb-3 flex items-center justify-between text-[11px] text-muted-foreground">
+            <span>
+              Rangkuman{" "}
+              {trend.length > 1
+                ? `${trend.length} hari terakhir`
+                : "hari ini"}
+            </span>
+            <span className="font-medium tabular-nums">
+              {totalMessages} total pesan
+            </span>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white/60 p-4">
-            <div className="mb-3 flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>Rangkuman 7 hari terakhir</span>
-              <span>{totalMessages} total pesan</span>
-            </div>
+          <div className="overflow-x-auto">
+            <svg
+              viewBox={`0 0 ${chartW} ${CHART_HEIGHT}`}
+              className="w-full"
+              style={{ height: CHART_HEIGHT }}
+            >
+              {/* Grid lines */}
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                const y = getY(ratio * maxValue);
+                return (
+                  <g key={ratio}>
+                    <line
+                      x1={CHART_PADDING.left}
+                      y1={y}
+                      x2={chartW - CHART_PADDING.right}
+                      y2={y}
+                      stroke="hsl(var(--muted))"
+                      strokeWidth={1}
+                      strokeDasharray="3 3"
+                    />
+                    <text
+                      x={CHART_PADDING.left - 6}
+                      y={y + 3}
+                      textAnchor="end"
+                      className="fill-muted-foreground"
+                      fontSize={9}
+                    >
+                      {Math.round(ratio * maxValue)}
+                    </text>
+                  </g>
+                );
+              })}
 
-            <div className="overflow-x-auto">
-              <svg
-                viewBox={`0 0 ${Math.max((data.length - 1) * 56, 56)} 220`}
-                className="h-55 min-w-130 w-full overflow-visible"
+              {/* Area fills */}
+              {LINE_COLORS.filter((l) => l.key === "count" || l.key === "flagged").map((l) => (
+                <path
+                  key={`area-${l.key}`}
+                  d={buildAreaPath(trend, l.key)}
+                  fill={l.color}
+                  opacity={0.07}
+                />
+              ))}
+
+              {/* Lines */}
+              {LINE_COLORS.map((l) => (
+                <path
+                  key={`line-${l.key}`}
+                  d={buildLinePath(trend, l.key)}
+                  fill="none"
+                  stroke={l.color}
+                  strokeWidth={l.key === "count" ? 2.5 : 1.5}
+                  strokeDasharray={l.dash ?? "none"}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  className="transition-opacity"
+                />
+              ))}
+
+              {/* Interactive dots */}
+              {trend.map((d, i) => {
+                const x = getX(i);
+                const y = getY(d.count);
+                const isActive = tooltip?.date === d.date;
+                return (
+                  <g key={d.date}>
+                    {/* Invisible hit area */}
+                    <rect
+                      x={x - 28}
+                      y={CHART_PADDING.top}
+                      width={56}
+                      height={plotH}
+                      fill="transparent"
+                      className="cursor-crosshair"
+                      onMouseEnter={() => {
+                        setTooltip({
+                          date: d.date,
+                          values: LINE_COLORS.map((l) => ({
+                            key: l.key,
+                            label: l.label,
+                            value: Number(d[l.key] ?? 0),
+                            color: l.color,
+                          })),
+                        });
+                      }}
+                      onMouseLeave={() => setTooltip(null)}
+                    />
+                    {/* Dot */}
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={isActive ? 5 : 2.5}
+                      fill={isActive ? "#38bdf8" : "#38bdf8"}
+                      stroke="white"
+                      strokeWidth={isActive ? 2 : 0}
+                      className={cn(
+                        "transition-all",
+                        isActive ? "opacity-100" : "opacity-70",
+                      )}
+                    />
+                    {/* Date label */}
+                    <text
+                      x={x}
+                      y={CHART_PADDING.top + plotH + 16}
+                      textAnchor="middle"
+                      className="fill-muted-foreground"
+                      fontSize={9}
+                    >
+                      {d.date.slice(5)}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+
+            {/* Tooltip */}
+            {tooltip && (
+              <div
+                className="pointer-events-none absolute z-10 rounded-lg border border-muted bg-white px-3 py-2 text-xs shadow-lg"
+                style={{
+                  top: `${CHART_PADDING.top + 4}px`,
+                  left: `${getX(trend.findIndex((d) => d.date === tooltip.date)) + 12}px`,
+                }}
               >
-                <defs>
-                  <linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#7EC8E3" stopOpacity="0.35" />
-                    <stop
-                      offset="100%"
-                      stopColor="#7EC8E3"
-                      stopOpacity="0.02"
-                    />
-                  </linearGradient>
-                  <linearGradient
-                    id="trendFillPink"
-                    x1="0"
-                    x2="0"
-                    y1="0"
-                    y2="1"
-                  >
-                    <stop offset="0%" stopColor="#FF9EBB" stopOpacity="0.3" />
-                    <stop
-                      offset="100%"
-                      stopColor="#FF9EBB"
-                      stopOpacity="0.02"
-                    />
-                  </linearGradient>
-                </defs>
-
-                <g stroke="#cbd5e1" strokeWidth="1" opacity="0.35">
-                  {Array.from({ length: 4 }, (_, index) => {
-                    const y = 40 + index * 45;
-                    return (
-                      <line
-                        key={index}
-                        x1="0"
-                        x2={Math.max((data.length - 1) * 56, 56)}
-                        y1={y}
-                        y2={y}
-                      />
-                    );
-                  })}
-                </g>
-
-                <TrendArea
-                  data={data}
-                  keyName="total"
-                  fill="url(#trendFill)"
-                  stroke="#7EC8E3"
-                />
-                <TrendLine
-                  data={data}
-                  keyName="total"
-                  color="#7EC8E3"
-                  strokeWidth={2.5}
-                />
-                <TrendLine
-                  data={data}
-                  keyName="clean"
-                  color="#34d399"
-                  strokeWidth={1.8}
-                />
-                <TrendLine
-                  data={data}
-                  keyName="flagged"
-                  color="#FF9EBB"
-                  strokeWidth={1.8}
-                />
-                <TrendArea
-                  data={data}
-                  keyName="flagged"
-                  fill="url(#trendFillPink)"
-                  stroke="#FF9EBB"
-                />
-                <TrendLine
-                  data={data}
-                  keyName="warned"
-                  color="#facc15"
-                  strokeWidth={1.4}
-                />
-                <TrendLine
-                  data={data}
-                  keyName="error"
-                  color="#fdba74"
-                  strokeWidth={1.2}
-                />
-
-                {data.map((item, index) => {
-                  const x =
-                    data.length <= 1
-                      ? 0
-                      : (index / (data.length - 1)) *
-                        Math.max((data.length - 1) * 56, 56);
-                  return (
-                    <g key={item.date} transform={`translate(${x}, 188)`}>
-                      <circle cx="0" cy="0" r="2.5" fill="#7EC8E3" />
-                      <text
-                        x="0"
-                        y="18"
-                        textAnchor="middle"
-                        className="fill-muted-foreground text-[10px]"
-                      >
-                        {item.date.slice(5)}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-            </div>
+                <div className="mb-1 font-semibold text-foreground">
+                  {tooltip.date}
+                </div>
+                {tooltip.values
+                  .filter((v) => v.value > 0)
+                  .map((v) => (
+                    <div
+                      key={v.key}
+                      className="flex items-center gap-2 text-muted-foreground"
+                    >
+                      <svg width="8" height="8">
+                        <circle
+                          cx="4"
+                          cy="4"
+                          r="3"
+                          fill={v.color}
+                        />
+                      </svg>
+                      <span>{v.label}</span>
+                      <span className="ml-6 font-medium tabular-nums text-foreground">
+                        {v.value}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
@@ -173,97 +292,11 @@ export function TrendChart({ trend, loading }: TrendChartProps) {
   );
 }
 
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1">
-      <span className={`h-2 w-2 rounded-full ${color}`} /> {label}
-    </span>
-  );
-}
-
-function TrendLine({
-  data,
-  color,
-  strokeWidth,
-  keyName,
-}: {
-  data: Array<Record<string, number | string>>;
-  color: string;
-  strokeWidth: number;
-  keyName: string;
-}) {
-  const path = buildPath(data, keyName, 220, false);
-
-  return (
-    <path
-      d={path}
-      fill="none"
-      stroke={color}
-      strokeWidth={strokeWidth}
-      strokeLinejoin="round"
-      strokeLinecap="round"
-    />
-  );
-}
-
-function TrendArea({
-  data,
-  keyName,
-  fill,
-  stroke,
-}: {
-  data: Array<Record<string, number | string>>;
-  keyName: string;
-  fill: string;
-  stroke: string;
-}) {
-  const path = buildPath(data, keyName, 220, true);
-  return <path d={path} fill={fill} stroke={stroke} strokeOpacity={0.2} />;
-}
-
-function buildPath(
-  data: Array<Record<string, number | string>>,
-  keyName: string,
-  height: number,
-  closePath: boolean,
-): string {
-  const values = data.map((item) => Number(item[keyName] ?? 0));
-  const maxValue = Math.max(...values, 1);
-  const width = Math.max((data.length - 1) * 56, 56);
-  const points = values.map((value, index) => {
-    const x = data.length <= 1 ? 0 : (index / (data.length - 1)) * width;
-    const y = height - 35 - (value / maxValue) * 130;
-    return { x, y };
-  });
-
-  if (points.length === 0) {
-    return "";
-  }
-
-  const segments: string[] = [`M ${points[0].x} ${points[0].y}`];
-  for (let index = 1; index < points.length; index++) {
-    const previous = points[index - 1];
-    const current = points[index];
-    const controlX = (previous.x + current.x) / 2;
-    segments.push(`Q ${controlX} ${previous.y} ${current.x} ${current.y}`);
-  }
-
-  if (closePath) {
-    const lastPoint = points[points.length - 1];
-    const firstPoint = points[0];
-    segments.push(`L ${lastPoint.x} ${height - 24}`);
-    segments.push(`L ${firstPoint.x} ${height - 24}`);
-    segments.push("Z");
-  }
-
-  return segments.join(" ");
-}
-
 function LoadingBox() {
   return (
     <Card className="col-span-3">
       <CardContent className="flex h-65 items-center justify-center text-sm text-muted-foreground">
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <span className="h-4 w-4 animate-spin rounded-sm border-2 border-current border-t-transparent" />
         <span className="ml-2">Memuat data...</span>
       </CardContent>
     </Card>
