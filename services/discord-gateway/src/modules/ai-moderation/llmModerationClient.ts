@@ -1685,24 +1685,38 @@ export async function runModerationAnalysis(
     try {
       const cached = await getCachedUserModeration(cacheKey);
       if (cached) {
-        cacheHits.push({
-          messageId: target.id,
-          status: cached.status,
-          flags: cached.flags,
-          score: cached.score,
-          analysis: cached.analysis,
-          categories: cached.categories,
-          severity: cached.severity as AnalysisResult["severity"],
-          confidence: cached.confidence,
-          recommendedAction: cached.recommendedAction as AnalysisResult["recommendedAction"],
-          policyVersion: "cached-user-moderation-2026-06",
-          evidence: [],
-        });
-        log.debug(
-          { messageId: target.id, userId: target.user_id, cacheKey },
-          "User moderation cache HIT — reusing previous result",
-        );
-        continue;
+        // Safety: skip cache entries that are artifacts of API/parse errors.
+        // A previous bug cached error results as "flagged", causing 24h false positives.
+        // This guards against both legacy corrupt entries and any future write-path bugs.
+        if (
+          cached.flags.some((f) =>
+            ["analysis_api_failed", "analysis_parse_failed", "analysis_incomplete"].includes(f),
+          )
+        ) {
+          log.warn(
+            { messageId: target.id, cacheKey },
+            "Cache entry contains error artifact — treating as miss",
+          );
+        } else {
+          cacheHits.push({
+            messageId: target.id,
+            status: cached.status,
+            flags: cached.flags,
+            score: cached.score,
+            analysis: cached.analysis,
+            categories: cached.categories,
+            severity: cached.severity as AnalysisResult["severity"],
+            confidence: cached.confidence,
+            recommendedAction: cached.recommendedAction as AnalysisResult["recommendedAction"],
+            policyVersion: "cached-user-moderation-2026-06",
+            evidence: [],
+          });
+          log.debug(
+            { messageId: target.id, userId: target.user_id, cacheKey },
+            "User moderation cache HIT — reusing previous result",
+          );
+          continue;
+        }
       }
     } catch {
       // Cache lookup failed — proceed with uncached path
@@ -1767,6 +1781,10 @@ export async function runModerationAnalysis(
     const rawContent = target.edited_content ?? target.content;
     if (!rawContent.trim()) continue;
 
+    // Do NOT cache error results (API failures, parse failures, incomplete).
+    // Caching a transient error would turn it into a 24h false positive.
+    if (result.status === "error") continue;
+
     const cacheKey = makeUserModerationCacheKey(target.user_id, rawContent);
     setCachedUserModeration(cacheKey, {
       flags: result.flags ?? [],
@@ -1776,7 +1794,7 @@ export async function runModerationAnalysis(
       severity: result.severity ?? "none",
       confidence: result.confidence ?? result.score ?? 0,
       recommendedAction: result.recommendedAction ?? "none",
-      status: result.status === "error" ? "flagged" : result.status,
+      status: result.status,
     }).catch(() => {});
   }
 
