@@ -17,10 +17,7 @@ interface UserTableProps {
 }
 
 export function UserTable({ users, loading }: UserTableProps) {
-  if (loading && !users?.length) {
-    return <LoadingBox />;
-  }
-
+  if (loading && !users?.length) return <LoadingBox />;
   if (!users?.length) {
     return (
       <Card>
@@ -49,7 +46,7 @@ export function UserTable({ users, loading }: UserTableProps) {
         <ScrollArea className="max-h-[260px]">
           <table className="w-full text-sm">
             <thead>
-              <tr className="sticky top-0 z-10 bg-white border-b border-sky-100 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+              <tr className="sticky top-0 z-10 bg-white border-b border-muted/50 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                 <th className="py-2 pl-4 pr-2 font-semibold">#</th>
                 <th className="py-2 pr-2 font-semibold">User</th>
                 <th className="py-2 pr-2 font-semibold text-right">Pesan</th>
@@ -57,13 +54,13 @@ export function UserTable({ users, loading }: UserTableProps) {
                 <th className="py-2 pr-4 font-semibold text-right">Flag</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-sky-50">
+            <tbody className="divide-y divide-muted/20">
               {users.map((user, i) => (
                 <tr
                   key={user.user_id}
                   className={cn(
-                    "transition-colors rounded-xl",
-                    i % 2 === 0 ? "bg-white" : "bg-sky-50/20",
+                    "transition-colors",
+                    i % 2 === 0 ? "bg-white" : "bg-muted/10",
                   )}
                 >
                   <td className="py-1.5 pl-4 pr-2 font-mono text-[10px] text-muted-foreground tabular-nums">
@@ -75,11 +72,11 @@ export function UserTable({ users, loading }: UserTableProps) {
                         <img
                           src={user.avatar_url}
                           alt=""
-                          className="h-6 w-6 rounded-full ring-2 ring-sky-100"
+                          className="h-6 w-6 rounded-md ring-1 ring-muted"
                           loading="lazy"
                         />
                       ) : (
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-sky-100 text-[10px] font-bold text-primary">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">
                           {user.username.charAt(0).toUpperCase()}
                         </div>
                       )}
@@ -90,15 +87,15 @@ export function UserTable({ users, loading }: UserTableProps) {
                   </td>
                   <td className="py-1.5 pr-2 text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <div className="h-1.5 w-12 overflow-hidden rounded-full bg-sky-50">
+                      <div className="h-1.5 w-14 overflow-hidden rounded-sm bg-muted/30">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-primary to-pink-300"
+                          className="h-full rounded-sm bg-gradient-to-r from-primary to-sky-300"
                           style={{
                             width: `${(user.message_count / maxMsgs) * 100}%`,
                           }}
                         />
                       </div>
-                      <span className="font-mono text-xs tabular-nums">
+                      <span className="font-mono text-xs tabular-nums text-foreground">
                         {user.message_count}
                       </span>
                     </div>
@@ -134,7 +131,7 @@ function LoadingBox() {
   return (
     <Card>
       <CardContent className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <span className="h-4 w-4 animate-spin rounded-sm border-2 border-current border-t-transparent" />
         <span className="ml-2">Memuat data...</span>
       </CardContent>
     </Card>
