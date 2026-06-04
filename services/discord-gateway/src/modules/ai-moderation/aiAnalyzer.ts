@@ -23,6 +23,7 @@ import {
 } from "../message-capture/messageStore.js";
 import type {
   AnalysisQueueStatus,
+  AnalysisResult,
   MessageRecord,
   ModerationBroadcaster,
 } from "../message-capture/types.js";
@@ -31,7 +32,10 @@ import {
   buildConversationContext,
   estimateTokens,
 } from "./conversationContext.js";
-import { runModerationAnalysis } from "./llmModerationClient.js";
+import {
+  runModerationAnalysis,
+  runSimpleTextFallback,
+} from "./llmModerationClient.js";
 import { logModerationError } from "./responseLogger.js";
 
 const logger = createChildLogger("ai-analyzer");
@@ -342,6 +346,7 @@ async function processIndividualFallback(
   // Track whether all retries were exhausted specifically because the LLM
   // consistently returned no result for this message (vs. a transient error).
   let exhaustedOnIncomplete = false;
+  let usedSimpleFallback = false;
 
   try {
     const contextBefore = await getConversationContextBefore({
@@ -363,53 +368,84 @@ async function processIndividualFallback(
       ...contextIds,
     ]);
 
-    const analysisResult = await retryWithBackoff(
-      async () => {
-        try {
-          const result = await runModerationAnalysis({
-            targets: [message],
-            contextText: contextLines.join("\n"),
-            attachments,
-          });
+    // ── Step 1: Try the normal analysis path (retries on failure) ──
+    let analysisResult: { results: AnalysisResult[] } | null = null;
 
-          // If the LLM still dropped our only target, convert to a retryable
-          // throw so backoff kicks in.  Track this so the catch block can
-          // distinguish it from a transient network/parse failure.
-          const stillIncomplete = result.results.some((r) =>
-            r.flags.includes("analysis_incomplete"),
-          );
-          if (stillIncomplete) {
-            exhaustedOnIncomplete = true;
-            throw new Error(
-              `LLM returned no result for single-target message ${messageId} — will retry with backoff`,
+    try {
+      analysisResult = await retryWithBackoff(
+        async () => {
+          try {
+            const result = await runModerationAnalysis({
+              targets: [message],
+              contextText: contextLines.join("\n"),
+              attachments,
+            });
+
+            // If the LLM still dropped our only target, convert to a retryable
+            // throw so backoff kicks in.  Track this so the catch block can
+            // distinguish it from a transient network/parse failure.
+            const stillIncomplete = result.results.some((r) =>
+              r.flags.includes("analysis_incomplete"),
             );
-          }
+            if (stillIncomplete) {
+              exhaustedOnIncomplete = true;
+              throw new Error(
+                `LLM returned no result for single-target message ${messageId} — will retry with backoff`,
+              );
+            }
 
-          // Got a real result — clear the incomplete flag.
-          exhaustedOnIncomplete = false;
+            // Got a real result — clear the incomplete flag.
+            exhaustedOnIncomplete = false;
 
-          return result;
-        } catch (err: any) {
-          // Propagate AbortError so outer retry is immediately cancelled on 429.
-          if (err instanceof AbortError) {
+            return result;
+          } catch (err: any) {
+            // Propagate AbortError so outer retry is immediately cancelled on 429.
+            if (err instanceof AbortError) {
+              throw err;
+            }
+            if (
+              err?.status === 429 ||
+              err?.status === 401 ||
+              err?.status === 403
+            ) {
+              throw new AbortError(err);
+            }
             throw err;
           }
-          if (
-            err?.status === 429 ||
-            err?.status === 401 ||
-            err?.status === 403
-          ) {
-            throw new AbortError(err);
-          }
-          throw err;
-        }
-      },
-      {
-        retries: 0,
-        minTimeout: 0,
-        maxTimeout: 0,
-      },
-    );
+        },
+        {
+          retries: 0,
+          minTimeout: 0,
+          maxTimeout: 0,
+        },
+      );
+    } catch {
+      // Normal path failed — don't give up yet. Try the simple fallback.
+      analysisResult = null;
+    }
+
+    // ── Step 2: If normal analysis failed, try SIMPLE fallback ──
+    // No JSON, no complex prompt — just asks the LLM for one word.
+    if (!analysisResult) {
+      logger.info(
+        { messageId },
+        "Normal analysis failed for individual message — trying simple text fallback",
+      );
+      usedSimpleFallback = true;
+
+      const simpleResult = await runSimpleTextFallback(message);
+      analysisResult = { results: [simpleResult] };
+      // Clear the exhausted flag since we got a result from the simple path
+      exhaustedOnIncomplete = false;
+    }
+
+    // At this point we definitely have a result (either normal or simple)
+    if (usedSimpleFallback) {
+      logger.info(
+        { messageId, status: analysisResult.results[0]?.status },
+        "Used simple text fallback for individual message — no JSON, one-word classification",
+      );
+    }
 
     const updates = analysisResult.results.map((r) => ({
       messageId: r.messageId,

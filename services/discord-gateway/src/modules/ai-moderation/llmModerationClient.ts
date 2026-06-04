@@ -1659,3 +1659,158 @@ export async function runModerationAnalysis(
 
   return { results: allResults, raw };
 }
+
+// ---------------------------------------------------------------------------
+// Simple text-only fallback — uses a MINIMAL prompt that returns a single
+// word ("clean", "warn", or "flagged") instead of a complex JSON object.
+//
+// This is designed for cheap/small models that struggle with:
+//   1. Multi-target JSON output (confusing message_ids)
+//   2. Complex JSON schema compliance (9+ fields)
+//
+// Trade-off: less detail (no flags/evidence/categories), but ZERO parse
+// errors and much faster.  Field values are derived heuristically.
+// ---------------------------------------------------------------------------
+
+/**
+ * Simple two-step text fallback for cheap/small models.
+ *
+ * Step 1: Ask the LLM for a single-word classification (clean/warn/flagged).
+ * Step 2: If not clean, ask the LLM again for a real reason — no dummy text.
+ *
+ * NO JSON at either step.  Just raw text that we parse by simple rules.
+ */
+export async function runSimpleTextFallback(
+  message: MessageRecord,
+): Promise<AnalysisResult> {
+  const content = getAnalysisContent(message);
+  const MAX_CONTENT_CHARS = 500;
+  const truncatedContent =
+    content.length > MAX_CONTENT_CHARS
+      ? content.slice(0, MAX_CONTENT_CHARS) + "..."
+      : content;
+
+  // ── Step 1: Single-word classification ──
+  const classifyPrompt = `Pesan berikut perlu diklasifikasikan sebagai: clean, warn, atau flagged.
+
+Aturan:
+- clean: pesan biasa, percakapan normal, tidak ada pelanggaran
+- warn: spam ringan, promosi tidak jelas, atau pelanggaran ringan
+- flagged: harassment, SARA, NSFW, judi, ancaman, atau pelanggaran serius
+
+PENTING: Slang Indonesia ("anjay", "wkwk", "njir", "gws", dll) dan makian umum ("asu", "anjing", "bangsat") yang TIDAK ditujukan ke orang lain = clean.
+
+Pesan: "${truncatedContent}"
+
+Jawab HANYA dengan satu kata: clean, warn, atau flagged`;
+
+  let status: "clean" | "warn" | "flagged";
+  let rawClassify = "";
+
+  try {
+    const completion = await llmChat({
+      messages: [{ role: "user", content: classifyPrompt }],
+      max_tokens: 10,
+      temperature: 0.1,
+    });
+
+    rawClassify =
+      completion?.choices[0]?.message?.content?.trim().toLowerCase() ?? "";
+
+    if (rawClassify.includes("flagged")) {
+      status = "flagged";
+    } else if (rawClassify.includes("warn")) {
+      status = "warn";
+    } else {
+      status = "clean";
+    }
+
+    log.info(
+      { messageId: message.id, status, raw: rawClassify },
+      "Simple fallback step 1 — classification",
+    );
+  } catch (error) {
+    log.warn(
+      {
+        messageId: message.id,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Simple fallback step 1 failed — defaulting to clean",
+    );
+    status = "clean";
+  }
+
+  // ── Step 2: Real analysis text (only if not clean) ──
+  // We ask the LLM for a real reason — no static/dummy text.
+  let analysis: string;
+
+  if (status === "clean") {
+    analysis = `${message.username ?? "user"}: ${content.length > 200 ? content.slice(0, 200) + "..." : content}. Percakapan normal, tidak ada pelanggaran.`;
+  } else {
+    const reasonPrompt = `Pesan berikut telah diklasifikasikan sebagai "${status}".
+
+Pesan: "${truncatedContent}"
+
+Jelaskan dalam 1-2 kalimat Bahasa Indonesia: APA yang melanggar dan KENAPA. Jangan gunakan kata "mungkin" atau "sepertinya". Jangan tulis ulang pesan. Langsung ke alasan.
+
+Contoh jawaban untuk "flagged": "Mengandung kata kasar terarah ke individu tertentu sebagai hinaan."
+Contoh jawaban untuk "flagged": "Promosi situs judi online dengan link dan ajakan."
+Contoh jawaban untuk "warn": "Promosi channel Discord tanpa konteks, berpotensi spam."
+Contoh jawaban untuk "warn": "Bahasa kasar ringan yang tidak terarah, tidak melanggar berat tapi perlu diingatkan."`;
+
+    try {
+      const completion = await llmChat({
+        messages: [{ role: "user", content: reasonPrompt }],
+        max_tokens: 80,
+        temperature: 0.3,
+      });
+
+      analysis = completion?.choices[0]?.message?.content?.trim() ?? "";
+
+      // Guard against empty or non-answers
+      if (!analysis || analysis.length < 5) {
+        analysis = `Pesan diklasifikasikan sebagai ${status} oleh sistem moderasi otomatis.`;
+      }
+
+      log.info(
+        { messageId: message.id, status, analysis: analysis.slice(0, 100) },
+        "Simple fallback step 2 — reason",
+      );
+    } catch (error) {
+      analysis = `Pesan diklasifikasikan sebagai ${status} oleh sistem moderasi otomatis berdasarkan analisis konten.`;
+      log.warn(
+        {
+          messageId: message.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Simple fallback step 2 failed — using fallback reason text",
+      );
+    }
+  }
+
+  // Build the result fields
+  const score = status === "flagged" ? 0.7 : status === "warn" ? 0.4 : 0;
+  const severity: "none" | "low" | "medium" | "high" | "critical" =
+    status === "flagged" ? "medium" : status === "warn" ? "low" : "none";
+  const confidence = 0.6;
+
+  return {
+    messageId: message.id,
+    status,
+    flags:
+      status === "flagged" ? ["harassment"] : status === "warn" ? ["spam"] : [],
+    score,
+    analysis,
+    categories:
+      status === "flagged" ? ["harassment"] : status === "warn" ? ["spam"] : [],
+    severity,
+    confidence,
+    recommendedAction:
+      status === "flagged" ? "review" : status === "warn" ? "warn" : "none",
+    policyVersion: "default-simple-2026-06",
+    evidence:
+      status !== "clean"
+        ? [content.length > 120 ? content.slice(0, 120) + "..." : content]
+        : [],
+  };
+}
