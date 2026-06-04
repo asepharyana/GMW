@@ -381,11 +381,11 @@ async function processIndividualFallback(
   try {
     // ── Run the LLM-heavy work in the worker thread ──
     // Try normal analysis first. The worker handles retries internally.
-    const workerResult = await workerPool.run({
+    const workerResult = (await workerPool.run({
       type: "individual",
       message,
       skipNormalAnalysis: false,
-    } as any) as
+    } as any)) as
       | { ok: true; results: AnalysisResult[] }
       | { ok: false; results: AnalysisResult[]; error: string };
 
@@ -411,11 +411,11 @@ async function processIndividualFallback(
         "Normal analysis failed (or incomplete) — trying simple text fallback via worker",
       );
 
-      const simpleResult = await workerPool.run({
+      const simpleResult = (await workerPool.run({
         type: "individual",
         message,
         skipNormalAnalysis: true,
-      } as any) as
+      } as any)) as
         | { ok: true; results: AnalysisResult[] }
         | { ok: false; results: AnalysisResult[]; error: string };
 
@@ -465,18 +465,13 @@ async function processIndividualFallback(
     }
 
     const resultSummary = analysisResult.results[0];
-    logModerationError(
-      [messageId],
-      config.AI_LLM_MODEL,
-      new Error("Success"),
-      {
-        phase: "individual_fallback",
-        status: resultSummary?.status,
-        flags: resultSummary?.flags,
-        severity: resultSummary?.severity,
-        confidence: resultSummary?.confidence,
-      },
-    );
+    logModerationError([messageId], config.AI_LLM_MODEL, new Error("Success"), {
+      phase: "individual_fallback",
+      status: resultSummary?.status,
+      flags: resultSummary?.flags,
+      severity: resultSummary?.severity,
+      confidence: resultSummary?.confidence,
+    });
 
     individualConsecutiveErrors = 0;
 
@@ -659,9 +654,21 @@ async function processBatch(
       messages,
     })) as AnalysisWorkerResponse;
 
+    // Do not broadcast or auto-delete if it's an API failure that will be reverted.
+    // We check the flags to see if it's an API failure.
     for (const row of result.rows) {
-      broadcastAnalysisCompleted(row);
-      scheduleAutoDelete(row);
+      let isApiFailure = false;
+      if (row.ai_status === "error") {
+        try {
+          const flags = JSON.parse(row.ai_moderation_flags ?? "[]") as string[];
+          isApiFailure = flags.includes("analysis_api_failed");
+        } catch {}
+      }
+
+      if (!isApiFailure) {
+        broadcastAnalysisCompleted(row);
+        scheduleAutoDelete(row);
+      }
     }
 
     if (!result.ok) {
@@ -700,40 +707,105 @@ async function processBatch(
       return;
     }
 
-    // Batch succeeded — but check for messages the LLM silently dropped.
-    // Rows with flag "analysis_incomplete" were produced by parseModerationResponse
-    // as synthetic errors; they must be re-processed individually.
-    const incompleteMessages = messages.filter((msg) => {
+    // Batch succeeded — but check for messages the LLM silently dropped or failed to parse/API.
+    // Rows with flag "analysis_incomplete", "analysis_parse_failed", or "analysis_api_failed"
+    // were produced by the client as synthetic errors.
+    const incompleteMessages: MessageRecord[] = [];
+    const parseFailedMessages: MessageRecord[] = [];
+    const apiFailedMessages: MessageRecord[] = [];
+
+    for (const msg of messages) {
       const row = result.rows.find((r) => r.id === msg.id);
       if (!row) {
-        // The DB update row is missing entirely — treat as incomplete.
-        return true;
+        incompleteMessages.push(msg);
+        continue;
       }
-      const flags: string[] = (() => {
+      if (row.ai_status === "error") {
+        let flags: string[] = [];
         try {
-          return JSON.parse(row.ai_moderation_flags ?? "[]") as string[];
-        } catch {
-          return [];
-        }
-      })();
-      return row.ai_status === "error" && flags.includes("analysis_incomplete");
-    });
+          flags = JSON.parse(row.ai_moderation_flags ?? "[]") as string[];
+        } catch {}
 
-    if (incompleteMessages.length > 0) {
+        if (flags.includes("analysis_incomplete")) {
+          incompleteMessages.push(msg);
+        } else if (flags.includes("analysis_parse_failed")) {
+          parseFailedMessages.push(msg);
+        } else if (flags.includes("analysis_api_failed")) {
+          apiFailedMessages.push(msg);
+        }
+      }
+    }
+
+    const messagesForIndividualQueue = [
+      ...incompleteMessages,
+      ...parseFailedMessages,
+    ];
+
+    if (messagesForIndividualQueue.length > 0) {
       logger.warn(
         {
           conversationKey,
-          incompleteCount: incompleteMessages.length,
-          incompleteIds: incompleteMessages.map((m) => m.id),
+          count: messagesForIndividualQueue.length,
+          ids: messagesForIndividualQueue.map((m) => m.id),
           totalBatchSize: messages.length,
         },
-        "Batch returned incomplete results — fanning out to individual fallback queue",
+        "Batch returned incomplete or unparseable results — fanning out to individual fallback queue",
       );
-      enqueueIndividualFallbacks(incompleteMessages);
+      enqueueIndividualFallbacks(messagesForIndividualQueue);
     }
 
-    resetConversationBatchFailures(conversationKey);
-    conversationErrorCooldown.delete(conversationKey);
+    if (apiFailedMessages.length > 0) {
+      logger.warn(
+        {
+          conversationKey,
+          count: apiFailedMessages.length,
+          ids: apiFailedMessages.map((m) => m.id),
+        },
+        "Batch returned API failures — reverting to pending to put back in queue",
+      );
+
+      // Revert to pending so they are picked up again
+      const revertedRows = await updateMessagesAIAnalysisBulk(
+        apiFailedMessages.map((msg) => ({
+          messageId: msg.id,
+          result: {
+            status: "pending",
+            flags: null,
+            score: null,
+            analysis: null,
+            categories: null,
+            severity: null,
+            confidence: null,
+            recommendedAction: null,
+            analyzedAt: null,
+            error: null,
+          },
+        })),
+      ).catch((err) => {
+        logger.error(
+          { error: String(err) },
+          "Failed to revert API failures to pending",
+        );
+        return [];
+      });
+
+      for (const row of revertedRows) {
+        // Broadcast the pending status so the UI knows it's back in queue
+        broadcastAnalysisCompleted(row);
+      }
+
+      // Trigger conversation cooldown so we don't tight loop the API
+      recordConversationBatchFailure(conversationKey);
+      conversationErrorCooldown.set(
+        conversationKey,
+        Date.now() + config.AI_ANALYSIS_ERROR_COOLDOWN_MS,
+      );
+    }
+
+    if (apiFailedMessages.length === 0) {
+      resetConversationBatchFailures(conversationKey);
+      conversationErrorCooldown.delete(conversationKey);
+    }
     shouldScheduleNext = true;
   } catch (error) {
     recordConversationBatchFailure(conversationKey);
