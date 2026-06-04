@@ -87,7 +87,7 @@ function isAgeRestrictedMessage(message: MessageRecord): boolean {
 }
 
 function buildAgeRestrictedSkipResult(): {
-  status: "error";
+  status: "clean";
   flags: string | null;
   score: number;
   analysis: string;
@@ -99,7 +99,7 @@ function buildAgeRestrictedSkipResult(): {
   error: null;
 } {
   return {
-    status: "error",
+    status: "clean",
     flags: JSON.stringify(["age_restricted"]),
     score: 0,
     analysis: "Skipped moderation for age-restricted content.",
