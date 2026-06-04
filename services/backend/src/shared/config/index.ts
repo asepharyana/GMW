@@ -84,7 +84,7 @@ const configSchema = z
     TELE_UPLOAD_URL: z
       .string()
       .url()
-      .default("https://upload.asepharyana.tech/api/upload"),
+      .default("https://upload.asepharyana.my.id/api/upload"),
   })
   .parse(process.env);
 

@@ -44,7 +44,7 @@ const configSchema = z
     TELE_UPLOAD_URL: z
       .string()
       .url()
-      .default("https://upload.asepharyana.tech/api/upload"),
+      .default("https://upload.asepharyana.my.id/api/upload"),
     ATTACHMENT_UPLOAD_TIMEOUT_MS: z.coerce.number().positive().default(30000),
     ATTACHMENT_MAX_SIZE_MB: z.coerce.number().positive().default(100),
     ATTACHMENT_RETRY_ATTEMPTS: z.coerce.number().positive().default(3),
