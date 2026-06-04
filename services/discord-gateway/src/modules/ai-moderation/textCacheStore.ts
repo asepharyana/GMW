@@ -332,6 +332,7 @@ export async function setCachedUserModeration(
     severity: string;
     confidence: number;
     recommendedAction: string;
+    status?: "clean" | "warn" | "flagged";
   },
 ): Promise<void> {
   const now = Date.now();

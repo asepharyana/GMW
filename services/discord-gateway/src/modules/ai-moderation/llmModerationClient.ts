@@ -1687,7 +1687,7 @@ export async function runModerationAnalysis(
       if (cached) {
         cacheHits.push({
           messageId: target.id,
-          status: "clean",
+          status: cached.status,
           flags: cached.flags,
           score: cached.score,
           analysis: cached.analysis,
@@ -1776,6 +1776,7 @@ export async function runModerationAnalysis(
       severity: result.severity ?? "none",
       confidence: result.confidence ?? result.score ?? 0,
       recommendedAction: result.recommendedAction ?? "none",
+      status: result.status === "error" ? "flagged" : result.status,
     }).catch(() => {});
   }
 
