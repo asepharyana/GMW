@@ -953,6 +953,41 @@ async function runTextOnlyBatch(
     }),
   );
 
+  // ── Fetch web content from URLs in text-only messages ──
+  // Prevents LLM from guessing based on domain name alone (e.g., false "scam" flags).
+  // The fetched text content is injected into the message XML so the LLM can
+  // analyze the actual page rather than pattern-match the URL string.
+  const urlFetchMap = new Map<string, string>(); // url → fetched text content
+  {
+    const allUrls = new Set<string>();
+    for (const msg of targets) {
+      const content = msg.edited_content ?? msg.content;
+      for (const url of extractUrlsFromText(content)) {
+        allUrls.add(url);
+      }
+    }
+    const urlArr = Array.from(allUrls).slice(0, 10); // cap to 10 fetches per batch
+    if (urlArr.length > 0) {
+      log.debug(
+        { urlCount: urlArr.length },
+        "Fetching web content for text-only batch URLs",
+      );
+      const results = await Promise.allSettled(
+        urlArr.map((url) => fetchUrlSafely(url)),
+      );
+      for (let i = 0; i < urlArr.length; i++) {
+        const r = results[i];
+        if (
+          r.status === "fulfilled" &&
+          r.value.type === "text" &&
+          r.value.textContent
+        ) {
+          urlFetchMap.set(urlArr[i], r.value.textContent);
+        }
+      }
+    }
+  }
+
   // ── Group identical short messages (< 20 chars) to reduce redundant analysis ──
   // Messages with identical normalized content share a single representative.
   // Results are fanned out to all group members after the LLM call.
@@ -1044,8 +1079,21 @@ async function runTextOnlyBatch(
           const content = getAnalysisContent(msg);
           const textEvidence = textEvidenceMap.get(msg.id) ?? "";
           const textContext = textEvidence ? `\n${textEvidence}` : "";
+
+          // Inject fetched web content for URLs found in this message
+          const msgUrls = extractUrlsFromText(content);
+          const urlContexts = msgUrls
+            .map((url) => {
+              const fetchedText = urlFetchMap.get(url);
+              if (!fetchedText) return null;
+              return `<web_content url="${url}">${fetchedText}</web_content>`;
+            })
+            .filter(Boolean)
+            .join("\n");
+          const webContext = urlContexts ? `\n${urlContexts}` : "";
+
           // XML delimiters wrap each message for prompt safety (R1)
-          return `<message id="${msg.id}" user="${msg.username}">${content}${textContext}</message>`;
+          return `<message id="${msg.id}" user="${msg.username}">${content}${textContext}${webContext}</message>`;
         })
         .join("\n");
 
