@@ -685,6 +685,18 @@ const analyzeSingleMediaImage = async (
   try {
     const content = await visionPromise;
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${content}`;
+  } catch (outerErr) {
+    // Should never reach here — visionPromise has its own catch that
+    // returns FAILED_ANALYSIS_PREFIX.  Log anyway for debugging.
+    log.error(
+      {
+        messageId,
+        cacheKey,
+        error: outerErr instanceof Error ? outerErr.message : String(outerErr),
+      },
+      "Unexpected rejection in analyzeSingleMediaImage (visionPromise threw)",
+    );
+    return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${FAILED_ANALYSIS_PREFIX}`;
   } finally {
     inFlightVisionCalls.delete(cacheKey);
   }
@@ -1209,7 +1221,13 @@ async function _runSingleMediaAnalysis(
     downloadPromises.push(
       (async () => {
         const urlToUse = getAttachmentImageUrl(att);
-        if (!urlToUse) return;
+        if (!urlToUse) {
+          log.warn(
+            { attachmentId: att.id, messageId: att.message_id },
+            "Skipping attachment: no uploaded URL available",
+          );
+          return;
+        }
 
         // Check vision cache BEFORE downloading
         const attVisionKey = makeImageCacheKey(urlToUse);
@@ -1232,7 +1250,13 @@ async function _runSingleMediaAnalysis(
 
         try {
           const res = await fetch(urlToUse, { signal: controller.signal });
-          if (!res.ok || !res.body) return;
+          if (!res.ok || !res.body) {
+            log.warn(
+              { attachmentId: att.id, url: urlToUse, status: res.status },
+              "Failed to download attachment: HTTP error or no body",
+            );
+            return;
+          }
 
           let totalBytes = 0;
           const chunks: Uint8Array[] = [];
@@ -1244,6 +1268,10 @@ async function _runSingleMediaAnalysis(
             if (value) {
               totalBytes += value.length;
               if (totalBytes > 10 * 1024 * 1024) {
+                log.warn(
+                  { attachmentId: att.id, totalBytes },
+                  "Attachment too large (>10MB) — skipping",
+                );
                 reader.cancel();
                 return;
               }
@@ -1421,13 +1449,38 @@ async function _runSingleMediaAnalysis(
               }
               return;
             }
-          } catch {
-            // Fall through to fetch
+          } catch (stickerErr) {
+            log.warn(
+              {
+                stickerName: candidate.stickerName,
+                error:
+                  stickerErr instanceof Error
+                    ? stickerErr.message
+                    : String(stickerErr),
+              },
+              "Sticker cache lookup failed — falling through to network fetch",
+            );
           }
         }
 
         const result = await fetchUrlSafely(candidate.url);
-        if (result.type !== "image" || !result.data || !result.mimeType) return;
+        if (result.type !== "image" || !result.data || !result.mimeType) {
+          log.warn(
+            {
+              url: candidate.url,
+              resultType: result.type,
+              resultHasData: !!result.data,
+              messageId: candidate.messageId,
+              label: candidate.stickerName
+                ? `sticker:${candidate.stickerName}`
+                : candidate.customEmojiName
+                  ? `emoji:${candidate.customEmojiName}`
+                  : "embed/other",
+            },
+            "Media candidate fetch did not return a usable image — skipping",
+          );
+          return;
+        }
 
         const { data: resizedBuffer, mimeType: resizedMime } =
           await resizeImageForVision(result.data, maxDimension);
