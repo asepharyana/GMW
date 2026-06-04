@@ -990,7 +990,7 @@ export function startPendingAIAnalysisWorker(
 
         // Also prune stale per-conversation CB error counts that have cooled
         // down so old conversations can be retried.
-        for (const [key, count] of conversationConsecutiveErrors) {
+        for (const [key] of conversationConsecutiveErrors) {
           const cbExpire = conversationErrorCooldown.get(key) ?? 0;
           if (cbExpire && now >= cbExpire) {
             conversationConsecutiveErrors.delete(key);
