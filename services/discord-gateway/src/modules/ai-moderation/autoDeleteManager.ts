@@ -318,6 +318,52 @@ export async function attemptAutoDeleteFlaggedMessage(
     const discordMessage = await channel.messages.fetch(message.id);
     await discordMessage.delete();
 
+    // ── Notify user via DM ──
+    if (config.AUTO_DELETE_NOTIFY_USER) {
+      try {
+        const targetUser = await client.users.fetch(message.user_id);
+        if (targetUser) {
+          const reason = message.ai_categories ?? message.ai_moderation_flags ?? "(unknown)";
+          await targetUser.send(
+            `Pesan Anda di **${guild.name}** telah dihapus oleh sistem moderasi otomatis.\n` +
+            `Alasan: ${reason}\n` +
+            `Jika Anda merasa ini adalah kesalahan, silakan hubungi admin server.`,
+          );
+        }
+      } catch (dmErr) {
+        // DM might fail if user has DMs disabled — not critical
+        logger.debug(
+          { messageId: message.id, userId: message.user_id, error: String(dmErr) },
+          "Failed to send DM notification for auto-deleted message",
+        );
+      }
+    }
+
+    // ── Log to moderation channel ──
+    if (config.AUTO_DELETE_LOG_CHANNEL_ID) {
+      try {
+        const logChannel = guild.channels.cache.get(config.AUTO_DELETE_LOG_CHANNEL_ID);
+        if (logChannel && "send" in logChannel && typeof (logChannel as any).send === "function") {
+          const severity = message.ai_severity ?? "none";
+          const categories = message.ai_categories ?? message.ai_moderation_flags ?? "—";
+          const snippet = (message.edited_content ?? message.content).substring(0, 200);
+          await (logChannel as any).send(
+            `**🧹 Auto-Delete** — Pesan dari <@${message.user_id}> di <#${channelId}>\n` +
+            `**Status:** ${message.ai_status}\n` +
+            `**Severitas:** ${severity}\n` +
+            `**Kategori:** ${categories}\n` +
+            `**Isi:** ${snippet}\n` +
+            `**Waktu:** <t:${Math.floor(Date.now() / 1000)}:R>`,
+          );
+        }
+      } catch (logErr) {
+        logger.warn(
+          { messageId: message.id, error: String(logErr) },
+          "Failed to log auto-delete to moderation channel",
+        );
+      }
+    }
+
     const result = {
       deleted: true,
       skipped: false,

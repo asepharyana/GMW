@@ -2,17 +2,13 @@ import { existsSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createChildLogger } from "@bete/shared/logger";
-import { retryWithBackoff } from "@bete/shared/utils";
 import type { Client } from "discord.js-selfbot-v13";
-import { AbortError } from "p-retry";
 import { Piscina } from "piscina";
 import { config } from "../../shared/config/config.js";
 import type { EventBroadcaster } from "../event-broadcaster/index.js";
 import { invalidateAnalyticsCache } from "../message-capture/analyticsStore.js";
 import { isAgeRestrictedMetadata } from "../message-capture/messageMetadata.js";
 import {
-  getAttachmentsForMessages,
-  getConversationContextBefore,
   getConversationKeysWithIncompleteAnalysis,
   getIncompleteMessagesByConversation,
   getMessageById,
@@ -28,14 +24,7 @@ import type {
   ModerationBroadcaster,
 } from "../message-capture/types.js";
 import { attemptAutoDeleteFlaggedMessage } from "./autoDeleteManager.js";
-import {
-  buildConversationContext,
-  estimateTokens,
-} from "./conversationContext.js";
-import {
-  runModerationAnalysis,
-  runSimpleTextFallback,
-} from "./llmModerationClient.js";
+import { estimateTokens } from "./conversationContext.js";
 import { logModerationError } from "./responseLogger.js";
 
 const logger = createChildLogger("ai-analyzer");
@@ -314,11 +303,20 @@ function isConversationProcessingLocked(conversationKey: string): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Processes a single message directly in the main process (no IPC/worker
- * pool overhead).  Never called from the batch path.
+ * Processes a single message via the Piscina worker pool (offloaded from
+ * main thread to avoid blocking the event loop).
  *
- * FIX #1+#5: Increments the individual circuit breaker on failure so a
- * sustained outage stops hammering the LLM endpoint.
+ * The worker handles:
+ * 1. DB initialization
+ * 2. Context fetching + conversation building
+ * 3. Attachment fetching
+ * 4. LLM analysis (normal or simple fallback)
+ *
+ * The main thread handles:
+ * - DB writes (updateMessagesAIAnalysisBulk)
+ * - WebSocket/Redis broadcast
+ * - Analytics cache invalidation
+ * - Auto-delete scheduling
  *
  * Infinite-loop prevention: if the LLM consistently drops the single target
  * message across all retries (analysis_incomplete), we write a terminal flag
@@ -336,117 +334,77 @@ async function processIndividualFallback(
   const conversationKey = getConversationKey(message);
 
   activeIndividualRequests++;
-  // Increment per-conversation counter so the recovery worker can see it.
   individualInFlightByConversation.set(
     conversationKey,
     (individualInFlightByConversation.get(conversationKey) ?? 0) + 1,
   );
   individualInFlightLastTouched.set(conversationKey, Date.now());
 
-  // Track whether all retries were exhausted specifically because the LLM
-  // consistently returned no result for this message (vs. a transient error).
   let exhaustedOnIncomplete = false;
-  let usedSimpleFallback = false;
 
   try {
-    const contextBefore = await getConversationContextBefore({
-      channelId: message.channel_id,
-      threadId: message.thread_id,
-      beforeCreatedAt: message.created_at,
-      limit: config.AI_ANALYSIS_CONTEXT_MESSAGE_LIMIT,
-    });
+    // ── Run the LLM-heavy work in the worker thread ──
+    // Try normal analysis first. The worker handles retries internally.
+    const workerResult = await workerPool.run({
+      type: "individual",
+      message,
+      skipNormalAnalysis: false,
+    } as any) as
+      | { ok: true; results: AnalysisResult[] }
+      | { ok: false; results: AnalysisResult[]; error: string };
 
-    const contextLines = buildConversationContext({
-      contextBefore,
-      targets: [message],
-      maxTokens: config.AI_ANALYSIS_MAX_CONTEXT_TOKENS,
-    });
-
-    const contextIds = contextBefore.map((m) => m.id);
-    const attachments = await getAttachmentsForMessages([
-      messageId,
-      ...contextIds,
-    ]);
-
-    // ── Step 1: Try the normal analysis path (retries on failure) ──
     let analysisResult: { results: AnalysisResult[] } | null = null;
+    let usedSimpleFallback = false;
 
-    try {
-      analysisResult = await retryWithBackoff(
-        async () => {
-          try {
-            const result = await runModerationAnalysis({
-              targets: [message],
-              contextText: contextLines.join("\n"),
-              attachments,
-            });
-
-            // If the LLM still dropped our only target, convert to a retryable
-            // throw so backoff kicks in.  Track this so the catch block can
-            // distinguish it from a transient network/parse failure.
-            const stillIncomplete = result.results.some((r) =>
-              r.flags.includes("analysis_incomplete"),
-            );
-            if (stillIncomplete) {
-              exhaustedOnIncomplete = true;
-              throw new Error(
-                `LLM returned no result for single-target message ${messageId} — will retry with backoff`,
-              );
-            }
-
-            // Got a real result — clear the incomplete flag.
-            exhaustedOnIncomplete = false;
-
-            return result;
-          } catch (err: any) {
-            // Propagate AbortError so outer retry is immediately cancelled on 429.
-            if (err instanceof AbortError) {
-              throw err;
-            }
-            if (
-              err?.status === 429 ||
-              err?.status === 401 ||
-              err?.status === 403
-            ) {
-              throw new AbortError(err);
-            }
-            throw err;
-          }
-        },
-        {
-          retries: 0,
-          minTimeout: 0,
-          maxTimeout: 0,
-        },
+    if (workerResult.ok) {
+      const stillIncomplete = workerResult.results.some((r) =>
+        r.flags.includes("analysis_incomplete"),
       );
-    } catch {
-      // Normal path failed — don't give up yet. Try the simple fallback.
-      analysisResult = null;
+      if (stillIncomplete) {
+        exhaustedOnIncomplete = true;
+        analysisResult = null;
+      } else {
+        analysisResult = workerResult;
+      }
     }
 
-    // ── Step 2: If normal analysis failed, try SIMPLE fallback ──
-    // No JSON, no complex prompt — just asks the LLM for one word.
+    // ── Step 2: If normal analysis failed, try SIMPLE fallback via worker ──
     if (!analysisResult) {
       logger.info(
         { messageId },
-        "Normal analysis failed for individual message — trying simple text fallback",
+        "Normal analysis failed (or incomplete) — trying simple text fallback via worker",
       );
-      usedSimpleFallback = true;
 
-      const simpleResult = await runSimpleTextFallback(message);
-      analysisResult = { results: [simpleResult] };
-      // Clear the exhausted flag since we got a result from the simple path
-      exhaustedOnIncomplete = false;
+      const simpleResult = await workerPool.run({
+        type: "individual_simple",
+        message,
+        skipNormalAnalysis: true,
+      } as any) as
+        | { ok: true; results: AnalysisResult[] }
+        | { ok: false; results: AnalysisResult[]; error: string };
+
+      if (simpleResult.ok) {
+        analysisResult = simpleResult;
+        usedSimpleFallback = true;
+        exhaustedOnIncomplete = false;
+      }
     }
 
-    // At this point we definitely have a result (either normal or simple)
+    // If both failed, throw to go to the catch block
+    if (!analysisResult) {
+      throw new Error(
+        `Both normal and simple analysis failed for message ${messageId}`,
+      );
+    }
+
     if (usedSimpleFallback) {
       logger.info(
         { messageId, status: analysisResult.results[0]?.status },
-        "Used simple text fallback for individual message — no JSON, one-word classification",
+        "Used simple text fallback for individual message (via worker)",
       );
     }
 
+    // ── Main thread: DB writes + broadcast (non-blocking work) ──
     const updates = analysisResult.results.map((r) => ({
       messageId: r.messageId,
       result: {
@@ -470,12 +428,11 @@ async function processIndividualFallback(
       scheduleAutoDelete(row);
     }
 
-    // Log individual analysis completion with comprehensive details
     const resultSummary = analysisResult.results[0];
     logModerationError(
       [messageId],
       config.AI_LLM_MODEL,
-      new Error("Success"), // For logging purposes only
+      new Error("Success"),
       {
         phase: "individual_fallback",
         status: resultSummary?.status,
@@ -485,15 +442,13 @@ async function processIndividualFallback(
       },
     );
 
-    // Reset individual CB on success.
     individualConsecutiveErrors = 0;
 
     logger.debug(
       { messageId, status: analysisResult.results[0]?.status },
-      "Individual fallback analysis complete",
+      "Individual fallback analysis complete (via worker)",
     );
   } catch (error) {
-    // FIX #5: individual failures now feed their own circuit breaker.
     individualConsecutiveErrors++;
     if (
       individualConsecutiveErrors >= config.AI_ANALYSIS_INDIVIDUAL_CB_THRESHOLD
@@ -510,7 +465,6 @@ async function processIndividualFallback(
 
     lastError = error instanceof Error ? error.message : String(error);
 
-    // Log error with responseLogger
     logModerationError(
       [messageId],
       config.AI_LLM_MODEL,
@@ -522,11 +476,6 @@ async function processIndividualFallback(
       },
     );
 
-    // Infinite-loop prevention: if all retries were exhausted because the LLM
-    // consistently dropped this specific message (not a transient error),
-    // overwrite the DB entry with a terminal flag that the recovery query
-    // does NOT match.  This permanently removes it from the recovery loop
-    // while keeping it visible as an error in the dashboard.
     if (exhaustedOnIncomplete) {
       await updateMessagesAIAnalysisBulk([
         {
@@ -548,31 +497,27 @@ async function processIndividualFallback(
       ]).catch((dbErr: unknown) => {
         logger.error(
           { messageId, error: String(dbErr) },
-          "Failed to write terminal exhausted status — message may re-enter recovery loop",
+          "Failed to write terminal exhausted status",
         );
       });
       logger.warn(
         { messageId },
-        "Individual fallback exhausted — marked as individual_analysis_exhausted to stop recovery loop",
+        "Individual fallback exhausted — marked as individual_analysis_exhausted",
       );
     } else {
-      // Transient failure (network/parse/DB): do NOT write terminal status.
-      // Message stays as error/analysis_incomplete in DB and will be retried
-      // by the recovery worker, subject to the individual circuit breaker.
       logger.error(
         {
           messageId,
           error: lastError,
           stack: error instanceof Error ? error.stack : undefined,
         },
-        "Individual fallback analysis failed (transient) — will be retried by recovery worker",
+        "Individual fallback analysis failed (transient) — will be retried",
       );
     }
   } finally {
     activeIndividualRequests--;
     individualInFlight.delete(messageId);
 
-    // Decrement per-conversation counter; remove key when it hits zero.
     const prev = individualInFlightByConversation.get(conversationKey) ?? 1;
     if (prev <= 1) {
       individualInFlightByConversation.delete(conversationKey);

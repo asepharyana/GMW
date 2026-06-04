@@ -1,13 +1,13 @@
 import { config } from "../../shared/config/config.js";
 import { initializeDatabase } from "../../shared/database/drizzle.js";
 import { buildConversationContext } from "./conversationContext.js";
-import { runModerationAnalysis } from "./llmModerationClient.js";
+import { runModerationAnalysis, runSimpleTextFallback } from "./llmModerationClient.js";
 import {
   getAttachmentsForMessages,
   getConversationContextBefore,
   updateMessagesAIAnalysisBulk,
 } from "../message-capture/messageStore.js";
-import type { MessageRecord } from "../message-capture/types.js";
+import type { MessageRecord, AnalysisResult } from "../message-capture/types.js";
 
 let dbInitialized = false;
 let dbInitPromise: Promise<any> | null = null;
@@ -21,6 +21,10 @@ async function ensureDb() {
   }
   await dbInitPromise;
 }
+
+// ---------------------------------------------------------------------------
+// Batch analysis (existing)
+// ---------------------------------------------------------------------------
 
 export interface AnalysisWorkerRequest {
   conversationKey: string;
@@ -117,8 +121,6 @@ export default async function processAnalysisRequest({
       const rows = await updateMessagesAIAnalysisBulk(updates);
       return { ok: true, conversationKey, rows };
     } catch (dbErr) {
-      // If bulk update fails, we log it but don't fail the worker completely
-      // so it can at least retry later without blowing up the circuit breaker if it was an isolated issue
       throw new Error(
         `Failed to update DB: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`,
       );
@@ -141,5 +143,84 @@ export default async function processAnalysisRequest({
     );
 
     return { ok: false, conversationKey, rows, error: errorMessage };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Individual fallback analysis (offloaded from main thread)
+// ---------------------------------------------------------------------------
+
+export interface IndividualWorkerRequest {
+  message: MessageRecord;
+  /** Optional — if true, skip normal analysis and go straight to simple fallback */
+  skipNormalAnalysis: boolean;
+}
+
+export type IndividualWorkerResponse =
+  | {
+      ok: true;
+      results: AnalysisResult[];
+    }
+  | {
+      ok: false;
+      results: AnalysisResult[];
+      error: string;
+    };
+
+/**
+ * Processes a single message analysis in the worker thread.
+ * Fetches context, attachments, runs LLM analysis (or simple fallback),
+ * and returns the result — does NOT update DB or broadcast.
+ *
+ * The caller (main thread) handles DB writes, broadcasting, and auto-delete
+ * scheduling.
+ */
+export async function processIndividualAnalysis({
+  message,
+  skipNormalAnalysis,
+}: IndividualWorkerRequest): Promise<IndividualWorkerResponse> {
+  if (!config.AI_LLM_API_KEY) {
+    return { ok: false, results: [], error: "AI_LLM_API_KEY is missing" };
+  }
+
+  try {
+    await ensureDb();
+
+    const contextBefore = await getConversationContextBefore({
+      channelId: message.channel_id,
+      threadId: message.thread_id,
+      beforeCreatedAt: message.created_at,
+      limit: config.AI_ANALYSIS_CONTEXT_MESSAGE_LIMIT,
+    });
+
+    const contextLines = buildConversationContext({
+      contextBefore,
+      targets: [message],
+      maxTokens: config.AI_ANALYSIS_MAX_CONTEXT_TOKENS,
+    });
+
+    const contextIds = contextBefore.map((m) => m.id);
+    const attachments = await getAttachmentsForMessages([message.id, ...contextIds]);
+
+    let results: AnalysisResult[];
+
+    if (skipNormalAnalysis) {
+      // Go straight to simple text fallback (no JSON, no complex prompt)
+      const simpleResult = await runSimpleTextFallback(message);
+      results = [simpleResult];
+    } else {
+      // Try normal analysis first
+      const moderationResult = await runModerationAnalysis({
+        targets: [message],
+        contextText: contextLines.join("\n"),
+        attachments,
+      });
+      results = moderationResult.results;
+    }
+
+    return { ok: true, results };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return { ok: false, results: [], error: errorMessage };
   }
 }
