@@ -87,7 +87,7 @@ function isAgeRestrictedMessage(message: MessageRecord): boolean {
 }
 
 function buildAgeRestrictedSkipResult(): {
-  status: "clean";
+  status: "error";
   flags: string | null;
   score: number;
   analysis: string;
@@ -99,7 +99,7 @@ function buildAgeRestrictedSkipResult(): {
   error: null;
 } {
   return {
-    status: "clean",
+    status: "error",
     flags: JSON.stringify(["age_restricted"]),
     score: 0,
     analysis: "Skipped moderation for age-restricted content.",
@@ -157,6 +157,38 @@ const conversationConsecutiveErrors = new Map<string, number>();
 const MAX_CONSECUTIVE_ERRORS = 5;
 const CONVERSATION_CB_COOLDOWN_MS = 60000;
 
+/** Alert sinks — called when circuit breakers or sustained errors fire. */
+type CircuitBreakerAlert = {
+  type: "conversation_cb" | "individual_cb" | "sustained_error";
+  conversationKey?: string;
+  consecutiveErrors: number;
+  message: string;
+  lastError?: string | null;
+};
+
+/** Registered alert handlers */
+const alertHandlers: Array<(alert: CircuitBreakerAlert) => void> = [];
+
+/**
+ * Register an alert handler (e.g., for webhook integration).
+ */
+export function onCircuitBreakerAlert(
+  handler: (alert: CircuitBreakerAlert) => void,
+): void {
+  alertHandlers.push(handler);
+}
+
+function fireAlert(alert: CircuitBreakerAlert): void {
+  logger.warn(alert, `CB Alert: ${alert.type} — ${alert.message}`);
+  for (const handler of alertHandlers) {
+    try {
+      handler(alert);
+    } catch {
+      // handler errors are non-critical
+    }
+  }
+}
+
 function recordConversationBatchFailure(conversationKey: string): void {
   const nextCount =
     (conversationConsecutiveErrors.get(conversationKey) ?? 0) + 1;
@@ -167,10 +199,14 @@ function recordConversationBatchFailure(conversationKey: string): void {
       conversationKey,
       Date.now() + CONVERSATION_CB_COOLDOWN_MS,
     );
-    logger.warn(
-      { conversationKey, consecutiveErrors: nextCount },
-      "Conversation circuit breaker triggered due to consecutive batch errors",
-    );
+    fireAlert({
+      type: "conversation_cb",
+      conversationKey,
+      consecutiveErrors: nextCount,
+      message: `Conversation ${conversationKey} circuit breaker triggered after ${nextCount} consecutive errors`,
+      lastError,
+    });
+    conversationConsecutiveErrors.set(conversationKey, 0);
   }
 }
 
@@ -454,13 +490,12 @@ async function processIndividualFallback(
       individualConsecutiveErrors >= config.AI_ANALYSIS_INDIVIDUAL_CB_THRESHOLD
     ) {
       individualCooldownUntil = Date.now() + INDIVIDUAL_COOLDOWN_MS;
-      logger.warn(
-        {
-          threshold: config.AI_ANALYSIS_INDIVIDUAL_CB_THRESHOLD,
-          cooldownUntil: new Date(individualCooldownUntil).toISOString(),
-        },
-        "Individual fallback circuit breaker triggered",
-      );
+      fireAlert({
+        type: "individual_cb",
+        consecutiveErrors: individualConsecutiveErrors,
+        message: `Individual fallback circuit breaker triggered after ${individualConsecutiveErrors} consecutive errors`,
+        lastError,
+      });
     }
 
     lastError = error instanceof Error ? error.message : String(error);
