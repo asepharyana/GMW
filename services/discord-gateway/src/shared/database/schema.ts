@@ -62,7 +62,7 @@ export const pgMessagesTable = pgTable(
       .default("text"),
     metadata: pgText("metadata"),
     ai_status: pgText("ai_status", {
-      enum: ["pending", "clean", "warn", "flagged", "error"],
+      enum: ["pending", "processing", "clean", "warn", "flagged", "error"],
     })
       .notNull()
       .default("pending"),

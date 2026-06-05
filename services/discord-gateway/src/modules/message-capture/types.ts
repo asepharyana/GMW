@@ -1,7 +1,7 @@
 import type fs from "node:fs";
 import type prism from "prism-media";
 
-export type AIStatus = "pending" | "clean" | "warn" | "flagged" | "error";
+export type AIStatus = "pending" | "processing" | "clean" | "warn" | "flagged" | "error";
 export type AISeverity = "none" | "low" | "medium" | "high" | "critical";
 export type AIRecommendedAction =
   | "none"

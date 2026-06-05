@@ -651,8 +651,8 @@ export async function getPendingMessagesByConversation(
 
     // conversationKey is either thread_id or channel_id
     // Query both to safely handle the key
-    const rows = await database
-      .select()
+    const sq = database
+      .select({ id: messagesTable.id })
       .from(messagesTable)
       .where(
         and(
@@ -665,7 +665,14 @@ export async function getPendingMessagesByConversation(
         ),
       )
       .orderBy(asc(messagesTable.created_at))
-      .limit(limit);
+      .limit(limit)
+      .for("update", { skipLocked: true });
+
+    const rows = await database
+      .update(messagesTable)
+      .set({ ai_status: "processing", ai_analyzed_at: Date.now() })
+      .where(inArray(messagesTable.id, sq))
+      .returning();
 
     return rows as MessageRecord[];
   } catch (error) {
@@ -856,8 +863,8 @@ export async function getIncompleteMessagesByConversation(
 ): Promise<MessageRecord[]> {
   try {
     const database = db();
-    const rows = await database
-      .select()
+    const sq = database
+      .select({ id: messagesTable.id })
       .from(messagesTable)
       .where(
         and(
@@ -874,7 +881,14 @@ export async function getIncompleteMessagesByConversation(
         ),
       )
       .orderBy(asc(messagesTable.created_at))
-      .limit(limit);
+      .limit(limit)
+      .for("update", { skipLocked: true });
+
+    const rows = await database
+      .update(messagesTable)
+      .set({ ai_status: "processing", ai_analyzed_at: Date.now() })
+      .where(inArray(messagesTable.id, sq))
+      .returning();
 
     return rows as MessageRecord[];
   } catch (error) {
@@ -1245,5 +1259,40 @@ export async function getExpiredMessages(
       "Failed to get expired messages",
     );
     throw error;
+  }
+}
+
+export async function revertStuckProcessingMessages(
+  timeoutMs: number = 300000,
+): Promise<number> {
+  try {
+    const database = db();
+    const cutoffTime = Date.now() - timeoutMs;
+
+    const rows = await database
+      .update(messagesTable)
+      .set({ ai_status: "pending", ai_analyzed_at: null })
+      .where(
+        and(
+          eq(messagesTable.ai_status, "processing"),
+          sql`${messagesTable.ai_analyzed_at} < ${cutoffTime}`,
+        ),
+      )
+      .returning({ id: messagesTable.id });
+
+    if (rows.length > 0) {
+      logger.warn(
+        { count: rows.length, messageIds: rows.map((r) => r.id) },
+        "Reverted stuck processing messages to pending",
+      );
+    }
+    
+    return rows.length;
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed to revert stuck processing messages",
+    );
+    return 0;
   }
 }

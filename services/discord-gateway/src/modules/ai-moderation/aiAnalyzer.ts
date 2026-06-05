@@ -14,6 +14,7 @@ import {
   getMessageById,
   getPendingConversationKeys,
   getPendingMessagesByConversation,
+  revertStuckProcessingMessages,
   updateMessageAIAnalysis,
   updateMessagesAIAnalysisBulk,
 } from "../message-capture/messageStore.js";
@@ -661,17 +662,24 @@ function enqueueIndividualFallbacks(messages: MessageRecord[]): void {
 async function processBatch(
   conversationKey: string,
   messages: MessageRecord[],
+  processingStartedAt: number,
 ): Promise<void> {
-  if (messages.length === 0) return;
+  if (messages.length === 0) {
+    if (conversationProcessing.get(conversationKey) === processingStartedAt) {
+      conversationProcessing.delete(conversationKey);
+    }
+    return;
+  }
   const cooldownUntil = conversationErrorCooldown.get(conversationKey) ?? 0;
   if (Date.now() < cooldownUntil) {
+    if (conversationProcessing.get(conversationKey) === processingStartedAt) {
+      conversationProcessing.delete(conversationKey);
+    }
     return;
   }
 
   activeRequests++;
   let shouldScheduleNext = false;
-  const processingStartedAt = Date.now();
-  conversationProcessing.set(conversationKey, processingStartedAt);
   try {
     const result = (await workerPool.run({
       type: "batch",
@@ -936,16 +944,33 @@ function scheduleConversationAnalysis(conversationKey: string): void {
   const timer = setTimeout(() => {
     conversationDebounceTimers.delete(conversationKey);
 
+    // FIX TOCTOU: Set lock synchronously BEFORE the async DB fetch starts
+    if (isConversationProcessingLocked(conversationKey)) {
+      return;
+    }
+    const processingStartedAt = Date.now();
+    conversationProcessing.set(conversationKey, processingStartedAt);
+
     // FIX #3: explicit .catch() — no async arrow function to avoid unhandled rejection.
     getPendingMessagesByConversation(
       conversationKey,
       config.AI_ANALYSIS_MAX_BATCH_SIZE,
     )
       .then(async (messages) => {
-        if (messages.length === 0) return;
+        if (messages.length === 0) {
+          if (conversationProcessing.get(conversationKey) === processingStartedAt) {
+            conversationProcessing.delete(conversationKey);
+          }
+          return;
+        }
 
         const processableMessages = await skipAgeRestrictedMessages(messages);
-        if (processableMessages.length === 0) return;
+        if (processableMessages.length === 0) {
+          if (conversationProcessing.get(conversationKey) === processingStartedAt) {
+            conversationProcessing.delete(conversationKey);
+          }
+          return;
+        }
 
         // FIX #6: trim to token budget before sending to LLM.
         // 50 tokens overhead accounts for JSON structure + id/username fields.
@@ -971,9 +996,12 @@ function scheduleConversationAnalysis(conversationKey: string): void {
           );
         }
 
-        return processBatch(conversationKey, trimmed);
+        return processBatch(conversationKey, trimmed, processingStartedAt);
       })
       .catch((err: unknown) => {
+        if (conversationProcessing.get(conversationKey) === processingStartedAt) {
+          conversationProcessing.delete(conversationKey);
+        }
         logger.error(
           {
             conversationKey,
@@ -1070,6 +1098,13 @@ export function startPendingAIAnalysisWorker(
   if (!config.AI_ANALYSIS_ENABLED) return;
 
   setInterval(() => {
+    revertStuckProcessingMessages(300000).catch((err: unknown) => {
+      logger.error(
+        { error: String(err) },
+        "Failed to run stuck processing recovery",
+      );
+    });
+
     // FIX #3 pattern: no async arrow — chain promises explicitly.
     Promise.all([
       getPendingConversationKeys(500),
