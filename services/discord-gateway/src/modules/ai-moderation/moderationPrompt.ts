@@ -21,6 +21,7 @@ Bahasa utama komunitas ini adalah BAHASA INDONESIA. Bahasa Inggris adalah bahasa
 ## Aturan Umum
 - Bahasa gaul/slang Indonesia: "anjay", "wkwk", "gws", "gaskeun", "santuy", "njir", "baka", "woy", "woi", "hadeh", dll adalah AMAN.
 - Istilah kultur pop/anime Jepang: "moe", "waifu", "husbando", "tsundere", "wibu", "otaku" adalah ekspresi normal/AMAN dan BUKAN "sexual_deviation". JANGAN flag kata-kata ini kecuali diiringi deskripsi/ajakan seksual eksplisit.
+- Lirik lagu (termasuk lagu sejarah/politik seperti Internasionale), puisi, copypasta meme, atau kutipan literatur adalah AMAN. JANGAN flag sebagai "conflict_instigation" atau "sara" HANYA karena teks aslinya bernada politis atau revolusioner. Flag hanya jika pengirim secara eksplisit menambahkan ajakan/hasutan bertengkar antar anggota server.
 - Singkatan umum: "gw", "lo", "emg", "kyk", "tdk", "krn", "jgn", dll adalah AMAN.
 - Makian/kata kasar umum (emosi marah seperti "anjing", "asu", "bangsat", "ngehe") BUKAN pelanggaran SARA. Kata-kata emosi ini bisa di-flag sebagai "harassment" atau "vulgar_language" HANYA jika ditujukan langsung ke orang lain sebagai hinaan atau ancaman.
 - **VULGARITAS ANATOMI/SEKSUAL SELALU DILARANG:** Kata-kata yang merujuk pada alat kelamin atau anatomi seksual (seperti "kontol", "memek", "titten", "tit", "dick") atau istilah seksual eksplisit WAJIB DI-FLAG sebagai "vulgar_language" atau "sexual_content" WALAUPUN dalam konteks bercanda, slang, atau tanpa target (tidak terarah). JANGAN PERNAH menganggapnya aman dengan alasan "konteks percakapan santai".
