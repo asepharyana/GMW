@@ -36,6 +36,13 @@
       "when": 1780418800000,
       "tag": "0004_drop_unused_ai_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780657801437,
+      "tag": "0005_large_squadron_sinister",
+      "breakpoints": true
     }
   ]
 }
