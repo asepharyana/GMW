@@ -800,6 +800,22 @@ async function processBatch(
         conversationKey,
         Date.now() + config.AI_ANALYSIS_ERROR_COOLDOWN_MS,
       );
+
+      // FIX: Release the processing lock immediately so the cooldown timer
+      // (not the processing-timeout expiry) controls when this conversation
+      // is next eligible.  Without this the lock would hold for the full
+      // AI_ANALYSIS_PROCESSING_TIMEOUT_MS before the recovery worker could
+      // pick the reverted-pending messages back up.
+      if (conversationProcessing.get(conversationKey) === processingStartedAt) {
+        conversationProcessing.delete(conversationKey);
+      }
+
+      // FIX: Do NOT set shouldScheduleNext = true here.  The reverted messages
+      // are now 'pending' again.  scheduleConversationAnalysis would race with
+      // the recovery worker and schedule the same conversation twice — once
+      // immediately (via shouldScheduleNext) and once after the cooldown
+      // (via recovery worker).  Let the cooldown gate the next attempt.
+      shouldScheduleNext = false;
     }
 
     if (apiFailedMessages.length === 0) {

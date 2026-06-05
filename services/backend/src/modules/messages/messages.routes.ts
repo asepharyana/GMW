@@ -13,6 +13,15 @@ import { messagesService } from "./messages.service.js";
 
 const logger = createChildLogger("messages.routes");
 
+/**
+ * Per-message in-flight guard for the reanalyze endpoint.
+ * Prevents concurrent spam-clicks from issuing duplicate UPDATE + recovery
+ * worker triggers for the same message. Released as soon as the DB write
+ * completes (or fails), which is fast enough that false-positive blocking
+ * is not a practical concern.
+ */
+const reanalyzeInFlight = new Set<string>();
+
 export function createMessagesRouter(): Router {
   const router = express.Router();
 
@@ -62,11 +71,26 @@ export function createMessagesRouter(): Router {
         return;
       }
 
-      const pool = getPool();
-      await pool.query(
-        `UPDATE messages SET ai_status = 'pending' WHERE id = $1`,
-        [id],
-      );
+      // Idempotency guard: reject concurrent duplicate requests for the same ID.
+      if (reanalyzeInFlight.has(id)) {
+        res.status(409).json({ error: "REANALYZE_IN_PROGRESS", messageId: id });
+        return;
+      }
+
+      reanalyzeInFlight.add(id);
+      try {
+        const pool = getPool();
+        await pool.query(
+          // Only revert to pending if the message is not currently being
+          // processed (pending) already — prevents write amplification when
+          // the recovery worker already picked it up between UI clicks.
+          `UPDATE messages SET ai_status = 'pending'
+           WHERE id = $1 AND ai_status != 'pending'`,
+          [id],
+        );
+      } finally {
+        reanalyzeInFlight.delete(id);
+      }
 
       logger.debug({ id }, "Message marked for re-analysis");
       res.status(200).json({ ok: true });
