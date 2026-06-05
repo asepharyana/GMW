@@ -33,12 +33,6 @@ function getClient(): OpenAI | null {
   return openaiClient;
 }
 
-// ---------------------------------------------------------------------------
-// Shared defaults
-// ---------------------------------------------------------------------------
-
-const DEFAULT_TEMPERATURE = 0.2;
-const DEFAULT_TOP_P = 0.95;
 const DEFAULT_RETRIES = 2;
 
 // ---------------------------------------------------------------------------
@@ -60,6 +54,8 @@ export interface LlmCallOpts {
   jsonResponse?: { type: "json_object" };
   /** Extra retries beyond DEFAULT_RETRIES (default 2). */
   retries?: number;
+  /** Whether to use streaming (if true, will consume stream and return aggregated result) */
+  stream?: boolean;
 }
 
 /**
@@ -77,33 +73,74 @@ export async function llmChat(
   const {
     messages,
     model = config.AI_LLM_MODEL,
-    max_tokens = 8192,
-    temperature = DEFAULT_TEMPERATURE,
-    top_p = DEFAULT_TOP_P,
+    max_tokens,
+    temperature,
+    top_p,
     jsonResponse,
     retries = DEFAULT_RETRIES,
+    stream = false,
   } = opts;
 
-  const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
-    {
-      model,
-      messages,
-      temperature,
-      top_p,
-      max_tokens,
-      stream: false,
-    };
+  const params: any = {
+    model,
+    messages,
+  };
+
+  // Attach optional parameters only if explicitly provided to maintain
+  // maximum compatibility with various LLM providers and local APIs.
+  if (stream !== undefined) params.stream = stream;
+  if (temperature !== undefined) params.temperature = temperature;
+  if (top_p !== undefined) params.top_p = top_p;
+  if (max_tokens !== undefined) params.max_tokens = max_tokens;
 
   if (jsonResponse) {
-    (params as unknown as Record<string, unknown>).response_format =
-      jsonResponse;
+    params.response_format = jsonResponse;
   }
 
   return retryWithBackoff(
     async () => {
-      return withLlmConcurrency(async () =>
-        client.chat.completions.create(params),
-      );
+      return withLlmConcurrency(async () => {
+        const response = await client.chat.completions.create(params);
+        if (stream) {
+          let content = "";
+          let finishReason = "stop";
+          for await (const chunk of response as any) {
+            const choice = chunk?.choices?.[0];
+            
+            // Dynamic parsing to support multiple providers (OpenAI, Ollama, Groq, Anthropic via proxy, etc.)
+            const textChunk = 
+              choice?.delta?.content || 
+              choice?.message?.content || 
+              choice?.text || 
+              chunk?.message?.content || 
+              chunk?.response || 
+              chunk?.content || 
+              "";
+              
+            content += textChunk;
+            
+            const fr = choice?.finish_reason || chunk?.finish_reason;
+            if (fr) {
+              finishReason = fr;
+            }
+          }
+          return {
+            id: 'stream-aggregated',
+            choices: [
+              {
+                message: { role: 'assistant', content, refusal: null },
+                finish_reason: finishReason,
+                index: 0,
+                logprobs: null,
+              },
+            ],
+            created: Math.floor(Date.now() / 1000),
+            model: model,
+            object: 'chat.completion',
+          } as OpenAI.Chat.Completions.ChatCompletion;
+        }
+        return response as OpenAI.Chat.Completions.ChatCompletion;
+      });
     },
     {
       retries,
