@@ -40,6 +40,11 @@ Pedoman ini mencerminkan nilai-nilai yang dijunjung server. Terapkan dengan bija
 - Perbedaan pendapat itu wajar. Serangan personal, penghinaan, dan merendahkan orang lain tidak.
 - **Pelecehan Agama / Candaan Berlebihan:** Dilarang keras menjadikan tata cara ibadah (seperti sholat), simbol agama, atau ritual sebagai bahan candaan satir, meme, atau parodi (contoh: sholat di depan foto Stalin, menggabungkan ibadah dengan tokoh/entitas tidak pantas). Meskipun konteksnya humor atau satir, "candaan berlebihan" terkait agama WAJIB di-flag sebagai "sara".
 
+### Anti-Evasion & Obfuscation (STRICT RULE)
+- **Zalgo / Leetspeak / Simbol:** Pesan yang menggunakan karakter simbolik acak, Zalgo text, atau leetspeak (misal: "++++++K1[[ your $€/F", "b1tch", "k0nt0l") adalah TEKNIK EVASI. JANGAN PERNAH menganggapnya sebagai "pesan abstrak", "typo", atau "tanpa makna". KAMU WAJIB mendekode/membaca makna aslinya. Jika maknanya merujuk pada "kill yourself", "die", ancaman, atau kata kasar, FLAG sebagai "harassment" atau "hate_speech" dengan severity "high" atau "critical".
+- **Bahasa Asing & Vulgaritas Obscure:** Kata-kata vulgar atau ofensif dalam bahasa asing/slang (seperti "titten" (German for tits), "nigger", "kys", "whore") ADALAH PELANGGARAN. JANGAN abaikan atau anggap sebagai "bercanda/tidak bermakna serius" hanya karena menggunakan huruf kapital (mis. "AKU RAJA TITTEN") atau bahasa non-Indonesia.
+- **Zero Tolerance untuk Evasi:** Setiap indikasi bahwa user mencoba menyembunyikan kata kasar/ancaman di balik simbol HARUS langsung di-flag. Jangan beri toleransi atau label "clean".
+
 ### Hindari Konflik dan Jaga Kedamaian
 - Dilarang memancing keributan, drama, atau pertengkaran di channel umum.
 - Ajakan/mengumpat untuk menyelesaikan masalah personal di channel publik → "conflict_instigation".
@@ -185,7 +190,15 @@ Output: {"results":[{"message_id":"12121","status":"flagged","flags":["offensive
 
 Contoh 12 — Username ofensif (isi pesan memperkuat):
 Input: [target] id=13131 user=nazi_babi_itu: bener tuh nih ras emang harus dibasmi
-Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}`;
+Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}
+
+Contoh 13 — Obfuscation / Zalgo Text (Evasion):
+Input: [target] id=14141 user=hater: ++++++K1[[ your $€/F" "~`| \0ve $ 1F ¥°U |}iE ®©
+Output: {"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"categories":["harassment","hate_speech"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["++++++K1[[ your $€/F","\\0ve $ 1F ¥°U |}iE"],"analysis":"Pesan menggunakan teknik obfuscation/simbol untuk menyembunyikan frasa 'Kill yourself I love if you die'. Ini adalah ancaman dan pelecehan berat yang disamarkan."}]}
+
+Contoh 14 — Vulgaritas Bahasa Asing / All-Caps:
+Input: [target] id=15151 user=troll: AKU RAJA TITTEN
+Output: {"results":[{"message_id":"15151","status":"flagged","flags":["vulgar_language"],"score":0.85,"categories":["vulgar_language"],"severity":"medium","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["AKU RAJA TITTEN"],"analysis":"Pesan menggunakan kata vulgar bahasa asing ('titten' berarti payudara dalam bahasa Jerman) dengan huruf kapital. Ini adalah pelanggaran vulgar_language meskipun formatnya seperti candaan."}]}`;
 
 /**
  * Text-only examples extracted from FEW_SHOT_EXAMPLES for text-mode prompts.
@@ -223,7 +236,15 @@ Output: {"results":[{"message_id":"12121","status":"flagged","flags":["offensive
 
 Contoh 12 — Username ofensif (isi pesan memperkuat):
 Input: [target] id=13131 user=nazi_babi_itu: bener tuh nih ras emang harus dibasmi
-Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}`;
+Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}
+
+Contoh 13 — Obfuscation / Zalgo Text (Evasion):
+Input: [target] id=14141 user=hater: ++++++K1[[ your $€/F" "~`| \0ve $ 1F ¥°U |}iE ®©
+Output: {"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"categories":["harassment","hate_speech"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["++++++K1[[ your $€/F","\\0ve $ 1F ¥°U |}iE"],"analysis":"Pesan menggunakan teknik obfuscation/simbol untuk menyembunyikan frasa 'Kill yourself I love if you die'. Ini adalah ancaman dan pelecehan berat yang disamarkan."}]}
+
+Contoh 14 — Vulgaritas Bahasa Asing / All-Caps:
+Input: [target] id=15151 user=troll: AKU RAJA TITTEN
+Output: {"results":[{"message_id":"15151","status":"flagged","flags":["vulgar_language"],"score":0.85,"categories":["vulgar_language"],"severity":"medium","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["AKU RAJA TITTEN"],"analysis":"Pesan menggunakan kata vulgar bahasa asing ('titten' berarti payudara dalam bahasa Jerman) dengan huruf kapital. Ini adalah pelanggaran vulgar_language meskipun formatnya seperti candaan."}]}`;
 
 /**
  * Media-capable examples extracted from FEW_SHOT_EXAMPLES for media-mode prompts.
@@ -266,7 +287,15 @@ Output: {"results":[{"message_id":"12121","status":"flagged","flags":["offensive
 
 Contoh 12 — Username ofensif (isi pesan memperkuat):
 Input: [target] id=13131 user=nazi_babi_itu: bener tuh nih ras emang harus dibasmi
-Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}`;
+Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}
+
+Contoh 13 — Obfuscation / Zalgo Text (Evasion):
+Input: [target] id=14141 user=hater: ++++++K1[[ your $€/F" "~`| \0ve $ 1F ¥°U |}iE ®©
+Output: {"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"categories":["harassment","hate_speech"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["++++++K1[[ your $€/F","\\0ve $ 1F ¥°U |}iE"],"analysis":"Pesan menggunakan teknik obfuscation/simbol untuk menyembunyikan frasa 'Kill yourself I love if you die'. Ini adalah ancaman dan pelecehan berat yang disamarkan."}]}
+
+Contoh 14 — Vulgaritas Bahasa Asing / All-Caps:
+Input: [target] id=15151 user=troll: AKU RAJA TITTEN
+Output: {"results":[{"message_id":"15151","status":"flagged","flags":["vulgar_language"],"score":0.85,"categories":["vulgar_language"],"severity":"medium","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["AKU RAJA TITTEN"],"analysis":"Pesan menggunakan kata vulgar bahasa asing ('titten' berarti payudara dalam bahasa Jerman) dengan huruf kapital. Ini adalah pelanggaran vulgar_language meskipun formatnya seperti candaan."}]}`;
 
 // ---------------------------------------------------------------------------
 // Section: Output Schema + XML Delimiter Instructions
@@ -322,6 +351,10 @@ Contoh baik: "drama menceritakan isu personal tentang budi di channel publik dan
 Tulis: "[user] memiliki username yang <alasan ofensif>. <isi pesan>. <kesimpulan>."
 Contoh baik (pesan bersih): "pejabat_munafik_dajjal memiliki username ofensif yang menyerang pejabat dengan label SARA. Isi pesan hanya sapaan biasa. Diberi warning ringan untuk mengganti username."
 Contoh baik (pesan mendukung): "nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan. Pelanggaran berat."
+
+### Jika menggunakan evasions (zalgo/leetspeak):
+Tulis: "[user] menggunakan teknik obfuscation/leetspeak untuk menyembunyikan <makna asli>. <dampak>. <kesimpulan>."
+Contoh baik: "hater menggunakan teknik simbol acak untuk menyamarkan frasa 'kill yourself'. Ini adalah ancaman nyata yang di-obfuscate. Melanggar kebijakan keselamatan."
 
 ### Jika sexual_deviation:
 Tulis: "[user] <konten penyimpangan>. <konteks>. Melanggar kebijakan server."

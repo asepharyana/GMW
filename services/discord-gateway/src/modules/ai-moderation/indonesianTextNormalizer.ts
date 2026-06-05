@@ -134,6 +134,10 @@ const BADWORD_CATEGORIES: BadwordEntry[] = [
       "kacang",
       "edan",
       "gila",
+      "titten",
+      "bitch",
+      "whore",
+      "slut"
     ],
   },
   {
@@ -162,6 +166,8 @@ const BADWORD_CATEGORIES: BadwordEntry[] = [
       "unta",
       "bangke",
       "bangsat",
+      "kys",
+      "kill yourself"
     ],
   },
   {
@@ -217,6 +223,8 @@ const BADWORD_CATEGORIES: BadwordEntry[] = [
       "dasar cina",
       "dasar tionghoa",
       "dasar pribumi",
+      "nigger",
+      "nigga"
     ],
   },
 ];
@@ -391,9 +399,9 @@ export function buildModerationTextEvidence(
   }
 
   if (badwordHits.length > 0) {
-    notes.push(`Indonesian badword detected: ${badwordHits.join(", ")}`);
+    notes.push(`Known badword detected: ${badwordHits.join(", ")}`);
   } else {
-    notes.push("no Indonesian badword detected");
+    notes.push("no known badword detected");
   }
 
   return {
