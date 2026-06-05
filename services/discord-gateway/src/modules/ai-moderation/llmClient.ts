@@ -100,46 +100,59 @@ export async function llmChat(
   return retryWithBackoff(
     async () => {
       return withLlmConcurrency(async () => {
-        const response = await client.chat.completions.create(params);
-        if (stream) {
-          let content = "";
-          let finishReason = "stop";
-          for await (const chunk of response as any) {
-            const choice = chunk?.choices?.[0];
-            
-            // Dynamic parsing to support multiple providers (OpenAI, Ollama, Groq, Anthropic via proxy, etc.)
-            const textChunk = 
-              choice?.delta?.content || 
-              choice?.message?.content || 
-              choice?.text || 
-              chunk?.message?.content || 
-              chunk?.response || 
-              chunk?.content || 
-              "";
+        try {
+          const response = await client.chat.completions.create(params);
+          if (stream) {
+            let content = "";
+            let finishReason = "stop";
+            for await (const chunk of response as any) {
+              const choice = chunk?.choices?.[0];
               
-            content += textChunk;
-            
-            const fr = choice?.finish_reason || chunk?.finish_reason;
-            if (fr) {
-              finishReason = fr;
+              // Dynamic parsing to support multiple providers (OpenAI, Ollama, Groq, Anthropic via proxy, etc.)
+              const textChunk = 
+                choice?.delta?.content || 
+                choice?.message?.content || 
+                choice?.text || 
+                chunk?.message?.content || 
+                chunk?.response || 
+                chunk?.content || 
+                "";
+                
+              content += textChunk;
+              
+              const fr = choice?.finish_reason || chunk?.finish_reason;
+              if (fr) {
+                finishReason = fr;
+              }
             }
+            return {
+              id: 'stream-aggregated',
+              choices: [
+                {
+                  message: { role: 'assistant', content, refusal: null },
+                  finish_reason: finishReason,
+                  index: 0,
+                  logprobs: null,
+                },
+              ],
+              created: Math.floor(Date.now() / 1000),
+              model: model,
+              object: 'chat.completion',
+            } as OpenAI.Chat.Completions.ChatCompletion;
           }
-          return {
-            id: 'stream-aggregated',
-            choices: [
-              {
-                message: { role: 'assistant', content, refusal: null },
-                finish_reason: finishReason,
-                index: 0,
-                logprobs: null,
-              },
-            ],
-            created: Math.floor(Date.now() / 1000),
-            model: model,
-            object: 'chat.completion',
-          } as OpenAI.Chat.Completions.ChatCompletion;
+          return response as OpenAI.Chat.Completions.ChatCompletion;
+        } catch (error: any) {
+          log.error(
+            {
+              error: error.message,
+              status: error.status,
+              rawResponse: error.error || error.body || error.response?.data || "N/A",
+              model
+            },
+            "LLM API request failed"
+          );
+          throw error;
         }
-        return response as OpenAI.Chat.Completions.ChatCompletion;
       });
     },
     {
