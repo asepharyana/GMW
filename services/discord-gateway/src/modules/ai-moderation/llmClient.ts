@@ -78,7 +78,7 @@ export async function llmChat(
     top_p,
     jsonResponse,
     retries = DEFAULT_RETRIES,
-    stream = false,
+    stream,
   } = opts;
 
   const params: any = {
@@ -100,15 +100,13 @@ export async function llmChat(
   return retryWithBackoff(
     async () => {
       return withLlmConcurrency(async () => {
-        try {
-          const response = await client.chat.completions.create(params);
-          if (stream) {
+        const execute = async (currentParams: any) => {
+          const response = await client.chat.completions.create(currentParams);
+          if (currentParams.stream) {
             let content = "";
             let finishReason = "stop";
             for await (const chunk of response as any) {
               const choice = chunk?.choices?.[0];
-              
-              // Dynamic parsing to support multiple providers (OpenAI, Ollama, Groq, Anthropic via proxy, etc.)
               const textChunk = 
                 choice?.delta?.content || 
                 choice?.message?.content || 
@@ -117,13 +115,9 @@ export async function llmChat(
                 chunk?.response || 
                 chunk?.content || 
                 "";
-                
               content += textChunk;
-              
               const fr = choice?.finish_reason || chunk?.finish_reason;
-              if (fr) {
-                finishReason = fr;
-              }
+              if (fr) finishReason = fr;
             }
             return {
               id: 'stream-aggregated',
@@ -136,17 +130,31 @@ export async function llmChat(
                 },
               ],
               created: Math.floor(Date.now() / 1000),
-              model: model,
+              model: currentParams.model,
               object: 'chat.completion',
             } as OpenAI.Chat.Completions.ChatCompletion;
           }
           return response as OpenAI.Chat.Completions.ChatCompletion;
+        };
+
+        try {
+          return await execute(params);
         } catch (error: any) {
+          const rawResponse = error.error || error.body || error.response?.data || "N/A";
+          const errorStr = (JSON.stringify(rawResponse) + String(error.message)).toLowerCase();
+
+          // Auto-fallback: If provider strictly demands streaming (400 Bad Request on stream params)
+          if (error.status === 400 && errorStr.includes("stream") && !params.stream) {
+            log.warn({ model }, "Provider rejected non-streaming request. Fallback to stream: true initiated.");
+            params.stream = true;
+            return await execute(params);
+          }
+
           log.error(
             {
               error: error.message,
               status: error.status,
-              rawResponse: error.error || error.body || error.response?.data || "N/A",
+              rawResponse,
               model
             },
             "LLM API request failed"
