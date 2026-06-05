@@ -78,8 +78,13 @@ export function useMessages() {
   }, [cursor, loadingMore]);
 
   const reanalyze = useCallback(async (id: string): Promise<void> => {
-    setMessages((prev) =>
-      prev.map((message) =>
+    // Capture prior state inside the functional updater so we don't need
+    // `messages` as a useCallback dependency (avoids stale closure churn).
+    let saved: MessageRecord | undefined;
+
+    setMessages((prev) => {
+      saved = prev.find((m) => m.id === id);
+      return prev.map((message) =>
         message.id === id
           ? {
               ...message,
@@ -88,10 +93,23 @@ export function useMessages() {
               ai_analysis: null,
             }
           : message,
-      ),
-    );
-    await reanalyzeMessage(id);
+      );
+    });
+
+    try {
+      await reanalyzeMessage(id);
+    } catch (err) {
+      // HTTP failed — revert the optimistic update so the UI stays truthful.
+      if (saved) {
+        const snapshot = saved;
+        setMessages((prev) =>
+          prev.map((message) => (message.id === id ? snapshot : message)),
+        );
+      }
+      throw err;
+    }
   }, []);
+
 
   const reanalyzeAllErrors = useCallback(async (): Promise<number> => {
     // Optimistically mark all error messages as pending

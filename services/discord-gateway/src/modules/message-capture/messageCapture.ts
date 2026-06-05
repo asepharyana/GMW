@@ -236,6 +236,21 @@ export function registerMessageCapture(client: Client): void {
       const existing = await getMessageById(newMessage.id);
 
       if (existing) {
+        const newContent = getDisplayContent(newMessage as Message);
+        const existingContent = existing.edited_content ?? existing.content;
+
+        // Skip if the displayed text is identical — Discord fires `messageUpdate`
+        // for embed resolution (link previews) which does NOT change the message
+        // body. Re-setting ai_status + re-queuing LLM in that case wastes a call
+        // and risks overwriting a valid completed analysis with a duplicate.
+        if (newContent === existingContent) {
+          logger.debug(
+            { messageId: newMessage.id },
+            "messageUpdate skipped: content unchanged (embed resolution or no-op)",
+          );
+          return;
+        }
+
         const editedAt = Date.now();
         await updateMessageAsEdited(
           newMessage.id,

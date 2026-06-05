@@ -61,9 +61,21 @@ function broadcastAnalysisCompleted(row: MessageRecord): void {
 
 function scheduleAutoDelete(row: MessageRecord): void {
   if (row.ai_status !== "flagged" && row.ai_status !== "warn") return;
+
+  // Idempotency guard: if a concurrent path (batch + individual fallback) both
+  // produce a result for the same message, only the first call proceeds.
+  if (autoDeleteInFlight.has(row.id)) {
+    logger.debug(
+      { messageId: row.id },
+      "Auto-delete skipped: already in-flight for this message",
+    );
+    return;
+  }
+  autoDeleteInFlight.add(row.id);
+
   const run = () => {
-    attemptAutoDeleteFlaggedMessage(moderationClient, row).catch(
-      (error: unknown) => {
+    attemptAutoDeleteFlaggedMessage(moderationClient, row)
+      .catch((error: unknown) => {
         logger.error(
           {
             messageId: row.id,
@@ -71,8 +83,10 @@ function scheduleAutoDelete(row: MessageRecord): void {
           },
           "Unexpected auto-delete error",
         );
-      },
-    );
+      })
+      .finally(() => {
+        autoDeleteInFlight.delete(row.id);
+      });
   };
 
   if (config.AUTO_DELETE_FLAGGED_DELAY_MS > 0) {
@@ -81,6 +95,7 @@ function scheduleAutoDelete(row: MessageRecord): void {
   }
   setImmediate(run);
 }
+
 
 function isAgeRestrictedMessage(message: MessageRecord): boolean {
   return isAgeRestrictedMetadata(message.metadata);
@@ -147,6 +162,16 @@ const conversationDebounceTimers = new Map<string, NodeJS.Timeout>();
 const conversationProcessing = new Map<string, number>();
 /** Cooldown expiry timestamp per conversation key after an error. */
 const conversationErrorCooldown = new Map<string, number>();
+
+/**
+ * Per-message in-flight guard for the auto-delete side-effect.
+ * `scheduleAutoDelete` is called from both `processBatch` (on batch success)
+ * and `processIndividualFallback` (on individual success).  For a message that
+ * races through both paths, without this guard two concurrent
+ * `attemptAutoDeleteFlaggedMessage` calls would be launched — producing a
+ * duplicate moderation-action log and an unnecessary Discord 10008 error.
+ */
+const autoDeleteInFlight = new Set<string>();
 
 let activeRequests = 0;
 let lastError: string | null = null;
@@ -875,6 +900,11 @@ async function processBatch(
  * .catch() so DB errors don't produce unhandled promise rejections.
  * FIX #6: Calls pickBatchWithinBudget after fetching messages so token budget
  * is respected before handing the batch to the LLM.
+ * FIX #7: Unified single-timer path — always clear-and-reset one timer per
+ * conversation key regardless of whether a cooldown is active.  The delay is
+ * simply max(cooldownRemainder+500, debounce) so the same timer serves both
+ * the "throttled by error cooldown" and "normal debounce" cases, eliminating
+ * the previous two-path logic that could leave both timers live simultaneously.
  */
 function scheduleConversationAnalysis(conversationKey: string): void {
   if (isConversationProcessingLocked(conversationKey)) {
@@ -884,23 +914,19 @@ function scheduleConversationAnalysis(conversationKey: string): void {
   const convoCooldown = conversationErrorCooldown.get(conversationKey) ?? 0;
   const convoErrors = conversationConsecutiveErrors.get(conversationKey) ?? 0;
 
-  if (convoCooldown && Date.now() < convoCooldown) {
-    if (!conversationDebounceTimers.has(conversationKey)) {
-      const remaining = convoCooldown - Date.now();
-      const timer = setTimeout(() => {
-        conversationDebounceTimers.delete(conversationKey);
-        scheduleConversationAnalysis(conversationKey);
-      }, remaining + 500);
-      conversationDebounceTimers.set(conversationKey, timer);
-    }
-    return;
-  }
-
-  // Block scheduling if this conversation already hit the per-conversation
-  // error threshold — prevents rapid retry loops on the same broken convo.
+  // Hard-block: circuit breaker threshold reached AND cooldown still active.
   if (convoErrors >= MAX_CONSECUTIVE_ERRORS && Date.now() < convoCooldown) {
     return;
   }
+
+  // Unified delay: honour the cooldown window if active, otherwise use the
+  // normal debounce interval.  Always clear-and-reset so only ONE timer is
+  // ever pending per conversation key regardless of call source.
+  const now = Date.now();
+  const delayMs =
+    convoCooldown > now
+      ? convoCooldown - now + 500
+      : config.AI_ANALYSIS_DEBOUNCE_MS;
 
   const existingTimer = conversationDebounceTimers.get(conversationKey);
   if (existingTimer) {
@@ -956,10 +982,11 @@ function scheduleConversationAnalysis(conversationKey: string): void {
           "Failed to fetch or dispatch pending messages for scheduled analysis",
         );
       });
-  }, config.AI_ANALYSIS_DEBOUNCE_MS);
+  }, delayMs);
 
   conversationDebounceTimers.set(conversationKey, timer);
 }
+
 
 // ---------------------------------------------------------------------------
 // Public API

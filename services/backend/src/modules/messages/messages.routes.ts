@@ -14,13 +14,20 @@ import { messagesService } from "./messages.service.js";
 const logger = createChildLogger("messages.routes");
 
 /**
- * Per-message in-flight guard for the reanalyze endpoint.
+ * Per-message in-flight guard for the single reanalyze endpoint.
  * Prevents concurrent spam-clicks from issuing duplicate UPDATE + recovery
- * worker triggers for the same message. Released as soon as the DB write
- * completes (or fails), which is fast enough that false-positive blocking
- * is not a practical concern.
+ * worker triggers for the same message.
  */
 const reanalyzeInFlight = new Set<string>();
+
+/**
+ * Per-scope in-flight guard for the batch reanalyze endpoint.
+ * Scope key = "guildId:channelId" (empty string used for undefined parts).
+ * Two concurrent batch-reanalyze requests for the same scope are rejected
+ * with 409 so the recovery worker is not triggered multiple times for the
+ * same set of error messages.
+ */
+const reanalyzeBatchInFlight = new Set<string>();
 
 export function createMessagesRouter(): Router {
   const router = express.Router();
@@ -50,22 +57,40 @@ export function createMessagesRouter(): Router {
         messageIds?: string[];
       };
 
-      const count = await messagesService.reanalyzeErrorBatch({
-        guildId,
-        channelId,
-        messageIds,
-      });
+      // Idempotency guard: one concurrent batch-reanalyze per scope.
+      // Prevents two admin sessions clicking simultaneously from each
+      // triggering the recovery worker for the same set of messages.
+      const scopeKey = `${guildId ?? ""}:${channelId ?? ""}`;
+      if (reanalyzeBatchInFlight.has(scopeKey)) {
+        res
+          .status(409)
+          .json({ error: "REANALYZE_BATCH_IN_PROGRESS", scope: scopeKey });
+        return;
+      }
+
+      reanalyzeBatchInFlight.add(scopeKey);
+      let count = 0;
+      try {
+        count = await messagesService.reanalyzeErrorBatch({
+          guildId,
+          channelId,
+          messageIds,
+        });
+      } finally {
+        reanalyzeBatchInFlight.delete(scopeKey);
+      }
 
       logger.info({ count, guildId, channelId }, "Batch reanalyze completed");
       res.status(200).json({ ok: true, count });
     }),
   );
 
+
   // POST /api/messages/:id/reanalyze - Mark single message for re-analysis
   router.post(
     "/messages/:id/reanalyze",
     asyncHandler(async (req: Request, res: Response) => {
-      const id = req.params.id;
+      const id = String(req.params.id ?? "");
       if (!id) {
         res.status(400).json({ error: "MISSING_ID" });
         return;

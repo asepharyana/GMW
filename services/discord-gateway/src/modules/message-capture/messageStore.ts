@@ -807,15 +807,21 @@ export async function getConversationKeysWithIncompleteAnalysis(
   try {
     const database = db();
     const rows = await database
-      .selectDistinct<Array<{ thread_id: string | null; channel_id: string }>>({
-        thread_id: messagesTable.thread_id,
-        channel_id: messagesTable.channel_id,
-      })
+      .selectDistinct<Array<{ thread_id: string | null; channel_id: string }>>(
+        {
+          thread_id: messagesTable.thread_id,
+          channel_id: messagesTable.channel_id,
+        },
+      )
       .from(messagesTable)
       .where(
         and(
           eq(messagesTable.ai_status, "error"),
           sql`${messagesTable.ai_moderation_flags} LIKE ${"%analysis_incomplete%"}`,
+          // Exclude rows that have already been exhausted by the individual
+          // fallback pipeline — prevents an infinite recovery loop if both
+          // flags are ever written to the same row due to a bug.
+          sql`(${messagesTable.ai_moderation_flags} IS NULL OR ${messagesTable.ai_moderation_flags} NOT LIKE ${"%individual_analysis_exhausted%"})`,
           isNull(messagesTable.deleted_at),
         ),
       )
@@ -861,6 +867,9 @@ export async function getIncompleteMessagesByConversation(
           ),
           eq(messagesTable.ai_status, "error"),
           sql`${messagesTable.ai_moderation_flags} LIKE ${"%analysis_incomplete%"}`,
+          // Same guard as getConversationKeysWithIncompleteAnalysis: exclude
+          // rows that are already exhausted to prevent re-entry to recovery.
+          sql`(${messagesTable.ai_moderation_flags} IS NULL OR ${messagesTable.ai_moderation_flags} NOT LIKE ${"%individual_analysis_exhausted%"})`,
           isNull(messagesTable.deleted_at),
         ),
       )
@@ -879,6 +888,7 @@ export async function getIncompleteMessagesByConversation(
     throw error;
   }
 }
+
 
 // Message Reviews CRUD
 // ====================
