@@ -249,6 +249,45 @@ export const pgVoiceRecordingsTable = pgTable(
 );
 
 /**
+ * User Reputations Table (PostgreSQL)
+ * Tracks user trust score and infractions to provide context to AI.
+ */
+export const pgUserReputationsTable = pgTable(
+  "user_reputations",
+  {
+    user_id: pgText("user_id").primaryKey(),
+    guild_id: pgText("guild_id").notNull(),
+    trust_score: pgInteger("trust_score").notNull().default(50),
+    clean_message_streak: pgInteger("clean_message_streak").notNull().default(0),
+    total_infractions: pgInteger("total_infractions").notNull().default(0),
+    last_infraction_at: pgBigint("last_infraction_at", { mode: "number" }),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+    updated_at: pgBigint("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    guildIdx: pgIndex("idx_user_reputations_guild_id").on(table.guild_id),
+    scoreIdx: pgIndex("idx_user_reputations_trust_score").on(table.trust_score),
+  }),
+);
+
+/**
+ * Channel Cultures Table (PostgreSQL)
+ * Stores AI-generated summaries of channel norms and slang to inject as context.
+ */
+export const pgChannelCulturesTable = pgTable(
+  "channel_cultures",
+  {
+    channel_id: pgText("channel_id").primaryKey(),
+    guild_id: pgText("guild_id").notNull(),
+    culture_summary: pgText("culture_summary").notNull(),
+    last_analyzed_at: pgBigint("last_analyzed_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    guildIdx: pgIndex("idx_channel_cultures_guild_id").on(table.guild_id),
+  }),
+);
+
+/**
  * Message Reviews Table (PostgreSQL)
  * Tracks manual reviews of messages flagged by AI moderation
  */
@@ -464,6 +503,8 @@ export const retentionPoliciesTable = pgRetentionPoliciesTable;
 export const textAnalysisCacheTable = pgTextAnalysisCacheTable;
 export const stickerCacheTable = pgStickerCacheTable;
 export const correctedModerationsTable = pgCorrectedModerationsTable;
+export const userReputationsTable = pgUserReputationsTable;
+export const channelCulturesTable = pgChannelCulturesTable;
 
 // Export table types for use in queries
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;
@@ -499,3 +540,9 @@ export type StickerCacheInsert = typeof stickerCacheTable.$inferInsert;
 export type CorrectedModeration = typeof correctedModerationsTable.$inferSelect;
 export type CorrectedModerationInsert =
   typeof correctedModerationsTable.$inferInsert;
+
+export type UserReputation = typeof userReputationsTable.$inferSelect;
+export type UserReputationInsert = typeof userReputationsTable.$inferInsert;
+
+export type ChannelCulture = typeof channelCulturesTable.$inferSelect;
+export type ChannelCultureInsert = typeof channelCulturesTable.$inferInsert;

@@ -15,6 +15,11 @@ import type {
 import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 import { llmChat, llmVision } from "./llmClient.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
+import {
+  initializeUserReputation,
+  getUserRecentInfractions,
+} from "./userReputationStore.js";
+import { getChannelCulture } from "./channelCultureStore.js";
 import { logModerationAnalysis, logModerationError } from "./responseLogger.js";
 import {
   getStickerFromCache,
@@ -1077,10 +1082,32 @@ async function runTextOnlyBatch(
   const allResults: AnalysisResult[] = [];
   let lastRaw: unknown = null;
 
+  const channelId = targets.length > 0 ? targets[0].channel_id : "";
+  const guildId = targets.length > 0 ? targets[0].guild_id : "";
+  const channelCultureObj = channelId ? await getChannelCulture(channelId) : null;
+  const channelCulture = channelCultureObj ? channelCultureObj.culture_summary : undefined;
+
   // Run sub-batches sequentially to avoid rate limits
   for (let i = 0; i < subBatches.length; i++) {
     const batch = subBatches[i];
     const targetIds = batch.map((t) => t.id);
+
+    // Fetch user context for this batch
+    const userContexts = new Map<string, string>();
+    for (const msg of batch) {
+      if (!userContexts.has(msg.user_id)) {
+        const rep = await initializeUserReputation(msg.user_id, msg.guild_id);
+        const history = await getUserRecentInfractions(msg.user_id);
+        
+        let historyStr = "";
+        if (history.length > 0) {
+          historyStr = `\n  <user_history>\n${history.map(h => `    - Flagged for ${h.flags} (Severity: ${h.severity}) pada pesan: "${h.content}"`).join("\n")}\n  </user_history>`;
+        }
+        
+        const contextStr = `<user_reputation trust_score="${rep.trust_score}" clean_streak="${rep.clean_message_streak}" total_infractions="${rep.total_infractions}" />${historyStr}`;
+        userContexts.set(msg.user_id, contextStr);
+      }
+    }
 
     const buildContent = async (state: RetryState): Promise<string> => {
       const correction = state.lastParseError
@@ -1097,6 +1124,7 @@ async function runTextOnlyBatch(
         mode: "text",
         correction,
         correctedExamples,
+        channelCulture,
       });
 
       const messagesBlock = batch
@@ -1116,9 +1144,10 @@ async function runTextOnlyBatch(
             .filter(Boolean)
             .join("\n");
           const webContext = urlContexts ? `\n${urlContexts}` : "";
+          const userCtx = userContexts.get(msg.user_id) ?? "";
 
           // XML delimiters wrap each message for prompt safety (R1)
-          return `<message id="${msg.id}" user="${msg.username}">${content}${textContext}${webContext}</message>`;
+          return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}\n  <content>${content}</content>${textContext}${webContext}\n</message>`;
         })
         .join("\n");
 
@@ -1616,8 +1645,20 @@ async function _runSingleMediaAnalysis(
     .filter(Boolean)
     .join(" ");
 
+  const channelId = target.channel_id;
+  const channelCultureObj = channelId ? await getChannelCulture(channelId) : null;
+  const channelCulture = channelCultureObj ? channelCultureObj.culture_summary : undefined;
+
+  const rep = await initializeUserReputation(target.user_id, target.guild_id);
+  const history = await getUserRecentInfractions(target.user_id);
+  let historyStr = "";
+  if (history.length > 0) {
+    historyStr = `\n  <user_history>\n${history.map(h => `    - Flagged for ${h.flags} (Severity: ${h.severity}) pada pesan: "${h.content}"`).join("\n")}\n  </user_history>`;
+  }
+  const userCtx = `<user_reputation trust_score="${rep.trust_score}" clean_streak="${rep.clean_message_streak}" total_infractions="${rep.total_infractions}" />${historyStr}`;
+
   // XML delimiters wrap the message content (R1)
-  const messageBlock = `<message id="${target.id}" user="${target.username}">${content}${mediaContext ? ` ${mediaContext}` : ""}${textContext}${webContext}${mediaAnalysisContext}</message>`;
+  const messageBlock = `<message id="${target.id}" user="${target.username}">\n  ${userCtx}\n  <content>${content}</content>${mediaContext ? ` ${mediaContext}` : ""}${textContext}${webContext}${mediaAnalysisContext}\n</message>`;
 
   // Modular system prompt with XML delimiters (R1, R7, R8)
   const correctedExamples = await buildCorrectedFewShotExamples();
@@ -1625,6 +1666,7 @@ async function _runSingleMediaAnalysis(
     contextText,
     mode: "mixed",
     correctedExamples,
+    channelCulture,
   });
 
   const userContent = `${systemText}\n\n<messages_to_analyze>\n${messageBlock}\n</messages_to_analyze>`;

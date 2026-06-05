@@ -395,6 +395,10 @@ export interface BuildSystemPromptOptions {
    * examples. Injected between static examples and output instructions.
    */
   correctedExamples?: string;
+  /**
+   * Formatted XML block containing the AI-generated channel culture summary.
+   */
+  channelCulture?: string;
 }
 
 export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
@@ -404,6 +408,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
     includeMediaInstructions,
     correction,
     correctedExamples,
+    channelCulture,
   } = options;
 
   // Backward compatibility: if mode is not set but includeMediaInstructions is,
@@ -432,6 +437,13 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
   if (correctedExamples) {
     parts.push(correctedExamples);
   }
+
+  // Channel Culture Injection (Learning)
+  if (channelCulture) {
+    parts.push(`## Kultur Channel (Pembelajaran AI)\n${channelCulture}`);
+  }
+
+  parts.push(`## Konteks Pengguna (Ingatan & Kebijaksanaan)\nSetiap pesan mungkin memiliki tag <user_reputation> dan <user_history>. *Gunakan Kebijaksanaan: Jika trust_score tinggi, beri benefit of the doubt pada ambiguitas. Jika trust_score rendah dan memiliki riwayat pelanggaran serupa, jadilah lebih tegas.*`);
 
   parts.push(OUTPUT_INSTRUCTIONS);
 

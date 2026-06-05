@@ -488,6 +488,17 @@ async function processIndividualFallback(
       broadcastAnalysisCompleted(row);
       invalidateAnalyticsCache(row.guild_id);
       scheduleAutoDelete(row);
+
+      // Update reputation autonomously (Belajar & Kebijaksanaan)
+      if (row.ai_status === "clean") {
+        import("./userReputationStore.js")
+          .then((store) => store.recordCleanMessage(row.user_id, row.guild_id))
+          .catch((e) => logger.error({ error: e }, "Failed to record clean message streak in fallback"));
+      } else if (row.ai_status === "flagged" && row.ai_severity !== "none") {
+        import("./userReputationStore.js")
+          .then((store) => store.recordInfraction(row.user_id, row.guild_id, row.ai_severity as "low"|"medium"|"high"|"critical"))
+          .catch((e) => logger.error({ error: e }, "Failed to record infraction penalty in fallback"));
+      }
     }
 
     const resultSummary = analysisResult.results[0];
@@ -701,6 +712,17 @@ async function processBatch(
       if (!isApiFailure) {
         broadcastAnalysisCompleted(row);
         scheduleAutoDelete(row);
+
+        // Update reputation autonomously (Belajar & Kebijaksanaan)
+        if (row.ai_status === "clean") {
+          import("./userReputationStore.js")
+            .then((store) => store.recordCleanMessage(row.user_id, row.guild_id))
+            .catch((e) => logger.error({ error: e }, "Failed to record clean message streak"));
+        } else if (row.ai_status === "flagged" && row.ai_severity !== "none") {
+          import("./userReputationStore.js")
+            .then((store) => store.recordInfraction(row.user_id, row.guild_id, row.ai_severity as "low"|"medium"|"high"|"critical"))
+            .catch((e) => logger.error({ error: e }, "Failed to record infraction penalty"));
+        }
       }
     }
 
@@ -1096,6 +1118,8 @@ export function startPendingAIAnalysisWorker(
   moderationClient = client;
   _redisEventBroadcaster = eventBroadcaster;
   if (!config.AI_ANALYSIS_ENABLED) return;
+
+  import("./cultureLearner.js").then(m => m.startCultureLearnerWorker()).catch(console.error);
 
   setInterval(() => {
     revertStuckProcessingMessages(300000).catch((err: unknown) => {
