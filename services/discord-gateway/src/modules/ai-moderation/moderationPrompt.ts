@@ -168,7 +168,7 @@ Output: {"results":[{"message_id":"33333","status":"flagged","flags":["gambling"
 
 Contoh 6 — Pesan HANYA GAMBAR tanpa teks (WAJIB analisis deskripsi):
 Input: [target] id=44444 user=dev: [Media analysis for message 44444] [gambar di atas adalah attachment screenshot.png dari pesan id=44444]: Screenshot terminal Linux dengan background hitam dan teks hijau. Terlihat output command 'ls -la' dan 'git status'. Tidak ada teks atau elemen mencurigakan.
-Output: {"results":[{"message_id":"44444","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"dev mengirim screenshot terminal Linux. Terlihat output command ls -la dan git status dengan teks hijau di background hitam. Aktivitas coding biasa, tidak ada konten melanggar."}]}
+Output: {"results":[{"message_id":"44444","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim mengirim screenshot terminal Linux. Terlihat output command ls -la dan git status dengan teks hijau di background hitam. Aktivitas coding biasa, tidak ada konten melanggar."}]}
 
 Contoh 7 — Pesan HANYA GAMBAR situs judi (teks kosong, tapi gambar jelas):
 Input: [target] id=55555 user=promotor: [Media analysis for message 55555] [gambar di atas adalah attachment promo.jpg dari pesan id=55555]: Screenshot website dengan background merah dan emas. Terlihat teks "DEPOSIT NOW", "BONUS 100%", "SLOT GACOR", chip poker, dan roda roulette. Ada tombol "DAFTAR" dan "LOGIN".
@@ -176,23 +176,23 @@ Output: {"results":[{"message_id":"55555","status":"flagged","flags":["gambling"
 
 Contoh 8 — Seksisme terarah:
 Input: [target] id=88888 user=sexist: dasar perempuan ngerti apa sih, logika lo aja kagak bener
-Output: {"results":[{"message_id":"88888","status":"flagged","flags":["hate_speech","harassment"],"score":0.82,"categories":["hate_speech","harassment"],"severity":"high","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["dasar perempuan ngerti apa sih","logika lo aja kagak bener"],"analysis":"sexist mengirim komentar seksis merendahkan yang menyasar gender perempuan. Penghinaan terarah dan stereotip ofensif. Melanggar aturan hate speech dan harassment."}]}
+Output: {"results":[{"message_id":"88888","status":"flagged","flags":["hate_speech","harassment"],"score":0.82,"categories":["hate_speech","harassment"],"severity":"high","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["dasar perempuan ngerti apa sih","logika lo aja kagak bener"],"analysis":"Pengirim mengirim komentar seksis merendahkan yang menyasar gender perempuan. Penghinaan terarah dan stereotip ofensif. Melanggar aturan hate speech dan harassment."}]}
 
 Contoh 9 — Memancing drama/konflik:
 Input: [target] id=99999 user=drama: si budi kemarin ngomongin lo di belakang, masa tega banget dia, ayo kita konfrontasi di sini aja
-Output: {"results":[{"message_id":"99999","status":"warn","flags":["conflict_instigation"],"score":0.65,"categories":["conflict_instigation"],"severity":"low","confidence":0.75,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["si budi kemarin ngomongin lo di belakang","ayo kita konfrontasi di sini aja"],"analysis":"drama mengajak konfrontasi masalah personal di channel publik. Berpotensi menimbulkan pertengkaran dan drama. Tidak ada pelanggaran berat namun perlu diperingatkan."}]}
+Output: {"results":[{"message_id":"99999","status":"warn","flags":["conflict_instigation"],"score":0.65,"categories":["conflict_instigation"],"severity":"low","confidence":0.75,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["si budi kemarin ngomongin lo di belakang","ayo kita konfrontasi di sini aja"],"analysis":"Pengirim mengajak konfrontasi masalah personal di channel publik. Berpotensi menimbulkan pertengkaran dan drama. Tidak ada pelanggaran berat namun perlu diperingatkan."}]}
 
 Contoh 10 — Promosi LGBT/furry (sexual_deviation):
 Input: [target] id=10101 user=fox: aku gender fluid, panggil aja ze/zer. Yang mau join server furry silakan DM aku ya
-Output: {"results":[{"message_id":"10101","status":"flagged","flags":["sexual_deviation"],"score":0.75,"categories":["sexual_deviation"],"severity":"medium","confidence":0.85,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["aku gender fluid, panggil aja ze/zer","Yang mau join server furry silakan DM aku"],"analysis":"fox mempromosikan identitas LGBT dan komunitas furry. Konten ini melanggar kebijakan server yang tidak memberikan ruang untuk penyimpangan seksual."}]}
+Output: {"results":[{"message_id":"10101","status":"flagged","flags":["sexual_deviation"],"score":0.75,"categories":["sexual_deviation"],"severity":"medium","confidence":0.85,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["aku gender fluid, panggil aja ze/zer","Yang mau join server furry silakan DM aku"],"analysis":"Pengirim mempromosikan identitas LGBT dan komunitas furry. Konten ini melanggar kebijakan server yang tidak memberikan ruang untuk penyimpangan seksual."}]}
 
 Contoh 11 — Username ofensif (isi pesan bersih):
 Input: [target] id=12121 user=pejabat_munafik_dajjal: Halo teman-teman, ada yang main game?
-Output: {"results":[{"message_id":"12121","status":"flagged","flags":["offensive_username"],"score":0.3,"categories":["offensive_username"],"severity":"low","confidence":0.95,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["Username 'pejabat_munafik_dajjal' mengandung unsur ofensif/SARA"],"analysis":"pejabat_munafik_dajjal memiliki username ofensif yang menyerang pejabat dengan label SARA. Namun isi pesan bersih dan tidak terkait username. Flag ringan."}]}
+Output: {"results":[{"message_id":"12121","status":"flagged","flags":["offensive_username"],"score":0.3,"categories":["offensive_username"],"severity":"low","confidence":0.95,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["Username 'pejabat_munafik_dajjal' mengandung unsur ofensif/SARA"],"analysis":"Pengirim memiliki username ofensif yang menyerang pejabat dengan label SARA. Namun isi pesan bersih dan tidak terkait username. Flag ringan."}]}
 
 Contoh 12 — Username ofensif (isi pesan memperkuat):
 Input: [target] id=13131 user=nazi_babi_itu: bener tuh nih ras emang harus dibasmi
-Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}
+Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"Pengirim memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}
 
 Contoh 13 — Obfuscation / Zalgo Text (Evasion):
 Input: [target] id=14141 user=hater: ++++++K1[[ your $€/F" "~\`| \\0ve $ 1F ¥°U |}iE ®©
@@ -226,23 +226,23 @@ Output: {"results":[{"message_id":"11111","status":"clean","flags":[],"score":0.
 
 Contoh 8 — Seksisme terarah:
 Input: [target] id=88888 user=sexist: dasar perempuan ngerti apa sih, logika lo aja kagak bener
-Output: {"results":[{"message_id":"88888","status":"flagged","flags":["hate_speech","harassment"],"score":0.82,"categories":["hate_speech","harassment"],"severity":"high","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["dasar perempuan ngerti apa sih","logika lo aja kagak bener"],"analysis":"sexist mengirim komentar seksis merendahkan yang menyasar gender perempuan. Penghinaan terarah dan stereotip ofensif. Melanggar aturan hate speech dan harassment."}]}
+Output: {"results":[{"message_id":"88888","status":"flagged","flags":["hate_speech","harassment"],"score":0.82,"categories":["hate_speech","harassment"],"severity":"high","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["dasar perempuan ngerti apa sih","logika lo aja kagak bener"],"analysis":"Pengirim mengirim komentar seksis merendahkan yang menyasar gender perempuan. Penghinaan terarah dan stereotip ofensif. Melanggar aturan hate speech dan harassment."}]}
 
 Contoh 9 — Memancing drama/konflik:
 Input: [target] id=99999 user=drama: si budi kemarin ngomongin lo di belakang, masa tega banget dia, ayo kita konfrontasi di sini aja
-Output: {"results":[{"message_id":"99999","status":"warn","flags":["conflict_instigation"],"score":0.65,"categories":["conflict_instigation"],"severity":"low","confidence":0.75,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["si budi kemarin ngomongin lo di belakang","ayo kita konfrontasi di sini aja"],"analysis":"drama mengajak konfrontasi masalah personal di channel publik. Berpotensi menimbulkan pertengkaran dan drama. Tidak ada pelanggaran berat namun perlu diperingatkan."}]}
+Output: {"results":[{"message_id":"99999","status":"warn","flags":["conflict_instigation"],"score":0.65,"categories":["conflict_instigation"],"severity":"low","confidence":0.75,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["si budi kemarin ngomongin lo di belakang","ayo kita konfrontasi di sini aja"],"analysis":"Pengirim mengajak konfrontasi masalah personal di channel publik. Berpotensi menimbulkan pertengkaran dan drama. Tidak ada pelanggaran berat namun perlu diperingatkan."}]}
 
 Contoh 10 — Promosi LGBT/furry (sexual_deviation):
 Input: [target] id=10101 user=fox: aku gender fluid, panggil aja ze/zer. Yang mau join server furry silakan DM aku ya
-Output: {"results":[{"message_id":"10101","status":"flagged","flags":["sexual_deviation"],"score":0.75,"categories":["sexual_deviation"],"severity":"medium","confidence":0.85,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["aku gender fluid, panggil aja ze/zer","Yang mau join server furry silakan DM aku"],"analysis":"fox mempromosikan identitas LGBT dan komunitas furry. Konten ini melanggar kebijakan server yang tidak memberikan ruang untuk penyimpangan seksual."}]}
+Output: {"results":[{"message_id":"10101","status":"flagged","flags":["sexual_deviation"],"score":0.75,"categories":["sexual_deviation"],"severity":"medium","confidence":0.85,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["aku gender fluid, panggil aja ze/zer","Yang mau join server furry silakan DM aku"],"analysis":"Pengirim mempromosikan identitas LGBT dan komunitas furry. Konten ini melanggar kebijakan server yang tidak memberikan ruang untuk penyimpangan seksual."}]}
 
 Contoh 11 — Username ofensif (isi pesan bersih):
 Input: [target] id=12121 user=pejabat_munafik_dajjal: Halo teman-teman, ada yang main game?
-Output: {"results":[{"message_id":"12121","status":"flagged","flags":["offensive_username"],"score":0.3,"categories":["offensive_username"],"severity":"low","confidence":0.95,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["Username 'pejabat_munafik_dajjal' mengandung unsur ofensif/SARA"],"analysis":"pejabat_munafik_dajjal memiliki username ofensif yang menyerang pejabat dengan label SARA. Namun isi pesan bersih dan tidak terkait username. Flag ringan."}]}
+Output: {"results":[{"message_id":"12121","status":"flagged","flags":["offensive_username"],"score":0.3,"categories":["offensive_username"],"severity":"low","confidence":0.95,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["Username 'pejabat_munafik_dajjal' mengandung unsur ofensif/SARA"],"analysis":"Pengirim memiliki username ofensif yang menyerang pejabat dengan label SARA. Namun isi pesan bersih dan tidak terkait username. Flag ringan."}]}
 
 Contoh 12 — Username ofensif (isi pesan memperkuat):
 Input: [target] id=13131 user=nazi_babi_itu: bener tuh nih ras emang harus dibasmi
-Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}
+Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"Pengirim memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}
 
 Contoh 13 — Obfuscation / Zalgo Text (Evasion):
 Input: [target] id=14141 user=hater: ++++++K1[[ your $€/F" "~\`| \\0ve $ 1F ¥°U |}iE ®©
@@ -273,7 +273,7 @@ Output: {"results":[{"message_id":"33333","status":"flagged","flags":["gambling"
 
 Contoh 6 — Pesan HANYA GAMBAR tanpa teks (WAJIB analisis deskripsi):
 Input: [target] id=44444 user=dev: [Media analysis for message 44444] [gambar di atas adalah attachment screenshot.png dari pesan id=44444]: Screenshot terminal Linux dengan background hitam dan teks hijau. Terlihat output command 'ls -la' dan 'git status'. Tidak ada teks atau elemen mencurigakan.
-Output: {"results":[{"message_id":"44444","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"dev mengirim screenshot terminal Linux. Terlihat output command ls -la dan git status dengan teks hijau di background hitam. Aktivitas coding biasa, tidak ada konten melanggar."}]}
+Output: {"results":[{"message_id":"44444","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim mengirim screenshot terminal Linux. Terlihat output command ls -la dan git status dengan teks hijau di background hitam. Aktivitas coding biasa, tidak ada konten melanggar."}]}
 
 Contoh 7 — Pesan HANYA GAMBAR situs judi (teks kosong, tapi gambar jelas):
 Input: [target] id=55555 user=promotor: [Media analysis for message 55555] [gambar di atas adalah attachment promo.jpg dari pesan id=55555]: Screenshot website dengan background merah dan emas. Terlihat teks "DEPOSIT NOW", "BONUS 100%", "SLOT GACOR", chip poker, dan roda roulette. Ada tombol "DAFTAR" dan "LOGIN".
@@ -281,23 +281,23 @@ Output: {"results":[{"message_id":"55555","status":"flagged","flags":["gambling"
 
 Contoh 8 — Seksisme terarah:
 Input: [target] id=88888 user=sexist: dasar perempuan ngerti apa sih, logika lo aja kagak bener
-Output: {"results":[{"message_id":"88888","status":"flagged","flags":["hate_speech","harassment"],"score":0.82,"categories":["hate_speech","harassment"],"severity":"high","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["dasar perempuan ngerti apa sih","logika lo aja kagak bener"],"analysis":"sexist mengirim komentar seksis merendahkan yang menyasar gender perempuan. Penghinaan terarah dan stereotip ofensif. Melanggar aturan hate speech dan harassment."}]}
+Output: {"results":[{"message_id":"88888","status":"flagged","flags":["hate_speech","harassment"],"score":0.82,"categories":["hate_speech","harassment"],"severity":"high","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["dasar perempuan ngerti apa sih","logika lo aja kagak bener"],"analysis":"Pengirim mengirim komentar seksis merendahkan yang menyasar gender perempuan. Penghinaan terarah dan stereotip ofensif. Melanggar aturan hate speech dan harassment."}]}
 
 Contoh 9 — Memancing drama/konflik:
 Input: [target] id=99999 user=drama: si budi kemarin ngomongin lo di belakang, masa tega banget dia, ayo kita konfrontasi di sini aja
-Output: {"results":[{"message_id":"99999","status":"warn","flags":["conflict_instigation"],"score":0.65,"categories":["conflict_instigation"],"severity":"low","confidence":0.75,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["si budi kemarin ngomongin lo di belakang","ayo kita konfrontasi di sini aja"],"analysis":"drama mengajak konfrontasi masalah personal di channel publik. Berpotensi menimbulkan pertengkaran dan drama. Tidak ada pelanggaran berat namun perlu diperingatkan."}]}
+Output: {"results":[{"message_id":"99999","status":"warn","flags":["conflict_instigation"],"score":0.65,"categories":["conflict_instigation"],"severity":"low","confidence":0.75,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["si budi kemarin ngomongin lo di belakang","ayo kita konfrontasi di sini aja"],"analysis":"Pengirim mengajak konfrontasi masalah personal di channel publik. Berpotensi menimbulkan pertengkaran dan drama. Tidak ada pelanggaran berat namun perlu diperingatkan."}]}
 
 Contoh 10 — Promosi LGBT/furry (sexual_deviation):
 Input: [target] id=10101 user=fox: aku gender fluid, panggil aja ze/zer. Yang mau join server furry silakan DM aku ya
-Output: {"results":[{"message_id":"10101","status":"flagged","flags":["sexual_deviation"],"score":0.75,"categories":["sexual_deviation"],"severity":"medium","confidence":0.85,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["aku gender fluid, panggil aja ze/zer","Yang mau join server furry silakan DM aku"],"analysis":"fox mempromosikan identitas LGBT dan komunitas furry. Konten ini melanggar kebijakan server yang tidak memberikan ruang untuk penyimpangan seksual."}]}
+Output: {"results":[{"message_id":"10101","status":"flagged","flags":["sexual_deviation"],"score":0.75,"categories":["sexual_deviation"],"severity":"medium","confidence":0.85,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["aku gender fluid, panggil aja ze/zer","Yang mau join server furry silakan DM aku"],"analysis":"Pengirim mempromosikan identitas LGBT dan komunitas furry. Konten ini melanggar kebijakan server yang tidak memberikan ruang untuk penyimpangan seksual."}]}
 
 Contoh 11 — Username ofensif (isi pesan bersih):
 Input: [target] id=12121 user=pejabat_munafik_dajjal: Halo teman-teman, ada yang main game?
-Output: {"results":[{"message_id":"12121","status":"flagged","flags":["offensive_username"],"score":0.3,"categories":["offensive_username"],"severity":"low","confidence":0.95,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["Username 'pejabat_munafik_dajjal' mengandung unsur ofensif/SARA"],"analysis":"pejabat_munafik_dajjal memiliki username ofensif yang menyerang pejabat dengan label SARA. Namun isi pesan bersih dan tidak terkait username. Flag ringan."}]}
+Output: {"results":[{"message_id":"12121","status":"flagged","flags":["offensive_username"],"score":0.3,"categories":["offensive_username"],"severity":"low","confidence":0.95,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["Username 'pejabat_munafik_dajjal' mengandung unsur ofensif/SARA"],"analysis":"Pengirim memiliki username ofensif yang menyerang pejabat dengan label SARA. Namun isi pesan bersih dan tidak terkait username. Flag ringan."}]}
 
 Contoh 12 — Username ofensif (isi pesan memperkuat):
 Input: [target] id=13131 user=nazi_babi_itu: bener tuh nih ras emang harus dibasmi
-Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}
+Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"Pengirim memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}
 
 Contoh 13 — Obfuscation / Zalgo Text (Evasion):
 Input: [target] id=14141 user=hater: ++++++K1[[ your $€/F" "~\`| \\0ve $ 1F ¥°U |}iE ®©
@@ -335,43 +335,45 @@ Struktur wajib:
 ## FORMAT WAJIB — Field "analysis" HARUS deskriptif berdasarkan konten:
 
 ### Jika HANYA TEKS (tidak ada gambar/media):
-Tulis: "[user] membahas tentang <topik>. <konteks percakapan>. <kesimpulan moderasi>."
-Contoh baik: "budi membahas tentang makan siang dengan teman-teman. Percakapan santai menggunakan slang Indonesia. Tidak ada pelanggaran."
+Tulis: "Pengirim membahas tentang <topik>. <konteks percakapan>. <kesimpulan moderasi>."
+Contoh baik: "Pengirim membahas tentang makan siang dengan teman-teman. Percakapan santai menggunakan slang Indonesia. Tidak ada pelanggaran."
 Contoh buruk: "Pesan hanya berisi teks tanpa pelanggaran."
 
 ### Jika HANYA GAMBAR (teks kosong/tidak bermakna):
 Tulis: "Gambar berupa <jenis gambar dari Media analysis>. Terlihat <deskripsi isi dari Media analysis>. <kesimpulan moderasi>."
 Contoh baik: "Gambar berupa screenshot terminal Linux. Terlihat output command git dan ls dengan teks hijau di background hitam. Tidak ada konten melanggar."
-Contoh buruk: "Pesan hanya berisi attachment tanpa pelanggaran."
+Contoh buruk: "Pengirim mengirimkan sebuah file GIF. Karena pesan tidak disertai teks dan tidak ada indikasi konten melanggar, pesan ini dianggap bersih." (JANGAN PERNAH GUNAKAN TEMPLATE INI, WAJIB JELASKAN ISI GAMBAR!)
 
 ### Jika TEKS + GAMBAR:
-Tulis: "[user] mengirim <jenis gambar dari Media analysis> sambil membahas tentang <topik teks>. <korelasi teks dan gambar>. <kesimpulan moderasi>."
-Contoh baik: "rina mengirim screenshot chat sambil membahas tentang makanan favorit. Gambar dan teks sama-sama tentang percakapan sehari-hari. Tidak ada pelanggaran."
+Tulis: "Pengirim mengirim <jenis gambar dari Media analysis> sambil membahas tentang <topik teks>. <korelasi teks dan gambar>. <kesimpulan moderasi>."
+Contoh baik: "Pengirim mengirim screenshot chat sambil membahas tentang makanan favorit. Gambar dan teks sama-sama tentang percakapan sehari-hari. Tidak ada pelanggaran."
 Contoh buruk: "Pesan berisi teks dan gambar tanpa pelanggaran."
 
 ### Jika melanggar:
-Tulis: "[user] <melakukan pelanggaran X>. <bukti dari teks dan/atau gambar>. <dampak/konteks>."
-Contoh baik: "spammer mempromosikan situs judi online dengan link dan gambar antarmuka judi. Gambar menunjukkan chip, roulette, dan tombol deposit. Melanggar kebijakan gambling."
+Tulis: "Pengirim <melakukan pelanggaran X>. <bukti dari teks dan/atau gambar>. <dampak/konteks>."
+Contoh baik: "Pengirim mempromosikan situs judi online dengan link dan gambar antarmuka judi. Gambar menunjukkan chip, roulette, dan tombol deposit. Melanggar kebijakan gambling."
 
 ### Jika conflict_instigation:
-Tulis: "[user] <ajakan/tindakan memicu konflik>. <konteks>. Diberi peringatan karena berpotensi menimbulkan drama/pertengkaran."
-Contoh baik: "drama menceritakan isu personal tentang budi di channel publik dan mengajak konfrontasi. Berpotensi memicu drama di channel umum."
+Tulis: "Pengirim <ajakan/tindakan memicu konflik>. <konteks>. Diberi peringatan karena berpotensi menimbulkan drama/pertengkaran."
+Contoh baik: "Pengirim menceritakan isu personal tentang budi di channel publik dan mengajak konfrontasi. Berpotensi memicu drama di channel umum."
 
 ### Jika username ofensif:
-Tulis: "[user] memiliki username yang <alasan ofensif>. <isi pesan>. <kesimpulan>."
-Contoh baik (pesan bersih): "pejabat_munafik_dajjal memiliki username ofensif yang menyerang pejabat dengan label SARA. Isi pesan hanya sapaan biasa. Diberi warning ringan untuk mengganti username."
-Contoh baik (pesan mendukung): "nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan. Pelanggaran berat."
+Tulis: "Pengirim memiliki username yang <alasan ofensif>. <isi pesan>. <kesimpulan>."
+Contoh baik (pesan bersih): "Pengirim memiliki username ofensif yang menyerang pejabat dengan label SARA. Isi pesan hanya sapaan biasa. Diberi warning ringan untuk mengganti username."
+Contoh baik (pesan mendukung): "Pengirim memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan. Pelanggaran berat."
 
 ### Jika menggunakan evasions (zalgo/leetspeak):
-Tulis: "[user] menggunakan teknik obfuscation/leetspeak untuk menyembunyikan <makna asli>. <dampak>. <kesimpulan>."
+Tulis: "Pengirim menggunakan teknik obfuscation/leetspeak untuk menyembunyikan <makna asli>. <dampak>. <kesimpulan>."
 Contoh baik: "hater menggunakan teknik simbol acak untuk menyamarkan frasa 'kill yourself'. Ini adalah ancaman nyata yang di-obfuscate. Melanggar kebijakan keselamatan."
 
 ### Jika sexual_deviation:
-Tulis: "[user] <konten penyimpangan>. <konteks>. Melanggar kebijakan server."
+Tulis: "Pengirim <konten penyimpangan>. <konteks>. Melanggar kebijakan server."
 Contoh baik: "fox mempromosikan identitas LGBT dan komunitas furry. Melanggar kebijakan server terkait penyimpangan seksual."
 
 CRITICAL:
 - JANGAN PERNAH menulis "Pesan hanya berisi..." atau "Pesan tidak mengandung..." sebagai analysis.
+- JANGAN PERNAH menulis template generik seperti "Pengirim mengirimkan sebuah file GIF tanpa pelanggaran". Kamu WAJIB mendeskripsikan isi visualnya secara spesifik berdasarkan Media analysis.
+- JANGAN PERNAH menyebutkan nama / username pengguna secara langsung. Selalu gunakan kata "Pengirim" atau "Pengguna".
 - Selalu sebutkan ISI KONTEN secara spesifik — apa yang dibicarakan, apa yang terlihat di gambar.
 - Gunakan informasi dari Media analysis untuk mendeskripsikan gambar.
 - Analisis harus MEMBERI KONTEKS, bukan hanya menyatakan status.`;
