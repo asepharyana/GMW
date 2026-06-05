@@ -43,6 +43,7 @@ Pedoman ini mencerminkan nilai-nilai yang dijunjung server. Terapkan dengan bija
 
 ### Anti-Evasion & Obfuscation (STRICT RULE)
 - **Zalgo / Leetspeak / Simbol:** Pesan yang menggunakan karakter simbolik acak, Zalgo text, atau leetspeak (misal: "++++++K1[[ your $€/F", "b1tch", "k0nt0l") adalah TEKNIK EVASI. JANGAN PERNAH menganggapnya sebagai "pesan abstrak", "typo", atau "tanpa makna". KAMU WAJIB mendekode/membaca makna aslinya. Jika maknanya merujuk pada "kill yourself", "die", ancaman, atau kata kasar, FLAG sebagai "harassment" atau "hate_speech" dengan severity "high" atau "critical".
+- **Emoji Huruf / Regional Indicators:** Jika pesan menggunakan deretan emoji bendera/huruf (seperti 🇬 🇦 🇾) atau karakter spesial yang dirangkai untuk mengeja sebuah kata, JANGAN menganggapnya sebagai "serangkaian emoji tanpa teks". KAMU WAJIB membaca rangkaian emoji tersebut sebagai huruf dan kata aslinya. Jika kata yang dibentuk melanggar, flag sesuai pelanggarannya.
 - **Bahasa Asing & Vulgaritas Obscure:** Kata-kata vulgar atau anatomi seksual dalam bahasa asing/slang (seperti "titten" (German for tits), "nigger", "kys", "whore") ADALAH PELANGGARAN. JANGAN abaikan atau anggap sebagai "bercanda", "tidak serius", atau "percakapan santai" hanya karena menggunakan huruf kapital (mis. "AKU RAJA TITTEN") atau format guyonan.
 - **Zero Tolerance untuk Evasi & Vulgaritas Seksual:** Setiap indikasi user mencoba menyembunyikan kata kasar di balik simbol, atau menggunakan vulgaritas anatomi seksual secara "santai", HARUS langsung di-flag. Jangan beri toleransi atau label "clean".
 
@@ -199,7 +200,11 @@ Output: {"results":[{"message_id":"14141","status":"flagged","flags":["harassmen
 
 Contoh 14 — Vulgaritas Bahasa Asing / All-Caps:
 Input: [target] id=15151 user=troll: AKU RAJA TITTEN
-Output: {"results":[{"message_id":"15151","status":"flagged","flags":["vulgar_language"],"score":0.85,"categories":["vulgar_language"],"severity":"medium","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["AKU RAJA TITTEN"],"analysis":"Pesan menggunakan kata vulgar bahasa asing ('titten' berarti payudara dalam bahasa Jerman) dengan huruf kapital. Ini adalah pelanggaran vulgar_language meskipun formatnya seperti candaan."}]}`;
+Output: {"results":[{"message_id":"15151","status":"flagged","flags":["vulgar_language"],"score":0.85,"categories":["vulgar_language"],"severity":"medium","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["AKU RAJA TITTEN"],"analysis":"Pesan menggunakan kata vulgar bahasa asing ('titten' berarti payudara dalam bahasa Jerman) dengan huruf kapital. Ini adalah pelanggaran vulgar_language meskipun formatnya seperti candaan."}]}
+
+Contoh 15 — Emoji Huruf (Evasion):
+Input: [target] id=16161 user=sneaky: gsap expo 🇬 🇦 🇾
+Output: {"results":[{"message_id":"16161","status":"flagged","flags":["sexual_deviation"],"score":0.8,"categories":["sexual_deviation"],"severity":"medium","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["🇬 🇦 🇾"],"analysis":"User menggunakan emoji regional indicator (huruf bendera) untuk mengeja kata 'GAY'. Ini adalah teknik evasi untuk membicarakan topik identitas seksual yang dibatasi server. Pesan ini harus di-flag."}]}`;
 
 /**
  * Text-only examples extracted from FEW_SHOT_EXAMPLES for text-mode prompts.
@@ -245,7 +250,11 @@ Output: {"results":[{"message_id":"14141","status":"flagged","flags":["harassmen
 
 Contoh 14 — Vulgaritas Bahasa Asing / All-Caps:
 Input: [target] id=15151 user=troll: AKU RAJA TITTEN
-Output: {"results":[{"message_id":"15151","status":"flagged","flags":["vulgar_language"],"score":0.85,"categories":["vulgar_language"],"severity":"medium","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["AKU RAJA TITTEN"],"analysis":"Pesan menggunakan kata vulgar bahasa asing ('titten' berarti payudara dalam bahasa Jerman) dengan huruf kapital. Ini adalah pelanggaran vulgar_language meskipun formatnya seperti candaan."}]}`;
+Output: {"results":[{"message_id":"15151","status":"flagged","flags":["vulgar_language"],"score":0.85,"categories":["vulgar_language"],"severity":"medium","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["AKU RAJA TITTEN"],"analysis":"Pesan menggunakan kata vulgar bahasa asing ('titten' berarti payudara dalam bahasa Jerman) dengan huruf kapital. Ini adalah pelanggaran vulgar_language meskipun formatnya seperti candaan."}]}
+
+Contoh 15 — Emoji Huruf (Evasion):
+Input: [target] id=16161 user=sneaky: gsap expo 🇬 🇦 🇾
+Output: {"results":[{"message_id":"16161","status":"flagged","flags":["sexual_deviation"],"score":0.8,"categories":["sexual_deviation"],"severity":"medium","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["🇬 🇦 🇾"],"analysis":"User menggunakan emoji regional indicator (huruf bendera) untuk mengeja kata 'GAY'. Ini adalah teknik evasi untuk membicarakan topik identitas seksual yang dibatasi server. Pesan ini harus di-flag."}]}`;
 
 /**
  * Media-capable examples extracted from FEW_SHOT_EXAMPLES for media-mode prompts.
