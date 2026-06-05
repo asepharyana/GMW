@@ -27,7 +27,7 @@ function getClient(): OpenAI | null {
       apiKey: config.AI_LLM_API_KEY,
       baseURL: config.AI_LLM_BASE_URL,
       maxRetries: 0,
-      timeout: 15_000,
+      timeout: 60_000, // Diperbesar dari 15s ke 60s untuk mengakomodasi model delay tinggi
     });
   }
   return openaiClient;
