@@ -679,8 +679,8 @@ const analyzeSingleMediaImage = async (
         lastError = err instanceof Error ? err : new Error(String(err));
         if (attempt < 2) {
           const backoffMs = Math.min(
-            1_000 * 2 ** attempt + Math.random() * 200,
-            8_000,
+            2_000 * 3 ** attempt + Math.random() * 500,
+            30_000,
           );
           log.warn(
             {
@@ -824,9 +824,27 @@ async function callModerationLLM(
             throw parseError;
           }
         } catch (apiError: any) {
-          // 429/401/403 → abort immediately, never retry
+          // 429 → retryable with backoff (rate limited — the provider may recover)
+          // GitHub Issue #429-cascade: 429 was previously an AbortError which skipped
+          // retries and caused immediate re-queues, creating a tight rate-limit cascade.
+          // Now treated as retryable with generous backoff so the provider can recover.
+          if (apiError?.status === 429) {
+            log.warn(
+              {
+                status: 429,
+                targetIds,
+                model: config.AI_LLM_MODEL,
+                label,
+              },
+              "LLM API 429 rate limited — will retry with backoff",
+            );
+            // Add a small jitter to prevent thundering herd on retry
+            const jitterMs = Math.floor(Math.random() * 1000) + 500;
+            await delay(jitterMs);
+            throw apiError;
+          }
+          // 401/403 → abort immediately, never retry
           if (
-            apiError?.status === 429 ||
             apiError?.status === 401 ||
             apiError?.status === 403
           ) {
@@ -848,10 +866,10 @@ async function callModerationLLM(
         }
       },
       {
-        retries: 2,
-        minTimeout: 3000,
-        maxTimeout: 8000,
-        factor: 2,
+        retries: 3,
+        minTimeout: 5_000,
+        maxTimeout: 60_000,
+        factor: 3,
       },
     );
     parsed = analysis.parsed;

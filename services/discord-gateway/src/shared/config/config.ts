@@ -96,7 +96,7 @@ const configSchema = z
       .number()
       .positive()
       .default(15000),
-    AI_ANALYSIS_ERROR_COOLDOWN_MS: z.coerce.number().positive().default(0),
+    AI_ANALYSIS_ERROR_COOLDOWN_MS: z.coerce.number().positive().default(30000),
     /** Max messages fetched per conversation batch (token budget is the real constraint). */
     AI_ANALYSIS_MAX_BATCH_SIZE: z.coerce.number().int().positive().default(200),
     AI_ANALYSIS_MAX_CONTEXT_TOKENS: z.coerce.number().positive().default(8000),

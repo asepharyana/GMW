@@ -272,7 +272,7 @@ let activeIndividualRequests = 0;
 // Individual fallback circuit breaker (independent of batch CB)
 let individualConsecutiveErrors = 0;
 let individualCooldownUntil = 0;
-const INDIVIDUAL_COOLDOWN_MS = 30000;
+const INDIVIDUAL_COOLDOWN_MS = 60000;
 
 // ---------------------------------------------------------------------------
 // Piscina worker pool (batch path only)
@@ -851,10 +851,13 @@ async function processBatch(
 
       // Trigger conversation cooldown so we don't tight loop the API
       recordConversationBatchFailure(conversationKey);
-      conversationErrorCooldown.set(
-        conversationKey,
-        Date.now() + config.AI_ANALYSIS_ERROR_COOLDOWN_MS,
-      );
+      // Preserve the longer cooldown: circuit breaker (via recordConversationBatchFailure)
+      // may have set a 60s cooldown; don't let the shorter config value overwrite it.
+      const existingCooldown = conversationErrorCooldown.get(conversationKey) ?? 0;
+      const newCooldown = Date.now() + config.AI_ANALYSIS_ERROR_COOLDOWN_MS;
+      if (newCooldown > existingCooldown) {
+        conversationErrorCooldown.set(conversationKey, newCooldown);
+      }
 
       // FIX: Release the processing lock immediately so the cooldown timer
       // (not the processing-timeout expiry) controls when this conversation
@@ -890,10 +893,13 @@ async function processBatch(
 
     lastError = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
-    conversationErrorCooldown.set(
-      conversationKey,
-      Date.now() + config.AI_ANALYSIS_ERROR_COOLDOWN_MS,
-    );
+    // Preserve the longer cooldown: circuit breaker (via recordConversationBatchFailure)
+    // may have set a 60s cooldown; don't let the shorter config value overwrite it.
+    const existingCatchCooldown = conversationErrorCooldown.get(conversationKey) ?? 0;
+    const newCatchCooldown = Date.now() + config.AI_ANALYSIS_ERROR_COOLDOWN_MS;
+    if (newCatchCooldown > existingCatchCooldown) {
+      conversationErrorCooldown.set(conversationKey, newCatchCooldown);
+    }
     logger.error(
       {
         conversationKey,

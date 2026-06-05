@@ -165,9 +165,9 @@ export async function llmChat(
     },
     {
       retries,
-      minTimeout: 500,
-      maxTimeout: 4_000,
-      factor: 2,
+      minTimeout: 2_000,
+      maxTimeout: 30_000,
+      factor: 3,
     },
   );
 }
