@@ -29,16 +29,18 @@ import {
   buildStickerVisionPrompt,
 } from "./stickerPrompt.js";
 import {
+  acquireMediaAnalysisLock,
   computeImagePhash,
+  deleteCachedMediaAnalysis,
   getCachedMediaAnalysis,
   getCachedMediaByPhash,
-  getCachedUserModeration,
+  getCachedTextModeration,
   getRecentCorrectedModerations,
   makeCustomEmojiCacheKey,
   makeImageCacheKey,
   makeStickerCacheKey,
-  makeUserModerationCacheKey,
-  setCachedUserModeration,
+  makeTextModerationCacheKey,
+  setCachedTextModeration,
   upsertCachedMediaAnalysis,
   upsertCachedMediaByPhash,
 } from "./textCacheStore.js";
@@ -583,6 +585,25 @@ const analyzeSingleMediaImage = async (
       : buildGeneralImageVisionPrompt(image.sourceLabel, messageId);
 
   const visionPromise = (async (): Promise<string> => {
+    // Attempt to acquire DISTRIBUTED lock
+    // Lock expires in 60 seconds (generous timeout for LLM)
+    const locked = await acquireMediaAnalysisLock(cacheKey, Date.now() + 60000);
+    
+    if (!locked) {
+      log.debug({ cacheKey }, "Media analysis distributed lock acquired by another pod. Polling...");
+      // Poll DB for up to 30 seconds
+      for (let i = 0; i < 15; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const pollCached = await getCachedMediaAnalysis(cacheKey);
+        if (pollCached) {
+          visionLruCache.set(cacheKey, pollCached);
+          return pollCached;
+        }
+      }
+      log.warn({ cacheKey }, "Polling for distributed media analysis timed out. Falling back.");
+      return FAILED_ANALYSIS_PREFIX;
+    }
+
     // Layer 2: Perceptual hash pre-check (before expensive vision API call)
     let phash: string | null = null;
     if (image.image_url.url.startsWith("data:")) {
@@ -680,6 +701,7 @@ const analyzeSingleMediaImage = async (
       },
       "Vision analysis failed after all retry attempts",
     );
+    await deleteCachedMediaAnalysis(cacheKey).catch(() => {});
     return FAILED_ANALYSIS_PREFIX;
   })();
 
@@ -1662,7 +1684,7 @@ export async function runModerationAnalysis(
       continue;
     }
 
-    const cacheKey = makeUserModerationCacheKey(target.user_id, rawContent);
+    const cacheKey = makeTextModerationCacheKey(rawContent);
     // Deduplicate: if two identical messages from same user in this batch,
     // skip the cache lookup for the second and reuse the first's result.
     if (seenCacheKeys.has(cacheKey)) {
@@ -1681,7 +1703,7 @@ export async function runModerationAnalysis(
     seenCacheKeys.add(cacheKey);
 
     try {
-      const cached = await getCachedUserModeration(cacheKey);
+      const cached = await getCachedTextModeration(cacheKey);
       if (cached) {
         // Safety: skip cache entries that are artifacts of API/parse errors.
         // A previous bug cached error results as "flagged", causing 24h false positives.
@@ -1792,8 +1814,8 @@ export async function runModerationAnalysis(
     // Caching a transient error would turn it into a 24h false positive.
     if (result.status === "error") continue;
 
-    const cacheKey = makeUserModerationCacheKey(target.user_id, rawContent);
-    setCachedUserModeration(cacheKey, {
+    const cacheKey = makeTextModerationCacheKey(rawContent);
+    setCachedTextModeration(cacheKey, {
       flags: result.flags ?? [],
       score: result.score ?? 0,
       analysis: result.analysis ?? "",

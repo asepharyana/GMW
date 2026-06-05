@@ -192,7 +192,7 @@ export async function getCachedMediaAnalysis(
     const row = await executeGet(
       `SELECT flags, hit_count
        FROM text_analysis_cache
-       WHERE text = $1 AND expires_at > $2`,
+       WHERE text = $1 AND expires_at > $2 AND source != 'vision_llm_processing'`,
       [cacheKey, Date.now()],
     );
 
@@ -240,6 +240,50 @@ export async function upsertCachedMediaAnalysis(
   }
 }
 
+export async function acquireMediaAnalysisLock(
+  cacheKey: string,
+  expiresAt: number,
+): Promise<boolean> {
+  try {
+    const rows = await executeAll(
+      `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count)
+       VALUES ($1, $2, $3, $4, $5, 0)
+       ON CONFLICT (text) DO UPDATE SET
+         flags = EXCLUDED.flags,
+         source = EXCLUDED.source,
+         analyzed_at = EXCLUDED.analyzed_at,
+         expires_at = EXCLUDED.expires_at
+       WHERE text_analysis_cache.expires_at < $4
+       RETURNING text`,
+      [cacheKey, '""', "vision_llm_processing", Date.now(), expiresAt],
+    );
+    return Array.isArray(rows) && rows.length > 0;
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed to acquire media analysis lock",
+    );
+    return false;
+  }
+}
+
+export async function deleteCachedMediaAnalysis(
+  cacheKey: string,
+): Promise<void> {
+  try {
+    await executeAll(
+      `DELETE FROM text_analysis_cache
+       WHERE text = $1 AND source = 'vision_llm_processing'`,
+      [cacheKey],
+    );
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed to delete cached media analysis lock",
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Per-user moderation result cache (for spammer deduplication)
 // ---------------------------------------------------------------------------
@@ -251,19 +295,16 @@ export async function upsertCachedMediaAnalysis(
  * Two users sending the same text get separate cache entries so that
  * per-user action history (e.g. repeated spam) can be tracked later.
  */
-export function makeUserModerationCacheKey(
-  userId: string,
-  content: string,
-): string {
+export function makeTextModerationCacheKey(content: string): string {
   const hash = createHash("sha256").update(content).digest("hex").slice(0, 16);
-  return `user_mod:${userId}:${hash}`;
+  return `text_mod:${hash}`;
 }
 
 /**
- * Lookup a cached moderation result for a (user, content) pair.
+ * Lookup a cached moderation result for a text content.
  * Returns the stored result fields or null.
  */
-export async function getCachedUserModeration(cacheKey: string): Promise<{
+export async function getCachedTextModeration(cacheKey: string): Promise<{
   status: "clean" | "flagged";
   flags: string[];
   score: number;
@@ -317,7 +358,7 @@ export async function getCachedUserModeration(cacheKey: string): Promise<{
  * Store a moderation result for a (user, content) pair.
  * The `flags` field stores the full result object as JSON.
  */
-export async function setCachedUserModeration(
+export async function setCachedTextModeration(
   cacheKey: string,
   result: {
     flags: string[];
@@ -327,7 +368,7 @@ export async function setCachedUserModeration(
     severity: string;
     confidence: number;
     recommendedAction: string;
-    status?: "clean" | "warn" | "flagged";
+    status?: "clean" | "warn" | "flagged" | "processing";
   },
 ): Promise<void> {
   const now = Date.now();

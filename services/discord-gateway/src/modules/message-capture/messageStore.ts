@@ -41,6 +41,8 @@ interface QueryBuilder<T = unknown> extends PromiseLike<T> {
   onConflictDoNothing(...args: unknown[]): QueryBuilder<T>;
   returning(...args: unknown[]): QueryBuilder<T>;
   set(...args: unknown[]): QueryBuilder<T>;
+  for(mode: string, options?: { skipLocked?: boolean }): QueryBuilder<T>;
+  toSQL(): { sql: string; params: unknown[] };
 }
 
 interface MessageDatabase {
@@ -49,6 +51,7 @@ interface MessageDatabase {
   insert<T = unknown>(...args: unknown[]): QueryBuilder<T>;
   update(...args: unknown[]): QueryBuilder<unknown>;
   transaction<T>(callback: (tx: MessageDatabase) => Promise<T>): Promise<T>;
+  execute(sql: unknown): Promise<any>;
 }
 
 function db(): MessageDatabase {
@@ -408,7 +411,7 @@ export async function updateAttachmentAsFailedUpload(
 }
 
 interface AIAnalysisUpdate {
-  status: "pending" | "clean" | "warn" | "flagged" | "error";
+  status: "pending" | "processing" | "clean" | "warn" | "flagged" | "error";
   flags?: string | null;
   score?: number | null;
   analysis?: string | null;
@@ -651,28 +654,39 @@ export async function getPendingMessagesByConversation(
 
     // conversationKey is either thread_id or channel_id
     // Query both to safely handle the key
-    const sq = database
-      .select({ id: messagesTable.id })
-      .from(messagesTable)
-      .where(
-        and(
-          or(
-            eq(messagesTable.thread_id, conversationKey),
-            eq(messagesTable.channel_id, conversationKey),
+    const rows = await database.transaction(async (tx) => {
+      const pendingIdsQuery = tx
+        .select({ id: messagesTable.id })
+        .from(messagesTable)
+        .where(
+          and(
+            or(
+              eq(messagesTable.thread_id, conversationKey),
+              eq(messagesTable.channel_id, conversationKey),
+            ),
+            eq(messagesTable.ai_status, "pending"),
+            isNull(messagesTable.deleted_at),
           ),
-          eq(messagesTable.ai_status, "pending"),
-          isNull(messagesTable.deleted_at),
-        ),
-      )
-      .orderBy(asc(messagesTable.created_at))
-      .limit(limit)
-      .for("update", { skipLocked: true });
+        )
+        .orderBy(asc(messagesTable.created_at))
+        .limit(limit)
+        .for("update", { skipLocked: true });
 
-    const rows = await database
-      .update(messagesTable)
-      .set({ ai_status: "processing", ai_analyzed_at: Date.now() })
-      .where(inArray(messagesTable.id, sq))
-      .returning();
+      const pendingIds = await pendingIdsQuery;
+
+      if (pendingIds.length === 0) return [];
+
+      return await tx
+        .update(messagesTable)
+        .set({ ai_status: "processing", ai_analyzed_at: Date.now() })
+        .where(
+          inArray(
+            messagesTable.id,
+            (pendingIds as any[]).map((r) => r.id as string),
+          ),
+        )
+        .returning();
+    });
 
     return rows as MessageRecord[];
   } catch (error) {
@@ -863,32 +877,43 @@ export async function getIncompleteMessagesByConversation(
 ): Promise<MessageRecord[]> {
   try {
     const database = db();
-    const sq = database
-      .select({ id: messagesTable.id })
-      .from(messagesTable)
-      .where(
-        and(
-          or(
-            eq(messagesTable.thread_id, conversationKey),
-            eq(messagesTable.channel_id, conversationKey),
+    const rows = await database.transaction(async (tx) => {
+      const pendingIdsQuery = tx
+        .select({ id: messagesTable.id })
+        .from(messagesTable)
+        .where(
+          and(
+            or(
+              eq(messagesTable.thread_id, conversationKey),
+              eq(messagesTable.channel_id, conversationKey),
+            ),
+            eq(messagesTable.ai_status, "error"),
+            sql`${messagesTable.ai_moderation_flags} LIKE ${"%analysis_incomplete%"}`,
+            // Same guard as getConversationKeysWithIncompleteAnalysis: exclude
+            // rows that are already exhausted to prevent re-entry to recovery.
+            sql`(${messagesTable.ai_moderation_flags} IS NULL OR ${messagesTable.ai_moderation_flags} NOT LIKE ${"%individual_analysis_exhausted%"})`,
+            isNull(messagesTable.deleted_at),
           ),
-          eq(messagesTable.ai_status, "error"),
-          sql`${messagesTable.ai_moderation_flags} LIKE ${"%analysis_incomplete%"}`,
-          // Same guard as getConversationKeysWithIncompleteAnalysis: exclude
-          // rows that are already exhausted to prevent re-entry to recovery.
-          sql`(${messagesTable.ai_moderation_flags} IS NULL OR ${messagesTable.ai_moderation_flags} NOT LIKE ${"%individual_analysis_exhausted%"})`,
-          isNull(messagesTable.deleted_at),
-        ),
-      )
-      .orderBy(asc(messagesTable.created_at))
-      .limit(limit)
-      .for("update", { skipLocked: true });
+        )
+        .orderBy(asc(messagesTable.created_at))
+        .limit(limit)
+        .for("update", { skipLocked: true });
 
-    const rows = await database
-      .update(messagesTable)
-      .set({ ai_status: "processing", ai_analyzed_at: Date.now() })
-      .where(inArray(messagesTable.id, sq))
-      .returning();
+      const pendingIds = await pendingIdsQuery;
+
+      if (pendingIds.length === 0) return [];
+
+      return await tx
+        .update(messagesTable)
+        .set({ ai_status: "processing", ai_analyzed_at: Date.now() })
+        .where(
+          inArray(
+            messagesTable.id,
+            (pendingIds as any[]).map((r) => r.id as string),
+          ),
+        )
+        .returning();
+    });
 
     return rows as MessageRecord[];
   } catch (error) {
@@ -1280,14 +1305,14 @@ export async function revertStuckProcessingMessages(
       )
       .returning({ id: messagesTable.id });
 
-    if (rows.length > 0) {
-      logger.warn(
-        { count: rows.length, messageIds: rows.map((r) => r.id) },
-        "Reverted stuck processing messages to pending",
+    if (Array.isArray(rows) && rows.length > 0) {
+      logger.info(
+        { count: rows.length, messageIds: rows.map((r: { id: string }) => r.id) },
+        "Reverted stuck processing messages back to pending",
       );
     }
-    
-    return rows.length;
+
+    return Array.isArray(rows) ? rows.length : 0;
   } catch (error) {
     logger.error(
       { error: error instanceof Error ? error.message : String(error) },

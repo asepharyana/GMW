@@ -195,8 +195,8 @@ Input: [target] id=13131 user=nazi_babi_itu: bener tuh nih ras emang harus dibas
 Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}
 
 Contoh 13 — Obfuscation / Zalgo Text (Evasion):
-Input: [target] id=14141 user=hater: ++++++K1[[ your $€/F" "~`| \0ve $ 1F ¥°U |}iE ®©
-Output: {"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"categories":["harassment","hate_speech"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["++++++K1[[ your $€/F","\\0ve $ 1F ¥°U |}iE"],"analysis":"Pesan menggunakan teknik obfuscation/simbol untuk menyembunyikan frasa 'Kill yourself I love if you die'. Ini adalah ancaman dan pelecehan berat yang disamarkan."}]}
+Input: [target] id=14141 user=hater: ++++++K1[[ your $€/F" "~\`| \\0ve $ 1F ¥°U |}iE ®©
+Output: {"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"categories":["harassment","hate_speech"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["++++++K1[[ your $€/F","\\\\0ve $ 1F ¥°U |}iE"],"analysis":"Pesan menggunakan teknik obfuscation/simbol untuk menyembunyikan frasa 'Kill yourself I love if you die'. Ini adalah ancaman dan pelecehan berat yang disamarkan."}]}
 
 Contoh 14 — Vulgaritas Bahasa Asing / All-Caps:
 Input: [target] id=15151 user=troll: AKU RAJA TITTEN
@@ -245,8 +245,8 @@ Input: [target] id=13131 user=nazi_babi_itu: bener tuh nih ras emang harus dibas
 Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}
 
 Contoh 13 — Obfuscation / Zalgo Text (Evasion):
-Input: [target] id=14141 user=hater: ++++++K1[[ your $€/F" "~`| \0ve $ 1F ¥°U |}iE ®©
-Output: {"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"categories":["harassment","hate_speech"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["++++++K1[[ your $€/F","\\0ve $ 1F ¥°U |}iE"],"analysis":"Pesan menggunakan teknik obfuscation/simbol untuk menyembunyikan frasa 'Kill yourself I love if you die'. Ini adalah ancaman dan pelecehan berat yang disamarkan."}]}
+Input: [target] id=14141 user=hater: ++++++K1[[ your $€/F" "~\`| \\0ve $ 1F ¥°U |}iE ®©
+Output: {"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"categories":["harassment","hate_speech"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["++++++K1[[ your $€/F","\\\\0ve $ 1F ¥°U |}iE"],"analysis":"Pesan menggunakan teknik obfuscation/simbol untuk menyembunyikan frasa 'Kill yourself I love if you die'. Ini adalah ancaman dan pelecehan berat yang disamarkan."}]}
 
 Contoh 14 — Vulgaritas Bahasa Asing / All-Caps:
 Input: [target] id=15151 user=troll: AKU RAJA TITTEN
@@ -300,8 +300,8 @@ Input: [target] id=13131 user=nazi_babi_itu: bener tuh nih ras emang harus dibas
 Output: {"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username 'nazi_babi_itu' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"nazi_babi_itu memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}
 
 Contoh 13 — Obfuscation / Zalgo Text (Evasion):
-Input: [target] id=14141 user=hater: ++++++K1[[ your $€/F" "~`| \0ve $ 1F ¥°U |}iE ®©
-Output: {"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"categories":["harassment","hate_speech"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["++++++K1[[ your $€/F","\\0ve $ 1F ¥°U |}iE"],"analysis":"Pesan menggunakan teknik obfuscation/simbol untuk menyembunyikan frasa 'Kill yourself I love if you die'. Ini adalah ancaman dan pelecehan berat yang disamarkan."}]}
+Input: [target] id=14141 user=hater: ++++++K1[[ your $€/F" "~\`| \\0ve $ 1F ¥°U |}iE ®©
+Output: {"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"categories":["harassment","hate_speech"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["++++++K1[[ your $€/F","\\\\0ve $ 1F ¥°U |}iE"],"analysis":"Pesan menggunakan teknik obfuscation/simbol untuk menyembunyikan frasa 'Kill yourself I love if you die'. Ini adalah ancaman dan pelecehan berat yang disamarkan."}]}
 
 Contoh 14 — Vulgaritas Bahasa Asing / All-Caps:
 Input: [target] id=15151 user=troll: AKU RAJA TITTEN
