@@ -21,7 +21,7 @@ import {
   getStickerFromCache,
   initStickerCache,
   isStickerCacheReady,
-  setStickerInCache,
+  uploadAndCacheSticker,
 } from "./stickerCache.js";
 import {
   buildCustomEmojiVisionPrompt,
@@ -1537,9 +1537,8 @@ async function _runSingleMediaAnalysis(
             if (cached) {
               const part: MessageImagePart = {
                 type: "image_url",
-                image_url: {
-                  url: `data:${cached.mimeType};base64,${cached.base64}`,
-                },
+                // imageUrl is already a remote URL — faster than re-uploading
+                image_url: { url: cached.imageUrl },
                 sourceLabel: candidate.label,
                 stickerName: candidate.stickerName,
               };
@@ -1587,10 +1586,16 @@ async function _runSingleMediaAnalysis(
           await resizeImageForVision(result.data, maxDimension);
 
         const base64 = resizedBuffer.toString("base64");
+
+        // Upload sticker to external service and cache the URL (fire-and-forget).
+        // The current vision call still uses a data URL to avoid waiting on upload,
+        // but all subsequent occurrences will reuse the uploaded URL directly.
         if (candidate.stickerName) {
-          setStickerInCache(candidate.stickerName, base64, resizedMime).catch(
-            () => {},
-          );
+          uploadAndCacheSticker(
+            candidate.stickerName,
+            resizedBuffer,
+            resizedMime,
+          ).catch(() => {});
         }
 
         const part: MessageImagePart = {
