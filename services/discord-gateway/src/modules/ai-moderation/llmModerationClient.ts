@@ -1246,75 +1246,32 @@ async function runTextOnlyBatch(
 }
 
 // ---------------------------------------------------------------------------
-// Single media message analysis — one LLM call per message with vision + timeout (R4, R5)
+// Prepared media message — download + vision phase, no LLM call yet.
+// Multiple prepared messages are batched into a single LLM call below.
 // ---------------------------------------------------------------------------
 
+interface PreparedMediaMessage {
+  targetId: string;
+  messageBlock: string;
+}
+
 /**
- * Process a single media-bearing message:
+ * Download images, run vision analysis, and build the message XML block
+ * for a single media-bearing message.  Does NOT make the moderation LLM call
+ * — that happens in batch in `runMediaBatch`.
+ *
+ * Steps:
  * 1. Download attachment images (resized via sharp — R5)
  * 2. Fetch URLs found in the message body
  * 3. Download sticker/embed images (resized via sharp — R5)
  * 4. Run vision analysis on every image (with DB + sticker cache)
- * 5. Build a single-message prompt with XML delimiters (R1)
- * 6. One LLM call → single AnalysisResult
- *
- * Wrapped with overall timeout (R4).
+ * 5. Build a single-message XML block with media context (R1)
  */
-async function runSingleMediaAnalysis(
+async function prepareMediaMessage(
   target: MessageRecord,
-  contextText: string,
   allAttachments: AttachmentRecord[] | undefined,
-): Promise<{ results: AnalysisResult[]; raw: unknown }> {
+): Promise<PreparedMediaMessage> {
   const targetId = target.id;
-  const targetIds = [targetId];
-
-  // Timeout wrapper (R4)
-  const timeoutMs = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
-
-  const abortController = new AbortController();
-  const timeoutId = setTimeout(() => {
-    abortController.abort();
-  }, timeoutMs);
-  timeoutId.unref();
-
-  try {
-    return await _runSingleMediaAnalysis(
-      target,
-      contextText,
-      allAttachments,
-      targetId,
-      targetIds,
-      abortController.signal,
-    );
-  } catch (err: any) {
-    if (err.name === "AbortError" || abortController.signal.aborted) {
-      throw new Error(
-        `Media analysis timed out after ${timeoutMs}ms for message ${targetId}`,
-      );
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-async function _runSingleMediaAnalysis(
-  target: MessageRecord,
-  contextText: string,
-  allAttachments: AttachmentRecord[] | undefined,
-  targetId: string,
-  targetIds: string[],
-  signal?: AbortSignal,
-): Promise<{ results: AnalysisResult[]; raw: unknown }> {
-  // Lazy init sticker cache
-  if (!isStickerCacheReady()) {
-    await initStickerCache().catch((err: unknown) => {
-      log.warn(
-        { error: err instanceof Error ? err.message : String(err) },
-        "Sticker cache init failed — continuing without cache",
-      );
-    });
-  }
 
   // ── State maps for this single message ──
   const imageMap = new Map<string, MessageImagePart[]>();
@@ -1328,10 +1285,6 @@ async function _runSingleMediaAnalysis(
   const content = getAnalysisContent(target);
 
   // ── 1-3. Parallel download of ALL media sources ──
-  // Build all download promises upfront and execute them in one Promise.all.
-  // Attachment, URL, sticker/emoji downloads are fully independent of each other.
-  // An 8-image cap is enforced across all sources combined.
-
   const downloadPromises: Array<Promise<void>> = [];
 
   // ── Attachment downloads ──
@@ -1518,12 +1471,8 @@ async function _runSingleMediaAnalysis(
   for (const candidate of mediaCandidates) {
     downloadPromises.push(
       (async () => {
-        // Skip if we already have 8 images
         if ((imageMap.get(targetId)?.length ?? 0) >= 8) return;
 
-        // Vision cache check before download (sticker & emoji keys only, since
-        // their cache keys are consistent between check and store — embed URLs
-        // use base64 data URL keys that never match the CDN URL).
         if (candidate.customEmojiId || candidate.stickerName) {
           const visionCacheKey = candidate.customEmojiId
             ? makeCustomEmojiCacheKey(candidate.customEmojiId)
@@ -1542,17 +1491,12 @@ async function _runSingleMediaAnalysis(
           }
         }
 
-        // Sticker download cache
         if (candidate.stickerName && isStickerCacheReady()) {
           try {
             const cached = await getStickerFromCache(candidate.stickerName);
-            // Guard against stale rows that survived the base64→URL migration
-            // (DEFAULT '' image_url). An empty URL would cause the vision API
-            // to reject the request with "multi_modal_data['image'][0] is empty".
             if (cached && cached.imageUrl) {
               const part: MessageImagePart = {
                 type: "image_url",
-                // imageUrl is already a remote URL — faster than re-uploading
                 image_url: { url: cached.imageUrl },
                 sourceLabel: candidate.label,
                 stickerName: candidate.stickerName,
@@ -1602,9 +1546,6 @@ async function _runSingleMediaAnalysis(
 
         const base64 = resizedBuffer.toString("base64");
 
-        // Upload sticker to external service and cache the URL (fire-and-forget).
-        // The current vision call still uses a data URL to avoid waiting on upload,
-        // but all subsequent occurrences will reuse the uploaded URL directly.
         if (candidate.stickerName) {
           uploadAndCacheSticker(
             candidate.stickerName,
@@ -1641,7 +1582,6 @@ async function _runSingleMediaAnalysis(
     Array.from(imageMap.entries()).flatMap(([msgId, images]) =>
       images.map(async (image) => {
         const summary = await analyzeSingleMediaImage(msgId, image);
-        // summary is never null — always returns either the analysis or a failure description
         const existing = mediaAnalysisMap.get(msgId) ?? [];
         existing.push(summary);
         mediaAnalysisMap.set(msgId, existing);
@@ -1649,7 +1589,7 @@ async function _runSingleMediaAnalysis(
     ),
   );
 
-  // ── 5. Build single-message prompt with XML delimiters (R1) ──
+  // ── 5. Build single-message XML block (R1) ──
   const webTexts = webTextMap.get(targetId) ?? [];
   const mediaAnalyses = mediaAnalysisMap.get(targetId) ?? [];
   const webContext = webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
@@ -1675,7 +1615,58 @@ async function _runSingleMediaAnalysis(
     .filter(Boolean)
     .join(" ");
 
-  const channelId = target.channel_id;
+  const rep = await initializeUserReputation(target.user_id, target.guild_id);
+  const userCtx = `<user_reputation trust_score="${rep.trust_score}" />`;
+
+  const messageBlock = `<message id="${target.id}" user="${target.username}">\n  ${userCtx}\n  <content>${content}</content>${mediaContext ? ` ${mediaContext}` : ""}${webContext}${mediaAnalysisContext}\n</message>`;
+
+  return { targetId, messageBlock };
+}
+
+// ---------------------------------------------------------------------------
+// Media batch analysis — ALL media messages in a SINGLE LLM call
+// ---------------------------------------------------------------------------
+
+/**
+ * Analyse ALL media-bearing messages in a single batched LLM call.
+ *
+ * 1. Download + vision-analyse images for every message in parallel (I/O).
+ * 2. Build ONE prompt with ALL prepared message blocks.
+ * 3. ONE LLM call → batch-parsed response for all messages.
+ *
+ * This replaces the previous one-LLm-call-per-message pattern which caused
+ * long queues when many media messages were pending.  With batching,
+ * 50 media messages = 1 LLM call instead of 50 sequential calls.
+ */
+async function runMediaBatch(
+  targets: MessageRecord[],
+  contextText: string,
+  attachments: AttachmentRecord[] | undefined,
+): Promise<{ results: AnalysisResult[]; raw: unknown }> {
+  if (!targets.length) return { results: [], raw: null };
+
+  // Lazy init sticker cache once for the entire batch
+  if (!isStickerCacheReady()) {
+    await initStickerCache().catch((err: unknown) => {
+      log.warn(
+        { error: err instanceof Error ? err.message : String(err) },
+        "Sticker cache init failed — continuing without cache",
+      );
+    });
+  }
+
+  // ── Phase A: Prepare ALL messages in parallel (download + vision) ──
+  // This is I/O bound (network downloads, sharp processing) so we run
+  // ALL concurrently without the LLM concurrency limiter.
+  const prepared = await Promise.all(
+    targets.map((target) => prepareMediaMessage(target, attachments)),
+  );
+
+  // ── Phase B: ONE batched LLM call ──
+  // Build shared prompt context once, combine all message blocks.
+  const targetIds = targets.map((t) => t.id);
+
+  const channelId = targets[0].channel_id;
   const channelCultureObj = channelId
     ? await getChannelCulture(channelId)
     : null;
@@ -1683,13 +1674,6 @@ async function _runSingleMediaAnalysis(
     ? channelCultureObj.culture_summary
     : undefined;
 
-  const rep = await initializeUserReputation(target.user_id, target.guild_id);
-  const userCtx = `<user_reputation trust_score="${rep.trust_score}" />`;
-
-  // XML delimiters wrap the message content (R1)
-  const messageBlock = `<message id="${target.id}" user="${target.username}">\n  ${userCtx}\n  <content>${content}</content>${mediaContext ? ` ${mediaContext}` : ""}${webContext}${mediaAnalysisContext}\n</message>`;
-
-  // Modular system prompt with XML delimiters (R1, R7, R8)
   const correctedExamples = await buildCorrectedFewShotExamples();
   const systemText = buildSystemPromptModular({
     contextText,
@@ -1698,17 +1682,49 @@ async function _runSingleMediaAnalysis(
     channelCulture,
   });
 
-  const userContent = `${systemText}\n\n<messages_to_analyze>\n${messageBlock}\n</messages_to_analyze>`;
+  const messagesBlock = prepared.map((p) => p.messageBlock).join("\n");
+  const userContent = `${systemText}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
 
-  // ── 6. LLM call ──
-  const result = await callModerationLLM(
-    async (_state: RetryState) => userContent,
-    targetIds,
-    `media:${targetId}`,
-    signal,
+  // Overall timeout: proportional to batch size but capped at 5 minutes.
+  // The prepare phase (downloads) is already bounded by per-fetch timeouts,
+  // so this timeout primarily guards the LLM call itself.
+  const perMsgTimeout = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
+  const batchTimeout = Math.min(
+    Math.max(perMsgTimeout, perMsgTimeout * targets.length),
+    300_000,
   );
 
-  return result;
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), batchTimeout);
+  timeoutId.unref();
+
+  try {
+    const result = await callModerationLLM(
+      async (_state: RetryState) => userContent,
+      targetIds,
+      `media-batch:${targetIds.length}msgs`,
+      abortController.signal,
+    );
+
+    log.info(
+      {
+        mediaCount: targets.length,
+        resultCount: result.results.length,
+      },
+      "Media batch analysis complete (single LLM call)",
+    );
+
+    return result;
+  } catch (err: any) {
+    if (err.name === "AbortError" || abortController.signal.aborted) {
+      throw new Error(
+        `Media batch analysis timed out after ${batchTimeout}ms for ${targets.length} messages`,
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1721,9 +1737,12 @@ async function _runSingleMediaAnalysis(
  * Architecture:
  * - **Text-only messages** → single batch LLM call (fast, no image processing)
  *   - Split into sub-batches if exceeding AI_LLM_TEXT_BATCH_SIZE (R6)
- * - **Media messages** → each gets its own LLM call with vision API (R5: resized images)
+ * - **Media messages** → ALL messages prepared in parallel (download + vision),
+ *   then ONE batched LLM call with all results.
+ *   - Previously one-LLM-call-per-message which caused long queues.
+ *   - Now N media messages → 1 LLM call regardless of N.
  * - Both paths execute **in parallel** — text batch does NOT wait for media.
- * - All LLM calls go through concurrency limiter (R3).
+ * - I/O phase (downloads) is unlimited; the LLM call respects concurrency limiter (R3).
  */
 export async function runModerationAnalysis(
   input: ModerationInput,
@@ -1861,16 +1880,19 @@ export async function runModerationAnalysis(
   );
 
   // ── Run both paths in parallel ──
-  const [textBatchResult, ...mediaResults] = await Promise.all([
+  // Text paths run in a single batch call; media paths run download+vision
+  // for all messages in parallel, then ONE LLM batch call (R3 concurrency
+  // limiter applies only to the single LLM call, not to the I/O phase).
+  const [textBatchResult, mediaBatchResult] = await Promise.all([
     // Text-only: one fast batch call (or multiple sub-batches)
     textOnlyTargets.length > 0
       ? runTextOnlyBatch(textOnlyTargets, contextText)
       : Promise.resolve({ results: [] as AnalysisResult[], raw: null }),
 
-    // Media: each message gets its own LLM call (all in parallel, but limited by semaphore — R3)
-    ...mediaTargets.map((target) =>
-      runSingleMediaAnalysis(target, contextText, attachments),
-    ),
+    // Media: ALL messages downloaded + analysed in ONE batched LLM call
+    mediaTargets.length > 0
+      ? runMediaBatch(mediaTargets, contextText, attachments)
+      : Promise.resolve({ results: [] as AnalysisResult[], raw: null }),
   ]);
 
   // ── Store uncached text-only results in cache ──
@@ -1903,12 +1925,10 @@ export async function runModerationAnalysis(
   const allResults = [
     ...cacheHits,
     ...textResults,
-    ...mediaResults.flatMap((r) => r.results),
+    ...mediaBatchResult.results,
   ];
 
-  const raw =
-    textBatchResult.raw ??
-    (mediaResults.length > 0 ? mediaResults[0].raw : null);
+  const raw = textBatchResult.raw ?? mediaBatchResult.raw;
 
   log.debug(
     {
@@ -1916,7 +1936,7 @@ export async function runModerationAnalysis(
       resultCount: allResults.length,
       cacheHits: cacheHits.length,
       textBatchResults: textResults.length,
-      mediaResults: mediaResults.length,
+      mediaResults: mediaBatchResult.results.length,
     },
     "Moderation analysis complete",
   );
