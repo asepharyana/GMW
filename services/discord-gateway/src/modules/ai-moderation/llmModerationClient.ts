@@ -1546,7 +1546,10 @@ async function _runSingleMediaAnalysis(
         if (candidate.stickerName && isStickerCacheReady()) {
           try {
             const cached = await getStickerFromCache(candidate.stickerName);
-            if (cached) {
+            // Guard against stale rows that survived the base64→URL migration
+            // (DEFAULT '' image_url). An empty URL would cause the vision API
+            // to reject the request with "multi_modal_data['image'][0] is empty".
+            if (cached && cached.imageUrl) {
               const part: MessageImagePart = {
                 type: "image_url",
                 // imageUrl is already a remote URL — faster than re-uploading
