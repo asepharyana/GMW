@@ -56,6 +56,7 @@ Pedoman ini mencerminkan nilai-nilai yang dijunjung server. Terapkan dengan bija
 
 ### Anti-Evasion & Obfuscation (STRICT RULE)
 - **Zalgo / Leetspeak / Simbol:** Pesan yang menggunakan karakter simbolik acak, Zalgo text, atau leetspeak (misal: "++++++K1[[ your $€/F", "b1tch", "k0nt0l") adalah TEKNIK EVASI. KAMU WAJIB mendekode makna aslinya. Jika maknanya merujuk pada ancaman atau kata kasar, FLAG sebagai "harassment" atau "hate_speech". PENGECUALIAN: Kaomoji (misal ╯°□°)╯︵ ┻━┻) atau ASCII art dekoratif adalah AMAN dan BUKAN teknik evasi.
+- **Typo QWERTY vs Obfuscation (False Friends):** Bedakan antara typo natural (huruf bersebelahan di keyboard seperti f/g, i/o) dengan teknik obfuscation disengaja. Contoh: "ngodonf" adalah typo dari "ngoding" (karena jarak f-g dan i-o dekat), bukan plesetan dari kata vulgar "kontol". JANGAN memaksakan typo menjadi kata kasar jika secara struktur/fonetik berbeda jauh. Perhatikan konteks "grup programmer". Kata seperti "ngoding", "deploy", "bug" dan typo naturalnya adalah AMAN.
 - **Polyglot Obfuscation (Serangan Lintas Bahasa):** Mencampuradukkan kosa kata Inggris, Indonesia, dan daerah secara acak (misal: "sesuatu sing that...") adalah teknik pengaburan makna (semantic fragmentation). JANGAN anggap ini "bahasa gaul santai". Jika ada entitas atau terjemahan literal tersembunyi di dalamnya, FLAG sesuai pelanggaran aslinya.
 - **Emoji Huruf / Regional Indicators:** Jika pesan menggunakan deretan emoji bendera/huruf (seperti 🇬 🇦 🇾) atau karakter spesial yang dirangkai untuk mengeja sebuah kata, JANGAN menganggapnya sebagai "serangkaian emoji tanpa teks". KAMU WAJIB membaca rangkaian emoji tersebut sebagai huruf dan kata aslinya. Jika kata yang dibentuk melanggar, flag sesuai pelanggarannya.
 - **Bahasa Asing & Vulgaritas Obscure:** Kata-kata vulgar atau anatomi seksual dalam bahasa asing/slang (seperti "titten", "nigger", "kys", "whore") ADALAH PELANGGARAN. PENGECUALIAN: Kata asing dengan ejaan mirip namun makna normal (False Friends) seperti penyebutan negara "Niger", warna bahasa Spanyol "negro", atau kata ganti Korea "niga" adalah AMAN.
@@ -227,7 +228,11 @@ Output: {"results":[{"message_id":"15151","status":"flagged","flags":["vulgar_la
 
 Contoh 15 — Emoji Huruf (Evasion):
 Input: [target] id=16161 user=sneaky: gsap expo 🇬 🇦 🇾
-Output: {"results":[{"message_id":"16161","status":"flagged","flags":["sexual_deviation"],"score":0.8,"categories":["sexual_deviation"],"severity":"medium","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["🇬 🇦 🇾"],"analysis":"User menggunakan emoji regional indicator (huruf bendera) untuk mengeja kata 'GAY'. Ini adalah teknik evasi untuk membicarakan topik identitas seksual yang dibatasi server. Pesan ini harus di-flag."}]}`;
+Output: {"results":[{"message_id":"16161","status":"flagged","flags":["sexual_deviation"],"score":0.8,"categories":["sexual_deviation"],"severity":"medium","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["🇬 🇦 🇾"],"analysis":"User menggunakan emoji regional indicator (huruf bendera) untuk mengeja kata 'GAY'. Ini adalah teknik evasi untuk membicarakan topik identitas seksual yang dibatasi server. Pesan ini harus di-flag."}]}
+
+Contoh 16 — Typo QWERTY Programming (False Positive Prevention):
+Input: [target] id=17171 user=dian432: Apakah bisa ngodonf disitu?
+Output: {"results":[{"message_id":"17171","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim bertanya tentang pemrograman. Kata 'ngodonf' adalah typo natural (QWERTY f-g, o-i) dari 'ngoding'. Bukan obfuscation kata kasar. Konteks percakapan wajar."}]}`;
 
 /**
  * Text-only examples extracted from FEW_SHOT_EXAMPLES for text-mode prompts.
@@ -281,7 +286,11 @@ Output: {"results":[{"message_id":"15151","status":"flagged","flags":["vulgar_la
 
 Contoh 15 — Emoji Huruf (Evasion):
 Input: [target] id=16161 user=sneaky: gsap expo 🇬 🇦 🇾
-Output: {"results":[{"message_id":"16161","status":"flagged","flags":["sexual_deviation"],"score":0.8,"categories":["sexual_deviation"],"severity":"medium","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["🇬 🇦 🇾"],"analysis":"User menggunakan emoji regional indicator (huruf bendera) untuk mengeja kata 'GAY'. Ini adalah teknik evasi untuk membicarakan topik identitas seksual yang dibatasi server. Pesan ini harus di-flag."}]}`;
+Output: {"results":[{"message_id":"16161","status":"flagged","flags":["sexual_deviation"],"score":0.8,"categories":["sexual_deviation"],"severity":"medium","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["🇬 🇦 🇾"],"analysis":"User menggunakan emoji regional indicator (huruf bendera) untuk mengeja kata 'GAY'. Ini adalah teknik evasi untuk membicarakan topik identitas seksual yang dibatasi server. Pesan ini harus di-flag."}]}
+
+Contoh 16 — Typo QWERTY Programming (False Positive Prevention):
+Input: [target] id=17171 user=dian432: Apakah bisa ngodonf disitu?
+Output: {"results":[{"message_id":"17171","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim bertanya tentang pemrograman. Kata 'ngodonf' adalah typo natural (QWERTY f-g, o-i) dari 'ngoding'. Bukan obfuscation kata kasar. Konteks percakapan wajar."}]}`;
 
 /**
  * Media-capable examples extracted from FEW_SHOT_EXAMPLES for media-mode prompts.
