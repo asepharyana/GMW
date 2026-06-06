@@ -14,10 +14,7 @@ import type {
 
 import { llmChat, llmVision } from "./llmClient.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
-import {
-  initializeUserReputation,
-  getUserRecentInfractions,
-} from "./userReputationStore.js";
+import { initializeUserReputation } from "./userReputationStore.js";
 import { getChannelCulture } from "./channelCultureStore.js";
 import { logModerationAnalysis, logModerationError } from "./responseLogger.js";
 import {
@@ -1108,19 +1105,12 @@ async function runTextOnlyBatch(
     const batch = subBatches[i];
     const targetIds = batch.map((t) => t.id);
 
-    // Fetch user context for this batch
+    // Abstract user reputation (no history — prevents confirmation bias)
     const userContexts = new Map<string, string>();
     for (const msg of batch) {
       if (!userContexts.has(msg.user_id)) {
         const rep = await initializeUserReputation(msg.user_id, msg.guild_id);
-        const history = await getUserRecentInfractions(msg.user_id);
-        
-        let historyStr = "";
-        if (history.length > 0) {
-          historyStr = `\n  <user_history>\n${history.map(h => `    - Flagged for ${h.flags} (Severity: ${h.severity}) pada pesan: "${h.content}"`).join("\n")}\n  </user_history>`;
-        }
-        
-        const contextStr = `<user_reputation trust_score="${rep.trust_score}" clean_streak="${rep.clean_message_streak}" total_infractions="${rep.total_infractions}" />${historyStr}`;
+        const contextStr = `<user_reputation trust_score="${rep.trust_score}" />`;
         userContexts.set(msg.user_id, contextStr);
       }
     }
@@ -1670,12 +1660,7 @@ async function _runSingleMediaAnalysis(
   const channelCulture = channelCultureObj ? channelCultureObj.culture_summary : undefined;
 
   const rep = await initializeUserReputation(target.user_id, target.guild_id);
-  const history = await getUserRecentInfractions(target.user_id);
-  let historyStr = "";
-  if (history.length > 0) {
-    historyStr = `\n  <user_history>\n${history.map(h => `    - Flagged for ${h.flags} (Severity: ${h.severity}) pada pesan: "${h.content}"`).join("\n")}\n  </user_history>`;
-  }
-  const userCtx = `<user_reputation trust_score="${rep.trust_score}" clean_streak="${rep.clean_message_streak}" total_infractions="${rep.total_infractions}" />${historyStr}`;
+  const userCtx = `<user_reputation trust_score="${rep.trust_score}" />`;
 
   // XML delimiters wrap the message content (R1)
   const messageBlock = `<message id="${target.id}" user="${target.username}">\n  ${userCtx}\n  <content>${content}</content>${mediaContext ? ` ${mediaContext}` : ""}${webContext}${mediaAnalysisContext}\n</message>`;

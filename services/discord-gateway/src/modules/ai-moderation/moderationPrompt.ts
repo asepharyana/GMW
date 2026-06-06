@@ -455,7 +455,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
     parts.push(`## Kultur Channel (Pembelajaran AI)\n${channelCulture}`);
   }
 
-  parts.push(`## Konteks Pengguna (Ingatan & Kebijaksanaan)\nSetiap pesan mungkin memiliki tag <user_reputation> dan <user_history>. *Gunakan Kebijaksanaan: Jika trust_score tinggi, beri benefit of the doubt pada ambiguitas. Jika trust_score rendah dan memiliki riwayat pelanggaran serupa, jadilah lebih tegas.*`);
+  parts.push(`## Konteks Pengguna\nSetiap pesan mungkin memiliki tag <user_reputation>. Tag ini hanya indikator **referensi**, bukan bukti pelanggaran. Nilai trust_score yang rendah bukan alasan untuk memflag pesan yang bersih. Nilai trust_score yang tinggi bukan alasan untuk mengabaikan pelanggaran nyata. **Setiap pesan harus dinilai berdasarkan isinya sendiri.**`);
 
   parts.push(OUTPUT_INSTRUCTIONS);
 
