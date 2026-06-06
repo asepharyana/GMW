@@ -1,19 +1,20 @@
 import { createChildLogger } from "@bete/shared/logger";
+import { config } from "../../shared/config/config.js";
+import { uploadToTele } from "../attachment-upload/teleUpload.js";
 import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 
 const logger = createChildLogger("sticker-cache");
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-const MAX_SIZE_BYTES = 100 * 1024 * 1024; // 100MB hardcoded
+const MAX_ENTRIES = 5000;
 
 let ready = false;
-let statsCache = { entryCount: 0, totalSizeBytes: 0 };
+let statsCache = { entryCount: 0 };
 
 export interface StickerCacheEntry {
-  base64: string;
+  imageUrl: string;
   mimeType: string;
   fetchedAt: number;
-  size: number;
 }
 
 function sanitizeKey(name: string): string {
@@ -32,9 +33,8 @@ export async function initStickerCache(): Promise<void> {
     await executeAll(`
       CREATE TABLE IF NOT EXISTS "sticker_cache" (
         "name" text PRIMARY KEY NOT NULL,
-        "base64" text NOT NULL,
+        "image_url" text NOT NULL DEFAULT '',
         "mime_type" text NOT NULL,
-        "size" integer NOT NULL,
         "fetched_at" bigint NOT NULL
       )
     `);
@@ -42,17 +42,17 @@ export async function initStickerCache(): Promise<void> {
       `CREATE INDEX IF NOT EXISTS "idx_sticker_cache_fetched_at" ON "sticker_cache" USING btree ("fetched_at")`,
     );
 
+    // Prune expired entries
     await executeAll("DELETE FROM sticker_cache WHERE fetched_at < $1", [
       Date.now() - TTL_MS,
     ]);
     const row = await executeGet(
-      "SELECT count(*) as cnt, COALESCE(SUM(size), 0) as total FROM sticker_cache",
+      "SELECT count(*) as cnt FROM sticker_cache",
       [],
     );
     if (row) {
       statsCache = {
         entryCount: Number(row.cnt),
-        totalSizeBytes: Number(row.total),
       };
     }
   } catch (err) {
@@ -62,7 +62,7 @@ export async function initStickerCache(): Promise<void> {
     );
   }
   ready = true;
-  logger.info(statsCache, "Sticker cache initialized (PostgreSQL)");
+  logger.info(statsCache, "Sticker cache initialized (PostgreSQL — URL-based)");
 }
 
 /**
@@ -75,15 +75,14 @@ export async function getStickerFromCache(
   const key = sanitizeKey(stickerName);
   try {
     const row = await executeGet(
-      "SELECT base64, mime_type, size, fetched_at FROM sticker_cache WHERE name = $1 AND fetched_at > $2",
+      "SELECT image_url, mime_type, fetched_at FROM sticker_cache WHERE name = $1 AND fetched_at > $2",
       [key, Date.now() - TTL_MS],
     );
     if (!row) return null;
     return {
-      base64: row.base64,
+      imageUrl: row.image_url,
       mimeType: row.mime_type,
       fetchedAt: Number(row.fetched_at),
-      size: Number(row.size),
     };
   } catch (err) {
     logger.error(
@@ -95,68 +94,100 @@ export async function getStickerFromCache(
 }
 
 /**
- * Store a sticker image in the cache. Fires and forgets — never blocks.
+ * Store a sticker image URL in the cache.
+ *
+ * @param stickerName - The sticker's display name (used as cache key).
+ * @param imageUrl    - The uploaded image URL (tele/picser) to store.
+ * @param mimeType    - MIME type of the image.
  */
 export async function setStickerInCache(
   stickerName: string,
-  base64: string,
+  imageUrl: string,
   mimeType: string,
 ): Promise<void> {
   if (!ready) return;
   const key = sanitizeKey(stickerName);
-  const size = Buffer.byteLength(base64, "utf-8");
   const now = Date.now();
   try {
-    await evictIfNeeded(size);
+    await evictIfNeeded();
     await executeAll(
-      `INSERT INTO sticker_cache (name, base64, mime_type, size, fetched_at)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO sticker_cache (name, image_url, mime_type, fetched_at)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT (name) DO UPDATE SET
-         base64 = EXCLUDED.base64,
+         image_url = EXCLUDED.image_url,
          mime_type = EXCLUDED.mime_type,
-         size = EXCLUDED.size,
          fetched_at = EXCLUDED.fetched_at`,
-      [key, base64, mimeType, size, now],
+      [key, imageUrl, mimeType, now],
     );
     statsCache.entryCount++;
-    statsCache.totalSizeBytes += size;
-    logger.debug({ stickerName, size }, "Sticker cached");
+    logger.debug({ stickerName, imageUrl }, "Sticker URL cached");
   } catch (err) {
     logger.warn(
       { stickerName, error: String(err) },
-      "Failed to write sticker to cache",
+      "Failed to write sticker URL to cache",
     );
   }
 }
 
-async function evictIfNeeded(newSize: number): Promise<void> {
-  if (statsCache.totalSizeBytes + newSize <= MAX_SIZE_BYTES) return;
+/**
+ * Upload a raw sticker image buffer to the external upload service, then
+ * cache the resulting URL.
+ *
+ * Convenience wrapper for the common pattern:
+ * download → setStickerImage → use URL.
+ */
+export async function uploadAndCacheSticker(
+  stickerName: string,
+  buffer: Buffer,
+  mimeType: string,
+): Promise<string | null> {
+  let uploadedUrl: string;
+  try {
+    uploadedUrl = await uploadToTele({
+      buffer,
+      filename: `sticker-${sanitizeKey(stickerName)}`,
+      contentType: mimeType,
+      uploadUrl: config.TELE_UPLOAD_URL,
+      timeoutMs: 30000,
+      retries: 2,
+    }).then((r) => r.url);
+  } catch (err) {
+    logger.warn(
+      { stickerName, error: String(err) },
+      "Failed to upload sticker — not caching",
+    );
+    return null;
+  }
 
-  const targetToFree = statsCache.totalSizeBytes + newSize - MAX_SIZE_BYTES;
+  // Fire-and-forget cache write (non-blocking)
+  setStickerInCache(stickerName, uploadedUrl, mimeType).catch(() => {});
 
-  // Batch eviction: identify all rows to delete, then DELETE in one query.
+  return uploadedUrl;
+}
+
+async function evictIfNeeded(): Promise<void> {
+  if (statsCache.entryCount < MAX_ENTRIES) return;
+
+  const targetToFree = statsCache.entryCount - MAX_ENTRIES + 1; // evict oldest N
+
   const rowsToEvict = await executeAll(
-    "SELECT name, size FROM sticker_cache ORDER BY fetched_at ASC",
+    "SELECT name FROM sticker_cache ORDER BY fetched_at ASC LIMIT $1",
+    [targetToFree],
   );
   if (!rowsToEvict || rowsToEvict.length === 0) return;
 
-  const namesToDelete: string[] = [];
-  let freed = 0;
-  for (const row of rowsToEvict as Array<{ name: string; size: number }>) {
-    namesToDelete.push(row.name);
-    freed += Number(row.size);
-    if (freed >= targetToFree) break;
-  }
+  const namesToDelete = (rowsToEvict as Array<{ name: string }>).map(
+    (r) => r.name,
+  );
 
   await executeAll(`DELETE FROM sticker_cache WHERE name = ANY($1)`, [
     namesToDelete,
   ]);
-  statsCache.totalSizeBytes -= freed;
   statsCache.entryCount -= namesToDelete.length;
 
   logger.debug(
-    { entriesRemoved: namesToDelete.length, freedBytes: freed },
-    "Batch-evicted sticker cache entries",
+    { entriesRemoved: namesToDelete.length },
+    "Batch-evicted oldest sticker cache entries",
   );
 }
 
@@ -165,13 +196,12 @@ async function evictIfNeeded(newSize: number): Promise<void> {
  */
 export function getStickerCacheStats(): {
   entryCount: number;
-  totalSizeBytes: number;
 } {
   return { ...statsCache };
 }
 
 /**
- * Check if cache has been initialized.
+ * Check if cache has been initialised.
  */
 export function isStickerCacheReady(): boolean {
   return ready;
