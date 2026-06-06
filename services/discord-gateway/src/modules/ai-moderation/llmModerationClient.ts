@@ -11,7 +11,7 @@ import type {
   AttachmentRecord,
   MessageRecord,
 } from "../message-capture/types.js";
-import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
+
 import { llmChat, llmVision } from "./llmClient.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
 import {
@@ -999,16 +999,6 @@ async function runTextOnlyBatch(
   const maxBatchSize = config.AI_LLM_TEXT_BATCH_SIZE ?? 20;
   const timeoutMs = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
 
-  // Pre-compute text evidence (normalization + badword detection)
-  const textEvidenceMap = new Map<string, string>();
-  await Promise.all(
-    targets.map(async (msg) => {
-      const content = msg.edited_content ?? msg.content;
-      const evidence = formatModerationTextEvidenceForPrompt(content);
-      textEvidenceMap.set(msg.id, evidence);
-    }),
-  );
-
   // ── Fetch web content from URLs in text-only messages ──
   // Prevents LLM from guessing based on domain name alone (e.g., false "scam" flags).
   // The fetched text content is injected into the message XML so the LLM can
@@ -1156,8 +1146,6 @@ async function runTextOnlyBatch(
       const messagesBlock = batch
         .map((msg) => {
           const content = getAnalysisContent(msg);
-          const textEvidence = textEvidenceMap.get(msg.id) ?? "";
-          const textContext = textEvidence ? `\n${textEvidence}` : "";
 
           // Inject fetched web content for URLs found in this message
           const msgUrls = extractUrlsFromText(content);
@@ -1173,7 +1161,7 @@ async function runTextOnlyBatch(
           const userCtx = userContexts.get(msg.user_id) ?? "";
 
           // XML delimiters wrap each message for prompt safety (R1)
-          return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}\n  <content>${content}</content>${textContext}${webContext}\n</message>`;
+          return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}\n  <content>${content}</content>${webContext}\n</message>`;
         })
         .join("\n");
 
@@ -1652,12 +1640,9 @@ async function _runSingleMediaAnalysis(
   );
 
   // ── 5. Build single-message prompt with XML delimiters (R1) ──
-  const textEvidence = formatModerationTextEvidenceForPrompt(content);
-
   const webTexts = webTextMap.get(targetId) ?? [];
   const mediaAnalyses = mediaAnalysisMap.get(targetId) ?? [];
   const webContext = webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
-  const textContext = textEvidence ? `\n${textEvidence}` : "";
   const mediaAnalysisContext =
     mediaAnalyses.length > 0 ? `\n${mediaAnalyses.join("\n")}` : "";
 
@@ -1693,7 +1678,7 @@ async function _runSingleMediaAnalysis(
   const userCtx = `<user_reputation trust_score="${rep.trust_score}" clean_streak="${rep.clean_message_streak}" total_infractions="${rep.total_infractions}" />${historyStr}`;
 
   // XML delimiters wrap the message content (R1)
-  const messageBlock = `<message id="${target.id}" user="${target.username}">\n  ${userCtx}\n  <content>${content}</content>${mediaContext ? ` ${mediaContext}` : ""}${textContext}${webContext}${mediaAnalysisContext}\n</message>`;
+  const messageBlock = `<message id="${target.id}" user="${target.username}">\n  ${userCtx}\n  <content>${content}</content>${mediaContext ? ` ${mediaContext}` : ""}${webContext}${mediaAnalysisContext}\n</message>`;
 
   // Modular system prompt with XML delimiters (R1, R7, R8)
   const correctedExamples = await buildCorrectedFewShotExamples();

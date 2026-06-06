@@ -1,7 +1,6 @@
 import { encoding_for_model as encodingForModel } from "tiktoken";
 import { formatMediaEvidenceForPrompt } from "../message-capture/messageMetadata.js";
 import type { MessageRecord } from "../message-capture/types.js";
-import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 
 export interface ConversationContextInput {
   contextBefore: MessageRecord[];
@@ -42,11 +41,9 @@ export function formatMessageForPrompt(
 ): string {
   const content = msg.edited_content ?? msg.content;
   const timestamp = formatTimestamp(msg.created_at);
-  const textEvidence = formatModerationTextEvidenceForPrompt(content);
-  const textSuffix = textEvidence ? ` ${textEvidence}` : "";
   const mediaEvidence = formatMediaEvidenceForPrompt(msg.metadata);
   const mediaSuffix = mediaEvidence ? ` ${mediaEvidence}` : "";
-  return `[${label}] id=${msg.id} time=${timestamp} user=${msg.username}: ${content}${textSuffix}${mediaSuffix}`;
+  return `[${label}] id=${msg.id} time=${timestamp} user=${msg.username}: ${content}${mediaSuffix}`;
 }
 
 /**
