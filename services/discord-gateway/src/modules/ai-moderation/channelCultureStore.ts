@@ -8,7 +8,9 @@ import {
 /**
  * Fetch the AI-generated culture summary for a channel.
  */
-export async function getChannelCulture(channelId: string): Promise<ChannelCulture | null> {
+export async function getChannelCulture(
+  channelId: string,
+): Promise<ChannelCulture | null> {
   const db = getDatabase();
   const existing = await db
     .select()
@@ -28,7 +30,7 @@ export async function updateChannelCulture(
   cultureSummary: string,
 ): Promise<void> {
   const db = getDatabase();
-  
+
   await db
     .insert(channelCulturesTable)
     .values({

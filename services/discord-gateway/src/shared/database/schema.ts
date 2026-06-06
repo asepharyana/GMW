@@ -258,7 +258,9 @@ export const pgUserReputationsTable = pgTable(
     user_id: pgText("user_id").primaryKey(),
     guild_id: pgText("guild_id").notNull(),
     trust_score: pgInteger("trust_score").notNull().default(50),
-    clean_message_streak: pgInteger("clean_message_streak").notNull().default(0),
+    clean_message_streak: pgInteger("clean_message_streak")
+      .notNull()
+      .default(0),
     total_infractions: pgInteger("total_infractions").notNull().default(0),
     last_infraction_at: pgBigint("last_infraction_at", { mode: "number" }),
     created_at: pgBigint("created_at", { mode: "number" }).notNull(),
@@ -280,7 +282,9 @@ export const pgChannelCulturesTable = pgTable(
     channel_id: pgText("channel_id").primaryKey(),
     guild_id: pgText("guild_id").notNull(),
     culture_summary: pgText("culture_summary").notNull(),
-    last_analyzed_at: pgBigint("last_analyzed_at", { mode: "number" }).notNull(),
+    last_analyzed_at: pgBigint("last_analyzed_at", {
+      mode: "number",
+    }).notNull(),
   },
   (table) => ({
     guildIdx: pgIndex("idx_channel_cultures_guild_id").on(table.guild_id),

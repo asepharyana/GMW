@@ -589,9 +589,12 @@ const analyzeSingleMediaImage = async (
     // Attempt to acquire DISTRIBUTED lock
     // Lock expires in 60 seconds (generous timeout for LLM)
     const locked = await acquireMediaAnalysisLock(cacheKey, Date.now() + 60000);
-    
+
     if (!locked) {
-      log.debug({ cacheKey }, "Media analysis distributed lock acquired by another pod. Polling...");
+      log.debug(
+        { cacheKey },
+        "Media analysis distributed lock acquired by another pod. Polling...",
+      );
       // Poll DB for up to 30 seconds
       for (let i = 0; i < 15; i++) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -601,7 +604,10 @@ const analyzeSingleMediaImage = async (
           return pollCached;
         }
       }
-      log.warn({ cacheKey }, "Polling for distributed media analysis timed out. Falling back.");
+      log.warn(
+        { cacheKey },
+        "Polling for distributed media analysis timed out. Falling back.",
+      );
       return FAILED_ANALYSIS_PREFIX;
     }
 
@@ -842,10 +848,7 @@ async function callModerationLLM(
             throw apiError;
           }
           // 401/403 → abort immediately, never retry
-          if (
-            apiError?.status === 401 ||
-            apiError?.status === 403
-          ) {
+          if (apiError?.status === 401 || apiError?.status === 403) {
             const abortErr = new Error(String(apiError));
             abortErr.name = "AbortError";
             throw abortErr;
@@ -1097,8 +1100,12 @@ async function runTextOnlyBatch(
 
   const channelId = targets.length > 0 ? targets[0].channel_id : "";
   const guildId = targets.length > 0 ? targets[0].guild_id : "";
-  const channelCultureObj = channelId ? await getChannelCulture(channelId) : null;
-  const channelCulture = channelCultureObj ? channelCultureObj.culture_summary : undefined;
+  const channelCultureObj = channelId
+    ? await getChannelCulture(channelId)
+    : null;
+  const channelCulture = channelCultureObj
+    ? channelCultureObj.culture_summary
+    : undefined;
 
   // Run sub-batches sequentially to avoid rate limits
   for (let i = 0; i < subBatches.length; i++) {
@@ -1167,7 +1174,12 @@ async function runTextOnlyBatch(
 
     let batchResult: { results: AnalysisResult[]; raw: unknown };
     try {
-      batchResult = await callModerationLLM(buildContent, targetIds, `text-batch-${i + 1}`, abortController.signal);
+      batchResult = await callModerationLLM(
+        buildContent,
+        targetIds,
+        `text-batch-${i + 1}`,
+        abortController.signal,
+      );
     } catch (err: any) {
       if (err.name === "AbortError" || abortController.signal.aborted) {
         throw new Error(
@@ -1661,8 +1673,12 @@ async function _runSingleMediaAnalysis(
     .join(" ");
 
   const channelId = target.channel_id;
-  const channelCultureObj = channelId ? await getChannelCulture(channelId) : null;
-  const channelCulture = channelCultureObj ? channelCultureObj.culture_summary : undefined;
+  const channelCultureObj = channelId
+    ? await getChannelCulture(channelId)
+    : null;
+  const channelCulture = channelCultureObj
+    ? channelCultureObj.culture_summary
+    : undefined;
 
   const rep = await initializeUserReputation(target.user_id, target.guild_id);
   const userCtx = `<user_reputation trust_score="${rep.trust_score}" />`;

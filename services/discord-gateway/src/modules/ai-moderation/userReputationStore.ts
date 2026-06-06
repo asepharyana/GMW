@@ -54,7 +54,9 @@ export async function initializeUserReputation(
 /**
  * Fetch a user's reputation score. Returns default 50 if none exists.
  */
-export async function getUserReputation(userId: string): Promise<UserReputation | null> {
+export async function getUserReputation(
+  userId: string,
+): Promise<UserReputation | null> {
   const db = getDatabase();
   const existing = await db
     .select()
@@ -68,7 +70,10 @@ export async function getUserReputation(userId: string): Promise<UserReputation 
 /**
  * Increment the clean message streak and update trust score if threshold is met.
  */
-export async function recordCleanMessage(userId: string, guildId: string): Promise<void> {
+export async function recordCleanMessage(
+  userId: string,
+  guildId: string,
+): Promise<void> {
   const rep = await initializeUserReputation(userId, guildId);
   const db = getDatabase();
   let newStreak = rep.clean_message_streak + 1;
@@ -133,7 +138,10 @@ export async function recordInfraction(
 /**
  * Fetch a user's past N flagged messages for context injection.
  */
-export async function getUserRecentInfractions(userId: string, limit: number = 3) {
+export async function getUserRecentInfractions(
+  userId: string,
+  limit: number = 3,
+) {
   const db = getDatabase();
   return await db
     .select({
@@ -146,8 +154,8 @@ export async function getUserRecentInfractions(userId: string, limit: number = 3
     .where(
       and(
         eq(messagesTable.user_id, userId),
-        eq(messagesTable.ai_status, "flagged")
-      )
+        eq(messagesTable.ai_status, "flagged"),
+      ),
     )
     .orderBy(desc(messagesTable.created_at))
     .limit(limit);

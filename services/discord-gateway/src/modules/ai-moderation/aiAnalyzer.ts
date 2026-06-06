@@ -97,7 +97,6 @@ function scheduleAutoDelete(row: MessageRecord): void {
   setImmediate(run);
 }
 
-
 function isAgeRestrictedMessage(message: MessageRecord): boolean {
   return isAgeRestrictedMetadata(message.metadata);
 }
@@ -493,11 +492,27 @@ async function processIndividualFallback(
       if (row.ai_status === "clean") {
         import("./userReputationStore.js")
           .then((store) => store.recordCleanMessage(row.user_id, row.guild_id))
-          .catch((e) => logger.error({ error: e }, "Failed to record clean message streak in fallback"));
+          .catch((e) =>
+            logger.error(
+              { error: e },
+              "Failed to record clean message streak in fallback",
+            ),
+          );
       } else if (row.ai_status === "flagged" && row.ai_severity !== "none") {
         import("./userReputationStore.js")
-          .then((store) => store.recordInfraction(row.user_id, row.guild_id, row.ai_severity as "low"|"medium"|"high"|"critical"))
-          .catch((e) => logger.error({ error: e }, "Failed to record infraction penalty in fallback"));
+          .then((store) =>
+            store.recordInfraction(
+              row.user_id,
+              row.guild_id,
+              row.ai_severity as "low" | "medium" | "high" | "critical",
+            ),
+          )
+          .catch((e) =>
+            logger.error(
+              { error: e },
+              "Failed to record infraction penalty in fallback",
+            ),
+          );
       }
     }
 
@@ -716,12 +731,27 @@ async function processBatch(
         // Update reputation autonomously (Belajar & Kebijaksanaan)
         if (row.ai_status === "clean") {
           import("./userReputationStore.js")
-            .then((store) => store.recordCleanMessage(row.user_id, row.guild_id))
-            .catch((e) => logger.error({ error: e }, "Failed to record clean message streak"));
+            .then((store) =>
+              store.recordCleanMessage(row.user_id, row.guild_id),
+            )
+            .catch((e) =>
+              logger.error(
+                { error: e },
+                "Failed to record clean message streak",
+              ),
+            );
         } else if (row.ai_status === "flagged" && row.ai_severity !== "none") {
           import("./userReputationStore.js")
-            .then((store) => store.recordInfraction(row.user_id, row.guild_id, row.ai_severity as "low"|"medium"|"high"|"critical"))
-            .catch((e) => logger.error({ error: e }, "Failed to record infraction penalty"));
+            .then((store) =>
+              store.recordInfraction(
+                row.user_id,
+                row.guild_id,
+                row.ai_severity as "low" | "medium" | "high" | "critical",
+              ),
+            )
+            .catch((e) =>
+              logger.error({ error: e }, "Failed to record infraction penalty"),
+            );
         }
       }
     }
@@ -853,7 +883,8 @@ async function processBatch(
       recordConversationBatchFailure(conversationKey);
       // Preserve the longer cooldown: circuit breaker (via recordConversationBatchFailure)
       // may have set a 60s cooldown; don't let the shorter config value overwrite it.
-      const existingCooldown = conversationErrorCooldown.get(conversationKey) ?? 0;
+      const existingCooldown =
+        conversationErrorCooldown.get(conversationKey) ?? 0;
       const newCooldown = Date.now() + config.AI_ANALYSIS_ERROR_COOLDOWN_MS;
       if (newCooldown > existingCooldown) {
         conversationErrorCooldown.set(conversationKey, newCooldown);
@@ -895,7 +926,8 @@ async function processBatch(
     const errorStack = error instanceof Error ? error.stack : undefined;
     // Preserve the longer cooldown: circuit breaker (via recordConversationBatchFailure)
     // may have set a 60s cooldown; don't let the shorter config value overwrite it.
-    const existingCatchCooldown = conversationErrorCooldown.get(conversationKey) ?? 0;
+    const existingCatchCooldown =
+      conversationErrorCooldown.get(conversationKey) ?? 0;
     const newCatchCooldown = Date.now() + config.AI_ANALYSIS_ERROR_COOLDOWN_MS;
     if (newCatchCooldown > existingCatchCooldown) {
       conversationErrorCooldown.set(conversationKey, newCatchCooldown);
@@ -986,7 +1018,9 @@ function scheduleConversationAnalysis(conversationKey: string): void {
     )
       .then(async (messages) => {
         if (messages.length === 0) {
-          if (conversationProcessing.get(conversationKey) === processingStartedAt) {
+          if (
+            conversationProcessing.get(conversationKey) === processingStartedAt
+          ) {
             conversationProcessing.delete(conversationKey);
           }
           return;
@@ -994,7 +1028,9 @@ function scheduleConversationAnalysis(conversationKey: string): void {
 
         const processableMessages = await skipAgeRestrictedMessages(messages);
         if (processableMessages.length === 0) {
-          if (conversationProcessing.get(conversationKey) === processingStartedAt) {
+          if (
+            conversationProcessing.get(conversationKey) === processingStartedAt
+          ) {
             conversationProcessing.delete(conversationKey);
           }
           return;
@@ -1027,7 +1063,9 @@ function scheduleConversationAnalysis(conversationKey: string): void {
         return processBatch(conversationKey, trimmed, processingStartedAt);
       })
       .catch((err: unknown) => {
-        if (conversationProcessing.get(conversationKey) === processingStartedAt) {
+        if (
+          conversationProcessing.get(conversationKey) === processingStartedAt
+        ) {
           conversationProcessing.delete(conversationKey);
         }
         logger.error(
@@ -1042,7 +1080,6 @@ function scheduleConversationAnalysis(conversationKey: string): void {
 
   conversationDebounceTimers.set(conversationKey, timer);
 }
-
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -1125,7 +1162,9 @@ export function startPendingAIAnalysisWorker(
   _redisEventBroadcaster = eventBroadcaster;
   if (!config.AI_ANALYSIS_ENABLED) return;
 
-  import("./cultureLearner.js").then(m => m.startCultureLearnerWorker()).catch(console.error);
+  import("./cultureLearner.js")
+    .then((m) => m.startCultureLearnerWorker())
+    .catch(console.error);
 
   setInterval(() => {
     revertStuckProcessingMessages(300000).catch((err: unknown) => {

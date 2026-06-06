@@ -12,9 +12,12 @@ import { updateChannelCulture } from "./channelCultureStore.js";
 const CULTURE_LEARNING_INTERVAL = 1000 * 60 * 60 * 12; // 12 hours
 const log = createChildLogger("cultureLearner");
 
-async function learnChannelCulture(channelId: string, guildId: string): Promise<void> {
+async function learnChannelCulture(
+  channelId: string,
+  guildId: string,
+): Promise<void> {
   const db = getDatabase();
-  
+
   // Get recent clean messages for this channel
   const recentMessages = await db
     .select({
@@ -25,8 +28,8 @@ async function learnChannelCulture(channelId: string, guildId: string): Promise<
     .where(
       and(
         eq(messagesTable.channel_id, channelId),
-        eq(messagesTable.ai_status, "clean")
-      )
+        eq(messagesTable.ai_status, "clean"),
+      ),
     )
     .orderBy(desc(messagesTable.created_at))
     .limit(100);
@@ -38,7 +41,7 @@ async function learnChannelCulture(channelId: string, guildId: string): Promise<
 
   const messagesText = recentMessages
     .reverse()
-    .map(m => `${m.username}: ${m.content}`)
+    .map((m) => `${m.username}: ${m.content}`)
     .join("\n");
 
   const prompt = `Anda adalah AI ahli perilaku sosiologis dan budaya online.
@@ -59,13 +62,16 @@ Jangan menambahkan teks basa-basi, langsung berikan ringkasannya.`;
       temperature: 0.7, // Higher temp for summarization
       retries: 2,
     });
-    
+
     if (!completion) throw new Error("Empty response from LLM");
     const text = completion.choices[0]?.message?.content?.trim();
     if (!text) throw new Error("Empty response from LLM");
-    
+
     await updateChannelCulture(channelId, guildId, text);
-    log.info({ channelId, guildId }, "Successfully learned and updated channel culture");
+    log.info(
+      { channelId, guildId },
+      "Successfully learned and updated channel culture",
+    );
   } catch (error) {
     log.error({ channelId, error }, "Failed to learn channel culture");
   }
@@ -106,12 +112,15 @@ export function startCultureLearnerWorker(): void {
 
   // Run once on startup after 1 minute, then every 1 hour
   setTimeout(() => {
-    runCultureLearningCycle().catch(e => log.error(e));
+    runCultureLearningCycle().catch((e) => log.error(e));
   }, 60000);
 
-  cultureInterval = setInterval(() => {
-    runCultureLearningCycle().catch(e => log.error(e));
-  }, 1000 * 60 * 60); // Check every hour for channels that reached 12h expiry
+  cultureInterval = setInterval(
+    () => {
+      runCultureLearningCycle().catch((e) => log.error(e));
+    },
+    1000 * 60 * 60,
+  ); // Check every hour for channels that reached 12h expiry
 
   log.info("Started background culture learner worker");
 }

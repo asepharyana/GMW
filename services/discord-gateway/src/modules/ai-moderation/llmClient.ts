@@ -104,29 +104,31 @@ export async function llmChat(
     async () => {
       return withLlmConcurrency(async () => {
         const execute = async (currentParams: any) => {
-          const response = await client.chat.completions.create(currentParams, { signal });
+          const response = await client.chat.completions.create(currentParams, {
+            signal,
+          });
           if (currentParams.stream) {
             let content = "";
             let finishReason = "stop";
             for await (const chunk of response as any) {
               const choice = chunk?.choices?.[0];
-              const textChunk = 
-                choice?.delta?.content || 
-                choice?.message?.content || 
-                choice?.text || 
-                chunk?.message?.content || 
-                chunk?.response || 
-                chunk?.content || 
+              const textChunk =
+                choice?.delta?.content ||
+                choice?.message?.content ||
+                choice?.text ||
+                chunk?.message?.content ||
+                chunk?.response ||
+                chunk?.content ||
                 "";
               content += textChunk;
               const fr = choice?.finish_reason || chunk?.finish_reason;
               if (fr) finishReason = fr;
             }
             return {
-              id: 'stream-aggregated',
+              id: "stream-aggregated",
               choices: [
                 {
-                  message: { role: 'assistant', content, refusal: null },
+                  message: { role: "assistant", content, refusal: null },
                   finish_reason: finishReason,
                   index: 0,
                   logprobs: null,
@@ -134,7 +136,7 @@ export async function llmChat(
               ],
               created: Math.floor(Date.now() / 1000),
               model: currentParams.model,
-              object: 'chat.completion',
+              object: "chat.completion",
             } as OpenAI.Chat.Completions.ChatCompletion;
           }
           return response as OpenAI.Chat.Completions.ChatCompletion;
@@ -143,12 +145,22 @@ export async function llmChat(
         try {
           return await execute(params);
         } catch (error: any) {
-          const rawResponse = error.error || error.body || error.response?.data || "N/A";
-          const errorStr = (JSON.stringify(rawResponse) + String(error.message)).toLowerCase();
+          const rawResponse =
+            error.error || error.body || error.response?.data || "N/A";
+          const errorStr = (
+            JSON.stringify(rawResponse) + String(error.message)
+          ).toLowerCase();
 
           // Auto-fallback: If provider strictly demands streaming (400 Bad Request on stream params)
-          if (error.status === 400 && errorStr.includes("stream") && !params.stream) {
-            log.warn({ model }, "Provider rejected non-streaming request. Fallback to stream: true initiated.");
+          if (
+            error.status === 400 &&
+            errorStr.includes("stream") &&
+            !params.stream
+          ) {
+            log.warn(
+              { model },
+              "Provider rejected non-streaming request. Fallback to stream: true initiated.",
+            );
             params.stream = true;
             return await execute(params);
           }
@@ -158,9 +170,9 @@ export async function llmChat(
               error: error.message,
               status: error.status,
               rawResponse,
-              model
+              model,
             },
-            "LLM API request failed"
+            "LLM API request failed",
           );
           throw error;
         }

@@ -828,12 +828,10 @@ export async function getConversationKeysWithIncompleteAnalysis(
   try {
     const database = db();
     const rows = await database
-      .selectDistinct<Array<{ thread_id: string | null; channel_id: string }>>(
-        {
-          thread_id: messagesTable.thread_id,
-          channel_id: messagesTable.channel_id,
-        },
-      )
+      .selectDistinct<Array<{ thread_id: string | null; channel_id: string }>>({
+        thread_id: messagesTable.thread_id,
+        channel_id: messagesTable.channel_id,
+      })
       .from(messagesTable)
       .where(
         and(
@@ -927,7 +925,6 @@ export async function getIncompleteMessagesByConversation(
     throw error;
   }
 }
-
 
 // Message Reviews CRUD
 // ====================
@@ -1307,7 +1304,10 @@ export async function revertStuckProcessingMessages(
 
     if (Array.isArray(rows) && rows.length > 0) {
       logger.info(
-        { count: rows.length, messageIds: rows.map((r: { id: string }) => r.id) },
+        {
+          count: rows.length,
+          messageIds: rows.map((r: { id: string }) => r.id),
+        },
         "Reverted stuck processing messages back to pending",
       );
     }
