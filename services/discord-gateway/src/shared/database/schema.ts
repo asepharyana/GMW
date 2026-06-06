@@ -431,23 +431,23 @@ export const pgTextAnalysisCacheTable = pgTable(
 
 /**
  * Sticker Cache Table (PostgreSQL)
- * Stores base64-encoded sticker images for fast retrieval in media moderation.
- * Replaces the file-based .dat + index.json cache.
+ *
+ * Stores uploaded sticker image URLs instead of raw base64 blobs.
+ * Stickers are uploaded to the external upload service once and the URL is
+ * cached here so subsequent occurrences reuse the same URL for vision analysis.
  *
  * TTL: 7 days (enforced at query time via fetched_at)
- * Eviction: LRU by fetched_at, max 100MB total
+ * Eviction: max 5000 entries (LRU by fetched_at)
  */
 export const pgStickerCacheTable = pgTable(
   "sticker_cache",
   {
     /** Sanitized sticker name (encodeURIComponent + %→_) — primary key. */
     name: pgText("name").primaryKey(),
-    /** Base64-encoded image data. */
-    base64: pgText("base64").notNull(),
+    /** Uploaded image URL (tele/picser). Used directly as image_url in vision API. */
+    imageUrl: pgText("image_url").notNull().default(""),
     /** MIME type of the image (e.g. "image/png", "image/gif"). */
     mime_type: pgText("mime_type").notNull(),
-    /** Byte length of the base64 string (for efficient SUM() eviction queries). */
-    size: pgInteger("size").notNull(),
     /** Epoch millis when this entry was stored. Used for TTL and LRU eviction. */
     fetched_at: pgBigint("fetched_at", { mode: "number" }).notNull(),
   },

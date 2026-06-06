@@ -43,6 +43,13 @@
       "when": 1780657801437,
       "tag": "0005_large_squadron_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780900000000,
+      "tag": "0006_replace_base64_with_image_url",
+      "breakpoints": true
     }
   ]
 }
