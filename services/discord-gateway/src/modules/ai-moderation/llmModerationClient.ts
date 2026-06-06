@@ -2,7 +2,6 @@ import { createChildLogger } from "@bete/shared/logger";
 import { delay, retryWithBackoff } from "@bete/shared/utils";
 import { LRUCache } from "lru-cache";
 import type { ChatCompletion } from "openai/resources/chat/completions";
-import { AbortError } from "p-retry";
 import { z } from "zod";
 import { config } from "../../shared/config/config.js";
 import { resizeImageForVision } from "../attachment-upload/imageResizer.js";
@@ -758,6 +757,7 @@ async function callModerationLLM(
   buildContent: (state: RetryState) => Promise<string>,
   targetIds: string[],
   label: string,
+  signal?: AbortSignal,
 ): Promise<{
   results: AnalysisResult[];
   raw: ChatCompletion | null;
@@ -781,6 +781,7 @@ async function callModerationLLM(
             max_tokens: 16384,
             jsonResponse: { type: "json_object" },
             retries: 0,
+            signal,
           });
 
           if (!completion) {
@@ -848,7 +849,9 @@ async function callModerationLLM(
             apiError?.status === 401 ||
             apiError?.status === 403
           ) {
-            throw new AbortError(apiError);
+            const abortErr = new Error(String(apiError));
+            abortErr.name = "AbortError";
+            throw abortErr;
           }
           // 5xx server errors → retryable transient errors
           // p-retry will retry these; on final exhaustion the outer catch
@@ -870,11 +873,16 @@ async function callModerationLLM(
         minTimeout: 5_000,
         maxTimeout: 60_000,
         factor: 3,
+        signal,
       },
     );
     parsed = analysis.parsed;
     result = analysis.result;
   } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw err;
+    }
+
     const errorMsg = err instanceof Error ? err.message : String(err);
     const isApiError = !state.lastInvalidContent;
 
@@ -1173,21 +1181,25 @@ async function runTextOnlyBatch(
       return `${systemText}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
     };
 
-    const batchResult = (await Promise.race([
-      callModerationLLM(buildContent, targetIds, `text-batch-${i + 1}`),
-      new Promise<{ results: AnalysisResult[]; raw: unknown }>((_, reject) => {
-        const timeout = setTimeout(
-          () =>
-            reject(
-              new Error(
-                `Text-only batch sub-batch ${i + 1} timed out for messages ${targetIds.join(", ")}`,
-              ),
-            ),
-          timeoutMs,
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, timeoutMs);
+    timeoutId.unref();
+
+    let batchResult: { results: AnalysisResult[]; raw: unknown };
+    try {
+      batchResult = await callModerationLLM(buildContent, targetIds, `text-batch-${i + 1}`, abortController.signal);
+    } catch (err: any) {
+      if (err.name === "AbortError" || abortController.signal.aborted) {
+        throw new Error(
+          `Text-only batch sub-batch ${i + 1} timed out for messages ${targetIds.join(", ")}`,
         );
-        timeout.unref();
-      }),
-    ])) as { results: AnalysisResult[]; raw: unknown };
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const rawUsage = (
       batchResult.raw as {
@@ -1269,27 +1281,31 @@ async function runSingleMediaAnalysis(
   // Timeout wrapper (R4)
   const timeoutMs = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
 
-  return Promise.race([
-    _runSingleMediaAnalysis(
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    abortController.abort();
+  }, timeoutMs);
+  timeoutId.unref();
+
+  try {
+    return await _runSingleMediaAnalysis(
       target,
       contextText,
       allAttachments,
       targetId,
       targetIds,
-    ),
-    new Promise<{ results: AnalysisResult[]; raw: unknown }>((_, reject) => {
-      const timeout = setTimeout(
-        () =>
-          reject(
-            new Error(
-              `Media analysis timed out after ${timeoutMs}ms for message ${targetId}`,
-            ),
-          ),
-        timeoutMs,
+      abortController.signal,
+    );
+  } catch (err: any) {
+    if (err.name === "AbortError" || abortController.signal.aborted) {
+      throw new Error(
+        `Media analysis timed out after ${timeoutMs}ms for message ${targetId}`,
       );
-      timeout.unref();
-    }),
-  ]);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function _runSingleMediaAnalysis(
@@ -1298,6 +1314,7 @@ async function _runSingleMediaAnalysis(
   allAttachments: AttachmentRecord[] | undefined,
   targetId: string,
   targetIds: string[],
+  signal?: AbortSignal,
 ): Promise<{ results: AnalysisResult[]; raw: unknown }> {
   // Lazy init sticker cache
   if (!isStickerCacheReady()) {
@@ -1694,6 +1711,7 @@ async function _runSingleMediaAnalysis(
     async (_state: RetryState) => userContent,
     targetIds,
     `media:${targetId}`,
+    signal,
   );
 
   return result;

@@ -56,6 +56,8 @@ export interface LlmCallOpts {
   retries?: number;
   /** Whether to use streaming (if true, will consume stream and return aggregated result) */
   stream?: boolean;
+  /** Optional AbortSignal to cancel the API request */
+  signal?: AbortSignal;
 }
 
 /**
@@ -79,6 +81,7 @@ export async function llmChat(
     jsonResponse,
     retries = DEFAULT_RETRIES,
     stream,
+    signal,
   } = opts;
 
   const params: any = {
@@ -101,7 +104,7 @@ export async function llmChat(
     async () => {
       return withLlmConcurrency(async () => {
         const execute = async (currentParams: any) => {
-          const response = await client.chat.completions.create(currentParams);
+          const response = await client.chat.completions.create(currentParams, { signal });
           if (currentParams.stream) {
             let content = "";
             let finishReason = "stop";
@@ -168,6 +171,7 @@ export async function llmChat(
       minTimeout: 2_000,
       maxTimeout: 30_000,
       factor: 3,
+      signal,
     },
   );
 }

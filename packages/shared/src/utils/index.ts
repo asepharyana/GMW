@@ -73,6 +73,8 @@ export interface RetryOptions {
   maxTimeout?: number;
   /** Multiplication factor for each retry (default: 2) */
   factor?: number;
+  /** Optional AbortSignal to cancel retries */
+  signal?: AbortSignal;
 }
 
 export async function retryWithBackoff<T>(
@@ -84,20 +86,47 @@ export async function retryWithBackoff<T>(
     minTimeout = 1_000,
     maxTimeout = 30_000,
     factor = 2,
+    signal,
   } = options;
 
   let lastError: Error | undefined;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    if (signal?.aborted) {
+      const err = new Error("Aborted");
+      err.name = "AbortError";
+      throw err;
+    }
+    
     try {
       return await fn();
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
+      if (lastError.name === "AbortError") {
+        throw lastError;
+      }
       if (attempt === retries) break;
       const backoff = Math.min(
         minTimeout * factor ** attempt + Math.random() * 100,
         maxTimeout,
       );
-      await delay(backoff);
+      
+      await new Promise<void>((resolve, reject) => {
+        let timeoutId: NodeJS.Timeout;
+        const onAbort = () => {
+          clearTimeout(timeoutId);
+          const abortErr = new Error("Aborted");
+          abortErr.name = "AbortError";
+          reject(abortErr);
+        };
+        if (signal?.aborted) return onAbort();
+        
+        timeoutId = setTimeout(() => {
+          if (signal) signal.removeEventListener("abort", onAbort);
+          resolve();
+        }, backoff);
+        
+        if (signal) signal.addEventListener("abort", onAbort, { once: true });
+      });
     }
   }
   throw lastError!;
