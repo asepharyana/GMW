@@ -37,7 +37,9 @@ export class SegmentManager {
       this.userDir,
       startTime,
     );
+    // @ts-expect-error - prism-media@1.3.5 type definitions incomplete
     const oggStream = new prism.opus.OggLogicalBitstream({
+      // @ts-expect-error - prism-media@1.3.5 type definitions incomplete
       opusHead: new prism.opus.OpusHead({ channelCount: 2, sampleRate: 48000 }),
       pageSizeControl: { maxPackets: 10 },
       crc: true,

@@ -56,6 +56,7 @@ export interface SegmentState {
   endTime: number | null;
   filename: string;
   jsonFilename: string;
+  // @ts-expect-error - prism-media@1.3.5 type definitions incomplete
   oggStream: prism.opus.OggLogicalBitstream;
   out: fs.WriteStream;
 }
