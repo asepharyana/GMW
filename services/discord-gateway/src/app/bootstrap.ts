@@ -8,8 +8,9 @@ import {
 } from "../modules/event-broadcaster/index.js";
 import {
   registerMessageCapture,
-  setEventBroadcaster,
+  setEventBroadcaster as setMessageCaptureEventBroadcaster,
 } from "../modules/message-capture/messageCapture.js";
+import { setEventBroadcaster as setRecorderEventBroadcaster } from "../modules/voice-recording/recorder.js";
 import { VoiceController } from "../modules/voice-recording/voiceController.js";
 import { config } from "../shared/config/config.js";
 import {
@@ -18,16 +19,16 @@ import {
 } from "../shared/database/drizzle.js";
 import { runMigrations } from "../shared/database/migrate.js";
 import { createDiscordClientOptions } from "../shared/discord/clientOptions.js";
+import { ConfigError, DatabaseError } from "../shared/errors/errors.js";
 import { createGracefulShutdown } from "./shutdown.js";
 
 const logger = createChildLogger("discord-gateway");
 
 export async function initializeDiscordGateway() {
   if (config.AI_ANALYSIS_ENABLED && !config.AI_LLM_API_KEY) {
-    logger.error(
-      "AI_ANALYSIS_ENABLED=true but AI_LLM_API_KEY is missing from environment. Force closing application because AI analysis cannot run without credentials.",
+    throw new ConfigError(
+      "AI_ANALYSIS_ENABLED=true but AI_LLM_API_KEY is missing from environment. AI analysis cannot run without credentials.",
     );
-    process.exit(1);
   }
 
   const token = config.DISCORD_TOKEN;
@@ -42,7 +43,7 @@ export async function initializeDiscordGateway() {
 
   // Initialize Redis event broadcaster
   const redisPublisher = new RedisEventPublisher(config.REDIS_URL, logger);
-  const eventBroadcaster = new EventBroadcaster(redisPublisher, logger);
+  const eventBroadcaster = new EventBroadcaster(redisPublisher);
 
   // Initialize Redis command handler for backend→gateway commands
   const commandHandler = new CommandHandler();
@@ -69,7 +70,9 @@ export async function initializeDiscordGateway() {
     logger.info("PostgreSQL database initialized");
   } catch (err) {
     logger.error({ error: err }, "Failed to initialize database");
-    process.exit(1);
+    throw new DatabaseError(
+      `Database initialization failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   client.on("debug", (msg) => {
@@ -87,7 +90,8 @@ export async function initializeDiscordGateway() {
 
   client.on("ready", async () => {
     logger.info({ user: client.user?.tag }, "Bot logged in");
-    setEventBroadcaster(eventBroadcaster);
+    setMessageCaptureEventBroadcaster(eventBroadcaster);
+    setRecorderEventBroadcaster(eventBroadcaster);
     registerMessageCapture(client);
     startPendingAIAnalysisWorker(client, eventBroadcaster);
 

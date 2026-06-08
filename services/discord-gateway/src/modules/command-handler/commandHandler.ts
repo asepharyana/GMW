@@ -387,7 +387,7 @@ export class CommandHandler {
 
   private publishMediaStatus(): void {
     const status: MediaStatusPayload = {
-      playing: discordPlayer.getStatus(),
+      playing: String(discordPlayer.getStatus()),
       musicVolume: discordPlayer.getMusicVolume(),
       current: null,
       queue: [],

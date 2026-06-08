@@ -68,16 +68,26 @@ export default async function workerRouter(
   job: WorkerJob,
 ): Promise<WorkerResponse> {
   if (!config.AI_LLM_API_KEY) {
+    const errorMsg =
+      "AI_LLM_API_KEY is missing from environment. Worker cannot process moderation requests without credentials.";
     console.error(
       JSON.stringify({
-        level: "FATAL",
+        level: "ERROR",
         context: "aiAnalysisWorker",
-        error:
-          "AI_LLM_API_KEY is missing from environment. Force closing worker operation.",
+        error: errorMsg,
         timestamp: new Date().toISOString(),
       }),
     );
-    process.exit(1);
+
+    if (job.type === "batch") {
+      return {
+        ok: false,
+        conversationKey: job.conversationKey,
+        rows: [],
+        error: errorMsg,
+      };
+    }
+    return { ok: false, results: [], error: errorMsg };
   }
 
   try {

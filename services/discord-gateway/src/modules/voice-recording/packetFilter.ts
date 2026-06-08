@@ -26,16 +26,12 @@ export class PacketFilter extends Transform {
       this.push(chunk);
     } else {
       this.filteredCount++;
-      if (this.filteredCount % 10 === 0) {
-        // console.log(`[packet-filter] Filtered ${this.filteredCount} small packets (size < ${this.minPacketSize} bytes)`);
-      }
     }
 
     callback();
   }
 
   _flush(callback: TransformCallback): void {
-    // console.log(`[packet-filter] Total packets: ${this.totalCount}, filtered: ${this.filteredCount}, passed: ${this.totalCount - this.filteredCount}`);
     callback();
   }
 }

@@ -3,6 +3,7 @@ import { availableParallelism } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createChildLogger } from "@bete/shared/logger";
 import type { Client } from "discord.js-selfbot-v13";
+import { LRUCache } from "lru-cache";
 import { Piscina } from "piscina";
 import { config } from "../../shared/config/config.js";
 import type { EventBroadcaster } from "../event-broadcaster/index.js";
@@ -72,7 +73,7 @@ function scheduleAutoDelete(row: MessageRecord): void {
     );
     return;
   }
-  autoDeleteInFlight.add(row.id);
+  autoDeleteInFlight.set(row.id, true);
 
   const run = () => {
     attemptAutoDeleteFlaggedMessage(moderationClient, row)
@@ -153,15 +154,20 @@ async function skipAgeRestrictedMessages(
 }
 
 // ---------------------------------------------------------------------------
-// Batch pipeline state
+// Batch pipeline state (with LRU eviction to prevent unbounded memory growth)
 // ---------------------------------------------------------------------------
 
 /** Debounce timer handle per conversation key. */
-const conversationDebounceTimers = new Map<string, NodeJS.Timeout>();
+const conversationDebounceTimers = new LRUCache<string, NodeJS.Timeout>({
+  max: 10000,
+  dispose: (value) => {
+    clearTimeout(value);
+  },
+});
 /** Timestamp of when processing started per conversation key. */
-const conversationProcessing = new Map<string, number>();
+const conversationProcessing = new LRUCache<string, number>({ max: 10000 });
 /** Cooldown expiry timestamp per conversation key after an error. */
-const conversationErrorCooldown = new Map<string, number>();
+const conversationErrorCooldown = new LRUCache<string, number>({ max: 10000 });
 
 /**
  * Per-message in-flight guard for the auto-delete side-effect.
@@ -170,15 +176,18 @@ const conversationErrorCooldown = new Map<string, number>();
  * races through both paths, without this guard two concurrent
  * `attemptAutoDeleteFlaggedMessage` calls would be launched — producing a
  * duplicate moderation-action log and an unnecessary Discord 10008 error.
+ * (LRU-backed to prevent unbounded growth from message IDs accumulating forever)
  */
-const autoDeleteInFlight = new Set<string>();
+const autoDeleteInFlight = new LRUCache<string, true>({ max: 10000 });
 
 let activeRequests = 0;
 let lastError: string | null = null;
 let moderationClient: Client | undefined;
 
-// Batch circuit breaker
-const conversationConsecutiveErrors = new Map<string, number>();
+// Batch circuit breaker (LRU-backed to prevent unbounded growth)
+const conversationConsecutiveErrors = new LRUCache<string, number>({
+  max: 10000,
+});
 const MAX_CONSECUTIVE_ERRORS = 5;
 const CONVERSATION_CB_COOLDOWN_MS = 60000;
 
@@ -250,20 +259,26 @@ function resetConversationBatchFailures(conversationKey: string): void {
 //    that already have individual work in progress (#4 fix).
 //  • A separate circuit breaker prevents a cascade of individual failures
 //    from hammering a down/rate-limited LLM endpoint (#1+#5 fix).
+//  • All collections use LRU eviction to prevent unbounded memory growth.
 // ---------------------------------------------------------------------------
 
-/** IDs currently being processed one-by-one. */
-const individualInFlight = new Set<string>();
+/** IDs currently being processed one-by-one (LRU-backed, max 10k entries). */
+const individualInFlight = new LRUCache<string, true>({ max: 10000 });
 
 /**
  * Per-conversation count of in-flight individual messages.
  * Used by the recovery worker to avoid re-scheduling a conversation that
  * already has individual fallback work running for it.
+ * (LRU-backed to prevent unbounded growth)
  */
-const individualInFlightByConversation = new Map<string, number>();
+const individualInFlightByConversation = new LRUCache<string, number>({
+  max: 10000,
+});
 
-/** Last-touched timestamp for pruning stale entries. */
-const individualInFlightLastTouched = new Map<string, number>();
+/** Last-touched timestamp for pruning stale entries (LRU-backed). */
+const individualInFlightLastTouched = new LRUCache<string, number>({
+  max: 10000,
+});
 
 /** Counter for observability. */
 let activeIndividualRequests = 0;
@@ -659,7 +674,7 @@ function enqueueIndividualFallbacks(messages: MessageRecord[]): void {
   );
 
   for (const msg of newMessages) {
-    individualInFlight.add(msg.id);
+    individualInFlight.set(msg.id, true);
     // Fire-and-forget: processIndividualFallback handles all errors internally.
     processIndividualFallback(msg).catch((err: unknown) => {
       // Belt-and-suspenders guard — should never reach here.

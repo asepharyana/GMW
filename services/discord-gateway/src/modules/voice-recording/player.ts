@@ -1,4 +1,5 @@
 import { Readable } from "node:stream";
+import { createChildLogger } from "@bete/shared/logger";
 import {
   AudioPlayer,
   AudioPlayerStatus,
@@ -9,6 +10,8 @@ import {
   VoiceConnection,
 } from "@discordjs/voice";
 import type { DiscordPlayerOwner, DiscordPlayOptions } from "./mediaTypes.js";
+
+const logger = createChildLogger("player");
 
 export class DiscordPlayer {
   private player: AudioPlayer;
@@ -21,11 +24,11 @@ export class DiscordPlayer {
     this.player = createAudioPlayer();
 
     this.player.on(AudioPlayerStatus.Playing, () => {
-      console.log("[player] Audio player is now playing!");
+      logger.info("Audio player is now playing!");
     });
 
     this.player.on("error", (error) => {
-      console.error(`[player] Error: ${error.message}`);
+      logger.error({ error: error.message }, "Audio player error");
       this.owner = "none";
       this.resource = null;
     });

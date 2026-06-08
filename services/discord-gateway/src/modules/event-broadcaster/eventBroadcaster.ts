@@ -43,11 +43,9 @@ export class RedisEventPublisher {
 
 export class EventBroadcaster {
   private publisher: RedisEventPublisher;
-  private logger: CustomLogger;
 
-  constructor(publisher: RedisEventPublisher, logger: CustomLogger) {
+  constructor(publisher: RedisEventPublisher) {
     this.publisher = publisher;
-    this.logger = logger;
   }
 
   async messageCreated(data: unknown): Promise<void> {
@@ -126,6 +124,49 @@ export class EventBroadcaster {
     await this.publisher.publish("discord:voice:uploaded", {
       type: "voice_recording_uploaded",
       data,
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
+  /**
+   * Broadcasts PCM audio data for real-time voice streaming
+   * @param pcmBuffer - Raw PCM audio buffer
+   * @param userId - Discord user ID
+   * @param metadata - Optional metadata about the audio chunk
+   */
+  async voicePcmData(
+    pcmBuffer: Buffer,
+    userId: string,
+    metadata?: any,
+  ): Promise<void> {
+    await this.publisher.publish("discord:voice:pcm", {
+      type: "voice_pcm_data",
+      data: {
+        userId,
+        pcm: pcmBuffer.toString("base64"),
+        metadata,
+      },
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
+  /**
+   * Broadcasts voice user activity state changes
+   * @param userId - Discord user ID
+   * @param data - User state data including username, avatar, and speaking status
+   */
+  async voiceActiveUser(
+    userId: string,
+    data: { username: string; avatar: string; speaking: boolean },
+  ): Promise<void> {
+    await this.publisher.publish("discord:voice:active_user", {
+      type: "voice_active_user",
+      data: {
+        userId,
+        ...data,
+      },
       timestamp: Date.now(),
       source: "discord-gateway",
     });

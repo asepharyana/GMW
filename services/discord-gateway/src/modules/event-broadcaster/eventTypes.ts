@@ -15,6 +15,9 @@ export const EventChannels = {
   VOICE_STARTED: "discord:voice:started",
   VOICE_STOPPED: "discord:voice:stopped",
   VOICE_UPLOADED: "discord:voice:uploaded",
+  // Real-time voice streaming channels
+  VOICE_ACTIVE_USER: "discord:voice:active_user", // Active speaker state updates
+  VOICE_PCM: "discord:voice:pcm", // Live PCM audio data stream
   ANALYSIS_QUEUE_STATUS: "discord:analysis:queue_status",
 } as const;
 

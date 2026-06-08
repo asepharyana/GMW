@@ -1,8 +1,10 @@
 import { createRequire } from "node:module";
+import { createChildLogger } from "@bete/shared/logger";
 import * as prism from "prism-media";
 import { config } from "../../../shared/config/config.js";
 
 const require = createRequire(import.meta.url);
+const logger = createChildLogger("opus-decoder");
 
 interface OpusDecoderRuntime {
   isBun: boolean;
@@ -84,10 +86,7 @@ export class OpusDecoder {
     try {
       decoder.write(chunk);
     } catch (error) {
-      console.warn(
-        "[recorder] Opus decoder write failed, cooling down:",
-        error,
-      );
+      logger.warn({ error }, "Opus decoder write failed, cooling down");
       this.coolDown();
     }
   }
@@ -107,14 +106,14 @@ export class OpusDecoder {
       const decoder = this.createDecoderFn();
       decoder.on("data", this.onData);
       decoder.on("error", (error) => {
-        console.warn("[recorder] Opus decoder error, cooling down:", error);
+        logger.warn({ error }, "Opus decoder error, cooling down");
         this.coolDown();
       });
       this.decoder = decoder;
       this.createdAt = Date.now();
       return decoder;
     } catch (error) {
-      console.warn("[recorder] Opus decoder init failed, cooling down:", error);
+      logger.warn({ error }, "Opus decoder init failed, cooling down");
       this.disabledUntil = Date.now() + this.cooldownMs;
       return null;
     }

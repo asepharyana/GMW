@@ -1,6 +1,6 @@
 import type { Server } from "node:http";
-import { WebSocket, WebSocketServer } from "ws";
 import { createChildLogger } from "@bete/shared/logger";
+import { WebSocket, WebSocketServer } from "ws";
 
 const logger = createChildLogger("ws.server");
 
@@ -8,18 +8,6 @@ interface BroadcastEvent {
   type: string;
   data: unknown;
   timestamp: string;
-}
-
-declare global {
-  var __broadcastFns:
-    | {
-        messageCreated: (data: unknown) => void;
-        messageUpdated: (data: unknown) => void;
-        messageDeleted: (data: unknown) => void;
-        attachmentUploaded: (data: unknown) => void;
-        raw: (type: string, data: unknown) => void;
-      }
-    | undefined;
 }
 
 async function sendInitialStates(ws: WebSocket): Promise<void> {
@@ -128,6 +116,18 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     }
   }
 
+  function broadcastRaw(data: Buffer) {
+    for (const client of clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(data);
+        } catch (err) {
+          logger.error({ err }, "Failed to broadcast binary data to client");
+        }
+      }
+    }
+  }
+
   globalThis.__broadcastFns = {
     messageCreated: (data: unknown) =>
       broadcast({ type: "message_created", data }),
@@ -138,6 +138,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     attachmentUploaded: (data: unknown) =>
       broadcast({ type: "attachment_uploaded", data }),
     raw: (type: string, data: unknown) => broadcast({ type, data }),
+    binary: broadcastRaw,
   };
 
   // Cleanup on close

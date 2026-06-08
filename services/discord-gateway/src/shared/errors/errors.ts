@@ -25,6 +25,13 @@ export class AudioError extends AppError {
   }
 }
 
+export class DatabaseError extends AppError {
+  constructor(message: string) {
+    super(message, "DATABASE_ERROR", 500);
+    this.name = "DatabaseError";
+  }
+}
+
 export class VoiceConnectionError extends AppError {
   constructor(message: string) {
     super(message, "VOICE_CONNECTION_ERROR", 500);

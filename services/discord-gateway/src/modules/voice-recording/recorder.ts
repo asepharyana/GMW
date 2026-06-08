@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import fs, { promises as fsPromises } from "node:fs";
 import path from "node:path";
 import { createChildLogger } from "@bete/shared/logger";
 import { retryWithBackoff } from "@bete/shared/utils";
@@ -13,7 +13,7 @@ import {
 } from "@discordjs/voice";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
-import type { PcmBroadcaster } from "../message-capture/types.js";
+import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";
 import { PacketFilter } from "./packetFilter.js";
 import { OpusDecoder } from "./recorder/decoder.js";
 import {
@@ -30,12 +30,25 @@ import { uploadRecordingSegment } from "./recorder/uploader.js";
 
 const logger = createChildLogger("recorder");
 
+let _eventBroadcaster: EventBroadcaster | undefined;
+
+export function setEventBroadcaster(broadcaster: EventBroadcaster | undefined) {
+  _eventBroadcaster = broadcaster;
+}
+
 const recordingsDir = config.RECORDINGS_DIR;
 
 // Pastikan folder recordings ada
-if (!fs.existsSync(recordingsDir)) {
-  fs.mkdirSync(recordingsDir, { recursive: true });
-}
+(async () => {
+  try {
+    await fsPromises.mkdir(recordingsDir, { recursive: true });
+  } catch (error) {
+    // Directory might already exist, that's fine
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+      logger.error({ error }, "Failed to create recordings directory");
+    }
+  }
+})();
 
 const activeSessions = new Map<string, RecordingSession>();
 
@@ -115,7 +128,6 @@ export async function startRecording(
   }
 
   const receiver = connection.receiver;
-  const broadcaster = globalThis as typeof globalThis & PcmBroadcaster;
 
   // Dengarkan siapapun yang mulai bicara
   receiver.speaking.on("start", async (userId) => {
@@ -130,7 +142,7 @@ export async function startRecording(
     );
 
     // Notify webserver
-    broadcaster.updateActiveUser?.(userId, {
+    _eventBroadcaster?.voiceActiveUser(userId, {
       username: userMetadata.username,
       avatar: userMetadata.avatarUrl,
       speaking: true,
@@ -140,9 +152,9 @@ export async function startRecording(
     if (receiver.subscriptions.has(userId)) return;
 
     const userDir = path.join(recordingsDir, userId);
-    if (!fs.existsSync(userDir)) {
-      fs.mkdirSync(userDir, { recursive: true });
-    }
+    await fsPromises.mkdir(userDir, { recursive: true }).catch(() => {
+      // Directory already exists, ignore
+    });
 
     try {
       // --- OGG file recording with segment rotation ---
@@ -166,13 +178,12 @@ export async function startRecording(
         cooldownMs: config.DECODER_COOLDOWN_MS,
         rotateMs: config.DECODER_ROTATE_MS,
         onData: (pcm) => {
-          if (!broadcaster.broadcastPcmToWeb) return;
           // Downsample 48kHz stereo → 24kHz mono (left channel, every 2nd sample)
           const outBuf = Buffer.alloc(pcm.length / 4);
           for (let i = 0; i < outBuf.length / 2; i++) {
             outBuf.writeInt16LE(pcm.readInt16LE(i * 8), i * 2);
           }
-          broadcaster.broadcastPcmToWeb(outBuf, userId);
+          _eventBroadcaster?.voicePcmData(outBuf, userId);
         },
       });
 
@@ -200,16 +211,25 @@ export async function startRecording(
           activeSession?.startTime ?? 0,
           config.RECORDING_SEGMENT_MS,
         );
-        fs.writeFileSync(
-          currentSegment.jsonFilename,
-          JSON.stringify(metadata, null, 2),
-        );
-        if (config.VERBOSE) {
-          logger.info(
-            { jsonFile: currentSegment.jsonFilename },
-            "Metadata saved",
-          );
-        }
+        fsPromises
+          .writeFile(
+            currentSegment.jsonFilename,
+            JSON.stringify(metadata, null, 2),
+          )
+          .then(() => {
+            if (config.VERBOSE) {
+              logger.info(
+                { jsonFile: currentSegment.jsonFilename },
+                "Metadata saved",
+              );
+            }
+          })
+          .catch((err: unknown) => {
+            logger.error(
+              { error: err instanceof Error ? err.message : String(err) },
+              "Failed to write segment metadata",
+            );
+          });
 
         // Trigger async voice segment upload
         const segmentId = `${userId}-${currentSegment.startTime}`;
@@ -240,7 +260,6 @@ export async function startRecording(
       audioStream.on("data", (chunk: Buffer) => {
         if (chunk.length < 8) return;
         segmentManager.rotateIfNeeded(oggPacketStream);
-        if (!broadcaster.broadcastPcmToWeb) return;
         decoder.rotateIfNeeded();
         decoder.write(chunk);
       });
@@ -248,7 +267,7 @@ export async function startRecording(
       audioStream.on("end", () => {
         segmentManager.close(oggPacketStream);
         decoder.destroy();
-        broadcaster.updateActiveUser?.(userId, {
+        _eventBroadcaster?.voiceActiveUser(userId, {
           username: userMetadata.username,
           avatar: userMetadata.avatarUrl,
           speaking: false,

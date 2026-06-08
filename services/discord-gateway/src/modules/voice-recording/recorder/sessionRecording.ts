@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import fs, { promises as fsPromises } from "node:fs";
 import path from "node:path";
 import type { UserMetadata } from "../../message-capture/types.js";
 import {
@@ -71,8 +71,11 @@ export interface RecordingSession {
 
 export interface FinalizeRecordingSessionDependencies {
   endTime?: number;
-  mkdir?: (dir: string) => void;
-  writeJson?: (file: string, metadata: SessionRecordingMetadata) => void;
+  mkdir?: (dir: string) => Promise<void>;
+  writeJson?: (
+    file: string,
+    metadata: SessionRecordingMetadata,
+  ) => Promise<void>;
   runFfmpeg?: (args: string[]) => Promise<void>;
 }
 
@@ -153,18 +156,18 @@ export async function finalizeRecordingSession(
   const outputFile = path.join(sessionDir, "full.ogg");
   const metadataFile = path.join(sessionDir, "session.json");
   const mkdir =
-    dependencies.mkdir ?? ((dir) => fs.mkdirSync(dir, { recursive: true }));
+    dependencies.mkdir ?? ((dir) => fsPromises.mkdir(dir, { recursive: true }));
   const writeJson =
     dependencies.writeJson ??
     ((file, metadata) =>
-      fs.writeFileSync(file, JSON.stringify(metadata, null, 2)));
+      fsPromises.writeFile(file, JSON.stringify(metadata, null, 2)));
   const runFfmpeg = dependencies.runFfmpeg ?? defaultRunFfmpeg;
 
-  mkdir(sessionDir);
+  await mkdir(sessionDir);
   const metadata = session.snapshot(endTime);
 
   if (metadata.segments.length === 0) {
-    writeJson(metadataFile, { ...metadata, status: "empty" });
+    await writeJson(metadataFile, { ...metadata, status: "empty" });
     return;
   }
 
@@ -177,13 +180,13 @@ export async function finalizeRecordingSession(
         codec: "libopus",
       }),
     );
-    writeJson(metadataFile, {
+    await writeJson(metadataFile, {
       ...metadata,
       status: "completed",
       outputFile,
     });
   } catch (error) {
-    writeJson(metadataFile, {
+    await writeJson(metadataFile, {
       ...metadata,
       status: "failed",
       error: error instanceof Error ? error.message : String(error),

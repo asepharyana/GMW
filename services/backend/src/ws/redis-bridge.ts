@@ -25,7 +25,11 @@ const SUBSCRIPTIONS: ChannelMapping[] = [
     channel: "discord:analysis:queue_status",
     eventType: "analysis_queue_status",
   },
+  { channel: "discord:voice:active_user", eventType: "voice_active_user" },
 ];
+
+// Binary channels that need special handling (messageBuffer event)
+const BINARY_CHANNELS = ["discord:voice:pcm"];
 
 let subscriber: Redis | null = null;
 
@@ -90,6 +94,41 @@ function handleSubscriptionMessage(channel: string, message: string): void {
   broadcastRaw(mapping.eventType, data);
 }
 
+/**
+ * Handle binary messages from Redis (e.g. voice PCM data).
+ * Expected format: 4-byte userId hash + PCM buffer
+ */
+function handleBinaryMessage(channel: Buffer, message: Buffer): void {
+  const channelStr = channel.toString();
+
+  if (channelStr === "discord:voice:pcm") {
+    if (message.length < 4) {
+      logger.warn(
+        { channel: channelStr, size: message.length },
+        "Received PCM message too short to contain userId",
+      );
+      return;
+    }
+
+    // First 4 bytes = userId hash, rest = PCM data
+    const userIdHash = message.readUInt32LE(0);
+    const pcmData = message.subarray(4);
+
+    logger.debug(
+      { channel: channelStr, userIdHash, pcmSize: pcmData.length },
+      "Broadcasting voice PCM data",
+    );
+
+    // Broadcast as binary: userId (4 bytes) + PCM data
+    broadcastRaw("voice_pcm", message);
+  } else {
+    logger.warn(
+      { channel: channelStr },
+      "Received binary message for unmapped channel",
+    );
+  }
+}
+
 export async function startRedisBridge(): Promise<void> {
   if (!config.REDIS_URL && !config.REDIS_HOST) {
     logger.info("Redis not configured, skipping Redis bridge");
@@ -116,6 +155,7 @@ export async function startRedisBridge(): Promise<void> {
     });
 
     subscriber.on("message", handleSubscriptionMessage);
+    subscriber.on("messageBuffer", handleBinaryMessage);
 
     await subscriber.ping();
     logger.info("Redis ping OK");
@@ -123,6 +163,11 @@ export async function startRedisBridge(): Promise<void> {
     const channels = SUBSCRIPTIONS.map((m) => m.channel);
     await subscriber.subscribe(...channels);
     logger.info({ channels }, "Subscribed to Redis channels");
+
+    if (BINARY_CHANNELS.length > 0) {
+      await subscriber.subscribe(...BINARY_CHANNELS);
+      logger.info({ channels: BINARY_CHANNELS }, "Subscribed to binary Redis channels");
+    }
 
     logger.info("Redis bridge started");
   } catch (err) {
