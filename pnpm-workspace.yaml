@@ -12,6 +12,7 @@ allowBuilds:
   better-sqlite3: true
   esbuild: true
   node-av: true
+  node-crc: true
   sharp: true
   zeromq: true
 

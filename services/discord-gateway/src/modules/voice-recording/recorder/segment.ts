@@ -40,7 +40,7 @@ export class SegmentManager {
     const oggStream = new prism.opus.OggLogicalBitstream({
       opusHead: new prism.opus.OpusHead({ channelCount: 2, sampleRate: 48000 }),
       pageSizeControl: { maxPackets: 10 },
-      crc: true,
+      crc: false,
     });
     const out = fs.createWriteStream(filename);
     oggPacketStream.pipe(oggStream).pipe(out);
