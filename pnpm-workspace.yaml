@@ -36,3 +36,4 @@ onlyBuiltDependencies:
 
 patchedDependencies:
   jsdoc@3.6.11: patches/jsdoc@3.6.11.patch
+  node-crc@4.0.0: patches/node-crc@4.0.0.patch
