@@ -6,12 +6,13 @@ const SAMPLE_RATE = 24000;
 
 async function sendTransmitCommand(command: string): Promise<void> {
   // Send via HTTP API
-  const resp = await fetch(`${getAPIURL()}/voice/command`, {
+  const resp = await fetch(`${getAPIURL()}/api/voice/command`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ command }),
   });
   if (!resp.ok) {
+    console.warn("HTTP command response:", resp.status, resp.statusText);
     const text = await resp.text().catch(() => resp.statusText);
     console.warn("HTTP command failed:", text);
     throw new Error(`HTTP ${resp.status}: ${text}`);
