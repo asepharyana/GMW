@@ -15,7 +15,6 @@ import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
 import type { PcmBroadcaster } from "../message-capture/types.js";
 import { PacketFilter } from "./packetFilter.js";
-import { subscribeToAudioStream } from "./recorder/audioStream.js";
 import { OpusDecoder } from "./recorder/decoder.js";
 import {
   collectUserMetadata,
@@ -92,9 +91,9 @@ export async function startRecording(
           config.VOICE_CONNECTION_TIMEOUT_MS,
         ),
       {
-        retries: 0,
-        minTimeout: 0,
-        maxTimeout: 0,
+        retries: 3,
+        minTimeout: 1000,
+        maxTimeout: 5000,
       },
     );
     logger.info("Connected to voice channel. Recording started");
@@ -237,29 +236,29 @@ export async function startRecording(
         logger.error({ userId, error: msg }, "File write error");
       });
 
-      // Feed Opus packets one-by-one
-      subscribeToAudioStream(receiver, userId, {
-        onPacket: (chunk) => {
-          if (chunk.length < 8) return;
-          segmentManager.rotateIfNeeded(oggPacketStream);
-          if (!broadcaster.broadcastPcmToWeb) return;
-          decoder.rotateIfNeeded();
-          decoder.write(chunk);
-        },
-        onEnd: () => {
-          segmentManager.close(oggPacketStream);
-          decoder.destroy();
-          broadcaster.updateActiveUser?.(userId, {
-            username: userMetadata.username,
-            avatar: userMetadata.avatarUrl,
-            speaking: false,
-          });
-        },
-        onError: (error) => {
-          segmentManager.close(oggPacketStream);
-          decoder.destroy();
-          logger.error({ userId, error: error.message }, "Audio stream error");
-        },
+      // Attach event handlers directly to the existing audioStream (no double subscription)
+      audioStream.on("data", (chunk: Buffer) => {
+        if (chunk.length < 8) return;
+        segmentManager.rotateIfNeeded(oggPacketStream);
+        if (!broadcaster.broadcastPcmToWeb) return;
+        decoder.rotateIfNeeded();
+        decoder.write(chunk);
+      });
+
+      audioStream.on("end", () => {
+        segmentManager.close(oggPacketStream);
+        decoder.destroy();
+        broadcaster.updateActiveUser?.(userId, {
+          username: userMetadata.username,
+          avatar: userMetadata.avatarUrl,
+          speaking: false,
+        });
+      });
+
+      audioStream.on("error", (error: Error) => {
+        segmentManager.close(oggPacketStream);
+        decoder.destroy();
+        logger.error({ userId, error: error.message }, "Audio stream error");
       });
 
       packetFilterForOgg.on("error", (err) => {

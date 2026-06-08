@@ -21,7 +21,7 @@ const configSchema = z
     RECORDINGS_DIR: z.string().default("./recordings"),
     RECORDING_SEGMENT_MS: z.coerce.number().positive().default(5000),
     DECODER_ROTATE_MS: z.coerce.number().positive().default(5000),
-    DECODER_COOLDOWN_MS: z.coerce.number().positive().default(0),
+    DECODER_COOLDOWN_MS: z.coerce.number().positive().default(30000),
     WEBSERVER_PORT: z.coerce.number().positive().default(3000),
     VOICE_CONNECTION_TIMEOUT_MS: z.coerce.number().positive().default(15000),
     RECONNECT_TIMEOUT_MS: z.coerce.number().positive().default(5000),

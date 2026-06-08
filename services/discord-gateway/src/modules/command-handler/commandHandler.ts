@@ -53,11 +53,13 @@ const MEDIA_STATUS_KEY = "media:status";
 
 export class CommandHandler {
   private redisSub: Redis;
+  private redisPub: Redis;
   private client: Client | null = null;
   private voiceController: VoiceController | null = null;
 
   constructor() {
     this.redisSub = new Redis(config.REDIS_URL);
+    this.redisPub = new Redis(config.REDIS_URL);
 
     this.redisSub.on("error", (err) => {
       logger.error({ error: err }, "Redis subscriber connection error");
@@ -99,7 +101,7 @@ export class CommandHandler {
   }
 
   async close(): Promise<void> {
-    await this.redisSub.quit();
+    await Promise.allSettled([this.redisSub.quit(), this.redisPub.quit()]);
   }
 
   // ---- Command dispatch ----
@@ -395,19 +397,14 @@ export class CommandHandler {
   }
 
   /**
-   * Fire-and-forget SET on a separate Redis connection so we never block the
-   * subscriber loop.
+   * Fire-and-forget SET using the persistent Redis publisher connection.
    */
   private setKey(key: string, value: string): void {
-    const redis = new Redis(config.REDIS_URL);
-    redis
+    this.redisPub
       .set(key, value)
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn({ key, error: msg }, "Failed to update Redis status key");
-      })
-      .finally(() => {
-        void redis.quit();
       });
   }
 }
