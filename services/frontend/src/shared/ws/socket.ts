@@ -18,6 +18,8 @@ export interface WsHandlers {
   onVoiceRecordingStarted?: (data: unknown) => void;
   onVoiceRecordingStopped?: (data: unknown) => void;
   onVoiceRecordingUploaded?: (data: unknown) => void;
+  onVoicePcmData?: (data: unknown) => void;
+  onVoiceActiveUser?: (data: unknown) => void;
 }
 
 let _wsInstance: WebSocket | null = null;
@@ -90,6 +92,12 @@ function doConnect(): WebSocket {
           case "voice_recording_stopped":
             h.onVoiceRecordingStopped?.(msg.data);
             break;
+          case "voice_pcm_data":
+            h.onVoicePcmData?.(msg.data);
+            break;
+          case "voice_active_user":
+            h.onVoiceActiveUser?.(msg.data);
+            break;
           case "attachment_created":
             // attachment_created is informational — same data shape as message_created
             h.onMessageCreated?.(msg.data);
@@ -149,6 +157,10 @@ export function useDashboardSocket(handlers: WsHandlers) {
         handlersRef.current.onVoiceRecordingStarted?.(d),
       onVoiceRecordingStopped: (d) =>
         handlersRef.current.onVoiceRecordingStopped?.(d),
+      onVoicePcmData: (d) =>
+        handlersRef.current.onVoicePcmData?.(d),
+      onVoiceActiveUser: (d) =>
+        handlersRef.current.onVoiceActiveUser?.(d),
     };
 
     _listeners.add(wrapper);

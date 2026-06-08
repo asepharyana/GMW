@@ -76,7 +76,7 @@ export default function App() {
   );
 
   const socket = useDashboardSocket({
-    onBinary: audio.handleIncomingPcm,
+    onVoicePcmData: (d) => audio.handleIncomingPcm(d as { userId: string; pcm: string }),
     onUserState: (users) => setActiveSpeakers(users as ActiveSpeaker[]),
     onMessageCreated: (m) =>
       messages.setMessages((prev) => mergeMessages(prev, [m as MessageRecord])),

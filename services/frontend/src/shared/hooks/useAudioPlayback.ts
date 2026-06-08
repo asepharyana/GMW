@@ -13,11 +13,16 @@ export function useAudioPlayback() {
   const userTimelinesRef = useRef(new Map<number, number>());
 
   const handleIncomingPcm = useCallback(
-    (data: ArrayBuffer) => {
-      const headerView = new DataView(data, 0, 4);
-      const userIdHash = headerView.getInt32(0, true);
-      const audioData = data.slice(4);
-      const int16Array = new Int16Array(audioData);
+    (data: { userId: string; pcm: string }) => {
+      // Decode base64 PCM data
+      const binaryString = atob(data.pcm);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const int16Array = new Int16Array(bytes.buffer);
+
+      // Calculate audio levels for visualization
       let sum = 0;
       for (const sample of int16Array) sum += Math.abs(sample / 32768);
       const average = int16Array.length ? sum / int16Array.length : 0;
@@ -34,18 +39,25 @@ export function useAudioPlayback() {
 
       const audioContext = audioContextRef.current;
       if (!isListening || !audioContext) return;
+
+      // Convert to float32 for Web Audio API
       const float32Array = new Float32Array(int16Array.length);
       for (let i = 0; i < int16Array.length; i++)
         float32Array[i] = int16Array[i] / 32768;
+
       const audioBuffer = audioContext.createBuffer(
         CHANNELS,
-        float32Array.length / SAMPLE_RATE,
+        float32Array.length,
         SAMPLE_RATE,
       );
       audioBuffer.getChannelData(0).set(float32Array);
+
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioContext.destination);
+
+      // Schedule playback per user to avoid overlaps
+      const userIdHash = parseInt(data.userId, 10);
       const currentTime = audioContext.currentTime;
       let nextStart = userTimelinesRef.current.get(userIdHash) || 0;
       if (nextStart < currentTime) nextStart = currentTime + 0.05;
