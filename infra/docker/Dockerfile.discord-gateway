@@ -28,6 +28,9 @@ COPY services/discord-gateway ./services/discord-gateway
 # Copy Drizzle migrations (relative path used by migrator)
 COPY services/discord-gateway/drizzle ./drizzle
 
+# Install build tools for native dependencies (node-crc, @discordjs/opus)
+RUN apk add --no-cache python3 make g++ rust cargo
+
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
