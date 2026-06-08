@@ -12,6 +12,14 @@ export function useAudioTransmit(socketRef: {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
 
   const stop = useCallback(() => {
+    // Send voice:transmit:stop command to backend
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        type: 'voice_command',
+        command: 'voice:transmit:stop'
+      }));
+    }
+
     setIsStreaming(false);
     if (processorRef.current) {
       processorRef.current.disconnect();
@@ -25,9 +33,17 @@ export function useAudioTransmit(socketRef: {
       for (const track of streamRef.current.getTracks()) track.stop();
       streamRef.current = null;
     }
-  }, []);
+  }, [socketRef]);
 
   const start = useCallback(async () => {
+    // Send voice:transmit:start command to backend
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        type: 'voice_command',
+        command: 'voice:transmit:start'
+      }));
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     streamRef.current = stream;
     setIsStreaming(true);
@@ -49,8 +65,20 @@ export function useAudioTransmit(socketRef: {
       const pcmData = new Int16Array(inputData.length);
       for (let i = 0; i < inputData.length; i++)
         pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
-      // BUG 2 FIX: slice() to create independent copy of the ArrayBuffer
-      socketRef.current.send(pcmData.buffer.slice(0));
+
+      // Convert to base64
+      const bytes = new Uint8Array(pcmData.buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+
+      // Send as JSON for backend to forward to Redis
+      socketRef.current.send(JSON.stringify({
+        type: 'voice_transmit',
+        buffer: base64
+      }));
     };
   }, [socketRef]);
 
