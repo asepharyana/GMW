@@ -94,6 +94,8 @@ jobs:
             cd "$APP_DIR"
 
             mkdir -p infra/docker/recordings
+            # Set permissions for recordings directory (writable by container app user UID 100)
+            chmod -R 777 infra/docker/recordings
             printf '%s\n' "$ENV_FILE" > infra/docker/.env
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
