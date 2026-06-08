@@ -5,6 +5,9 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
+# Create non-root user
+RUN addgroup -S app && adduser -S -G app app
+
 # Copy workspace files
 COPY pnpm-workspace.yaml .
 COPY pnpm-lock.yaml .
@@ -36,6 +39,18 @@ RUN pnpm --filter './services/discord-gateway' run build
 
 # Create recordings directory
 RUN mkdir -p /app/recordings
+
+# Own everything by non-root user
+RUN chown -R app:app /app
+
+# Switch to non-root user
+USER app
+
+# Expose no HTTP port (gateway is internal-only)
+
+# Healthcheck — verify PID 1 (node) is still running (no HTTP server in this service)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD sh -c "kill -0 1"
 
 # Start discord gateway
 CMD ["node", "services/discord-gateway/dist/index.js"]

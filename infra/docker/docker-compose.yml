@@ -14,7 +14,15 @@ services:
       - "traefik.http.services.imphenbot.loadbalancer.server.port=80"
     depends_on:
       - backend
-      - frontend
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 64M
     networks:
       - app-shared-net
 
@@ -28,8 +36,17 @@ services:
     environment:
       NODE_ENV: production
       WEBSERVER_PORT: 3000
-    depends_on:
-      - discord-gateway
+    # Backend talks to gateway via Redis+Postgres, not directly — no depends_on needed
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     networks:
       - app-shared-net
 
@@ -44,14 +61,35 @@ services:
       NODE_ENV: production
     volumes:
       - ./recordings:/app/recordings
+    # Gateway has no HTTP server — check if PID 1 (node) is alive
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     networks:
       - app-shared-net
 
-  # Frontend Service (React Dashboard)
+  # Frontend Service (React Dashboard) — Nginx serving static files
   frontend:
     image: ghcr.io/${OWNER:-mytheclipse}/bete-frontend:latest
     container_name: imphenbot-frontend
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 32M
     networks:
       - app-shared-net
 
