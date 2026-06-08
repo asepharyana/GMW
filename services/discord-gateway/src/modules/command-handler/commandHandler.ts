@@ -3,6 +3,7 @@ import type { Client } from "discord.js-selfbot-v13";
 import Redis from "ioredis";
 import { config } from "../../shared/config/config.js";
 import { discordPlayer } from "../voice-recording/player.js";
+import { voiceTransmitter } from "../voice-recording/transmitter.js";
 import type { VoiceController } from "../voice-recording/voiceController.js";
 
 const logger = createChildLogger("command-handler");
@@ -129,6 +130,12 @@ export class CommandHandler {
           break;
         case "voice:channels":
           reply = await this.handleVoiceChannels(cmd);
+          break;
+        case "voice:transmit:start":
+          reply = await this.handleVoiceTransmitStart(cmd);
+          break;
+        case "voice:transmit:stop":
+          reply = await this.handleVoiceTransmitStop(cmd);
           break;
         case "guilds:list":
           reply = await this.handleListGuilds(cmd);
@@ -368,6 +375,63 @@ export class CommandHandler {
       success: true,
       data: { volume: discordPlayer.getMusicVolume() },
     };
+  }
+
+  private async handleVoiceTransmitStart(cmd: BackendCommand): Promise<CommandReply> {
+    if (!discordPlayer.isConnected()) {
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "Not connected to voice channel",
+      };
+    }
+
+    try {
+      // Create a new Redis connection for the transmitter
+      const transmitRedis = new Redis(config.REDIS_URL);
+      await voiceTransmitter.start(transmitRedis);
+
+      const status = voiceTransmitter.getStatus();
+      logger.info({ status }, "Voice transmit started");
+
+      return {
+        id: cmd.id,
+        success: true,
+        data: status,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error({ error: message }, "Failed to start voice transmit");
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: message,
+      };
+    }
+  }
+
+  private async handleVoiceTransmitStop(cmd: BackendCommand): Promise<CommandReply> {
+    try {
+      await voiceTransmitter.stop();
+      logger.info("Voice transmit stopped");
+
+      return {
+        id: cmd.id,
+        success: true,
+        data: { status: "stopped" },
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error({ error: message }, "Failed to stop voice transmit");
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: message,
+      };
+    }
   }
 
   // ---- Status publishing ----
