@@ -36,19 +36,16 @@ export class VoiceTransmitter {
     // Upsample 24kHz mono → 48kHz stereo
     const upsampledStream = this.upsampleTo48kStereo(this.pcmStream);
 
-    // Encode to Opus and wrap in OGG container
+    // Encode to Opus — Encoder outputs raw Opus packets (no OGG wrapper needed)
     this.opusEncoder = new prism.opus.Encoder({
       rate: 48000,
       channels: 2,
       frameSize: 960,
     });
 
-    const oggDemuxer = new prism.opus.OggDemuxer();
-    const opusStream = upsampledStream
-      .pipe(this.opusEncoder)
-      .pipe(oggDemuxer);
+    const opusStream = upsampledStream.pipe(this.opusEncoder);
 
-    // Play to Discord with Opus format (raw Opus packets)
+    // Play to Discord with raw Opus format
     discordPlayer.playStream(opusStream, "browser-bridge", {
       inputType: StreamType.Opus,
       inlineVolume: true,
