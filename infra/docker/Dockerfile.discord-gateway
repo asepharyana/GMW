@@ -29,7 +29,8 @@ COPY services/discord-gateway ./services/discord-gateway
 COPY services/discord-gateway/drizzle ./drizzle
 
 # Install build tools for native dependencies (node-crc, @discordjs/opus)
-RUN apk add --no-cache python3 make g++ rust cargo
+# and ffmpeg for voice transmit (PCM → OggOpus encoding)
+RUN apk add --no-cache python3 make g++ rust cargo ffmpeg
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
