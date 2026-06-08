@@ -1,20 +1,23 @@
-import { PassThrough, Readable } from "node:stream";
+import { PassThrough } from "node:stream";
+import { spawn } from "node:child_process";
 import { createChildLogger } from "@bete/shared/logger";
 import { StreamType } from "@discordjs/voice";
 import type Redis from "ioredis";
-import prism from "prism-media";
 import { discordPlayer } from "./player.js";
 
 const logger = createChildLogger("transmitter");
 
 /**
- * Handles real-time PCM audio transmission from backend/browser to Discord.
- * Receives 24kHz mono PCM data, upsamples to 48kHz stereo, encodes to Opus, and plays to Discord.
+ * Handles real-time PCM audio transmission from browser to Discord voice channel.
+ *
+ * Pipeline:
+ *   Browser Mic → base64 PCM (24kHz mono s16le) → Redis →
+ *   FFmpeg (encode to OggOpus) → discordPlayer (StreamType.OggOpus) → Discord Voice
  */
 export class VoiceTransmitter {
   private redisSub: Redis | null = null;
   private pcmStream: PassThrough | null = null;
-  private opusEncoder: any | null = null;
+  private ffmpegProcess: ReturnType<typeof spawn> | null = null;
   private isActive = false;
   private readonly TRANSMIT_CHANNEL = "backend:voice:transmit";
 
@@ -33,26 +36,62 @@ export class VoiceTransmitter {
     // Create PCM input stream
     this.pcmStream = new PassThrough();
 
-    // Upsample 24kHz mono → 48kHz stereo
-    const upsampledStream = this.upsampleTo48kStereo(this.pcmStream);
-
-    // Encode to Opus — Encoder outputs raw Opus packets (no OGG wrapper needed)
-    this.opusEncoder = new prism.opus.Encoder({
-      rate: 48000,
-      channels: 2,
-      frameSize: 960,
+    // Spawn FFmpeg to encode 24kHz mono PCM → OggOpus
+    // Input: 24kHz mono s16le (raw PCM)
+    // Output: OGG container with Opus audio
+    this.ffmpegProcess = spawn("ffmpeg", [
+      "-f", "s16le",           // Input format: signed 16-bit little-endian
+      "-ar", "24000",          // Input sample rate: 24kHz
+      "-ac", "1",              // Input channels: mono
+      "-i", "pipe:0",          // Read from stdin
+      "-f", "ogg",             // Output format: OGG
+      "-c:a", "libopus",       // Codec: Opus
+      "-b:a", "96k",           // Bitrate: 96kbps
+      "-ar", "48000",          // Output sample rate: 48kHz
+      "-ac", "2",              // Output channels: stereo
+      "-application", "lowdelay", // Low delay mode for real-time
+      "-frame_duration", "20", // 20ms frames
+      "-packet_loss", "0",     // No packet loss expected
+      "pipe:1",                // Write to stdout
+    ], {
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
-    const opusStream = upsampledStream.pipe(this.opusEncoder);
+    // Pipe PCM data to FFmpeg stdin
+    if (this.ffmpegProcess.stdin) {
+      this.pcmStream.pipe(this.ffmpegProcess.stdin);
+    }
 
-    // Play to Discord with raw Opus format
-    discordPlayer.playStream(opusStream, "browser-bridge", {
-      inputType: StreamType.Opus,
-      inlineVolume: true,
+    // Log FFmpeg stderr for debugging
+    const stderrChunks: Buffer[] = [];
+    this.ffmpegProcess.stderr?.on("data", (chunk: Buffer) => {
+      stderrChunks.push(chunk);
     });
+
+    this.ffmpegProcess.on("error", (err) => {
+      logger.error({ error: err.message }, "FFmpeg process error");
+    });
+
+    this.ffmpegProcess.on("exit", (code) => {
+      if (code !== 0) {
+        const stderr = Buffer.concat(stderrChunks).toString();
+        logger.error({ code, stderr: stderr.slice(-500) }, "FFmpeg exited with error");
+      }
+    });
+
+    // Play FFmpeg stdout (OggOpus) to Discord
+    if (this.ffmpegProcess.stdout) {
+      discordPlayer.playStream(this.ffmpegProcess.stdout, "browser-bridge", {
+        inputType: StreamType.OggOpus,
+        inlineVolume: true,
+      });
+    }
+
+    logger.info("Voice transmitter pipeline ready (PCM → FFmpeg → OggOpus → Discord)");
 
     // Subscribe to Redis channel for PCM data
     await this.redisSub.subscribe(this.TRANSMIT_CHANNEL);
+    logger.info({ channel: this.TRANSMIT_CHANNEL }, "Subscribed to transmit channel");
 
     this.redisSub.on("message", (channel, message) => {
       if (channel !== this.TRANSMIT_CHANNEL || !this.pcmStream) return;
@@ -61,6 +100,7 @@ export class VoiceTransmitter {
         const data = JSON.parse(message);
         if (data.type === "pcm" && data.buffer) {
           const pcmBuffer = Buffer.from(data.buffer, "base64");
+          logger.debug({ bytes: pcmBuffer.length }, "Received PCM chunk");
           this.pcmStream.write(pcmBuffer);
         }
       } catch (err) {
@@ -84,9 +124,9 @@ export class VoiceTransmitter {
       this.pcmStream = null;
     }
 
-    if (this.opusEncoder) {
-      this.opusEncoder.destroy();
-      this.opusEncoder = null;
+    if (this.ffmpegProcess) {
+      this.ffmpegProcess.kill("SIGTERM");
+      this.ffmpegProcess = null;
     }
 
     if (this.redisSub) {
@@ -95,7 +135,6 @@ export class VoiceTransmitter {
     }
 
     discordPlayer.stop("browser-bridge");
-
     logger.info("Voice transmitter stopped");
   }
 
@@ -107,61 +146,6 @@ export class VoiceTransmitter {
       active: this.isActive,
       channel: this.TRANSMIT_CHANNEL,
     };
-  }
-
-  /**
-   * Upsample 24kHz mono PCM to 48kHz stereo
-   * Input: 24kHz mono s16le (2 bytes per sample)
-   * Output: 48kHz stereo s16le (4 bytes per sample)
-   */
-  private upsampleTo48kStereo(input: Readable): Readable {
-    const output = new PassThrough();
-
-    input.on("data", (chunk: Buffer) => {
-      // 24kHz mono → 48kHz stereo means we need to:
-      // 1. Duplicate each sample (mono → stereo)
-      // 2. Interpolate samples (24kHz → 48kHz)
-
-      const inputSamples = chunk.length / 2; // 16-bit samples
-      const outputBuffer = Buffer.alloc(inputSamples * 4 * 2); // 2x rate, 2x channels
-
-      for (let i = 0; i < inputSamples; i++) {
-        const sample = chunk.readInt16LE(i * 2);
-
-        // Write to output at 2x rate with simple duplication
-        // Sample i → output[i*2] and output[i*2+1]
-        const outIdx = i * 2;
-
-        // Left channel
-        outputBuffer.writeInt16LE(sample, outIdx * 4);
-        // Right channel
-        outputBuffer.writeInt16LE(sample, outIdx * 4 + 2);
-
-        // Interpolated sample (simple average for smoothing)
-        if (i < inputSamples - 1) {
-          const nextSample = chunk.readInt16LE((i + 1) * 2);
-          const interpolated = Math.floor((sample + nextSample) / 2);
-
-          // Left channel
-          outputBuffer.writeInt16LE(interpolated, (outIdx + 1) * 4);
-          // Right channel
-          outputBuffer.writeInt16LE(interpolated, (outIdx + 1) * 4 + 2);
-        }
-      }
-
-      output.write(outputBuffer);
-    });
-
-    input.on("end", () => {
-      output.end();
-    });
-
-    input.on("error", (err) => {
-      logger.error({ error: err }, "Upsample input stream error");
-      output.destroy(err);
-    });
-
-    return output;
   }
 }
 
