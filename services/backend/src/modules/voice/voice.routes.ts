@@ -23,8 +23,8 @@ export function createVoiceRouter(): Router {
   // GET /api/guilds/:guildId/voice-channels
   router.get("/guilds/:guildId/voice-channels", handleGetVoiceChannels);
 
-  // POST /api/command — send arbitrary voice command (transmit start/stop)
-  router.post("/command", handleVoiceCommand);
+  // POST /api/voice/command — send arbitrary voice command (transmit start/stop)
+  router.post("/voice/command", handleVoiceCommand);
 
   return router;
 }
