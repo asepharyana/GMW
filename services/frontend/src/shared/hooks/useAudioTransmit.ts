@@ -5,29 +5,16 @@ import { getAPIURL } from "../api/client";
 const SAMPLE_RATE = 24000;
 
 async function sendTransmitCommand(command: string): Promise<void> {
-  // Send via WebSocket (primary)
-  try {
-    const wsUrl = import.meta.env.VITE_BE_WS_URL ||
-      `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
-    const ws = new WebSocket(wsUrl);
-    ws.binaryType = "arraybuffer";
-    await new Promise<void>((resolve, reject) => {
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "voice_command", command }));
-        ws.close();
-        resolve();
-      };
-      ws.onerror = () => reject(new Error("WS failed"));
-      setTimeout(() => reject(new Error("WS timeout")), 3000);
-    });
-  } catch (err) {
-    console.warn("WebSocket command failed, trying HTTP:", err);
-    // Fallback: send via HTTP API
-    await fetch(`${getAPIURL()}/voice/command`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ command }),
-    });
+  // Send via HTTP API
+  const resp = await fetch(`${getAPIURL()}/voice/command`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ command }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => resp.statusText);
+    console.warn("HTTP command failed:", text);
+    throw new Error(`HTTP ${resp.status}: ${text}`);
   }
 }
 
