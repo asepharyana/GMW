@@ -69,7 +69,10 @@ export class VoiceTransmitter {
     });
 
     this.ffmpegProcess.on("error", (err) => {
-      logger.error({ error: err.message }, "FFmpeg process error");
+      const msg = err.message === "spawn ffmpeg ENOENT"
+        ? "FFmpeg/avconv not found! Install ffmpeg in the container."
+        : err.message;
+      logger.error({ error: msg }, "FFmpeg process error");
     });
 
     this.ffmpegProcess.on("exit", (code) => {
