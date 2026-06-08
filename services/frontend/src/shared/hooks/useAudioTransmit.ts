@@ -1,7 +1,35 @@
 // ─── Audio transmit hook — captures mic, encodes to PCM, sends via WebSocket ──
 import { useCallback, useRef, useState } from "react";
+import { getAPIURL } from "../api/client";
 
 const SAMPLE_RATE = 24000;
+
+async function sendTransmitCommand(command: string): Promise<void> {
+  // Send via WebSocket (primary)
+  try {
+    const wsUrl = import.meta.env.VITE_BE_WS_URL ||
+      `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
+    const ws = new WebSocket(wsUrl);
+    ws.binaryType = "arraybuffer";
+    await new Promise<void>((resolve, reject) => {
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "voice_command", command }));
+        ws.close();
+        resolve();
+      };
+      ws.onerror = () => reject(new Error("WS failed"));
+      setTimeout(() => reject(new Error("WS timeout")), 3000);
+    });
+  } catch (err) {
+    console.warn("WebSocket command failed, trying HTTP:", err);
+    // Fallback: send via HTTP API
+    await fetch(`${getAPIURL()}/voice/command`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command }),
+    });
+  }
+}
 
 export function useAudioTransmit(socketRef: {
   readonly current: WebSocket | null;
@@ -12,13 +40,7 @@ export function useAudioTransmit(socketRef: {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
 
   const stop = useCallback(() => {
-    // Send voice:transmit:stop command to backend
-    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({
-        type: 'voice_command',
-        command: 'voice:transmit:stop'
-      }));
-    }
+    sendTransmitCommand("voice:transmit:stop").catch(() => {});
 
     setIsStreaming(false);
     if (processorRef.current) {
@@ -33,16 +55,10 @@ export function useAudioTransmit(socketRef: {
       for (const track of streamRef.current.getTracks()) track.stop();
       streamRef.current = null;
     }
-  }, [socketRef]);
+  }, []);
 
   const start = useCallback(async () => {
-    // Send voice:transmit:start command to backend
-    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({
-        type: 'voice_command',
-        command: 'voice:transmit:start'
-      }));
-    }
+    await sendTransmitCommand("voice:transmit:start");
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     streamRef.current = stream;
