@@ -61,7 +61,7 @@ export function useAudioTransmit(socketRef: {
     const processor = audioContext.createScriptProcessor(1024, 1, 1);
     processorRef.current = processor;
     source.connect(processor);
-    // Don't connect processor to destination (no monitoring feedback)
+    processor.connect(audioContext.destination);
     processor.onaudioprocess = (event) => {
       if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN)
         return;
@@ -70,14 +70,13 @@ export function useAudioTransmit(socketRef: {
       for (let i = 0; i < inputData.length; i++)
         pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
 
-      // Fast base64 using Uint8Array + btoa
-      const uint8 = new Uint8Array(pcmData.buffer);
-      let base64 = '';
-      const chunkSize = 8192;
-      for (let i = 0; i < uint8.length; i += chunkSize) {
-        const chunk = uint8.subarray(i, i + chunkSize);
-        base64 += btoa(String.fromCharCode(...chunk));
+      // Base64 encode
+      const bytes = new Uint8Array(pcmData.buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
       }
+      const base64 = btoa(binary);
 
       socketRef.current.send(JSON.stringify({
         type: 'voice_transmit',
