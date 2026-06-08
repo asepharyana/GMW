@@ -50,8 +50,16 @@ export class VoiceTransmitter {
       "-ar", "48000",          // Output sample rate: 48kHz
       "-ac", "2",              // Output channels: stereo
       "-application", "lowdelay", // Low delay mode for real-time
-      "-frame_duration", "20", // 20ms frames
+      "-frame_duration", "10", // 10ms frames (smaller = less latency)
       "-packet_loss", "0",     // No packet loss expected
+      "-compression_level", "0", // Fastest compression (lowest CPU latency)
+      "-cutoff", "20000",      // Audio cutoff frequency
+      "-vsync", "0",           // No video sync
+      "-fflags", "nobuffer",   // No buffering
+      "-flags", "low_delay",   // Low delay processing
+      "-strict", "experimental",
+      "-analyzeduration", "0", // No analysis duration
+      "-probesize", "32",      // Minimal probe size
       "pipe:1",                // Write to stdout
     ], {
       stdio: ["pipe", "pipe", "pipe"],
