@@ -10,7 +10,8 @@
       "*.ts",
       "!vendor/**",
       "!.claude/**",
-      "!services/**/dist/**"
+      "!services/**/dist/**",
+      "!packages/**/dist/**"
     ]
   },
   "formatter": {

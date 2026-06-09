@@ -1,24 +1,35 @@
-export interface DiscordGatewayEvent {
-  type: string;
-  data: unknown;
-  timestamp: number;
-  source: string;
-}
+import {
+  DISCORD_ANALYSIS_QUEUE_STATUS,
+  DISCORD_ATTACHMENT_CREATED,
+  DISCORD_ATTACHMENT_UPLOADED,
+  DISCORD_MESSAGE_ANALYZED,
+  DISCORD_MESSAGE_CREATED,
+  DISCORD_MESSAGE_DELETED,
+  DISCORD_MESSAGE_UPDATED,
+  DISCORD_VOICE_ACTIVE_USER,
+  DISCORD_VOICE_PCM,
+  DISCORD_VOICE_STARTED,
+  DISCORD_VOICE_STOPPED,
+  DISCORD_VOICE_UPLOADED,
+  type DiscordGatewayEvent,
+} from "@bete/shared";
+
+export type { DiscordGatewayEvent };
 
 export const EventChannels = {
-  MESSAGE_CREATED: "discord:message:created",
-  MESSAGE_UPDATED: "discord:message:updated",
-  MESSAGE_DELETED: "discord:message:deleted",
-  MESSAGE_ANALYZED: "discord:message:analyzed",
-  ATTACHMENT_CREATED: "discord:attachment:created",
-  ATTACHMENT_UPLOADED: "discord:attachment:uploaded",
-  VOICE_STARTED: "discord:voice:started",
-  VOICE_STOPPED: "discord:voice:stopped",
-  VOICE_UPLOADED: "discord:voice:uploaded",
+  MESSAGE_CREATED: DISCORD_MESSAGE_CREATED,
+  MESSAGE_UPDATED: DISCORD_MESSAGE_UPDATED,
+  MESSAGE_DELETED: DISCORD_MESSAGE_DELETED,
+  MESSAGE_ANALYZED: DISCORD_MESSAGE_ANALYZED,
+  ATTACHMENT_CREATED: DISCORD_ATTACHMENT_CREATED,
+  ATTACHMENT_UPLOADED: DISCORD_ATTACHMENT_UPLOADED,
+  VOICE_STARTED: DISCORD_VOICE_STARTED,
+  VOICE_STOPPED: DISCORD_VOICE_STOPPED,
+  VOICE_UPLOADED: DISCORD_VOICE_UPLOADED,
   // Real-time voice streaming channels
-  VOICE_ACTIVE_USER: "discord:voice:active_user", // Active speaker state updates
-  VOICE_PCM: "discord:voice:pcm", // Live PCM audio data stream
-  ANALYSIS_QUEUE_STATUS: "discord:analysis:queue_status",
+  VOICE_ACTIVE_USER: DISCORD_VOICE_ACTIVE_USER, // Active speaker state updates
+  VOICE_PCM: DISCORD_VOICE_PCM, // Live PCM audio data stream
+  ANALYSIS_QUEUE_STATUS: DISCORD_ANALYSIS_QUEUE_STATUS,
 } as const;
 
 export type EventChannelType =

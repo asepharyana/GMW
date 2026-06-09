@@ -37,6 +37,10 @@ export async function uploadAttachmentToTele(
   filename: string,
   contentType = "application/octet-stream",
 ): Promise<string> {
+  logger.debug(
+    { filename, sizeBytes: fileBuffer.length },
+    "Starting attachment upload to tele",
+  );
   try {
     const result = await uploadToTele({
       buffer: fileBuffer,
@@ -47,6 +51,10 @@ export async function uploadAttachmentToTele(
       retries: 0,
     });
 
+    logger.info(
+      { filename, url: result.url },
+      "Attachment uploaded to tele successfully",
+    );
     return result.url;
   } catch (error) {
     logger.error(
@@ -61,6 +69,7 @@ export async function uploadAttachmentToTele(
 }
 
 export async function downloadDiscordAttachment(url: string): Promise<Buffer> {
+  logger.debug({ url }, "Starting Discord attachment download");
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(config.ATTACHMENT_UPLOAD_TIMEOUT_MS),
@@ -74,7 +83,12 @@ export async function downloadDiscordAttachment(url: string): Promise<Buffer> {
     }
 
     const buffer = await response.arrayBuffer();
-    return Buffer.from(buffer);
+    const result = Buffer.from(buffer);
+    logger.debug(
+      { url, sizeBytes: result.length },
+      "Discord attachment downloaded successfully",
+    );
+    return result;
   } catch (error) {
     logger.error(
       { url, error: toErrorMessage(error) },
@@ -93,6 +107,7 @@ export async function processAttachmentUpload(
     contentType?: string;
   } = {},
 ): Promise<void> {
+  logger.info({ attachmentId, filename }, "processAttachmentUpload called");
   try {
     let currentDiscordUrl = discordUrl;
     let buffer: Buffer;
@@ -103,6 +118,10 @@ export async function processAttachmentUpload(
         throw error;
       }
 
+      logger.warn(
+        { attachmentId, filename },
+        "Discord URL expired, refreshing and retrying",
+      );
       const freshUrl = await options.refreshDiscordUrl();
       if (!freshUrl) throw error;
       currentDiscordUrl = freshUrl;
@@ -111,6 +130,10 @@ export async function processAttachmentUpload(
     }
 
     const sizeMb = buffer.length / (1024 * 1024);
+    logger.debug(
+      { attachmentId, sizeMb: sizeMb.toFixed(2) },
+      "Attachment size check",
+    );
     if (sizeMb > config.ATTACHMENT_MAX_SIZE_MB) {
       throw new Error(
         `File size ${sizeMb.toFixed(2)}MB exceeds limit of ${config.ATTACHMENT_MAX_SIZE_MB}MB`,
@@ -124,6 +147,10 @@ export async function processAttachmentUpload(
     );
 
     await updateAttachmentAsUploaded(attachmentId, uploadedUrl, Date.now());
+    logger.info(
+      { attachmentId, url: uploadedUrl },
+      "Attachment upload completed successfully",
+    );
   } catch (error) {
     const errorMsg = toErrorMessage(error);
     await updateAttachmentAsFailedUpload(attachmentId, errorMsg);

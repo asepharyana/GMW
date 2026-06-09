@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { PassThrough } from "node:stream";
+import { BACKEND_VOICE_TRANSMIT } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import { StreamType } from "@discordjs/voice";
 import type Redis from "ioredis";
@@ -19,12 +20,13 @@ export class VoiceTransmitter {
   private pcmStream: PassThrough | null = null;
   private ffmpegProcess: ReturnType<typeof spawn> | null = null;
   private isActive = false;
-  private readonly TRANSMIT_CHANNEL = "backend:voice:transmit";
+  private readonly TRANSMIT_CHANNEL = BACKEND_VOICE_TRANSMIT;
 
   /**
    * Start listening for PCM audio data from Redis and stream to Discord
    */
   async start(redis: Redis): Promise<void> {
+    logger.info("Transmitter start requested");
     if (this.isActive) {
       logger.warn("Voice transmitter already active");
       return;
@@ -143,6 +145,7 @@ export class VoiceTransmitter {
    * Stop transmitting and clean up resources
    */
   async stop(): Promise<void> {
+    logger.info("Transmitter stop requested");
     if (!this.isActive) return;
 
     this.isActive = false;

@@ -40,6 +40,7 @@ export class VoiceController {
   constructor(private readonly client: Client) {}
 
   getStatus(): VoiceStatus {
+    logger.debug("getStatus called");
     const connection = this.activeGuildId
       ? getVoiceConnection(this.activeGuildId)
       : undefined;
@@ -54,12 +55,14 @@ export class VoiceController {
   }
 
   listGuilds(): GuildSummary[] {
+    logger.info("listGuilds called");
     return this.client.guilds.cache
       .map((guild) => ({ id: guild.id, name: guild.name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async listVoiceChannels(guildId: string): Promise<VoiceChannelSummary[]> {
+    logger.info({ guildId }, "listVoiceChannels called");
     const guild = this.getGuild(guildId);
     await guild.channels.fetch().catch(() => null);
 
@@ -70,6 +73,7 @@ export class VoiceController {
   }
 
   async listWatchableChannels(guildId: string): Promise<ChannelSummary[]> {
+    logger.info({ guildId }, "listWatchableChannels called");
     const guild = this.getGuild(guildId);
     await guild.channels.fetch().catch(() => null);
 
@@ -84,6 +88,7 @@ export class VoiceController {
   }
 
   async connect(guildId: string, channelId: string): Promise<VoiceStatus> {
+    logger.info({ guildId, channelId }, "connect called");
     if (!this.client.isReady()) {
       throw new AppError(
         "Discord client is not ready",
@@ -155,6 +160,7 @@ export class VoiceController {
   }
 
   async disconnect(): Promise<VoiceStatus> {
+    logger.info("disconnect called");
     if (this.activeGuildId) {
       stopRecording(this.activeGuildId);
     }

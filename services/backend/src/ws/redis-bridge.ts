@@ -1,3 +1,17 @@
+import {
+  DISCORD_ANALYSIS_QUEUE_STATUS,
+  DISCORD_ATTACHMENT_CREATED,
+  DISCORD_ATTACHMENT_UPLOADED,
+  DISCORD_MESSAGE_ANALYZED,
+  DISCORD_MESSAGE_CREATED,
+  DISCORD_MESSAGE_DELETED,
+  DISCORD_MESSAGE_UPDATED,
+  DISCORD_VOICE_ACTIVE_USER,
+  DISCORD_VOICE_PCM,
+  DISCORD_VOICE_STARTED,
+  DISCORD_VOICE_STOPPED,
+  DISCORD_VOICE_UPLOADED,
+} from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import Redis from "ioredis";
 import { config } from "../shared/config/index.js";
@@ -11,21 +25,21 @@ interface ChannelMapping {
 }
 
 const SUBSCRIPTIONS: ChannelMapping[] = [
-  { channel: "discord:message:created", eventType: "message_created" },
-  { channel: "discord:message:updated", eventType: "message_updated" },
-  { channel: "discord:message:deleted", eventType: "message_deleted" },
-  { channel: "discord:message:analyzed", eventType: "message_analyzed" },
-  { channel: "discord:attachment:created", eventType: "attachment_created" },
-  { channel: "discord:attachment:uploaded", eventType: "attachment_uploaded" },
-  { channel: "discord:voice:started", eventType: "voice_recording_started" },
-  { channel: "discord:voice:stopped", eventType: "voice_recording_stopped" },
-  { channel: "discord:voice:uploaded", eventType: "voice_recording_uploaded" },
+  { channel: DISCORD_MESSAGE_CREATED, eventType: "message_created" },
+  { channel: DISCORD_MESSAGE_UPDATED, eventType: "message_updated" },
+  { channel: DISCORD_MESSAGE_DELETED, eventType: "message_deleted" },
+  { channel: DISCORD_MESSAGE_ANALYZED, eventType: "message_analyzed" },
+  { channel: DISCORD_ATTACHMENT_CREATED, eventType: "attachment_created" },
+  { channel: DISCORD_ATTACHMENT_UPLOADED, eventType: "attachment_uploaded" },
+  { channel: DISCORD_VOICE_STARTED, eventType: "voice_recording_started" },
+  { channel: DISCORD_VOICE_STOPPED, eventType: "voice_recording_stopped" },
+  { channel: DISCORD_VOICE_UPLOADED, eventType: "voice_recording_uploaded" },
   {
-    channel: "discord:analysis:queue_status",
+    channel: DISCORD_ANALYSIS_QUEUE_STATUS,
     eventType: "analysis_queue_status",
   },
-  { channel: "discord:voice:active_user", eventType: "voice_active_user" },
-  { channel: "discord:voice:pcm", eventType: "voice_pcm_data" },
+  { channel: DISCORD_VOICE_ACTIVE_USER, eventType: "voice_active_user" },
+  { channel: DISCORD_VOICE_PCM, eventType: "voice_pcm_data" },
 ];
 
 let subscriber: Redis | null = null;

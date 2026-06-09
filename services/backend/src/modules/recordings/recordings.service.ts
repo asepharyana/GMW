@@ -6,6 +6,7 @@ const logger = createChildLogger("recordings.service");
 
 export class RecordingsService {
   async getRecent(limit = 50) {
+    logger.info({ limit }, "getRecent called");
     const db = getDatabase();
     logger.debug({ limit }, "Fetching recent voice recordings");
 

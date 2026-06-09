@@ -1,4 +1,5 @@
 import type { Server } from "node:http";
+import { BACKEND_COMMAND, BACKEND_VOICE_TRANSMIT } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import { WebSocket, WebSocketServer } from "ws";
 import { setBroadcastFunctions } from "./broadcast.js";
@@ -92,7 +93,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
                 const publisher = getCommandPublisher();
                 publisher
                   .publish(
-                    "backend:voice:transmit",
+                    BACKEND_VOICE_TRANSMIT,
                     JSON.stringify({
                       type: "pcm",
                       buffer: message.buffer,
@@ -114,7 +115,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
                 const commandId = `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
                 publisher
                   .publish(
-                    "backend:command",
+                    BACKEND_COMMAND,
                     JSON.stringify({
                       id: commandId,
                       type: message.command,

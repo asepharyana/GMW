@@ -15,6 +15,10 @@ class MascotChatService {
     context: MascotChatContext | undefined,
     userId: string,
   ): Promise<string> {
+    logger.info(
+      { userId, messageLength: message.length },
+      "processMessage called",
+    );
     const recentContext = await this.getRecentConversationContext(userId);
     const serverInsights = await mascotChatRepository.getServerInsights(
       context?.guildId,
@@ -34,6 +38,7 @@ class MascotChatService {
   }
 
   async saveConversation(input: SaveConversationInput): Promise<void> {
+    logger.info({ userId: input.userId }, "saveConversation called");
     await mascotChatRepository.saveConversation(input);
   }
 
@@ -41,10 +46,12 @@ class MascotChatService {
     userId: string,
     limit: number,
   ): Promise<MascotChatHistoryRow[]> {
+    logger.debug({ userId, limit }, "getChatHistory called");
     return mascotChatRepository.getChatHistory(userId, limit);
   }
 
   async clearChatHistory(userId: string): Promise<void> {
+    logger.info({ userId }, "clearChatHistory called");
     await mascotChatRepository.clearChatHistory(userId);
   }
 

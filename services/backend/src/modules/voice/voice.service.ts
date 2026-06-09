@@ -1,3 +1,11 @@
+import {
+  COMMAND_GUILDS_LIST,
+  COMMAND_GUILDS_TEXT_CHANNELS,
+  COMMAND_VOICE_CHANNELS,
+  COMMAND_VOICE_CONNECT,
+  COMMAND_VOICE_DISCONNECT,
+  VOICE_STATUS_KEY,
+} from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import { getPool } from "../../shared/database/index.js";
 import { publishCommand, readRedisStatus } from "../../shared/redis/index.js";
@@ -28,7 +36,8 @@ export interface VoiceStatus {
  * Falls back to database (distinct guild_id from messages) if gateway unreachable.
  */
 export async function getGuilds(): Promise<Guild[]> {
-  const reply = await publishCommand<Guild[]>("guilds:list", {});
+  logger.info("getGuilds called");
+  const reply = await publishCommand<Guild[]>(COMMAND_GUILDS_LIST, {});
   if (reply?.success && reply.data && reply.data.length > 0) return reply.data;
 
   // Fallback: Postgres with synthetic names
@@ -52,7 +61,8 @@ export async function getGuilds(): Promise<Guild[]> {
  * Falls back to database if gateway unreachable.
  */
 export async function getTextChannels(guildId: string): Promise<Channel[]> {
-  const reply = await publishCommand<Channel[]>("guilds:text-channels", {
+  logger.info({ guildId }, "getTextChannels called");
+  const reply = await publishCommand<Channel[]>(COMMAND_GUILDS_TEXT_CHANNELS, {
     guildId,
   });
   if (reply?.success && reply.data && reply.data.length > 0) return reply.data;
@@ -79,7 +89,10 @@ export async function getTextChannels(guildId: string): Promise<Channel[]> {
  * Get voice channels — query from discord-gateway via Redis command.
  */
 export async function getVoiceChannels(guildId: string): Promise<Channel[]> {
-  const reply = await publishCommand<Channel[]>("voice:channels", { guildId });
+  logger.info({ guildId }, "getVoiceChannels called");
+  const reply = await publishCommand<Channel[]>(COMMAND_VOICE_CHANNELS, {
+    guildId,
+  });
   return reply?.success && reply.data ? reply.data : [];
 }
 
@@ -87,7 +100,8 @@ export async function getVoiceChannels(guildId: string): Promise<Channel[]> {
  * Get current voice connection status from Redis cache set by discord-gateway.
  */
 export async function getVoiceStatus(): Promise<VoiceStatus> {
-  const cached = await readRedisStatus("voice:status");
+  logger.debug("getVoiceStatus called");
+  const cached = await readRedisStatus(VOICE_STATUS_KEY);
   if (cached) return cached as unknown as VoiceStatus;
   return {
     connected: false,
@@ -104,14 +118,15 @@ export async function connectVoice(
   guildId: string,
   channelId: string,
 ): Promise<VoiceStatus> {
-  const reply = await publishCommand<VoiceStatus>("voice:connect", {
+  logger.info({ guildId, channelId }, "connectVoice called");
+  const reply = await publishCommand<VoiceStatus>(COMMAND_VOICE_CONNECT, {
     guildId,
     channelId,
   });
   if (reply?.success && reply.data) return reply.data;
 
   // Fallback: read from Redis status key
-  const cached = await readRedisStatus("voice:status");
+  const cached = await readRedisStatus(VOICE_STATUS_KEY);
   return (
     (cached as unknown as VoiceStatus) ?? {
       connected: false,
@@ -126,10 +141,11 @@ export async function connectVoice(
  * Disconnect from voice via Redis command to discord-gateway.
  */
 export async function disconnectVoice(): Promise<VoiceStatus> {
-  const reply = await publishCommand<VoiceStatus>("voice:disconnect", {});
+  logger.info("disconnectVoice called");
+  const reply = await publishCommand<VoiceStatus>(COMMAND_VOICE_DISCONNECT, {});
   if (reply?.success && reply.data) return reply.data;
 
-  const cached = await readRedisStatus("voice:status");
+  const cached = await readRedisStatus(VOICE_STATUS_KEY);
   return (
     (cached as unknown as VoiceStatus) ?? {
       connected: false,

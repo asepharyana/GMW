@@ -1,10 +1,8 @@
 import { promises as fsPromises } from "node:fs";
-import path from "node:path";
 import { createChildLogger } from "@bete/shared/logger";
 import { retryWithBackoff } from "@bete/shared/utils";
 import {
   type DiscordGatewayAdapterCreator,
-  EndBehaviorType,
   entersState,
   getVoiceConnection,
   joinVoiceChannel,
@@ -14,19 +12,12 @@ import {
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
 import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";
-import { PacketFilter } from "./packetFilter.js";
-import { OpusDecoder } from "./recorder/decoder.js";
-import {
-  collectUserMetadata,
-  createSegmentMetadata,
-} from "./recorder/metadata.js";
-import { SegmentManager } from "./recorder/segment.js";
 import {
   createRecordingSession,
   finalizeRecordingSession,
   type RecordingSession,
 } from "./recorder/sessionRecording.js";
-import { uploadRecordingSegment } from "./recorder/uploader.js";
+import { createSpeakingHandler } from "./recorder/speakingHandler.js";
 
 const logger = createChildLogger("recorder");
 
@@ -132,173 +123,17 @@ export async function startRecording(
 
   const receiver = connection.receiver;
 
-  // Dengarkan siapapun yang mulai bicara
-  receiver.speaking.on("start", async (userId) => {
-    if (userId === client.user?.id) return;
-
-    const userMetadata = await collectUserMetadata(client, userId, channel);
-    if (userMetadata.bot) return;
-
-    logger.debug(
-      { userId, username: userMetadata.username },
-      "Voice activity detected",
-    );
-
-    // Notify webserver
-    _eventBroadcaster?.voiceActiveUser(userId, {
-      username: userMetadata.username,
-      avatar: userMetadata.avatarUrl,
-      speaking: true,
-    });
-
-    // Skip if user already has an active stream
-    if (receiver.subscriptions.has(userId)) return;
-
-    const userDir = path.join(recordingsDir, userId);
-    await fsPromises.mkdir(userDir, { recursive: true }).catch(() => {
-      // Directory already exists, ignore
-    });
-
-    try {
-      // Subscribe to the audio stream FIRST, then immediately attach all event
-      // handlers before piping — prevents race condition where initial packets
-      // arrive before listeners are registered.
-      const audioStream = receiver.subscribe(userId, {
-        end: {
-          behavior: EndBehaviorType.AfterSilence,
-          duration: config.AUDIO_STREAM_SILENCE_DURATION_MS,
-        },
-      });
-
-      const packetFilterForOgg = new PacketFilter(
-        config.PACKET_FILTER_MIN_SIZE,
-      );
-      const segmentManager = new SegmentManager(
-        userDir,
-        config.RECORDING_SEGMENT_MS,
-      );
-
-      // --- Web broadcast: prism decoder with safe restart and cooldown ---
-      const decoder = new OpusDecoder({
-        cooldownMs: config.DECODER_COOLDOWN_MS,
-        rotateMs: config.DECODER_ROTATE_MS,
-        onData: (pcm) => {
-          // Downsample 48kHz stereo → 24kHz mono (left channel, every 2nd sample)
-          const outBuf = Buffer.alloc(pcm.length / 4);
-          for (let i = 0; i < outBuf.length / 2; i++) {
-            outBuf.writeInt16LE(pcm.readInt16LE(i * 8), i * 2);
-          }
-          _eventBroadcaster?.voicePcmData(outBuf, userId);
-        },
-      });
-
-      // Attach all audioStream event handlers BEFORE pipe() to avoid data loss
-      audioStream.on("data", (chunk: Buffer) => {
-        if (chunk.length < 8) return;
-        segmentManager.rotateIfNeeded(packetFilterForOgg);
-        decoder.rotateIfNeeded();
-        decoder.write(chunk);
-      });
-
-      audioStream.on("end", () => {
-        segmentManager.close(packetFilterForOgg);
-        decoder.destroy();
-        _eventBroadcaster?.voiceActiveUser(userId, {
-          username: userMetadata.username,
-          avatar: userMetadata.avatarUrl,
-          speaking: false,
-        });
-      });
-
-      audioStream.on("error", (error: Error) => {
-        segmentManager.close(packetFilterForOgg);
-        decoder.destroy();
-        logger.error({ userId, error: error.message }, "Audio stream error");
-      });
-
-      // Now pipe for OGG recording (safe — event handlers already attached)
-      const oggPacketStream = audioStream.pipe(packetFilterForOgg);
-
-      const activeSession = activeSessions.get(channel.guild.id);
-      let currentSegment = segmentManager.open(oggPacketStream);
-      currentSegment.out.on("finish", () => {
-        if (config.VERBOSE) {
-          logger.info({ filename: currentSegment.filename }, "Segment saved");
-        }
-        const endTime = currentSegment.endTime ?? Date.now();
-        if (activeSession) {
-          activeSession.registerSegment({
-            user: userMetadata,
-            oggPath: currentSegment.filename,
-            jsonPath: currentSegment.jsonFilename,
-            startTime: currentSegment.startTime,
-            endTime,
-          });
-        }
-        const metadata = createSegmentMetadata(
-          userMetadata,
-          currentSegment,
-          activeSession?.sessionId ?? `${userId}-0`,
-          activeSession?.sessionId ?? `${channel.guild.id}-${channel.id}-0`,
-          activeSession?.startTime ?? 0,
-          config.RECORDING_SEGMENT_MS,
-        );
-        fsPromises
-          .writeFile(
-            currentSegment.jsonFilename,
-            JSON.stringify(metadata, null, 2),
-          )
-          .then(() => {
-            if (config.VERBOSE) {
-              logger.info(
-                { jsonFile: currentSegment.jsonFilename },
-                "Metadata saved",
-              );
-            }
-          })
-          .catch((err: unknown) => {
-            logger.error(
-              { error: err instanceof Error ? err.message : String(err) },
-              "Failed to write segment metadata",
-            );
-          });
-
-        // Trigger async voice segment upload
-        const segmentId = `${userId}-${currentSegment.startTime}`;
-        uploadRecordingSegment({
-          id: segmentId,
-          oggPath: currentSegment.filename,
-          userId: userMetadata.userId,
-          username: userMetadata.username,
-          avatarUrl: userMetadata.avatarUrl,
-          guildId: channel.guild.id,
-          channelId: channel.id,
-          channelName: channel.name,
-        }).catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : String(err);
-          logger.error(
-            { segmentId, error: msg },
-            "Upload segment trigger failed",
-          );
-        });
-      });
-
-      currentSegment.out.on("error", (err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        logger.error({ userId, error: msg }, "File write error");
-      });
-
-      packetFilterForOgg.on("error", (err) => {
-        segmentManager.close(oggPacketStream);
-        logger.error({ userId, error: err.message }, "PacketFilter error");
-      });
-    } catch (e) {
-      logger.error(
-        { userId, error: e instanceof Error ? e.message : String(e) },
-        "Failed to create stream",
-      );
-    }
+  // Use the extracted speaking handler for voice activity
+  const speakingHandler = createSpeakingHandler({
+    client,
+    channel,
+    receiver,
+    eventBroadcaster: _eventBroadcaster,
+    activeSessions,
+    recordingsDir,
   });
+
+  receiver.speaking.on("start", speakingHandler);
 
   // Handle unexpected disconnection
   connection.on(VoiceConnectionStatus.Disconnected, async () => {

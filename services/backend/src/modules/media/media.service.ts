@@ -1,3 +1,10 @@
+import {
+  COMMAND_MEDIA_QUEUE,
+  COMMAND_MEDIA_SKIP,
+  COMMAND_MEDIA_STOP,
+  COMMAND_MEDIA_VOLUME,
+  MEDIA_STATUS_KEY,
+} from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import { publishCommand, readRedisStatus } from "../../shared/redis/index.js";
 
@@ -41,10 +48,11 @@ const DEFAULT_STATE: MediaState = {
 // ---------------------------------------------------------------------------
 
 /**
- * Read media status from Redis key "media:status" set by discord-gateway.
+ * Read media status from Redis key `media:status` set by discord-gateway.
  */
 export async function getStatus(): Promise<MediaState> {
-  const cached = await readRedisStatus("media:status");
+  logger.debug("getStatus called");
+  const cached = await readRedisStatus(MEDIA_STATUS_KEY);
 
   if (cached) {
     const rawPlaying = cached.playing;
@@ -71,8 +79,9 @@ export async function queue(
   source: string,
   mode: "music" | "screen" = "music",
 ): Promise<MediaState> {
+  logger.info({ source, mode }, "queue called");
   const reply = await publishCommand<MediaState>(
-    "media:queue",
+    COMMAND_MEDIA_QUEUE,
     { source, mode },
     DEFAULT_COMMAND_TIMEOUT_MS,
   );
@@ -97,8 +106,9 @@ export async function queue(
  * Skip current track via Redis command to discord-gateway.
  */
 export async function skip(): Promise<MediaState> {
+  logger.info("skip called");
   const reply = await publishCommand<MediaState>(
-    "media:skip",
+    COMMAND_MEDIA_SKIP,
     {},
     DEFAULT_COMMAND_TIMEOUT_MS,
   );
@@ -120,8 +130,9 @@ export async function skip(): Promise<MediaState> {
  * Stop playback via Redis command to discord-gateway.
  */
 export async function stop(): Promise<MediaState> {
+  logger.info("stop called");
   const reply = await publishCommand<MediaState>(
-    "media:stop",
+    COMMAND_MEDIA_STOP,
     {},
     DEFAULT_COMMAND_TIMEOUT_MS,
   );
@@ -143,8 +154,9 @@ export async function stop(): Promise<MediaState> {
  * Set volume via Redis command to discord-gateway.
  */
 export async function setVolume(volume: number): Promise<MediaState> {
+  logger.info({ volume }, "setVolume called");
   const reply = await publishCommand<MediaState>(
-    "media:volume",
+    COMMAND_MEDIA_VOLUME,
     { volume },
     DEFAULT_COMMAND_TIMEOUT_MS,
   );

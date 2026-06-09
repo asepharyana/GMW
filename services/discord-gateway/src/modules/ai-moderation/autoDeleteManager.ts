@@ -3,177 +3,19 @@ import type { Client, PermissionString } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
 import { createModerationAction } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
-
-interface ChannelWithSend {
-  send: (content: string | object, options?: unknown) => Promise<unknown>;
-}
+import { isEligibleForAutoDelete } from "./autoDeleteEligibility.js";
+import { logDeletionToChannel } from "./autoDeleteLogger.js";
+import { sendDeletionNotification } from "./autoDeleteNotify.js";
 
 const logger = createChildLogger("auto-delete-manager");
-
-const parseStringList = (value?: string | null): string[] => {
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === "string")
-      : [];
-  } catch {
-    return value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-};
-
-/** Derive severity from legacy messages that lack structured AI fields. */
-function deriveSeverity(msg: MessageRecord): string {
-  if (msg.ai_severity) return msg.ai_severity;
-  const score = msg.ai_confidence ?? msg.ai_moderation_score ?? 0;
-  if (msg.ai_status === "flagged")
-    return score >= 0.9 ? "critical" : score >= 0.7 ? "high" : "medium";
-  if (msg.ai_status === "warn") return score >= 0.6 ? "medium" : "low";
-  return "none";
-}
-
-/** Derive recommended action from legacy messages that lack structured AI fields. */
-function deriveRecommendedAction(msg: MessageRecord): string {
-  if (msg.ai_recommended_action) return msg.ai_recommended_action;
-  const severity = deriveSeverity(msg);
-  if (
-    msg.ai_status === "flagged" &&
-    (severity === "critical" || severity === "high")
-  )
-    return "delete";
-  if (msg.ai_status === "flagged") return "review";
-  if (msg.ai_status === "warn") return "warn";
-  return "none";
-}
-
-function isAutoDeleteEligible(message: MessageRecord): boolean {
-  if (message.ai_status !== "flagged" && message.ai_status !== "warn")
-    return false;
-
-  const confidence = message.ai_confidence ?? message.ai_moderation_score ?? 0;
-  if (confidence < config.AUTO_DELETE_MIN_CONFIDENCE) {
-    logger.debug(
-      {
-        messageId: message.id,
-        confidence,
-        threshold: config.AUTO_DELETE_MIN_CONFIDENCE,
-      },
-      "Auto-delete skipped: confidence below threshold",
-    );
-    return false;
-  }
-
-  const severity = deriveSeverity(message);
-  const allowedSeverities = (config.AUTO_DELETE_ALLOWED_SEVERITIES || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (allowedSeverities.length > 0 && !allowedSeverities.includes(severity)) {
-    logger.debug(
-      { messageId: message.id, severity, allowed: allowedSeverities },
-      "Auto-delete skipped: severity not in allowed list",
-    );
-    return false;
-  }
-
-  const recommendedAction = deriveRecommendedAction(message);
-  if (recommendedAction !== "delete" && recommendedAction !== "escalate") {
-    logger.debug(
-      { messageId: message.id, recommendedAction },
-      "Auto-delete skipped: recommended action is not delete/escalate",
-    );
-    return false;
-  }
-
-  const allowedCategories = parseStringList(
-    config.AUTO_DELETE_ALLOWED_CATEGORIES,
-  );
-  if (allowedCategories.length > 0) {
-    const messageCategories = parseStringList(
-      message.ai_categories ?? message.ai_moderation_flags,
-    );
-    const hasAllowedCategory = messageCategories.some((cat) =>
-      allowedCategories.includes(cat),
-    );
-    if (!hasAllowedCategory) {
-      logger.debug(
-        {
-          messageId: message.id,
-          categories: messageCategories,
-          allowed: allowedCategories,
-        },
-        "Auto-delete skipped: no allowed categories match",
-      );
-      return false;
-    }
-  }
-
-  const excludedChannels = parseStringList(
-    config.AUTO_DELETE_EXCLUDED_CHANNEL_IDS,
-  );
-  if (excludedChannels.length > 0) {
-    const channelId = message.thread_id ?? message.channel_id;
-    if (excludedChannels.includes(channelId)) {
-      logger.debug(
-        { messageId: message.id, channelId },
-        "Auto-delete skipped: channel excluded",
-      );
-      return false;
-    }
-  }
-
-  const excludedUsers = parseStringList(config.AUTO_DELETE_EXCLUDED_USER_IDS);
-  if (excludedUsers.length > 0 && excludedUsers.includes(message.user_id)) {
-    logger.debug(
-      { messageId: message.id, userId: message.user_id },
-      "Auto-delete skipped: user excluded",
-    );
-    return false;
-  }
-
-  return true;
-}
-
-async function logAutoDeleteAttempt(
-  message: MessageRecord,
-  result: AutoDeleteResult,
-): Promise<void> {
-  try {
-    await createModerationAction({
-      message_id: message.id,
-      user_id: message.user_id,
-      guild_id: message.guild_id,
-      action_type: "delete_message",
-      reason: result.reason,
-      executed_by: "auto-delete-manager",
-      status: result.deleted
-        ? "executed"
-        : result.reason === "dry_run"
-          ? "executed"
-          : "failed",
-      error: result.reason === "error" ? result.reason : null,
-      executed_at:
-        result.deleted || result.reason === "dry_run" ? Date.now() : null,
-    });
-  } catch (error) {
-    logger.warn(
-      {
-        messageId: message.id,
-        error: error instanceof Error ? error.message : String(error),
-      },
-      "Failed to persist auto-delete action log",
-    );
-  }
-}
 
 export interface AutoDeleteResult {
   deleted: boolean;
   skipped: boolean;
   reason: string;
 }
+
+// ─── Error Handling Utilities ────────────────────────────────────────
 
 function getErrorCode(error: unknown): number | string | undefined {
   if (!error || typeof error !== "object") return undefined;
@@ -216,41 +58,88 @@ function hasPermissionApi(channel: unknown): channel is {
   );
 }
 
+// ─── Database Action Log ─────────────────────────────────────────────
+
+async function logAutoDeleteAttempt(
+  message: MessageRecord,
+  result: AutoDeleteResult,
+): Promise<void> {
+  try {
+    await createModerationAction({
+      message_id: message.id,
+      user_id: message.user_id,
+      guild_id: message.guild_id,
+      action_type: "delete_message",
+      reason: result.reason,
+      executed_by: "auto-delete-manager",
+      status: result.deleted
+        ? "executed"
+        : result.reason === "dry_run"
+          ? "executed"
+          : "failed",
+      error: result.reason === "error" ? result.reason : null,
+      executed_at:
+        result.deleted || result.reason === "dry_run" ? Date.now() : null,
+    });
+  } catch (error) {
+    logger.warn(
+      {
+        messageId: message.id,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Failed to persist auto-delete action log",
+    );
+  }
+}
+
+// ─── Main Orchestrator ───────────────────────────────────────────────
+
 export async function attemptAutoDeleteFlaggedMessage(
   client: Client | undefined,
   message: MessageRecord,
 ): Promise<AutoDeleteResult> {
+  logger.debug({ messageId: message.id }, "Processing message for auto-delete");
+
+  // ── Config gate ──────────────────────────────────────────────────
+
   if (!config.AUTO_DELETE_FLAGGED_ENABLED) {
+    logger.debug({ messageId: message.id }, "Auto-delete disabled by config");
     return { deleted: false, skipped: true, reason: "disabled" };
   }
+
+  // ── Status gate ──────────────────────────────────────────────────
 
   if (message.ai_status !== "flagged" && message.ai_status !== "warn") {
     logger.debug(
       { messageId: message.id, status: message.ai_status },
       "Auto-delete skipped: message not flagged or warned",
     );
-    const result = {
+    const result: AutoDeleteResult = {
       deleted: false,
       skipped: true,
       reason: "not_flagged_or_warn",
-    } as AutoDeleteResult;
+    };
     await logAutoDeleteAttempt(message, result);
     return result;
   }
 
-  if (!isAutoDeleteEligible(message)) {
+  // ── Eligibility gate ─────────────────────────────────────────────
+
+  if (!isEligibleForAutoDelete(message)) {
     logger.debug(
       { messageId: message.id },
       "Auto-delete skipped: not eligible (confidence/severity/action/category filter)",
     );
-    const result = {
+    const result: AutoDeleteResult = {
       deleted: false,
       skipped: true,
       reason: "not_eligible",
-    } as AutoDeleteResult;
+    };
     await logAutoDeleteAttempt(message, result);
     return result;
   }
+
+  // ── Client check ─────────────────────────────────────────────────
 
   if (!client?.user?.id) {
     logger.warn(
@@ -259,6 +148,8 @@ export async function attemptAutoDeleteFlaggedMessage(
     );
     return { deleted: false, skipped: true, reason: "client_user_missing" };
   }
+
+  // ── Deletion flow ────────────────────────────────────────────────
 
   try {
     const guild = client.guilds.cache.get(message.guild_id);
@@ -305,12 +196,14 @@ export async function attemptAutoDeleteFlaggedMessage(
       };
     }
 
+    // ── Dry run mode ───────────────────────────────────────────────
+
     if (config.AUTO_DELETE_FLAGGED_DRY_RUN) {
-      const result = {
+      const result: AutoDeleteResult = {
         deleted: false,
         skipped: true,
         reason: "dry_run",
-      } as AutoDeleteResult;
+      };
       await logAutoDeleteAttempt(message, result);
       logger.info(
         { messageId: message.id, channelId },
@@ -319,75 +212,30 @@ export async function attemptAutoDeleteFlaggedMessage(
       return result;
     }
 
+    // ── Perform API deletion ───────────────────────────────────────
+
     const discordMessage = await channel.messages.fetch(message.id);
     await discordMessage.delete();
+    logger.info(
+      { messageId: message.id, channelId },
+      "Message deleted from Discord",
+    );
 
-    // ── Notify user via DM ──
-    if (config.AUTO_DELETE_NOTIFY_USER) {
-      try {
-        const targetUser = await client.users.fetch(message.user_id);
-        if (targetUser) {
-          const reason =
-            message.ai_categories ?? message.ai_moderation_flags ?? "(unknown)";
-          await targetUser.send(
-            `Pesan Anda di **${guild.name}** telah dihapus oleh sistem moderasi otomatis.\n` +
-              `Alasan: ${reason}\n` +
-              `Jika Anda merasa ini adalah kesalahan, silakan hubungi admin server.`,
-          );
-        }
-      } catch (dmErr) {
-        // DM might fail if user has DMs disabled — not critical
-        logger.debug(
-          {
-            messageId: message.id,
-            userId: message.user_id,
-            error: String(dmErr),
-          },
-          "Failed to send DM notification for auto-deleted message",
-        );
-      }
-    }
+    // ── Notify user via DM ─────────────────────────────────────────
 
-    // ── Log to moderation channel ──
-    if (config.AUTO_DELETE_LOG_CHANNEL_ID) {
-      try {
-        const logChannel = guild.channels.cache.get(
-          config.AUTO_DELETE_LOG_CHANNEL_ID,
-        );
-        if (
-          logChannel &&
-          "send" in logChannel &&
-          typeof (logChannel as ChannelWithSend).send === "function"
-        ) {
-          const severity = message.ai_severity ?? "none";
-          const categories =
-            message.ai_categories ?? message.ai_moderation_flags ?? "—";
-          const snippet = (message.edited_content ?? message.content).substring(
-            0,
-            200,
-          );
-          await (logChannel as ChannelWithSend).send(
-            `**🧹 Auto-Delete** — Pesan dari <@${message.user_id}> di <#${channelId}>\n` +
-              `**Status:** ${message.ai_status}\n` +
-              `**Severitas:** ${severity}\n` +
-              `**Kategori:** ${categories}\n` +
-              `**Isi:** ${snippet}\n` +
-              `**Waktu:** <t:${Math.floor(Date.now() / 1000)}:R>`,
-          );
-        }
-      } catch (logErr) {
-        logger.warn(
-          { messageId: message.id, error: String(logErr) },
-          "Failed to log auto-delete to moderation channel",
-        );
-      }
-    }
+    await sendDeletionNotification(client, message, guild.name);
 
-    const result = {
+    // ── Log to moderation channel ──────────────────────────────────
+
+    await logDeletionToChannel(guild, message, channelId);
+
+    // ── Success ────────────────────────────────────────────────────
+
+    const result: AutoDeleteResult = {
       deleted: true,
       skipped: false,
       reason: "deleted",
-    } as AutoDeleteResult;
+    };
     await logAutoDeleteAttempt(message, result);
     logger.info(
       { messageId: message.id, channelId },
@@ -395,12 +243,14 @@ export async function attemptAutoDeleteFlaggedMessage(
     );
     return result;
   } catch (error) {
+    // ── Already deleted ──────────────────────────────────────────────
+
     if (isAlreadyDeletedError(error)) {
-      const result = {
+      const result: AutoDeleteResult = {
         deleted: true,
         skipped: false,
         reason: "already_deleted",
-      } as AutoDeleteResult;
+      };
       await logAutoDeleteAttempt(message, result);
       logger.info(
         { messageId: message.id, code: getErrorCode(error) },
@@ -409,11 +259,13 @@ export async function attemptAutoDeleteFlaggedMessage(
       return result;
     }
 
-    const result = {
+    // ── Unexpected error ─────────────────────────────────────────────
+
+    const result: AutoDeleteResult = {
       deleted: false,
       skipped: true,
       reason: "error",
-    } as AutoDeleteResult;
+    };
     await logAutoDeleteAttempt(message, result);
     logger.error(
       {

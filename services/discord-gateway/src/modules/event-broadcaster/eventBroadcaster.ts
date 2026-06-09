@@ -1,4 +1,4 @@
-import type { CustomLogger } from "@bete/shared/logger";
+import { type CustomLogger, createChildLogger } from "@bete/shared/logger";
 import Redis from "ioredis";
 import { type DiscordGatewayEvent, EventChannels } from "./eventTypes.js";
 
@@ -37,12 +37,14 @@ export class RedisEventPublisher {
 
 export class EventBroadcaster {
   private publisher: RedisEventPublisher;
+  private logger = createChildLogger("event-broadcaster");
 
   constructor(publisher: RedisEventPublisher) {
     this.publisher = publisher;
   }
 
   async messageCreated(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing message_created");
     await this.publisher.publish(EventChannels.MESSAGE_CREATED, {
       type: "message_created",
       data,
@@ -52,6 +54,7 @@ export class EventBroadcaster {
   }
 
   async messageUpdated(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing message_updated");
     await this.publisher.publish(EventChannels.MESSAGE_UPDATED, {
       type: "message_updated",
       data,
@@ -61,6 +64,7 @@ export class EventBroadcaster {
   }
 
   async messageDeleted(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing message_deleted");
     await this.publisher.publish(EventChannels.MESSAGE_DELETED, {
       type: "message_deleted",
       data,
@@ -70,6 +74,7 @@ export class EventBroadcaster {
   }
 
   async messageAnalyzed(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing message_analyzed");
     await this.publisher.publish(EventChannels.MESSAGE_ANALYZED, {
       type: "message_analyzed",
       data,
@@ -79,6 +84,7 @@ export class EventBroadcaster {
   }
 
   async attachmentCreated(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing attachment_created");
     await this.publisher.publish(EventChannels.ATTACHMENT_CREATED, {
       type: "attachment_created",
       data,
@@ -88,6 +94,7 @@ export class EventBroadcaster {
   }
 
   async attachmentUploaded(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing attachment_uploaded");
     await this.publisher.publish(EventChannels.ATTACHMENT_UPLOADED, {
       type: "attachment_uploaded",
       data,
@@ -97,6 +104,7 @@ export class EventBroadcaster {
   }
 
   async voiceRecordingStarted(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing voice_recording_started");
     await this.publisher.publish(EventChannels.VOICE_STARTED, {
       type: "voice_recording_started",
       data,
@@ -106,6 +114,7 @@ export class EventBroadcaster {
   }
 
   async voiceRecordingStopped(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing voice_recording_stopped");
     await this.publisher.publish(EventChannels.VOICE_STOPPED, {
       type: "voice_recording_stopped",
       data,
@@ -115,6 +124,7 @@ export class EventBroadcaster {
   }
 
   async voiceRecordingUploaded(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing voice_recording_uploaded");
     await this.publisher.publish(EventChannels.VOICE_UPLOADED, {
       type: "voice_recording_uploaded",
       data,
@@ -134,6 +144,10 @@ export class EventBroadcaster {
     userId: string,
     metadata?: Record<string, unknown>,
   ): Promise<void> {
+    this.logger.debug(
+      { userId, pcmSize: pcmBuffer.length },
+      "Publishing voice_pcm_data",
+    );
     await this.publisher.publish(EventChannels.VOICE_PCM, {
       type: "voice_pcm_data",
       data: {
@@ -155,6 +169,10 @@ export class EventBroadcaster {
     userId: string,
     data: { username: string; avatar: string; speaking: boolean },
   ): Promise<void> {
+    this.logger.debug(
+      { userId, speaking: data.speaking },
+      "Publishing voice_active_user",
+    );
     await this.publisher.publish(EventChannels.VOICE_ACTIVE_USER, {
       type: "voice_active_user",
       data: {
@@ -167,6 +185,7 @@ export class EventBroadcaster {
   }
 
   async analysisQueueStatus(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing analysis_queue_status");
     await this.publisher.publish(EventChannels.ANALYSIS_QUEUE_STATUS, {
       type: "analysis_queue_status",
       data,
@@ -176,6 +195,7 @@ export class EventBroadcaster {
   }
 
   async close(): Promise<void> {
+    this.logger.debug("Closing event broadcaster");
     await this.publisher.close();
   }
 }

@@ -1,6 +1,14 @@
 import type { PageResult } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
-import { getPool } from "../../shared/database/index.js";
+import { and, desc, eq, inArray, lt, ne, type SQL } from "drizzle-orm";
+import {
+  bigint as pgBigint,
+  integer as pgInteger,
+  real as pgReal,
+  pgTable,
+  text as pgText,
+} from "drizzle-orm/pg-core";
+import { getDatabase } from "../../shared/database/index.js";
 import type {
   MessageCreate,
   MessageQuery,
@@ -8,6 +16,71 @@ import type {
 } from "./messages.schema.js";
 
 const logger = createChildLogger("messages.repository");
+
+/**
+ * Local table definitions mirroring services/discord-gateway/src/shared/database/schema.ts.
+ * These are query-building references only — schema source of truth remains in discord-gateway.
+ */
+const messages = pgTable("messages", {
+  id: pgText("id").primaryKey(),
+  guild_id: pgText("guild_id").notNull(),
+  channel_id: pgText("channel_id").notNull(),
+  thread_id: pgText("thread_id"),
+  user_id: pgText("user_id").notNull(),
+  username: pgText("username").notNull(),
+  avatar_url: pgText("avatar_url"),
+  content: pgText("content").notNull(),
+  edited_content: pgText("edited_content"),
+  created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+  edited_at: pgBigint("edited_at", { mode: "number" }),
+  deleted_at: pgBigint("deleted_at", { mode: "number" }),
+  type: pgText("type", {
+    enum: ["text", "edited", "deleted"],
+  })
+    .notNull()
+    .default("text"),
+  metadata: pgText("metadata"),
+  ai_status: pgText("ai_status", {
+    enum: ["pending", "processing", "clean", "warn", "flagged", "error"],
+  })
+    .notNull()
+    .default("pending"),
+  ai_moderation_flags: pgText("ai_moderation_flags"),
+  ai_moderation_score: pgReal("ai_moderation_score"),
+  ai_analysis: pgText("ai_analysis"),
+  ai_categories: pgText("ai_categories"),
+  ai_severity: pgText("ai_severity", {
+    enum: ["none", "low", "medium", "high", "critical"],
+  }),
+  ai_confidence: pgReal("ai_confidence"),
+  ai_recommended_action: pgText("ai_recommended_action", {
+    enum: ["none", "monitor", "warn", "review", "delete", "escalate"],
+  }),
+  ai_analyzed_at: pgBigint("ai_analyzed_at", { mode: "number" }),
+  ai_error: pgText("ai_error"),
+});
+
+const attachments = pgTable("attachments", {
+  id: pgText("id").primaryKey(),
+  message_id: pgText("message_id").notNull(),
+  guild_id: pgText("guild_id").notNull(),
+  channel_id: pgText("channel_id").notNull(),
+  thread_id: pgText("thread_id"),
+  user_id: pgText("user_id").notNull(),
+  filename: pgText("filename").notNull(),
+  size: pgInteger("size").notNull(),
+  type: pgText("type").notNull(),
+  discord_url: pgText("discord_url").notNull(),
+  uploaded_url: pgText("uploaded_url"),
+  upload_status: pgText("upload_status", {
+    enum: ["pending", "uploaded", "failed"],
+  })
+    .notNull()
+    .default("pending"),
+  upload_error: pgText("upload_error"),
+  created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+  uploaded_at: pgBigint("uploaded_at", { mode: "number" }),
+});
 
 export interface AttachmentResult {
   id: string;
@@ -60,45 +133,37 @@ export class MessagesRepository {
   async findMany(
     query: MessageQuery,
   ): Promise<PageResult<ReturnType<typeof mapMessageRow>>> {
-    const pool = getPool();
+    const db = getDatabase();
     const limit = query.limit ?? 50;
-    const clauses: string[] = [];
-    const params: (string | number)[] = [];
-    let p = 1;
+    const conditions: SQL[] = [];
 
     if (query.guildId) {
-      clauses.push(`guild_id = $${p}`);
-      params.push(query.guildId);
-      p++;
+      conditions.push(eq(messages.guild_id, query.guildId));
     }
     if (query.channelId) {
-      clauses.push(`channel_id = $${p}`);
-      params.push(query.channelId);
-      p++;
+      conditions.push(eq(messages.channel_id, query.channelId));
     }
     if (query.userId) {
-      clauses.push(`user_id = $${p}`);
-      params.push(query.userId);
-      p++;
+      conditions.push(eq(messages.user_id, query.userId));
     }
     if (query.status) {
-      clauses.push(`ai_status = $${p}`);
-      params.push(query.status);
-      p++;
+      conditions.push(eq(messages.ai_status, query.status));
     }
     if (query.cursor) {
-      clauses.push(`created_at < $${p}`);
-      params.push(Number(query.cursor));
-      p++;
+      conditions.push(lt(messages.created_at, Number(query.cursor)));
     }
 
-    const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
-    const { rows } = await pool.query(
-      `SELECT * FROM messages ${where} ORDER BY created_at DESC LIMIT $${p}`,
-      [...params, limit + 1],
-    );
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(where)
+      .orderBy(desc(messages.created_at))
+      .limit(limit + 1);
 
-    const data = rows.slice(0, limit).map(mapMessageRow);
+    const data = rows
+      .slice(0, limit)
+      .map((r) => mapMessageRow(r as Record<string, unknown>));
     const nextCursor =
       rows.length > limit ? String(rows[limit].created_at) : null;
 
@@ -107,37 +172,39 @@ export class MessagesRepository {
   }
 
   async findById(id: string) {
-    const pool = getPool();
-    const { rows } = await pool.query(`SELECT * FROM messages WHERE id = $1`, [
-      id,
-    ]);
+    const db = getDatabase();
+    const [row] = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.id, id))
+      .limit(1);
 
-    if (rows.length === 0) return null;
-    return mapMessageRow(rows[0] as Record<string, unknown>);
+    if (!row) return null;
+    return mapMessageRow(row as Record<string, unknown>);
   }
 
   async findByChannel(
     channelId: string,
     query: MessageQuery,
   ): Promise<PageResult<ReturnType<typeof mapMessageRow>>> {
-    const pool = getPool();
+    const db = getDatabase();
     const limit = query.limit ?? 50;
-    const clauses: string[] = ["channel_id = $1"];
-    const params: (string | number)[] = [channelId];
-    let p = 2;
+    const conditions: SQL[] = [eq(messages.channel_id, channelId)];
 
     if (query.cursor) {
-      clauses.push(`created_at < $${p}`);
-      params.push(Number(query.cursor));
-      p++;
+      conditions.push(lt(messages.created_at, Number(query.cursor)));
     }
 
-    const { rows } = await pool.query(
-      `SELECT * FROM messages ${clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : ""} ORDER BY created_at DESC LIMIT $${p}`,
-      [...params, limit + 1],
-    );
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(and(...conditions))
+      .orderBy(desc(messages.created_at))
+      .limit(limit + 1);
 
-    const data = rows.slice(0, limit).map(mapMessageRow);
+    const data = rows
+      .slice(0, limit)
+      .map((r) => mapMessageRow(r as Record<string, unknown>));
     const nextCursor =
       rows.length > limit ? String(rows[limit].created_at) : null;
 
@@ -145,74 +212,67 @@ export class MessagesRepository {
   }
 
   async create(data: MessageCreate) {
-    const pool = getPool();
+    const db = getDatabase();
     const id = crypto.randomUUID();
-    const { rows } = await pool.query(
-      `INSERT INTO messages (
-        id, guild_id, channel_id, thread_id, user_id, username, avatar_url,
-        content, edited_content, created_at, edited_at, deleted_at, type,
-        metadata, ai_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-      RETURNING *`,
-      [
-        id,
-        data.guildId,
-        data.channelId,
-        data.threadId ?? null,
-        data.userId,
-        data.username,
-        data.avatarUrl ?? null,
-        data.content,
-        null,
-        Date.now(),
-        null,
-        null,
-        data.type,
-        null,
-        "pending",
-      ],
-    );
 
-    return mapMessageRow(rows[0] as Record<string, unknown>);
+    const [row] = await db
+      .insert(messages)
+      .values({
+        id,
+        guild_id: data.guildId,
+        channel_id: data.channelId,
+        thread_id: data.threadId ?? null,
+        user_id: data.userId,
+        username: data.username,
+        avatar_url: data.avatarUrl ?? null,
+        content: data.content,
+        edited_content: null,
+        created_at: Date.now(),
+        edited_at: null,
+        deleted_at: null,
+        type: data.type ?? "text",
+        metadata: null,
+        ai_status: "pending",
+      })
+      .returning();
+
+    return mapMessageRow(row as Record<string, unknown>);
   }
 
   async update(id: string, data: MessageUpdate) {
-    const pool = getPool();
+    const db = getDatabase();
 
-    // Map camelCase schema keys to snake_case DB columns
-    const columnMap: Record<keyof MessageUpdate, string> = {
-      editedContent: "edited_content",
-      aiStatus: "ai_status",
-      aiAnalysis: "ai_analysis",
-      aiCategories: "ai_categories",
-      aiSeverity: "ai_severity",
-      aiConfidence: "ai_confidence",
-    };
+    const setData: Partial<typeof messages.$inferInsert> = {};
 
-    const sets: string[] = [];
-    const params: unknown[] = [];
-    let p = 1;
-
-    const keys = Object.keys(data) as (keyof MessageUpdate)[];
-    for (const key of keys) {
-      const val = data[key];
-      if (val !== undefined) {
-        sets.push(`${columnMap[key]} = $${p}`);
-        params.push(val);
-        p++;
-      }
+    if (data.editedContent !== undefined) {
+      setData.edited_content = data.editedContent;
+    }
+    if (data.aiStatus !== undefined) {
+      setData.ai_status = data.aiStatus;
+    }
+    if (data.aiAnalysis !== undefined) {
+      setData.ai_analysis = data.aiAnalysis;
+    }
+    if (data.aiCategories !== undefined) {
+      setData.ai_categories = data.aiCategories;
+    }
+    if (data.aiSeverity !== undefined) {
+      setData.ai_severity = data.aiSeverity;
+    }
+    if (data.aiConfidence !== undefined) {
+      setData.ai_confidence = data.aiConfidence;
     }
 
-    if (sets.length === 0) return this.findById(id);
+    if (Object.keys(setData).length === 0) return this.findById(id);
 
-    params.push(id);
-    const { rows } = await pool.query(
-      `UPDATE messages SET ${sets.join(", ")} WHERE id = $${p} RETURNING *`,
-      params,
-    );
+    const [row] = await db
+      .update(messages)
+      .set(setData)
+      .where(eq(messages.id, id))
+      .returning();
 
-    if (rows.length === 0) return null;
-    return mapMessageRow(rows[0] as Record<string, unknown>);
+    if (!row) return null;
+    return mapMessageRow(row as Record<string, unknown>);
   }
 
   /**
@@ -227,36 +287,27 @@ export class MessagesRepository {
     channelId?: string;
     messageIds?: string[];
   }): Promise<number> {
-    const pool = getPool();
-    const clauses: string[] = ["ai_status = 'error'"];
-    const params: (string | number)[] = [];
-    let p = 1;
+    const db = getDatabase();
+    const conditions: SQL[] = [eq(messages.ai_status, "error")];
 
     if (opts.messageIds && opts.messageIds.length > 0) {
-      const placeholders = opts.messageIds.map((_, i) => `$${p + i}`);
-      clauses.push(`id IN (${placeholders.join(", ")})`);
-      params.push(...opts.messageIds);
-      p += opts.messageIds.length;
+      conditions.push(inArray(messages.id, opts.messageIds));
     }
     if (opts.guildId) {
-      clauses.push(`guild_id = $${p}`);
-      params.push(opts.guildId);
-      p++;
+      conditions.push(eq(messages.guild_id, opts.guildId));
     }
     if (opts.channelId) {
-      clauses.push(`channel_id = $${p}`);
-      params.push(opts.channelId);
-      p++;
+      conditions.push(eq(messages.channel_id, opts.channelId));
     }
 
-    const where = clauses.join(" AND ");
-    const { rowCount } = await pool.query(
-      `UPDATE messages SET ai_status = 'pending' WHERE ${where}`,
-      params,
-    );
+    const result = await db
+      .update(messages)
+      .set({ ai_status: "pending" })
+      .where(and(...conditions));
 
-    logger.info({ count: rowCount ?? 0, ...opts }, "Batch reanalyze triggered");
-    return rowCount ?? 0;
+    const count = result.rowCount ?? 0;
+    logger.info({ count, ...opts }, "Batch reanalyze triggered");
+    return count;
   }
 
   /**
@@ -264,13 +315,11 @@ export class MessagesRepository {
    * Skips messages already in 'pending' state to avoid write amplification.
    */
   async markForReanalysis(id: string): Promise<void> {
-    const pool = getPool();
-    await pool.query(
-      `UPDATE messages SET ai_status = 'pending'
-       WHERE id = $1 AND ai_status != 'pending'`,
-      [id],
-    );
-    logger.debug({ id }, "Message marked for re-analysis");
+    const db = getDatabase();
+    await db
+      .update(messages)
+      .set({ ai_status: "pending" })
+      .where(and(eq(messages.id, id), ne(messages.ai_status, "pending")));
   }
 
   /**
@@ -281,65 +330,64 @@ export class MessagesRepository {
     channelId?: string,
     limit: number = 20,
   ): Promise<Record<string, unknown>[]> {
-    const pool = getPool();
+    const db = getDatabase();
+    const conditions: SQL[] = [
+      inArray(messages.ai_status, ["warn", "flagged"]),
+    ];
 
     if (channelId) {
-      const { rows } = await pool.query(
-        `SELECT id, guild_id, channel_id, user_id, username, avatar_url,
-                content, type, created_at, ai_status, ai_severity,
-                ai_confidence, ai_analysis
-         FROM messages
-         WHERE ai_status IN ('warn', 'flagged')
-           AND channel_id = $1
-         ORDER BY created_at DESC
-         LIMIT $2`,
-        [channelId, limit],
-      );
-      return rows;
+      conditions.push(eq(messages.channel_id, channelId));
     }
 
-    const { rows } = await pool.query(
-      `SELECT id, guild_id, channel_id, user_id, username, avatar_url,
-              content, type, created_at, ai_status, ai_severity,
-              ai_confidence, ai_analysis
-       FROM messages
-       WHERE ai_status IN ('warn', 'flagged')
-       ORDER BY created_at DESC
-       LIMIT $1`,
-      [limit],
-    );
-    return rows;
+    const rows = await db
+      .select({
+        id: messages.id,
+        guild_id: messages.guild_id,
+        channel_id: messages.channel_id,
+        user_id: messages.user_id,
+        username: messages.username,
+        avatar_url: messages.avatar_url,
+        content: messages.content,
+        type: messages.type,
+        created_at: messages.created_at,
+        ai_status: messages.ai_status,
+        ai_severity: messages.ai_severity,
+        ai_confidence: messages.ai_confidence,
+        ai_analysis: messages.ai_analysis,
+      })
+      .from(messages)
+      .where(and(...conditions))
+      .orderBy(desc(messages.created_at))
+      .limit(limit);
+
+    return rows as unknown as Record<string, unknown>[];
   }
 
   async delete(id: string): Promise<boolean> {
-    const pool = getPool();
-    const { rowCount } = await pool.query(
-      `DELETE FROM messages WHERE id = $1`,
-      [id],
-    );
-    return (rowCount ?? 0) > 0;
+    const db = getDatabase();
+    const result = await db.delete(messages).where(eq(messages.id, id));
+
+    return (result.rowCount ?? 0) > 0;
   }
 
   async getAttachmentsByChannel(
     channelId: string,
     query: MessageQuery,
   ): Promise<PageResult<AttachmentResult>> {
-    const pool = getPool();
+    const db = getDatabase();
     const limit = query.limit ?? 50;
-    const clauses: string[] = ["channel_id = $1"];
-    const params: (string | number)[] = [channelId];
-    let p = 2;
+    const conditions: SQL[] = [eq(attachments.channel_id, channelId)];
 
     if (query.cursor) {
-      clauses.push(`created_at < $${p}`);
-      params.push(Number(query.cursor));
-      p++;
+      conditions.push(lt(attachments.created_at, Number(query.cursor)));
     }
 
-    const { rows } = await pool.query(
-      `SELECT * FROM attachments ${clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : ""} ORDER BY created_at DESC LIMIT $${p}`,
-      [...params, limit + 1],
-    );
+    const rows = await db
+      .select()
+      .from(attachments)
+      .where(and(...conditions))
+      .orderBy(desc(attachments.created_at))
+      .limit(limit + 1);
 
     const data = rows.map((r) => ({
       id: String(r.id ?? ""),

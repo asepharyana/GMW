@@ -1,27 +1,15 @@
 import { randomUUID } from "node:crypto";
+import {
+  BACKEND_COMMAND,
+  BACKEND_COMMAND_REPLY_PREFIX,
+  type CommandMessage,
+  type CommandReply,
+} from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import Redis from "ioredis";
 import { config } from "../config/index.js";
 
 const logger = createChildLogger("redis.command-channel");
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface CommandMessage {
-  id: string;
-  type: string;
-  payload: Record<string, unknown>;
-  replyChannel: string;
-}
-
-export interface CommandReply<T = unknown> {
-  id: string;
-  success: boolean;
-  data?: T;
-  error?: string;
-}
 
 // ---------------------------------------------------------------------------
 // Internal Redis clients (singletons)
@@ -74,7 +62,7 @@ export async function publishCommand<T = unknown>(
   }
 
   const id = randomUUID();
-  const replyChannel = `backend:command:reply:${id}`;
+  const replyChannel = `${BACKEND_COMMAND_REPLY_PREFIX}${id}`;
   const command: CommandMessage = {
     id,
     type: commandType,
@@ -125,7 +113,7 @@ export async function publishCommand<T = unknown>(
       .subscribe(replyChannel)
       .then(() => {
         pub
-          .publish("backend:command", JSON.stringify(command))
+          .publish(BACKEND_COMMAND, JSON.stringify(command))
           .then(() => {
             logger.debug({ id, commandType }, "Command published");
           })
@@ -175,7 +163,7 @@ export async function publishCommandNoReply(
     replyChannel: "",
   };
 
-  await getPublisher().publish("backend:command", JSON.stringify(command));
+  await getPublisher().publish(BACKEND_COMMAND, JSON.stringify(command));
   logger.debug({ id, commandType }, "Command published (no reply)");
 }
 
