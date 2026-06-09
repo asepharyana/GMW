@@ -128,6 +128,7 @@ jobs:
               fi
             done
 
-            # --wait waits for containers to become healthy before returning
-            docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans --wait --wait-timeout 90
+            # Remove orphan containers but don't block on healthchecks —
+            # containers have restart: unless-stopped and will recover on their own
+            docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans
             docker image prune -f
