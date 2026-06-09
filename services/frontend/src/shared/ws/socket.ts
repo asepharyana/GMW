@@ -152,12 +152,12 @@ export function useDashboardSocket(handlers: WsHandlers) {
       onUserState: (u) => handlersRef.current.onUserState?.(u),
       onUiState: (s) => handlersRef.current.onUiState?.(s),
       onMediaState: (s) => handlersRef.current.onMediaState?.(s),
-      onVoiceRecordingUploaded: (d) =>
-        handlersRef.current.onVoiceRecordingUploaded?.(d),
       onVoiceRecordingStarted: (d) =>
         handlersRef.current.onVoiceRecordingStarted?.(d),
       onVoiceRecordingStopped: (d) =>
         handlersRef.current.onVoiceRecordingStopped?.(d),
+      onVoiceRecordingUploaded: (d) =>
+        handlersRef.current.onVoiceRecordingUploaded?.(d),
       onVoicePcmData: (d) => handlersRef.current.onVoicePcmData?.(d),
       onVoiceActiveUser: (d) => handlersRef.current.onVoiceActiveUser?.(d),
     };
