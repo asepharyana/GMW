@@ -6,6 +6,11 @@ on:
       - master
   workflow_dispatch:
 
+# Prevent concurrent deployments from racing
+concurrency:
+  group: deploy-vps-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
   packages: write
@@ -20,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         service: [frontend, backend, discord-gateway, proxy]
     steps:
@@ -47,8 +53,8 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.OWNER }}/bete-${{ matrix.service }}:latest
             ${{ env.REGISTRY }}/${{ env.OWNER }}/bete-${{ matrix.service }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=bete-${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=bete-${{ matrix.service }}
           build-args: |
             VITE_BE_API_URL=https://imphnen.asepharyana.my.id
             VITE_BE_WS_URL=wss://imphnen.asepharyana.my.id
@@ -96,13 +102,32 @@ jobs:
             mkdir -p infra/docker/recordings
             # Set permissions for recordings directory (writable by container app user UID 100)
             chmod -R 777 infra/docker/recordings
-            printf '%s\n' "$ENV_FILE" > infra/docker/.env
+
+            # Write env file — strip \r to avoid configuration issues
+            printf '%s\n' "$ENV_FILE" | tr -d '\r' > infra/docker/.env
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 
             # Force stop any stale containers from previous deployments
             docker rm -f imphenbot-proxy imphenbot-backend imphenbot-frontend imphenbot-discord-gateway 2>/dev/null || true
 
-            docker compose -f infra/docker/docker-compose.yml pull
-            docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans
+            # Retry docker pull up to 3 times on transient network errors
+            RETRIES=3
+            for i in $(seq 1 $RETRIES); do
+              echo "docker compose pull (attempt $i/$RETRIES)"
+              if docker compose -f infra/docker/docker-compose.yml pull; then
+                echo "Pull succeeded"
+                break
+              else
+                echo "Pull failed (attempt $i/$RETRIES)"
+                if [ "$i" -eq "$RETRIES" ]; then
+                  echo "All pull attempts failed" >&2
+                  exit 1
+                fi
+                sleep 5
+              fi
+            done
+
+            # --wait waits for containers to become healthy before returning
+            docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans --wait --wait-timeout 90
             docker image prune -f
