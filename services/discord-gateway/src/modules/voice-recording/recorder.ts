@@ -14,7 +14,6 @@ import { config } from "../../shared/config/config.js";
 import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";
 import {
   createRecordingSession,
-  finalizeRecordingSession,
   type RecordingSession,
 } from "./recorder/sessionRecording.js";
 import { createSpeakingHandler } from "./recorder/speakingHandler.js";
@@ -54,9 +53,12 @@ function finalizeActiveRecordingSession(guildId: string): void {
   const session = activeSessions.get(guildId);
   if (!session) return;
   activeSessions.delete(guildId);
-  finalizeRecordingSession(session).catch((error: unknown) => {
-    logger.error({ error }, "Failed to finalize recording session");
-  });
+  // Per-segment upload is the real flow; session metadata is written alongside
+  // each segment by finalizeSegment in segment.ts
+  logger.debug(
+    { sessionId: session.sessionId, guildId },
+    "Active recording session finalized",
+  );
 }
 
 /**
@@ -112,7 +114,6 @@ export async function startRecording(
       channelId: channel.id,
       channelName: channel.name,
       startTime: sessionStartTime,
-      recordingsDir,
     });
     activeSessions.set(channel.guild.id, session);
   } catch (err) {

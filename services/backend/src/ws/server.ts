@@ -191,34 +191,10 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     }
   }
 
-  setBroadcastFunctions({
-    messageCreated: (data: unknown) =>
-      broadcast({ type: "message_created", data }),
-    messageUpdated: (data: unknown) =>
-      broadcast({ type: "message_updated", data }),
-    messageDeleted: (data: unknown) =>
-      broadcast({ type: "message_deleted", data }),
-    messageAnalyzed: (data: unknown) =>
-      broadcast({ type: "message_analyzed", data }),
-    attachmentCreated: (data: unknown) =>
-      broadcast({ type: "attachment_created", data }),
-    attachmentUploaded: (data: unknown) =>
-      broadcast({ type: "attachment_uploaded", data }),
-    voiceRecordingStarted: (data: unknown) =>
-      broadcast({ type: "voice_recording_started", data }),
-    voiceRecordingStopped: (data: unknown) =>
-      broadcast({ type: "voice_recording_stopped", data }),
-    voiceRecordingUploaded: (data: unknown) =>
-      broadcast({ type: "voice_recording_uploaded", data }),
-    voicePcmData: (data: unknown) =>
-      broadcast({ type: "voice_pcm_data", data }),
-    voiceActiveUser: (data: unknown) =>
-      broadcast({ type: "voice_active_user", data }),
-    analysisQueueStatus: (data: unknown) =>
-      broadcast({ type: "analysis_queue_status", data }),
-    raw: (type: string, data: unknown) => broadcast({ type, data }),
-    binary: broadcastBinary,
-  });
+  setBroadcastFunctions(
+    (type: string, data: unknown) => broadcast({ type, data }),
+    broadcastBinary,
+  );
 
   // Cleanup on close
   wss.on("close", () => {

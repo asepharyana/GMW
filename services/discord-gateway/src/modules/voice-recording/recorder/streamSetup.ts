@@ -54,10 +54,21 @@ export function setupUserStream(input: StreamSetupInput): StreamSetupResult {
     cooldownMs: config.DECODER_COOLDOWN_MS,
     rotateMs: config.DECODER_ROTATE_MS,
     onData: (pcm: Buffer) => {
-      // Downsample 48kHz stereo -> 24kHz mono (left channel, every 2nd sample)
-      const outBuf = Buffer.alloc(pcm.length / 4);
-      for (let i = 0; i < outBuf.length / 2; i++) {
-        outBuf.writeInt16LE(pcm.readInt16LE(i * 8), i * 2);
+      // Downsample 48kHz stereo -> 24kHz mono (left channel, every 2nd frame)
+      // Use typed array views for efficient access instead of read/writeInt16LE
+      const inputView = new Int16Array(
+        pcm.buffer,
+        pcm.byteOffset,
+        pcm.byteLength / 2,
+      );
+      const outBuf = Buffer.alloc(inputView.length / 2); // 48k stereo -> 24k mono = 1/4 size
+      const outputView = new Int16Array(
+        outBuf.buffer,
+        outBuf.byteOffset,
+        outBuf.byteLength / 2,
+      );
+      for (let i = 0; i < outputView.length; i++) {
+        outputView[i] = inputView[i * 4]; // left channel, every 2nd stereo frame
       }
       onPcmData(outBuf);
     },

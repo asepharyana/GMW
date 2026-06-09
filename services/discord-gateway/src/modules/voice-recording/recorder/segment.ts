@@ -1,10 +1,86 @@
-import fs from "node:fs";
+import fs, { promises as fsPromises } from "node:fs";
 import path from "node:path";
 import { createChildLogger } from "@bete/shared/logger";
+import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
 import * as prism from "prism-media";
-import type { SegmentState } from "../../message-capture/types.js";
+import { config } from "../../../shared/config/config.js";
+import type {
+  SegmentMetadata,
+  SegmentState,
+  UserMetadata,
+} from "../../message-capture/types.js";
+import type { RecordingSession } from "./sessionRecording.js";
+import { uploadRecordingSegment } from "./uploader.js";
 
-const logger = createChildLogger("segment");
+// ---------------------------------------------------------------------------
+// Logger
+// ---------------------------------------------------------------------------
+
+const logger = createChildLogger("voice-segment");
+
+// ---------------------------------------------------------------------------
+// collectUserMetadata (was metadata.ts)
+// ---------------------------------------------------------------------------
+
+export async function collectUserMetadata(
+  client: Client,
+  userId: string,
+  channel: VoiceChannel,
+): Promise<UserMetadata> {
+  logger.debug({ userId }, "Collecting user metadata");
+
+  const user =
+    client.users.cache.get(userId) ||
+    (await client.users.fetch(userId).catch(() => {
+      logger.warn({ userId }, "Failed to fetch user");
+      return null;
+    }));
+  const member =
+    channel.guild.members.cache.get(userId) ||
+    (await channel.guild.members.fetch(userId).catch(() => {
+      logger.warn({ userId }, "Failed to fetch guild member");
+      return null;
+    }));
+  const username = user?.username ?? "Unknown User";
+  const roles =
+    member?.roles.cache
+      .filter((role) => role.id !== channel.guild.id)
+      .sort((a, b) => b.position - a.position)
+      .map((role) => ({
+        id: role.id,
+        name: role.name,
+        position: role.position,
+      })) ?? [];
+
+  return {
+    userId,
+    username,
+    tag: user?.tag ?? "Unknown#0000",
+    displayName: member?.displayName ?? username,
+    avatarUrl:
+      user?.displayAvatarURL({
+        format: "png",
+        size: config.AVATAR_SIZE as
+          | 16
+          | 32
+          | 64
+          | 128
+          | 256
+          | 512
+          | 1024
+          | 2048
+          | 4096,
+      }) ?? "https://cdn.discordapp.com/embed/avatars/0.png",
+    bot: user?.bot ?? false,
+    roles,
+    highestRole: roles[0] ?? null,
+    joinedTimestamp: member?.joinedTimestamp ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Path helpers (was segment.ts)
+// ---------------------------------------------------------------------------
 
 export function buildSegmentPaths(
   userDir: string,
@@ -23,6 +99,10 @@ export function shouldRotateSegment(
 ): boolean {
   return recordingSegmentMs > 0 && now - startTime >= recordingSegmentMs;
 }
+
+// ---------------------------------------------------------------------------
+// SegmentManager (was segment.ts)
+// ---------------------------------------------------------------------------
 
 export class SegmentManager {
   private currentSegment: SegmentState | null = null;
@@ -120,4 +200,129 @@ export class SegmentManager {
   getCurrent(): SegmentState | null {
     return this.currentSegment;
   }
+}
+
+// ---------------------------------------------------------------------------
+// createSegmentMetadata (was metadata.ts)
+// ---------------------------------------------------------------------------
+
+export function createSegmentMetadata(
+  user: UserMetadata,
+  segment: SegmentState,
+  sessionId: string,
+  recordingSessionId: string,
+  sessionStartTime: number,
+  recordingSegmentMs: number,
+): SegmentMetadata {
+  const endTime = segment.endTime ?? Date.now();
+  return {
+    ...user,
+    sessionId,
+    recordingSessionId,
+    sessionStartTime,
+    segmentIndex: segment.index,
+    segmentMs: recordingSegmentMs,
+    startTime: segment.startTime,
+    endTime,
+    durationMs: endTime - segment.startTime,
+    filename: path.basename(segment.filename),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SegmentFinalizerInput (was segmentFinalizer.ts)
+// ---------------------------------------------------------------------------
+
+export interface SegmentFinalizerInput {
+  currentSegment: SegmentState;
+  userMetadata: UserMetadata;
+  activeSession: RecordingSession | undefined;
+  guildId: string;
+  channelId: string;
+  channelName: string;
+}
+
+// ---------------------------------------------------------------------------
+// finalizeSegment (was segmentFinalizer.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Handles the completion of an OGG segment:
+ * - Logs the saved segment (if VERBOSE)
+ * - Registers the segment with the active recording session
+ * - Writes the metadata JSON file alongside the OGG file
+ * - Triggers async upload of the segment to external storage
+ *
+ * This function is fire-and-forget for the metadata write and upload;
+ * errors are caught and logged without throwing.
+ */
+export function finalizeSegment(input: SegmentFinalizerInput): void {
+  const {
+    currentSegment,
+    userMetadata,
+    activeSession,
+    guildId,
+    channelId,
+    channelName,
+  } = input;
+
+  const endTime = currentSegment.endTime ?? Date.now();
+
+  if (config.VERBOSE) {
+    logger.info({ filename: currentSegment.filename }, "Segment saved");
+  }
+
+  // Register segment with the active recording session
+  if (activeSession) {
+    activeSession.registerSegment({
+      user: userMetadata,
+      oggPath: currentSegment.filename,
+      jsonPath: currentSegment.jsonFilename,
+      startTime: currentSegment.startTime,
+      endTime,
+    });
+  }
+
+  // Write metadata JSON (async, fire-and-forget)
+  const metadata = createSegmentMetadata(
+    userMetadata,
+    currentSegment,
+    activeSession?.sessionId ?? `${userMetadata.userId}-0`,
+    activeSession?.sessionId ?? `${guildId}-${channelId}-0`,
+    activeSession?.startTime ?? 0,
+    config.RECORDING_SEGMENT_MS,
+  );
+
+  fsPromises
+    .writeFile(currentSegment.jsonFilename, JSON.stringify(metadata, null, 2))
+    .then(() => {
+      if (config.VERBOSE) {
+        logger.info(
+          { jsonFile: currentSegment.jsonFilename },
+          "Metadata saved",
+        );
+      }
+    })
+    .catch((err: unknown) => {
+      logger.error(
+        { error: err instanceof Error ? err.message : String(err) },
+        "Failed to write segment metadata",
+      );
+    });
+
+  // Trigger async voice segment upload (fire-and-forget)
+  const segmentId = `${userMetadata.userId}-${currentSegment.startTime}`;
+  uploadRecordingSegment({
+    id: segmentId,
+    oggPath: currentSegment.filename,
+    userId: userMetadata.userId,
+    username: userMetadata.username,
+    avatarUrl: userMetadata.avatarUrl,
+    guildId,
+    channelId,
+    channelName,
+  }).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error({ segmentId, error: msg }, "Upload segment trigger failed");
+  });
 }

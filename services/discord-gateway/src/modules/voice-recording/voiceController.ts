@@ -15,22 +15,6 @@ export interface VoiceStatus {
   activeChannelName: string | null;
 }
 
-export interface GuildSummary {
-  id: string;
-  name: string;
-}
-
-export interface VoiceChannelSummary {
-  id: string;
-  name: string;
-}
-
-export interface ChannelSummary {
-  id: string;
-  name: string;
-  type: string;
-}
-
 export class VoiceController {
   private activeGuildId: string | null = null;
   private activeChannelId: string | null = null;
@@ -52,39 +36,6 @@ export class VoiceController {
       activeChannelId: this.activeChannelId,
       activeChannelName: this.activeChannelName,
     };
-  }
-
-  listGuilds(): GuildSummary[] {
-    logger.info("listGuilds called");
-    return this.client.guilds.cache
-      .map((guild) => ({ id: guild.id, name: guild.name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  async listVoiceChannels(guildId: string): Promise<VoiceChannelSummary[]> {
-    logger.info({ guildId }, "listVoiceChannels called");
-    const guild = this.getGuild(guildId);
-    await guild.channels.fetch().catch(() => null);
-
-    return guild.channels.cache
-      .filter((channel) => channel.type === "GUILD_VOICE")
-      .map((channel) => ({ id: channel.id, name: channel.name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  async listWatchableChannels(guildId: string): Promise<ChannelSummary[]> {
-    logger.info({ guildId }, "listWatchableChannels called");
-    const guild = this.getGuild(guildId);
-    await guild.channels.fetch().catch(() => null);
-
-    return guild.channels.cache
-      .filter((channel) => channel.type === "GUILD_TEXT")
-      .map((channel) => ({
-        id: channel.id,
-        name: channel.name,
-        type: channel.type,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async connect(guildId: string, channelId: string): Promise<VoiceStatus> {

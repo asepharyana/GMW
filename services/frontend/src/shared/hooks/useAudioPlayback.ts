@@ -6,11 +6,18 @@ const logger = createLogger("use-audio-playback");
 
 const SAMPLE_RATE = 24000;
 const CHANNELS = 1;
+const LEVEL_COUNT = 32;
+
+// Pre-computed level distribution shape — computed once at module load, not per render
+const LEVEL_SHAPE = Array.from(
+  { length: LEVEL_COUNT },
+  (_, i) => 0.3 + (Math.sin(i * 0.6) * 0.35 + 0.65) * 0.7,
+);
 
 export function useAudioPlayback() {
   const [isListening, setIsListening] = useState(false);
   const [levels, setLevels] = useState<number[]>(
-    Array.from({ length: 32 }, () => 0.04),
+    Array.from({ length: LEVEL_COUNT }, () => 0.04),
   );
   const audioContextRef = useRef<AudioContext | null>(null);
   const userTimelinesRef = useRef(new Map<string, number>());
@@ -19,35 +26,36 @@ export function useAudioPlayback() {
     (data: { userId: string; pcm: string }) => {
       // Decode base64 PCM data
       try {
-        const binaryString = atob(data.pcm);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        const int16Array = new Int16Array(bytes.buffer);
+        // 5a: Replace manual charCodeAt loop with Uint8Array.from
+        const bytes = Uint8Array.from(atob(data.pcm), (c) => c.charCodeAt(0));
+        if (bytes.length === 0) return;
+        const int16Array = new Int16Array(
+          bytes.buffer,
+          bytes.byteOffset,
+          bytes.byteLength / 2,
+        );
 
-        // Calculate audio levels for visualization
-        let sum = 0;
-        for (const sample of int16Array) sum += Math.abs(sample / 32768);
-        const average = int16Array.length ? sum / int16Array.length : 0;
+        // 5b/5d: Real RMS calculation + Float32Array conversion in single pass
+        let sumSquares = 0;
+        const float32Array = new Float32Array(int16Array.length);
+        for (let i = 0; i < int16Array.length; i++) {
+          const normalized = int16Array[i] / 32768;
+          float32Array[i] = normalized;
+          sumSquares += normalized * normalized;
+        }
+        const rms = Math.sqrt(sumSquares / int16Array.length);
+        // Scale RMS to a lively visualization range, clamp to [0.04, 1.0]
+        const dbLevel = Math.min(1, Math.max(0.04, rms * 8));
+
+        // 5c: Use pre-computed LEVEL_SHAPE (no Date.now() per PCM frame)
         setLevels((prev) =>
           prev.map((_, index) =>
-            Math.max(
-              0.04,
-              average *
-                (0.5 + Math.sin(index * 0.6 + Date.now() / 140) * 0.35 + 0.65) *
-                5,
-            ),
+            Math.max(0.04, dbLevel * LEVEL_SHAPE[index] * 5),
           ),
         );
 
         const audioContext = audioContextRef.current;
         if (!isListening || !audioContext) return;
-
-        // Convert to float32 for Web Audio API
-        const float32Array = new Float32Array(int16Array.length);
-        for (let i = 0; i < int16Array.length; i++)
-          float32Array[i] = int16Array[i] / 32768;
 
         const audioBuffer = audioContext.createBuffer(
           CHANNELS,

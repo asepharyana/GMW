@@ -15,7 +15,7 @@ import {
 import { createChildLogger } from "@bete/shared/logger";
 import Redis from "ioredis";
 import { config } from "../shared/config/index.js";
-import { broadcastRaw } from "./broadcast.js";
+import { broadcastEvent } from "./broadcast.js";
 
 const logger = createChildLogger("ws.redis-bridge");
 
@@ -77,7 +77,7 @@ function handleSubscriptionMessage(channel: string, message: string): void {
     { channel, eventType: mapping.eventType },
     "Broadcasting Redis event",
   );
-  broadcastRaw(mapping.eventType, data);
+  broadcastEvent(mapping.eventType, data);
 }
 
 export async function startRedisBridge(): Promise<void> {

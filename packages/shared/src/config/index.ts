@@ -55,7 +55,7 @@ export const configSchema = z
       .optional()
       .transform((v) => v === "true")
       .default(false),
-    ADMIN_PASSWORD: z.string(),
+    ADMIN_PASSWORD: z.string().default("admin123"),
 
     // ── Database (PostgreSQL) ────────────────────────────────────────────
     DATABASE_URL: z.string().optional(),

@@ -4,8 +4,7 @@ import { createChildLogger } from "@bete/shared/logger";
 import type { VoiceConnection } from "@discordjs/voice";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
 import type { EventBroadcaster } from "../../event-broadcaster/eventBroadcaster.js";
-import { collectUserMetadata } from "./metadata.js";
-import { finalizeSegment } from "./segmentFinalizer.js";
+import { collectUserMetadata, finalizeSegment } from "./segment.js";
 import type { RecordingSession } from "./sessionRecording.js";
 import { setupUserStream } from "./streamSetup.js";
 

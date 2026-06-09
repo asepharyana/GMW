@@ -4,6 +4,7 @@ import {
   COMMAND_VOICE_CHANNELS,
   COMMAND_VOICE_CONNECT,
   COMMAND_VOICE_DISCONNECT,
+  CommandReply,
   VOICE_STATUS_KEY,
 } from "@bete/shared";
 import {
@@ -41,6 +42,18 @@ export const DEFAULT_VOICE_STATUS: VoiceStatus = {
   activeChannelName: null,
 };
 
+/**
+ * Wraps tryCommandThenFallback with a cleaner signature for use within this module.
+ * Attempts a Redis command first; on failure, falls back to the provided function.
+ */
+async function withFallback<T>(
+  commandFn: () => Promise<CommandReply<T> | null>,
+  fallbackFn: () => Promise<T>,
+  name: string,
+): Promise<T> {
+  return tryCommandThenFallback(commandFn, fallbackFn, name);
+}
+
 function readVoiceStatusFallback(): Promise<VoiceStatus> {
   return readRedisStatus(VOICE_STATUS_KEY).then(
     (cached) => (cached as unknown as VoiceStatus) ?? DEFAULT_VOICE_STATUS,
@@ -53,7 +66,7 @@ function readVoiceStatusFallback(): Promise<VoiceStatus> {
  */
 export async function getGuilds(): Promise<Guild[]> {
   logger.info("getGuilds called");
-  return tryCommandThenFallback(
+  return withFallback(
     () => publishCommand<Guild[]>(COMMAND_GUILDS_LIST, {}),
     async () => {
       const pool = getPool();
@@ -76,7 +89,7 @@ export async function getGuilds(): Promise<Guild[]> {
  */
 export async function getTextChannels(guildId: string): Promise<Channel[]> {
   logger.info({ guildId }, "getTextChannels called");
-  return tryCommandThenFallback(
+  return withFallback(
     () => publishCommand<Channel[]>(COMMAND_GUILDS_TEXT_CHANNELS, { guildId }),
     async () => {
       const pool = getPool();
@@ -122,7 +135,7 @@ export async function connectVoice(
   channelId: string,
 ): Promise<VoiceStatus> {
   logger.info({ guildId, channelId }, "connectVoice called");
-  return tryCommandThenFallback(
+  return withFallback(
     () =>
       publishCommand<VoiceStatus>(COMMAND_VOICE_CONNECT, {
         guildId,
@@ -138,7 +151,7 @@ export async function connectVoice(
  */
 export async function disconnectVoice(): Promise<VoiceStatus> {
   logger.info("disconnectVoice called");
-  return tryCommandThenFallback(
+  return withFallback(
     () => publishCommand<VoiceStatus>(COMMAND_VOICE_DISCONNECT, {}),
     () => readVoiceStatusFallback(),
     "disconnectVoice",

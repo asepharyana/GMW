@@ -1,13 +1,13 @@
 // ─── Audio transmit hook — captures mic, encodes to PCM, sends via WebSocket ──
 import { useCallback, useRef, useState } from "react";
-import { getAPIURL } from "../api/client";
-import { createChildLogger } from "../logger";
+import { getAPIURL } from "../api/client.js";
+import { createChildLogger } from "../logger.js";
 
 const SAMPLE_RATE = 24000;
 const logger = createChildLogger("useAudioTransmit");
 
 async function sendTransmitCommand(command: string): Promise<void> {
-  // Send via HTTP API
+  // Send via HTTP API (kept as exported function for backward compatibility)
   const resp = await fetch(`${getAPIURL()}/api/voice/command`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -24,6 +24,22 @@ async function sendTransmitCommand(command: string): Promise<void> {
   }
 }
 
+function sendWsCommand(
+  socketRef: { readonly current: WebSocket | null },
+  command: string,
+): boolean {
+  if (socketRef.current?.readyState === WebSocket.OPEN) {
+    socketRef.current.send(
+      JSON.stringify({
+        type: "voice_command",
+        command,
+      }),
+    );
+    return true;
+  }
+  return false;
+}
+
 export function useAudioTransmit(socketRef: {
   readonly current: WebSocket | null;
 }) {
@@ -33,7 +49,10 @@ export function useAudioTransmit(socketRef: {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
 
   const stop = useCallback(() => {
-    sendTransmitCommand("voice:transmit:stop").catch(() => {});
+    // 6c: Prefer WebSocket round-trip over HTTP for lower latency
+    if (!sendWsCommand(socketRef, "voice:transmit:stop")) {
+      sendTransmitCommand("voice:transmit:stop").catch(() => {});
+    }
 
     setIsStreaming(false);
     if (processorRef.current) {
@@ -48,10 +67,13 @@ export function useAudioTransmit(socketRef: {
       for (const track of streamRef.current.getTracks()) track.stop();
       streamRef.current = null;
     }
-  }, []);
+  }, [socketRef]);
 
   const start = useCallback(async () => {
-    await sendTransmitCommand("voice:transmit:start");
+    // 6c: Prefer WebSocket round-trip over HTTP for lower latency
+    if (!sendWsCommand(socketRef, "voice:transmit:start")) {
+      await sendTransmitCommand("voice:transmit:start");
+    }
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     streamRef.current = stream;
@@ -75,13 +97,10 @@ export function useAudioTransmit(socketRef: {
       for (let i = 0; i < inputData.length; i++)
         pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
 
-      // Base64 encode
+      // 6b: Replace string-concatenation loop with single call
+      // 1024 samples → 2048 bytes — well within call-stack limits
       const bytes = new Uint8Array(pcmData.buffer);
-      let binary = "";
-      for (let i = 0; i < bytes.length; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      const base64 = btoa(binary);
+      const base64 = btoa(String.fromCharCode(...bytes));
 
       socketRef.current.send(
         JSON.stringify({

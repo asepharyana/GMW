@@ -111,6 +111,67 @@ export class VoiceHandler {
     }
   }
 
+  async handleGuildsList(cmd: CommandMessage): Promise<CommandReply<unknown>> {
+    if (!this.client) {
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "Gateway not initialized",
+      };
+    }
+
+    try {
+      const guilds = this.client.guilds.cache
+        .map((guild) => ({ id: guild.id, name: guild.name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      return { id: cmd.id, success: true, data: guilds };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { id: cmd.id, success: false, data: null, error: msg };
+    }
+  }
+
+  async handleWatchableChannels(
+    cmd: CommandMessage,
+  ): Promise<CommandReply<unknown>> {
+    if (!this.client) {
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "Gateway not initialized",
+      };
+    }
+
+    const guildId = String(cmd.payload.guildId ?? "");
+    if (!guildId) {
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "guildId is required",
+      };
+    }
+
+    try {
+      const guild = await this.client.guilds.fetch(guildId);
+      const channels = await guild.channels.fetch();
+      const textChannels = channels
+        .filter((c) => c?.type === "GUILD_TEXT")
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          type: c.type,
+        }));
+
+      return { id: cmd.id, success: true, data: textChannels };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { id: cmd.id, success: false, data: null, error: msg };
+    }
+  }
+
   async handleVoiceTransmitStart(
     cmd: CommandMessage,
   ): Promise<CommandReply<unknown>> {
