@@ -1,6 +1,9 @@
 // ─── Shared HTTP client — all API endpoints in one file ──────────────────────
 
 import type { MessageRecord, PageResult } from "@bete/shared";
+import { createLogger } from "../lib/logger.js";
+
+const logger = createLogger("api");
 
 const BE_API_URL = import.meta.env.VITE_BE_API_URL || "http://localhost:3001";
 const BE_WS_URL = import.meta.env.VITE_BE_WS_URL || "ws://localhost:3001";
@@ -20,6 +23,8 @@ class ApiError extends Error {
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const password = localStorage.getItem("admin-password");
   const url = path.startsWith("http") ? path : `${BE_API_URL}${path}`;
+  logger.debug("Request", { method: init?.method ?? "GET", url });
+
   const res = await fetch(url, {
     headers: {
       "Content-Type": "application/json",
@@ -38,10 +43,13 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // ignore parse errors
     }
+    logger.error("Request failed", { url, status: res.status, code, message });
     throw new ApiError(code, message, res.status);
   }
 
-  return res.json() as Promise<T>;
+  const result = (await res.json()) as T;
+  logger.debug("Response", { url, status: res.status });
+  return result;
 }
 
 export function getWebSocketURL(): string {

@@ -5,6 +5,9 @@ import {
   reanalyzeErrorBatch,
   reanalyzeMessage,
 } from "../../../shared/api/client";
+import { createLogger } from "../../../shared/lib/logger.js";
+
+const logger = createLogger("use-messages");
 
 const PAGE_SIZE = 100;
 
@@ -54,6 +57,7 @@ export function useMessages() {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
+      logger.error("Failed to fetch messages", { guildId, error: message });
       throw err;
     } finally {
       setLoading(false);
@@ -72,6 +76,9 @@ export function useMessages() {
       setMessages((prev) => [...prev, ...result.data]);
       setCursor(result.nextCursor);
       setHasMore(!!result.nextCursor);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error("Failed to load more messages", { error: message });
     } finally {
       setLoadingMore(false);
     }
@@ -106,6 +113,8 @@ export function useMessages() {
           prev.map((message) => (message.id === id ? snapshot : message)),
         );
       }
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error("Failed to reanalyze message", { id, error: message });
       throw err;
     }
   }, []);
@@ -124,10 +133,17 @@ export function useMessages() {
           : message,
       ),
     );
-    const { count } = await reanalyzeErrorBatch({
-      guildId: currentGuild.current ?? undefined,
-    });
-    return count;
+    try {
+      const { count } = await reanalyzeErrorBatch({
+        guildId: currentGuild.current ?? undefined,
+      });
+      logger.info("Reanalyze all errors complete", { count });
+      return count;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error("Failed to reanalyze error batch", { error: message });
+      throw err;
+    }
   }, []);
 
   return {

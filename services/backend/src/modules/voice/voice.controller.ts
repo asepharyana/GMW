@@ -1,4 +1,6 @@
+import { createChildLogger } from "@bete/shared/logger";
 import type { Request, Response } from "express";
+import { asyncHandler } from "../../shared/middlewares/index.js";
 import { publishCommandNoReply } from "../../shared/redis/index.js";
 import {
   connectVoice,
@@ -7,10 +9,14 @@ import {
   getVoiceStatus,
 } from "./voice.service.js";
 
-export async function handleGetVoiceStatus(_req: Request, res: Response) {
-  const status = await getVoiceStatus();
-  res.json(status);
-}
+const logger = createChildLogger("voice.controller");
+
+export const handleGetVoiceStatus = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const status = await getVoiceStatus();
+    res.json(status);
+  },
+);
 
 /** Safely extract a string value that may be a single string or string array. */
 function asString(val: unknown): string {
@@ -18,47 +24,52 @@ function asString(val: unknown): string {
   return String(val ?? "");
 }
 
-export async function handleConnectVoice(req: Request, res: Response) {
-  const guildId = asString(req.body.guildId);
-  const channelId = asString(req.body.channelId);
-  if (!guildId || !channelId) {
-    return res.status(400).json({
-      error: "VALIDATION_ERROR",
-      message: "guildId and channelId are required",
-    });
-  }
-  const status = await connectVoice(guildId, channelId);
-  res.json(status);
-}
+export const handleConnectVoice = asyncHandler(
+  async (req: Request, res: Response) => {
+    const guildId = asString(req.body.guildId);
+    const channelId = asString(req.body.channelId);
+    if (!guildId || !channelId) {
+      return res.status(400).json({
+        error: "VALIDATION_ERROR",
+        message: "guildId and channelId are required",
+      });
+    }
+    logger.debug({ guildId, channelId }, "Connecting to voice channel");
+    const status = await connectVoice(guildId, channelId);
+    res.json(status);
+  },
+);
 
-export async function handleDisconnectVoice(_req: Request, res: Response) {
-  const status = await disconnectVoice();
-  res.json(status);
-}
+export const handleDisconnectVoice = asyncHandler(
+  async (_req: Request, res: Response) => {
+    logger.debug("Disconnecting from voice");
+    const status = await disconnectVoice();
+    res.json(status);
+  },
+);
 
-export async function handleGetVoiceChannels(req: Request, res: Response) {
-  const guildId = asString(req.params.guildId);
-  const channels = await getVoiceChannels(guildId);
-  res.json(channels);
-}
+export const handleGetVoiceChannels = asyncHandler(
+  async (req: Request, res: Response) => {
+    const guildId = asString(req.params.guildId);
+    logger.debug({ guildId }, "Fetching voice channels");
+    const channels = await getVoiceChannels(guildId);
+    res.json(channels);
+  },
+);
 
-export async function handleVoiceCommand(req: Request, res: Response) {
-  const command = asString(req.body.command);
+export const handleVoiceCommand = asyncHandler(
+  async (req: Request, res: Response) => {
+    const command = asString(req.body.command);
 
-  if (!command) {
-    return res.status(400).json({
-      error: "VALIDATION_ERROR",
-      message: "command is required",
-    });
-  }
+    if (!command) {
+      return res.status(400).json({
+        error: "VALIDATION_ERROR",
+        message: "command is required",
+      });
+    }
 
-  try {
+    logger.debug({ command }, "Publishing voice command");
     await publishCommandNoReply(command);
     res.json({ success: true, command });
-  } catch (err) {
-    res.status(500).json({
-      error: "COMMAND_FAILED",
-      message: err instanceof Error ? err.message : "Unknown error",
-    });
-  }
-}
+  },
+);

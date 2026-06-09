@@ -33,6 +33,9 @@ importers:
 
   packages/shared:
     dependencies:
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@11.10.0)(pg@8.21.0)
       pino:
         specifier: ^9.0.0
         version: 9.14.0

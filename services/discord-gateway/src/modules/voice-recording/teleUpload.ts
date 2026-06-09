@@ -1,4 +1,7 @@
+import { createChildLogger } from "@bete/shared/logger";
 import { retryWithBackoff } from "@bete/shared/utils";
+
+const logger = createChildLogger("tele-upload");
 
 export interface TeleUploadResponse {
   download_url: string;
@@ -39,6 +42,8 @@ export async function uploadToTele(input: {
 }): Promise<TeleUploadResult> {
   const { buffer, filename, contentType, uploadUrl, timeoutMs, retries } =
     input;
+
+  logger.debug({ filename, uploadUrl }, "Starting tele upload");
 
   const response = await retryWithBackoff(
     async () => {

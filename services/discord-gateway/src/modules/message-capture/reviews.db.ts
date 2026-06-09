@@ -1,27 +1,10 @@
+import { decodeCursor, encodeCursor, pageResult } from "@bete/shared";
 import { createChildLogger, type Logger } from "@bete/shared/logger";
 import { and, desc, eq, type SQL, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "../../shared/database/schema.js";
 import { messageReviewsTable } from "../../shared/database/schema.js";
-import { decodeCursor, encodeCursor } from "../message-capture/pagination.js";
 import type { MessageReview, PageResult } from "../message-capture/types.js";
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function pageRows<T extends { created_at: number; id: string }>(
-  rows: unknown[],
-  limit: number,
-): PageResult<T> {
-  const hasMore = rows.length > limit;
-  const data = rows.slice(0, limit) as T[];
-  const lastItem = data[data.length - 1];
-  const nextCursor =
-    hasMore && lastItem
-      ? encodeCursor({ created_at: lastItem.created_at, id: lastItem.id })
-      : null;
-
-  return { data, nextCursor };
-}
 
 // ─── ReviewsDb Class ────────────────────────────────────────────────────────
 
@@ -128,7 +111,7 @@ export class ReviewsDb {
         )
         .limit(limit + 1);
 
-      return pageRows<MessageReview>(rows, limit);
+      return pageResult<MessageReview>(rows, limit);
     } catch (error) {
       this.logger.error(
         { error: error instanceof Error ? error.message : String(error) },

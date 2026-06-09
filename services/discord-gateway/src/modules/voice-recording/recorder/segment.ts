@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createChildLogger } from "@bete/shared/logger";
 import * as prism from "prism-media";
 import type { SegmentState } from "../../message-capture/types.js";
+
+const logger = createChildLogger("segment");
 
 export function buildSegmentPaths(
   userDir: string,
@@ -54,6 +57,11 @@ export class SegmentManager {
       oggStream,
       out,
     };
+
+    logger.debug(
+      { index, startTime, filename, userDir: this.userDir },
+      "Segment opened",
+    );
     return this.currentSegment;
   }
 
@@ -64,6 +72,25 @@ export class SegmentManager {
     oggPacketStream.unpipe(segment.oggStream);
     segment.oggStream.end();
     this.currentSegment = null;
+
+    // Get file size after closing
+    let fileSize = 0;
+    try {
+      const stat = fs.statSync(segment.filename);
+      fileSize = stat.size;
+    } catch {
+      // File might not exist yet
+    }
+
+    logger.debug(
+      {
+        index: segment.index,
+        filename: segment.filename,
+        fileSize,
+        durationMs: (segment.endTime ?? 0) - segment.startTime,
+      },
+      "Segment closed",
+    );
     return segment;
   }
 
@@ -77,6 +104,15 @@ export class SegmentManager {
       )
     )
       return null;
+
+    logger.debug(
+      {
+        index: this.currentSegment.index,
+        filename: this.currentSegment.filename,
+        durationMs: Date.now() - this.currentSegment.startTime,
+      },
+      "Segment rotating",
+    );
     this.close(oggPacketStream);
     return this.open(oggPacketStream);
   }

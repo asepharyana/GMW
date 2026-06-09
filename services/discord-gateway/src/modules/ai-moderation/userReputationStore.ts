@@ -1,3 +1,4 @@
+import { createChildLogger } from "@bete/shared/logger";
 import { and, desc, eq } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import {
@@ -5,6 +6,8 @@ import {
   UserReputation,
   userReputationsTable,
 } from "../../shared/database/schema.js";
+
+const logger = createChildLogger("userReputationStore");
 
 /**
  * Ensures a user reputation record exists.
@@ -21,6 +24,7 @@ export async function initializeUserReputation(
     .limit(1);
 
   if (existing.length > 0) {
+    logger.debug({ userId }, "Reputation record already exists");
     return existing[0];
   }
 
@@ -40,6 +44,7 @@ export async function initializeUserReputation(
 
   if (!inserted) {
     // If concurrent insert happened
+    logger.debug({ userId }, "Concurrent reputation insert detected, retrying");
     const retry = await db
       .select()
       .from(userReputationsTable)
@@ -48,6 +53,10 @@ export async function initializeUserReputation(
     return retry[0];
   }
 
+  logger.debug(
+    { userId, trustScore: inserted.trust_score },
+    "Initialized user reputation",
+  );
   return inserted;
 }
 
@@ -64,6 +73,14 @@ export async function getUserReputation(
     .where(eq(userReputationsTable.user_id, userId))
     .limit(1);
 
+  if (existing[0]) {
+    logger.debug(
+      { userId, trustScore: existing[0].trust_score },
+      "Fetched user reputation",
+    );
+  } else {
+    logger.debug({ userId }, "No reputation record found, returning null");
+  }
   return existing[0] || null;
 }
 
@@ -93,6 +110,11 @@ export async function recordCleanMessage(
       updated_at: Date.now(),
     })
     .where(eq(userReputationsTable.user_id, userId));
+
+  logger.debug(
+    { userId, previousScore: rep.trust_score, newScore, newStreak },
+    "Clean message recorded, reputation updated",
+  );
 }
 
 /**
@@ -133,6 +155,17 @@ export async function recordInfraction(
       updated_at: Date.now(),
     })
     .where(eq(userReputationsTable.user_id, userId));
+
+  logger.info(
+    {
+      userId,
+      severity,
+      penalty,
+      newScore,
+      totalInfractions: rep.total_infractions + 1,
+    },
+    "Infraction recorded",
+  );
 }
 
 /**

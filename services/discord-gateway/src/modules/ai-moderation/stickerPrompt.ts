@@ -1,3 +1,7 @@
+import { createChildLogger } from "@bete/shared/logger";
+
+const logger = createChildLogger("stickerPrompt");
+
 /**
  * Sticker-specific prompt templates for AI moderation.
  *
@@ -17,6 +21,7 @@ export function buildStickerVisionPrompt(
   stickerName: string,
   messageId: string,
 ): string {
+  logger.debug({ stickerName, messageId }, "Building sticker vision prompt");
   return [
     `Analisis sticker Discord berikut sebagai evidence moderasi.`,
     `Sticker "${stickerName}" berasal dari pesan id=${messageId}.`,
@@ -49,6 +54,10 @@ export function buildStickerTextOnlyWarning(
   stickerName: string,
   stickerUrl: string,
 ): string {
+  logger.debug(
+    { stickerName, stickerUrl },
+    "Building sticker text-only warning",
+  );
   return (
     `[sticker: "${stickerName}" (${stickerUrl}) — GAMBAR GAGAL DIUNDUH. ` +
     `"${stickerName}" adalah sticker kartun/meme Discord. ` +
@@ -68,6 +77,7 @@ export function buildCustomEmojiVisionPrompt(
   emojiName: string,
   messageId: string,
 ): string {
+  logger.debug({ emojiName, messageId }, "Building custom emoji vision prompt");
   return [
     `Analisis custom emoji Discord berikut sebagai evidence moderasi.`,
     `Emoji "${emojiName}" berasal dari pesan id=${messageId}.`,
@@ -87,6 +97,7 @@ export function buildCustomEmojiVisionPrompt(
  * Fallback text for when a custom emoji image failed to download.
  */
 export function buildCustomEmojiTextOnlyFallback(emojiName: string): string {
+  logger.debug({ emojiName }, "Building custom emoji text-only fallback");
   return (
     `[custom_emoji: "${emojiName}" — GAMBAR GAGAL DIUNDUH. ` +
     `"${emojiName}" adalah custom emoji Discord (ikon kecil). ` +
@@ -105,6 +116,7 @@ export function buildGeneralImageVisionPrompt(
   sourceLabel: string,
   _messageId: string,
 ): string {
+  logger.debug({ sourceLabel }, "Building general image vision prompt");
   return [
     `Deskripsikan gambar ini secara objektif dan spesifik.`,
     `${sourceLabel}`,

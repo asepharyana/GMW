@@ -1,6 +1,10 @@
 import path from "node:path";
+import { createChildLogger } from "@bete/shared/logger";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
 import { config } from "../../../shared/config/config.js";
+
+const logger = createChildLogger("voice-metadata");
+
 import type {
   SegmentMetadata,
   SegmentState,
@@ -12,12 +16,20 @@ export async function collectUserMetadata(
   userId: string,
   channel: VoiceChannel,
 ): Promise<UserMetadata> {
+  logger.debug({ userId }, "Collecting user metadata");
+
   const user =
     client.users.cache.get(userId) ||
-    (await client.users.fetch(userId).catch(() => null));
+    (await client.users.fetch(userId).catch(() => {
+      logger.warn({ userId }, "Failed to fetch user");
+      return null;
+    }));
   const member =
     channel.guild.members.cache.get(userId) ||
-    (await channel.guild.members.fetch(userId).catch(() => null));
+    (await channel.guild.members.fetch(userId).catch(() => {
+      logger.warn({ userId }, "Failed to fetch guild member");
+      return null;
+    }));
   const username = user?.username ?? "Unknown User";
   const roles =
     member?.roles.cache

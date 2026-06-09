@@ -1,10 +1,13 @@
 import fs, { promises as fsPromises } from "node:fs";
 import path from "node:path";
+import { createChildLogger } from "@bete/shared/logger";
 import type { UserMetadata } from "../../message-capture/types.js";
 import {
   buildMuxFfmpegArgs,
   runFfmpeg as defaultRunFfmpeg,
 } from "../ffmpegProcess.js";
+
+const logger = createChildLogger("recording-session");
 
 export type SessionRecordingStatus =
   | "pending"
@@ -86,6 +89,16 @@ export function createRecordingSession(
   const participants = new Map<string, SessionParticipant>();
   const segments: SessionSegmentRef[] = [];
 
+  logger.info(
+    {
+      sessionId,
+      guildId: options.guildId,
+      channelId: options.channelId,
+      channelName: options.channelName,
+    },
+    "Recording session created",
+  );
+
   return {
     sessionId,
     recordingsDir: options.recordingsDir,
@@ -108,6 +121,10 @@ export function createRecordingSession(
         durationMs: input.endTime - input.startTime,
         offsetMs: input.startTime - options.startTime,
       });
+      logger.debug(
+        { sessionId, userId: input.user.userId, segmentCount: segments.length },
+        "Segment registered in session",
+      );
     },
 
     snapshot(endTime: number): SessionRecordingMetadata {
@@ -132,6 +149,11 @@ export function buildSessionMuxFilter(
   segments: Array<{ startTime: number }>,
   sessionStartTime: number,
 ): string {
+  if (segments.length === 0) {
+    logger.debug("Building mux filter with no segments");
+    return "";
+  }
+
   const filters = segments.map((segment, index) => {
     const delayMs = Math.max(0, segment.startTime - sessionStartTime);
     return `[${index}:a]adelay=${delayMs}|${delayMs}[pad${index}]`;
@@ -139,6 +161,11 @@ export function buildSessionMuxFilter(
   const inputs = segments.map((_, index) => `[pad${index}]`).join("");
   filters.push(
     `${inputs}amix=inputs=${segments.length}:dropout_transition=0[out]`,
+  );
+
+  logger.debug(
+    { segmentCount: segments.length, filter: filters.join(";") },
+    "Built mux filter",
   );
   return filters.join(";");
 }
@@ -166,26 +193,66 @@ export async function finalizeRecordingSession(
   await mkdir(sessionDir);
   const metadata = session.snapshot(endTime);
 
+  logger.info(
+    {
+      sessionId: session.sessionId,
+      segmentCount: metadata.segments.length,
+      outputFile,
+    },
+    "Finalizing recording session",
+  );
+
   if (metadata.segments.length === 0) {
     await writeJson(metadataFile, { ...metadata, status: "empty" });
+    logger.info(
+      { sessionId: session.sessionId },
+      "Recording session finalized with no segments",
+    );
     return;
   }
 
   try {
-    await runFfmpeg(
-      buildMuxFfmpegArgs({
-        inputs: metadata.segments.map((segment) => segment.oggPath),
-        filter: buildSessionMuxFilter(metadata.segments, metadata.startTime),
-        output: outputFile,
-        codec: "libopus",
-      }),
+    const ffmpegArgs = buildMuxFfmpegArgs({
+      inputs: metadata.segments.map((segment) => segment.oggPath),
+      filter: buildSessionMuxFilter(metadata.segments, metadata.startTime),
+      output: outputFile,
+      codec: "libopus",
+    });
+
+    logger.debug(
+      { sessionId: session.sessionId, ffmpegArgs },
+      "Running FFmpeg mux for session",
     );
+
+    await runFfmpeg(ffmpegArgs);
+
+    // Get output file size
+    let outputSize = 0;
+    try {
+      const outStat = await fsPromises.stat(outputFile);
+      outputSize = outStat.size;
+    } catch {
+      // File might not exist yet, ignore
+    }
+
     await writeJson(metadataFile, {
       ...metadata,
       status: "completed",
       outputFile,
     });
+
+    logger.info(
+      { sessionId: session.sessionId, outputFile, outputSize },
+      "Recording session finalized successfully",
+    );
   } catch (error) {
+    logger.error(
+      {
+        sessionId: session.sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Failed to finalize recording session via FFmpeg",
+    );
     await writeJson(metadataFile, {
       ...metadata,
       status: "failed",

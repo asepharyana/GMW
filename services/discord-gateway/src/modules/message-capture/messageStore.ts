@@ -1,8 +1,8 @@
+import { decodeCursor, encodeCursor } from "@bete/shared";
 import { createChildLogger, type Logger } from "@bete/shared/logger";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import type * as schema from "../../shared/database/schema.js";
-import { decodeCursor, encodeCursor } from "../message-capture/pagination.js";
 import type {
   AttachmentRecord,
   MessageQuery,
@@ -18,7 +18,7 @@ import { ModerationActionsDb } from "./moderation-actions.db.js";
 import { RetentionDb } from "./retention.db.js";
 import { ReviewsDb } from "./reviews.db.js";
 
-export { decodeCursor, encodeCursor } from "../message-capture/pagination.js";
+export { decodeCursor, encodeCursor } from "@bete/shared";
 export type { AIAnalysisUpdate } from "./messages.db.js";
 
 // ─── Lazy singleton ────────────────────────────────────────────────────────

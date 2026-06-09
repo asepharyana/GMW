@@ -8,6 +8,7 @@
   "exports": {
     ".": "./dist/index.js",
     "./config": "./dist/config/index.js",
+    "./database/schema": "./dist/database/schema.js",
     "./errors": "./dist/errors/index.js",
     "./logger": "./dist/logger/index.js",
     "./utils": "./dist/utils/index.js"
@@ -17,6 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.2",
     "pino": "^9.0.0",
     "zod": "^4.4.3"
   },

@@ -1,3 +1,4 @@
+import { createChildLogger } from "@bete/shared/logger";
 import { config } from "../../shared/config/config.js";
 import { initializeDatabase } from "../../shared/database/drizzle.js";
 import {
@@ -14,6 +15,8 @@ import {
   runModerationAnalysis,
   runSimpleTextFallback,
 } from "./llmModerationClient.js";
+
+const logger = createChildLogger("aiAnalysisWorker");
 
 let dbInitialized = false;
 let dbInitPromise: Promise<any> | null = null;
@@ -70,13 +73,9 @@ export default async function workerRouter(
   if (!config.AI_LLM_API_KEY) {
     const errorMsg =
       "AI_LLM_API_KEY is missing from environment. Worker cannot process moderation requests without credentials.";
-    console.error(
-      JSON.stringify({
-        level: "ERROR",
-        context: "aiAnalysisWorker",
-        error: errorMsg,
-        timestamp: new Date().toISOString(),
-      }),
+    logger.error(
+      { error: errorMsg },
+      "AI_LLM_API_KEY is missing from environment",
     );
 
     if (job.type === "batch") {
@@ -113,15 +112,9 @@ export default async function workerRouter(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
-    console.error(
-      JSON.stringify({
-        level: "ERROR",
-        context: "aiAnalysisWorker",
-        type: job.type,
-        error: errorMessage,
-        stack: errorStack,
-        timestamp: new Date().toISOString(),
-      }),
+    logger.error(
+      { type: job.type, error: errorMessage, stack: errorStack },
+      "Worker job failed",
     );
     if (job.type === "batch") {
       return {

@@ -1,5 +1,6 @@
 import { createChildLogger } from "@bete/shared/logger";
 import type { Request, Response } from "express";
+import { asyncHandler } from "../../shared/middlewares/index.js";
 import { mascotChatService } from "./mascot-chat.service.js";
 
 const logger = createChildLogger("mascot-chat.controller");
@@ -8,8 +9,8 @@ interface AuthenticatedRequest extends Request {
   userId?: string;
 }
 
-export async function handleMascotChat(req: Request, res: Response) {
-  try {
+export const handleMascotChat = asyncHandler(
+  async (req: Request, res: Response) => {
     const { message, context } = req.body;
 
     if (!message || typeof message !== "string") {
@@ -49,17 +50,11 @@ export async function handleMascotChat(req: Request, res: Response) {
       response,
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
-    logger.error({ error }, "Error processing mascot chat");
-    res.status(500).json({
-      error: "INTERNAL_SERVER_ERROR",
-      message: "Failed to process mascot chat",
-    });
-  }
-}
+  },
+);
 
-export async function getMascotChatHistory(req: Request, res: Response) {
-  try {
+export const getMascotChatHistory = asyncHandler(
+  async (req: Request, res: Response) => {
     const userId = (req as AuthenticatedRequest).userId || "anonymous";
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
 
@@ -69,17 +64,11 @@ export async function getMascotChatHistory(req: Request, res: Response) {
       history,
       total: history.length,
     });
-  } catch (error) {
-    logger.error({ error }, "Error fetching chat history");
-    res.status(500).json({
-      error: "INTERNAL_SERVER_ERROR",
-      message: "Failed to fetch chat history",
-    });
-  }
-}
+  },
+);
 
-export async function clearMascotChatHistory(req: Request, res: Response) {
-  try {
+export const clearMascotChatHistory = asyncHandler(
+  async (req: Request, res: Response) => {
     const userId = (req as AuthenticatedRequest).userId || "anonymous";
 
     await mascotChatService.clearChatHistory(userId);
@@ -87,11 +76,5 @@ export async function clearMascotChatHistory(req: Request, res: Response) {
     res.status(200).json({
       message: "Chat history cleared successfully",
     });
-  } catch (error) {
-    logger.error({ error }, "Error clearing chat history");
-    res.status(500).json({
-      error: "INTERNAL_SERVER_ERROR",
-      message: "Failed to clear chat history",
-    });
-  }
-}
+  },
+);

@@ -1,5 +1,8 @@
 // ─── WebSocket singleton with reconnect, typed events, and observable status ─
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createLogger } from "../lib/logger.js";
+
+const logger = createLogger("socket");
 
 export type WsStatus = "connecting" | "connected" | "disconnected" | "error";
 
@@ -26,6 +29,7 @@ export interface WsHandlers {
 let _wsInstance: WebSocket | null = null;
 let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let _closed = false;
+let _reconnectAttempts = 0;
 const _listeners = new Set<WsHandlers>();
 const _statusCallbacks = new Set<(s: WsStatus) => void>();
 
@@ -41,12 +45,23 @@ function doConnect(): WebSocket {
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";
   dispatchStatus("connecting");
+  logger.info("Connecting", { url });
 
-  ws.addEventListener("open", () => dispatchStatus("connected"));
-  ws.addEventListener("error", () => dispatchStatus("error"));
-  ws.addEventListener("close", () => {
+  ws.addEventListener("open", () => {
+    _reconnectAttempts = 0;
+    dispatchStatus("connected");
+    logger.info("Connected");
+  });
+  ws.addEventListener("error", () => {
+    dispatchStatus("error");
+    logger.error("WebSocket error");
+  });
+  ws.addEventListener("close", (event) => {
     dispatchStatus("disconnected");
+    logger.info("Disconnected", { code: event.code, reason: event.reason });
     if (!_closed && _listeners.size > 0) {
+      _reconnectAttempts++;
+      logger.warn("Reconnecting", { attempt: _reconnectAttempts });
       _reconnectTimer = setTimeout(() => doReconnect(), 2500);
     }
   });
@@ -108,7 +123,9 @@ function doConnect(): WebSocket {
         }
       }
     } catch {
-      // ignore malformed messages
+      logger.error("Failed to parse message", {
+        raw: event.data.slice(0, 200),
+      });
     }
   });
 

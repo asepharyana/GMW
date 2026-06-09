@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import { createChildLogger } from "@bete/shared/logger";
+
+const logger = createChildLogger("ffmpeg-process");
 
 export interface MuxFfmpegArgsOptions {
   inputs: string[];
@@ -42,19 +45,24 @@ export function buildMuxFfmpegArgs(options: MuxFfmpegArgsOptions): string[] {
  */
 export function runFfmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
+    logger.debug({ args }, "Starting ffmpeg");
+
     const proc = spawn("ffmpeg", args, {
       stdio: ["ignore", "inherit", "inherit"],
     });
 
     proc.on("close", (code) => {
       if (code === 0) {
+        logger.debug("ffmpeg completed successfully");
         resolve();
       } else {
+        logger.warn({ exitCode: code }, "ffmpeg exited with non-zero code");
         reject(new Error(`ffmpeg exited with code ${code}`));
       }
     });
 
     proc.on("error", (err) => {
+      logger.error({ error: err.message }, "ffmpeg process error");
       reject(err);
     });
   });

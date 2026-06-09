@@ -6,7 +6,10 @@ import {
   COMMAND_VOICE_DISCONNECT,
   VOICE_STATUS_KEY,
 } from "@bete/shared";
-import { createChildLogger } from "@bete/shared/logger";
+import {
+  createChildLogger,
+  tryCommandThenFallback,
+} from "../../shared/commandHelper.js";
 import { getPool } from "../../shared/database/index.js";
 import { publishCommand, readRedisStatus } from "../../shared/redis/index.js";
 
@@ -31,29 +34,40 @@ export interface VoiceStatus {
   activeChannelName: string | null;
 }
 
+export const DEFAULT_VOICE_STATUS: VoiceStatus = {
+  connected: false,
+  activeGuildId: null,
+  activeChannelId: null,
+  activeChannelName: null,
+};
+
+function readVoiceStatusFallback(): Promise<VoiceStatus> {
+  return readRedisStatus(VOICE_STATUS_KEY).then(
+    (cached) => (cached as unknown as VoiceStatus) ?? DEFAULT_VOICE_STATUS,
+  );
+}
+
 /**
  * Get guilds — query from discord-gateway via Redis command for real names.
  * Falls back to database (distinct guild_id from messages) if gateway unreachable.
  */
 export async function getGuilds(): Promise<Guild[]> {
   logger.info("getGuilds called");
-  const reply = await publishCommand<Guild[]>(COMMAND_GUILDS_LIST, {});
-  if (reply?.success && reply.data && reply.data.length > 0) return reply.data;
-
-  // Fallback: Postgres with synthetic names
-  logger.warn(
-    "discord-gateway unreachable, falling back to Postgres for guilds",
+  return tryCommandThenFallback(
+    () => publishCommand<Guild[]>(COMMAND_GUILDS_LIST, {}),
+    async () => {
+      const pool = getPool();
+      const { rows } = await pool.query(
+        `SELECT DISTINCT guild_id FROM messages ORDER BY guild_id`,
+      );
+      return rows.map((row: Record<string, unknown>) => ({
+        id: String(row.guild_id ?? ""),
+        name: `Guild ${String(row.guild_id).slice(0, 8)}`,
+        icon: null,
+      }));
+    },
+    "getGuilds",
   );
-  const pool = getPool();
-  const { rows } = await pool.query(
-    `SELECT DISTINCT guild_id FROM messages ORDER BY guild_id`,
-  );
-
-  return rows.map((row: Record<string, unknown>) => ({
-    id: String(row.guild_id ?? ""),
-    name: `Guild ${String(row.guild_id).slice(0, 8)}`,
-    icon: null,
-  }));
 }
 
 /**
@@ -62,27 +76,22 @@ export async function getGuilds(): Promise<Guild[]> {
  */
 export async function getTextChannels(guildId: string): Promise<Channel[]> {
   logger.info({ guildId }, "getTextChannels called");
-  const reply = await publishCommand<Channel[]>(COMMAND_GUILDS_TEXT_CHANNELS, {
-    guildId,
-  });
-  if (reply?.success && reply.data && reply.data.length > 0) return reply.data;
-
-  // Fallback: Postgres with synthetic names
-  logger.warn(
-    { guildId },
-    "discord-gateway unreachable, falling back to Postgres for text channels",
+  return tryCommandThenFallback(
+    () => publishCommand<Channel[]>(COMMAND_GUILDS_TEXT_CHANNELS, { guildId }),
+    async () => {
+      const pool = getPool();
+      const { rows } = await pool.query(
+        `SELECT DISTINCT channel_id FROM messages WHERE guild_id = $1 ORDER BY channel_id`,
+        [guildId],
+      );
+      return rows.map((row: Record<string, unknown>) => ({
+        id: String(row.channel_id ?? ""),
+        name: `Channel ${String(row.channel_id).slice(0, 8)}`,
+        type: "text" as const,
+      }));
+    },
+    "getTextChannels",
   );
-  const pool = getPool();
-  const { rows } = await pool.query(
-    `SELECT DISTINCT channel_id FROM messages WHERE guild_id = $1 ORDER BY channel_id`,
-    [guildId],
-  );
-
-  return rows.map((row: Record<string, unknown>) => ({
-    id: String(row.channel_id ?? ""),
-    name: `Channel ${String(row.channel_id).slice(0, 8)}`,
-    type: "text" as const,
-  }));
 }
 
 /**
@@ -102,13 +111,7 @@ export async function getVoiceChannels(guildId: string): Promise<Channel[]> {
 export async function getVoiceStatus(): Promise<VoiceStatus> {
   logger.debug("getVoiceStatus called");
   const cached = await readRedisStatus(VOICE_STATUS_KEY);
-  if (cached) return cached as unknown as VoiceStatus;
-  return {
-    connected: false,
-    activeGuildId: null,
-    activeChannelId: null,
-    activeChannelName: null,
-  };
+  return (cached as unknown as VoiceStatus) ?? DEFAULT_VOICE_STATUS;
 }
 
 /**
@@ -119,21 +122,14 @@ export async function connectVoice(
   channelId: string,
 ): Promise<VoiceStatus> {
   logger.info({ guildId, channelId }, "connectVoice called");
-  const reply = await publishCommand<VoiceStatus>(COMMAND_VOICE_CONNECT, {
-    guildId,
-    channelId,
-  });
-  if (reply?.success && reply.data) return reply.data;
-
-  // Fallback: read from Redis status key
-  const cached = await readRedisStatus(VOICE_STATUS_KEY);
-  return (
-    (cached as unknown as VoiceStatus) ?? {
-      connected: false,
-      activeGuildId: null,
-      activeChannelId: null,
-      activeChannelName: null,
-    }
+  return tryCommandThenFallback(
+    () =>
+      publishCommand<VoiceStatus>(COMMAND_VOICE_CONNECT, {
+        guildId,
+        channelId,
+      }),
+    () => readVoiceStatusFallback(),
+    "connectVoice",
   );
 }
 
@@ -142,16 +138,9 @@ export async function connectVoice(
  */
 export async function disconnectVoice(): Promise<VoiceStatus> {
   logger.info("disconnectVoice called");
-  const reply = await publishCommand<VoiceStatus>(COMMAND_VOICE_DISCONNECT, {});
-  if (reply?.success && reply.data) return reply.data;
-
-  const cached = await readRedisStatus(VOICE_STATUS_KEY);
-  return (
-    (cached as unknown as VoiceStatus) ?? {
-      connected: false,
-      activeGuildId: null,
-      activeChannelId: null,
-      activeChannelName: null,
-    }
+  return tryCommandThenFallback(
+    () => publishCommand<VoiceStatus>(COMMAND_VOICE_DISCONNECT, {}),
+    () => readVoiceStatusFallback(),
+    "disconnectVoice",
   );
 }

@@ -8,6 +8,10 @@ import {
   getVoiceChannels,
   getVoiceStatus,
 } from "../../../shared/api/client";
+import { useAsyncAction } from "../../../shared/hooks/useAsyncAction.js";
+import { createLogger } from "../../../shared/lib/logger.js";
+
+const logger = createLogger("use-voice-control");
 
 export function useVoiceControl() {
   const [guilds, setGuilds] = useState<Guild[]>([]);
@@ -19,15 +23,14 @@ export function useVoiceControl() {
     activeChannelId: null,
     activeChannelName: null,
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { loading, error, execute, clearError } = useAsyncAction();
 
   const refreshGuilds = useCallback(async () => {
-    setError(null);
+    clearError();
     const nextGuilds = await getGuilds();
     setGuilds(nextGuilds);
     return nextGuilds;
-  }, []);
+  }, [clearError]);
 
   const refreshVoiceStatus = useCallback(async () => {
     const status = await getVoiceStatus();
@@ -55,44 +58,39 @@ export function useVoiceControl() {
     return channels;
   }, []);
 
-  const joinVoice = useCallback(async (guildId: string, channelId: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const status = await connectVoice(guildId, channelId);
-      setVoiceStatus(status);
-      return status;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const joinVoice = useCallback(
+    async (guildId: string, channelId: string) => {
+      const result = await execute(() => connectVoice(guildId, channelId));
+      if (result) {
+        setVoiceStatus(result);
+        logger.info("Connected to voice", { guildId, channelId });
+      } else {
+        logger.error("Failed to connect to voice", { guildId, channelId });
+      }
+      return result;
+    },
+    [execute],
+  );
 
   const leaveVoice = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const status = await disconnectVoice();
-      setVoiceStatus(status);
-      return status;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
-      throw err;
-    } finally {
-      setLoading(false);
+    const result = await execute(() => disconnectVoice());
+    if (result) {
+      setVoiceStatus(result);
+      logger.info("Disconnected from voice");
+    } else {
+      logger.error("Failed to disconnect from voice");
     }
-  }, []);
+    return result;
+  }, [execute]);
 
   useEffect(() => {
     refreshGuilds().catch((err) =>
-      setError(err instanceof Error ? err.message : String(err)),
+      logger.error("Failed to refresh guilds on mount", { error: String(err) }),
     );
     refreshVoiceStatus().catch((err) =>
-      setError(err instanceof Error ? err.message : String(err)),
+      logger.error("Failed to refresh voice status on mount", {
+        error: String(err),
+      }),
     );
   }, [refreshGuilds, refreshVoiceStatus]);
 

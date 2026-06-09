@@ -1,6 +1,9 @@
+import { createChildLogger } from "@bete/shared/logger";
 import { encoding_for_model as encodingForModel } from "tiktoken";
 import { formatMediaEvidenceForPrompt } from "../message-capture/messageMetadata.js";
 import type { MessageRecord } from "../message-capture/types.js";
+
+const logger = createChildLogger("conversationContext");
 
 export interface ConversationContextInput {
   contextBefore: MessageRecord[];
@@ -29,7 +32,12 @@ function formatTimestamp(ms: number): string {
  */
 export function estimateTokens(text: string): number {
   // Use tiktoken for accurate token counting (+15 overhead for JSON structure)
-  return getEncoder().encode(text).length + 15;
+  const tokens = getEncoder().encode(text).length + 15;
+  logger.debug(
+    { tokenEstimate: tokens, textLength: text.length },
+    "Estimated tokens for text",
+  );
+  return tokens;
 }
 
 /**
@@ -81,5 +89,14 @@ export function buildConversationContext(
     }
   }
 
+  logger.debug(
+    {
+      targetCount: targets.length,
+      contextCount: selectedContextLines.length,
+      usedTokens,
+      maxTokens,
+    },
+    "Conversation context built",
+  );
   return selectedContextLines;
 }

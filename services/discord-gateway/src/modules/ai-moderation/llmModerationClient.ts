@@ -2,7 +2,6 @@ import { createChildLogger } from "@bete/shared/logger";
 import { delay, retryWithBackoff } from "@bete/shared/utils";
 import { LRUCache } from "lru-cache";
 import type { ChatCompletion } from "openai/resources/chat/completions";
-import { z } from "zod";
 import { config } from "../../shared/config/config.js";
 import { resizeImageForVision } from "../attachment-upload/imageResizer.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
@@ -46,33 +45,31 @@ import {
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 import { initializeUserReputation } from "./userReputationStore.js";
 
-const SeveritySchema = z.enum(["none", "low", "medium", "high", "critical"]);
-const RecommendedActionSchema = z.enum([
-  "none",
-  "monitor",
-  "warn",
-  "review",
-  "delete",
-  "escalate",
-]);
+export { sniffImageMimeType } from "./imageMimeSniffer.js";
+export { extractJson } from "./jsonExtractor.js";
+export {
+  parseModerationResponse,
+  sanitizeErrorMessage,
+} from "./moderationResponseParser.js";
+// Re-export all symbols from sub-modules to preserve public API
+export {
+  ModerationResponseSchema,
+  RecommendedActionSchema,
+  ResultItemSchema,
+  SeveritySchema,
+} from "./moderationSchemas.js";
+export {
+  clampScore,
+  DEFERRAL_ANALYSIS_PATTERN,
+  DEFERRAL_EXCEPTION_PATTERN,
+  deriveRecommendedAction,
+  deriveSeverity,
+  hasDeferralAnalysis,
+} from "./severityDeriver.js";
 
-const ResultItemSchema = z.object({
-  message_id: z.union([z.string(), z.number()]).transform(String),
-  status: z.enum(["clean", "warn", "flagged"]),
-  flags: z.array(z.string()).optional(),
-  score: z.number(),
-  analysis: z.string().nullable().optional(),
-  categories: z.array(z.string()).optional(),
-  severity: SeveritySchema.optional(),
-  confidence: z.number().optional(),
-  recommended_action: RecommendedActionSchema.optional(),
-  policy_version: z.string().optional(),
-  evidence: z.array(z.string()).optional(),
-});
-
-const ModerationResponseSchema = z.object({
-  results: z.array(ResultItemSchema),
-});
+import { sniffImageMimeType } from "./imageMimeSniffer.js";
+// Internal imports for functions used locally in the facade
+import { parseModerationResponse } from "./moderationResponseParser.js";
 
 const log = createChildLogger("llmModerationClient");
 
@@ -110,371 +107,6 @@ async function buildCorrectedFewShotExamples(): Promise<string> {
   } catch {
     return "";
   }
-}
-
-/**
- * Enhanced deferral detection pattern (R9).
- *
- * Only matches patterns where the model explicitly states it cannot make
- * a decision and needs human review. Removed overly broad patterns that
- * caused false positives:
- * - "admin (perlu|harus|sebaiknya)" → common in regular sentences
- * - "bisa (berpotensi|mengandung)" → decisive statements, not deferral
- * - "maaf|sorry" → opinions/apologies, not deferral
- * - "saya tidak yakin|tahu|paham" → expressing uncertainty, not deferral
- */
-const DEFERRAL_ANALYSIS_PATTERN =
-  /(?:kurang (?:konteks|bukti|informasi|data) (?:untuk (?:menilai|menentukan|memutuskan)|untuk moderasi)|perlu (?:dicek|diperiksa|ditinjau|dikaji|dievaluasi) (?:oleh )?(?:admin|moderator|manusia|human review)|tidak (?:bisa|dapat|mampu) (?:menentukan|menilai|memastikan|menyimpulkan|memberi keputusan|memoderasi).*(?:karena (?:konteks tidak jelas|informasi tidak cukup|bukti kurang|konteks kurang|tidak cukup konteks)|data tidak cukup|informasi tidak lengkap)|cannot determine|insufficient (?:context|evidence|information) (?:to |for )?(?:moderate|judge|evaluate|decide|classify)|(?:sepertinya|tampaknya) (?:perlu|harus) (?:ditinjau|diperiksa|dicek) (?:oleh )?(?:admin|moderator)|tidak cukup (?:bukti|informasi|konteks) (?:untuk (?:memberikan|membuat|menentukan)|memutuskan))/i;
-
-/**
- * Exceptions: patterns that look like deferral but are actually decisive.
- * Expanded to catch more variations where the model gives a clear verdict.
- */
-const DEFERRAL_EXCEPTION_PATTERN =
-  /tidak bisa menentukan.*(?:karena|sebab|dengan alasan|sebab tidak ada).*(?:clean|tidak (?:ada|terdapat|menunjukkan).*(?:pelanggaran|masalah|indikasi|konten)|aman|bersih|normal)/i;
-
-function hasDeferralAnalysis(analysis: string): boolean {
-  if (DEFERRAL_EXCEPTION_PATTERN.test(analysis)) return false;
-  return DEFERRAL_ANALYSIS_PATTERN.test(analysis);
-}
-
-function clampScore(value: number | undefined, fallback = 0): number {
-  return Math.max(
-    0,
-    Math.min(1, Number.isFinite(value) ? (value as number) : fallback),
-  );
-}
-
-function deriveSeverity(
-  status: "clean" | "warn" | "flagged",
-  score: number,
-): z.infer<typeof SeveritySchema> {
-  if (status === "clean") return "none";
-  if (status === "warn") return score >= 0.65 ? "medium" : "low";
-  if (score >= 0.9) return "critical";
-  return score >= 0.75 ? "high" : "medium";
-}
-
-function deriveRecommendedAction(
-  status: "clean" | "warn" | "flagged",
-  severity: z.infer<typeof SeveritySchema>,
-): z.infer<typeof RecommendedActionSchema> {
-  if (status === "clean") return "none";
-  if (status === "warn") return severity === "medium" ? "review" : "warn";
-  if (severity === "critical") return "escalate";
-  if (severity === "high") return "delete";
-  return "review";
-}
-
-/**
- * Helper to extract JSON from a potentially conversational or markdown-wrapped string.
- */
-export function extractJson(content: string): unknown {
-  const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
-  const matches = content.matchAll(codeBlockRegex);
-  for (const match of matches) {
-    const codeContent = match[1].trim();
-    try {
-      const parsed = JSON.parse(codeContent);
-      if (parsed && typeof parsed === "object") {
-        return parsed;
-      }
-    } catch (err) {
-      log.debug(
-        { err: err instanceof Error ? err.message : String(err) },
-        "Failed to parse JSON from code block — trying next block",
-      );
-    }
-  }
-
-  for (let start = 0; start < content.length; start++) {
-    const firstChar = content[start];
-    if (firstChar !== "{" && firstChar !== "[") continue;
-
-    const stack = [firstChar];
-    let inString = false;
-    let escaped = false;
-
-    for (let i = start + 1; i < content.length; i++) {
-      const char = content[i];
-
-      if (inString) {
-        if (escaped) {
-          escaped = false;
-        } else if (char === "\\") {
-          escaped = true;
-        } else if (char === '"') {
-          inString = false;
-        }
-        continue;
-      }
-
-      if (char === '"') {
-        inString = true;
-        continue;
-      }
-
-      if (char === "{" || char === "[") {
-        stack.push(char);
-        continue;
-      }
-
-      const last = stack[stack.length - 1];
-      if ((char === "}" && last === "{") || (char === "]" && last === "[")) {
-        stack.pop();
-        if (stack.length === 0) {
-          const candidate = content.slice(start, i + 1);
-          try {
-            const parsed = JSON.parse(candidate);
-            if (parsed && typeof parsed === "object") {
-              return parsed;
-            }
-          } catch (err) {
-            log.debug(
-              { err: err instanceof Error ? err.message : String(err) },
-              "Failed to parse JSON candidate — trying next position",
-            );
-          }
-          break;
-        }
-      }
-    }
-  }
-
-  throw new Error("No JSON object found in response");
-}
-
-/**
- * Sanitize error messages for client-facing output (R10).
- * Internal details are logged but the caller gets a generic message.
- */
-function sanitizeErrorMessage(internalMsg: string, messageId: string): string {
-  // Log the full error for debugging
-  log.warn(
-    { messageId, internalError: internalMsg },
-    "Internal moderation error (sanitized for client)",
-  );
-  // Return generic message without internal details
-  return `Analisis gagal dan memerlukan pemeriksaan manual. Error code: MOD_${Date.now().toString(36).slice(0, 6)}`;
-}
-
-export function parseModerationResponse(
-  content: string,
-  targetIds: string[],
-): AnalysisResult[] {
-  let parsed: any;
-  try {
-    parsed = JSON.parse(content);
-  } catch (e) {
-    parsed = extractJson(content);
-  }
-
-  if (Array.isArray(parsed)) {
-    parsed = { results: parsed };
-  } else if (parsed && typeof parsed === "object" && !("results" in parsed)) {
-    if ("message_id" in parsed) {
-      parsed = { results: [parsed] };
-    } else {
-      const arrayKey = Object.keys(parsed).find((key) => {
-        const val = parsed[key];
-        return (
-          Array.isArray(val) &&
-          val.length > 0 &&
-          val.every(
-            (item: unknown) =>
-              typeof item === "object" &&
-              item !== null &&
-              "message_id" in (item as Record<string, unknown>),
-          )
-        );
-      });
-      if (arrayKey) {
-        parsed.results = parsed[arrayKey];
-      } else {
-        parsed = { results: [parsed] };
-      }
-    }
-  }
-
-  const parseResult = ModerationResponseSchema.safeParse(parsed);
-  if (!parseResult.success) {
-    throw new Error(`Zod validation failed: ${parseResult.error.message}`);
-  }
-
-  const response = parseResult.data;
-  const foundIds = new Set<string>();
-  const targetIdSet = new Set(targetIds);
-
-  const results: (AnalysisResult | null)[] = response.results.map((result) => {
-    const {
-      message_id,
-      status,
-      flags,
-      score,
-      analysis,
-      categories,
-      severity,
-      confidence,
-      recommended_action,
-      policy_version,
-      evidence,
-    } = result;
-    const finalId = message_id.trim();
-
-    if (!targetIdSet.has(finalId)) {
-      return null;
-    }
-
-    if (foundIds.has(finalId)) {
-      throw new Error(
-        `Duplicate message_id in moderation response: ${finalId}`,
-      );
-    }
-
-    foundIds.add(finalId);
-
-    const coalescedAnalysis = analysis ?? "";
-
-    if (hasDeferralAnalysis(coalescedAnalysis)) {
-      throw new Error(
-        `Deferral analysis is not allowed for message ${finalId}; return a direct moderation decision`,
-      );
-    }
-
-    const normalizedScore = clampScore(score);
-    const normalizedConfidence = clampScore(confidence, normalizedScore);
-    const normalizedSeverity =
-      severity ?? deriveSeverity(status, normalizedScore);
-
-    return {
-      messageId: finalId,
-      status: status as "clean" | "warn" | "flagged",
-      flags: flags ?? [],
-      score: normalizedScore,
-      analysis: coalescedAnalysis,
-      categories: categories ?? flags ?? [],
-      severity: normalizedSeverity,
-      confidence: normalizedConfidence,
-      recommendedAction:
-        recommended_action ??
-        deriveRecommendedAction(status, normalizedSeverity),
-      policyVersion: policy_version ?? "default-2026-05-30",
-      evidence: evidence ?? [],
-    };
-  });
-
-  const filteredResults = results.filter(
-    (r): r is AnalysisResult => r !== null,
-  );
-
-  const missingIds = targetIds.filter((id) => !foundIds.has(id));
-  if (missingIds.length > 0) {
-    log.warn(
-      { missingIds, foundCount: foundIds.size, totalCount: targetIds.length },
-      "Some target IDs missing in response - marking as incomplete",
-    );
-    for (const missingId of missingIds) {
-      filteredResults.push({
-        messageId: missingId,
-        status: "error",
-        flags: ["analysis_incomplete"],
-        score: 0,
-        analysis: sanitizeErrorMessage(
-          "Analysis incomplete - LLM did not process this message",
-          missingId,
-        ),
-        categories: ["analysis_incomplete"],
-        severity: "none",
-        confidence: 0,
-        recommendedAction: "review",
-        policyVersion: "default-2026-05-30",
-        evidence: [],
-      });
-    }
-  }
-
-  return filteredResults;
-}
-
-interface ModerationInput {
-  targets: MessageRecord[];
-  contextText: string;
-  attachments?: AttachmentRecord[];
-}
-
-interface ModerationOutput {
-  results: AnalysisResult[];
-  raw: unknown;
-}
-
-/**
- * Sniff the first bytes of a buffer to determine if it is a supported image
- * format. Returns the canonical MIME type string on success, or null if the
- * bytes are not a recognizable image.
- */
-function sniffImageMimeType(buf: Buffer): string | null {
-  if (buf.length < 12) return null;
-
-  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
-    return "image/jpeg";
-  }
-
-  if (
-    buf[0] === 0x89 &&
-    buf[1] === 0x50 &&
-    buf[2] === 0x4e &&
-    buf[3] === 0x47 &&
-    buf[4] === 0x0d &&
-    buf[5] === 0x0a &&
-    buf[6] === 0x1a &&
-    buf[7] === 0x0a
-  ) {
-    return "image/png";
-  }
-
-  if (
-    buf[0] === 0x47 &&
-    buf[1] === 0x49 &&
-    buf[2] === 0x46 &&
-    buf[3] === 0x38
-  ) {
-    return "image/gif";
-  }
-
-  if (
-    buf[0] === 0x52 &&
-    buf[1] === 0x49 &&
-    buf[2] === 0x46 &&
-    buf[3] === 0x46 &&
-    buf[8] === 0x57 &&
-    buf[9] === 0x45 &&
-    buf[10] === 0x42 &&
-    buf[11] === 0x50
-  ) {
-    return "image/webp";
-  }
-
-  if (
-    buf.length >= 12 &&
-    buf[4] === 0x66 &&
-    buf[5] === 0x74 &&
-    buf[6] === 0x79 &&
-    buf[7] === 0x70
-  ) {
-    const brand = buf.subarray(8, 12).toString("ascii");
-    if (brand.startsWith("avif") || brand.startsWith("avis")) {
-      return "image/avif";
-    }
-    if (
-      brand.startsWith("mif1") ||
-      brand.startsWith("heic") ||
-      brand.startsWith("heis")
-    ) {
-      return "image/heic";
-    }
-  }
-
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1494,6 +1126,17 @@ async function runMediaBatch(
 // ---------------------------------------------------------------------------
 // Main entry point — splits text-only vs media, runs both paths in parallel
 // ---------------------------------------------------------------------------
+
+interface ModerationInput {
+  targets: MessageRecord[];
+  contextText: string;
+  attachments?: AttachmentRecord[];
+}
+
+interface ModerationOutput {
+  results: AnalysisResult[];
+  raw: unknown;
+}
 
 /**
  * Runs LLM-based moderation analysis on messages.

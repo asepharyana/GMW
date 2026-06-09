@@ -1,27 +1,10 @@
+import { decodeCursor, encodeCursor, pageResult } from "@bete/shared";
 import { createChildLogger, type Logger } from "@bete/shared/logger";
 import { and, desc, eq, type SQL, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "../../shared/database/schema.js";
 import { moderationActionsTable } from "../../shared/database/schema.js";
-import { decodeCursor, encodeCursor } from "../message-capture/pagination.js";
 import type { ModerationAction, PageResult } from "../message-capture/types.js";
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function pageRows<T extends { created_at: number; id: string }>(
-  rows: unknown[],
-  limit: number,
-): PageResult<T> {
-  const hasMore = rows.length > limit;
-  const data = rows.slice(0, limit) as T[];
-  const lastItem = data[data.length - 1];
-  const nextCursor =
-    hasMore && lastItem
-      ? encodeCursor({ created_at: lastItem.created_at, id: lastItem.id })
-      : null;
-
-  return { data, nextCursor };
-}
 
 // ─── ModerationActionsDb Class ──────────────────────────────────────────────
 
@@ -126,7 +109,7 @@ export class ModerationActionsDb {
         )
         .limit(limit + 1);
 
-      return pageRows<ModerationAction>(rows, limit);
+      return pageResult<ModerationAction>(rows, limit);
     } catch (error) {
       this.logger.error(
         { error: error instanceof Error ? error.message : String(error) },

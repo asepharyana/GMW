@@ -5,7 +5,10 @@ import {
   COMMAND_MEDIA_VOLUME,
   MEDIA_STATUS_KEY,
 } from "@bete/shared";
-import { createChildLogger } from "@bete/shared/logger";
+import {
+  createChildLogger,
+  tryCommandThenFallback,
+} from "../../shared/commandHelper.js";
 import { publishCommand, readRedisStatus } from "../../shared/redis/index.js";
 
 const logger = createChildLogger("media.service");
@@ -44,6 +47,35 @@ const DEFAULT_STATE: MediaState = {
 };
 
 // ---------------------------------------------------------------------------
+// Normalisation — handle both boolean (new) and string (legacy) playing values
+// ---------------------------------------------------------------------------
+
+function normalizeMediaState(raw: Record<string, unknown>): MediaState {
+  const rawPlaying = raw.playing;
+  const playing =
+    rawPlaying === true ||
+    rawPlaying === "playing" ||
+    rawPlaying === "buffering";
+  return {
+    playing,
+    musicVolume: Number(raw.musicVolume ?? 1.0),
+    current: (raw.current as MediaItem | null) ?? null,
+    queue: (raw.queue as MediaItem[]) ?? [],
+  };
+}
+
+type MediaReplyData = Record<string, unknown> | MediaState;
+
+function fromReply(data: MediaReplyData): MediaState {
+  return normalizeMediaState(data as Record<string, unknown>);
+}
+
+async function readStatusFallback(): Promise<MediaState> {
+  const cached = await readRedisStatus(MEDIA_STATUS_KEY);
+  return cached ? normalizeMediaState(cached) : DEFAULT_STATE;
+}
+
+// ---------------------------------------------------------------------------
 // Service methods
 // ---------------------------------------------------------------------------
 
@@ -52,24 +84,7 @@ const DEFAULT_STATE: MediaState = {
  */
 export async function getStatus(): Promise<MediaState> {
   logger.debug("getStatus called");
-  const cached = await readRedisStatus(MEDIA_STATUS_KEY);
-
-  if (cached) {
-    const rawPlaying = cached.playing;
-    // Handle both boolean (new) and string (legacy from String(discordPlayer.getStatus()))
-    const playing =
-      rawPlaying === true ||
-      rawPlaying === "playing" ||
-      rawPlaying === "buffering";
-    return {
-      playing,
-      musicVolume: Number(cached.musicVolume ?? 1.0),
-      current: (cached.current as MediaItem | null) ?? null,
-      queue: (cached.queue as MediaItem[]) ?? [],
-    };
-  }
-
-  return DEFAULT_STATE;
+  return readStatusFallback();
 }
 
 /**
@@ -80,26 +95,16 @@ export async function queue(
   mode: "music" | "screen" = "music",
 ): Promise<MediaState> {
   logger.info({ source, mode }, "queue called");
-  const reply = await publishCommand<MediaState>(
-    COMMAND_MEDIA_QUEUE,
-    { source, mode },
-    DEFAULT_COMMAND_TIMEOUT_MS,
+  return tryCommandThenFallback(
+    () =>
+      publishCommand<MediaState>(
+        COMMAND_MEDIA_QUEUE,
+        { source, mode },
+        DEFAULT_COMMAND_TIMEOUT_MS,
+      ),
+    () => readStatusFallback(),
+    "queue",
   );
-
-  if (reply?.success && reply.data) {
-    return {
-      playing: reply.data.playing,
-      musicVolume: reply.data.musicVolume,
-      current: reply.data.current ?? null,
-      queue: reply.data.queue ?? [],
-    };
-  }
-
-  logger.warn(
-    { source, mode },
-    "discord-gateway unreachable, returning current media status",
-  );
-  return getStatus();
 }
 
 /**
@@ -107,23 +112,16 @@ export async function queue(
  */
 export async function skip(): Promise<MediaState> {
   logger.info("skip called");
-  const reply = await publishCommand<MediaState>(
-    COMMAND_MEDIA_SKIP,
-    {},
-    DEFAULT_COMMAND_TIMEOUT_MS,
+  return tryCommandThenFallback(
+    () =>
+      publishCommand<MediaState>(
+        COMMAND_MEDIA_SKIP,
+        {},
+        DEFAULT_COMMAND_TIMEOUT_MS,
+      ),
+    () => readStatusFallback(),
+    "skip",
   );
-
-  if (reply?.success && reply.data) {
-    return {
-      playing: reply.data.playing,
-      musicVolume: reply.data.musicVolume,
-      current: reply.data.current ?? null,
-      queue: reply.data.queue ?? [],
-    };
-  }
-
-  logger.warn("discord-gateway unreachable, returning current media status");
-  return getStatus();
 }
 
 /**
@@ -131,23 +129,16 @@ export async function skip(): Promise<MediaState> {
  */
 export async function stop(): Promise<MediaState> {
   logger.info("stop called");
-  const reply = await publishCommand<MediaState>(
-    COMMAND_MEDIA_STOP,
-    {},
-    DEFAULT_COMMAND_TIMEOUT_MS,
+  return tryCommandThenFallback(
+    () =>
+      publishCommand<MediaState>(
+        COMMAND_MEDIA_STOP,
+        {},
+        DEFAULT_COMMAND_TIMEOUT_MS,
+      ),
+    () => readStatusFallback(),
+    "stop",
   );
-
-  if (reply?.success && reply.data) {
-    return {
-      playing: reply.data.playing,
-      musicVolume: reply.data.musicVolume,
-      current: reply.data.current ?? null,
-      queue: reply.data.queue ?? [],
-    };
-  }
-
-  logger.warn("discord-gateway unreachable, returning current media status");
-  return getStatus();
 }
 
 /**
@@ -155,24 +146,14 @@ export async function stop(): Promise<MediaState> {
  */
 export async function setVolume(volume: number): Promise<MediaState> {
   logger.info({ volume }, "setVolume called");
-  const reply = await publishCommand<MediaState>(
-    COMMAND_MEDIA_VOLUME,
-    { volume },
-    DEFAULT_COMMAND_TIMEOUT_MS,
+  return tryCommandThenFallback(
+    () =>
+      publishCommand<MediaState>(
+        COMMAND_MEDIA_VOLUME,
+        { volume },
+        DEFAULT_COMMAND_TIMEOUT_MS,
+      ),
+    () => readStatusFallback(),
+    "setVolume",
   );
-
-  if (reply?.success && reply.data) {
-    return {
-      playing: reply.data.playing,
-      musicVolume: reply.data.musicVolume,
-      current: reply.data.current ?? null,
-      queue: reply.data.queue ?? [],
-    };
-  }
-
-  logger.warn(
-    { volume },
-    "discord-gateway unreachable, returning current media status",
-  );
-  return getStatus();
 }

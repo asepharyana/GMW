@@ -1,9 +1,12 @@
+import { createChildLogger } from "@bete/shared/logger";
 import { eq } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import {
   ChannelCulture,
   channelCulturesTable,
 } from "../../shared/database/schema.js";
+
+const logger = createChildLogger("channelCultureStore");
 
 /**
  * Fetch the AI-generated culture summary for a channel.
@@ -18,6 +21,11 @@ export async function getChannelCulture(
     .where(eq(channelCulturesTable.channel_id, channelId))
     .limit(1);
 
+  if (existing[0]) {
+    logger.debug({ channelId }, "Channel culture lookup: found");
+  } else {
+    logger.debug({ channelId }, "Channel culture lookup: not found");
+  }
   return existing[0] || null;
 }
 
@@ -46,4 +54,9 @@ export async function updateChannelCulture(
         last_analyzed_at: Date.now(),
       },
     });
+
+  logger.debug(
+    { channelId, guildId, cultureSummary },
+    "Channel culture updated",
+  );
 }

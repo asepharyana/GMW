@@ -9,6 +9,10 @@
  *   broadcastMessageCreated(messageData);
  */
 
+import { createChildLogger } from "@bete/shared/logger";
+
+const logger = createChildLogger("broadcast");
+
 type BroadcastFn = (data: unknown) => void;
 type BroadcastRawFn = (type: string, data: unknown) => void;
 type BroadcastBinaryFn = (data: Buffer) => void;
@@ -30,11 +34,14 @@ export interface BroadcastFunctions {
   binary: BroadcastBinaryFn;
 }
 
-const noop: BroadcastFn = () => {};
-const noopRaw: BroadcastRawFn = () => {};
-const noopBinary: BroadcastBinaryFn = () => {};
-
 let _fns: BroadcastFunctions | null = null;
+
+let _enabled = true;
+
+/** Enable or disable broadcast logging (disabled by default to reduce noise). */
+export function setBroadcastLogging(enabled: boolean): void {
+  _enabled = enabled;
+}
 
 /**
  * Inject broadcast functions from the WebSocket server initializer.
@@ -42,51 +49,88 @@ let _fns: BroadcastFunctions | null = null;
  */
 export function setBroadcastFunctions(fns: BroadcastFunctions): void {
   _fns = fns;
+  logger.info("Broadcast functions initialized");
 }
 
 /** Clear injected functions (used during cleanup). */
 export function clearBroadcastFunctions(): void {
   _fns = null;
+  logger.info("Broadcast functions cleared");
 }
 
-export const broadcastMessageCreated: BroadcastFn = (data) =>
-  (_fns?.messageCreated ?? noop)(data);
+function logBroadcast(name: string, data: unknown): void {
+  if (!_enabled) return;
+  // Avoid logging binary or PCM data due to volume
+  if (name === "voice_pcm_data" || name === "binary") return;
+  logger.debug({ event: name }, "Broadcasting event");
+}
 
-export const broadcastMessageUpdated: BroadcastFn = (data) =>
-  (_fns?.messageUpdated ?? noop)(data);
+export const broadcastMessageCreated: BroadcastFn = (data) => {
+  logBroadcast("message_created", data);
+  _fns?.messageCreated?.(data);
+};
 
-export const broadcastMessageDeleted: BroadcastFn = (data) =>
-  (_fns?.messageDeleted ?? noop)(data);
+export const broadcastMessageUpdated: BroadcastFn = (data) => {
+  logBroadcast("message_updated", data);
+  _fns?.messageUpdated?.(data);
+};
 
-export const broadcastAttachmentCreated: BroadcastFn = (data) =>
-  (_fns?.attachmentCreated ?? noop)(data);
+export const broadcastMessageDeleted: BroadcastFn = (data) => {
+  logBroadcast("message_deleted", data);
+  _fns?.messageDeleted?.(data);
+};
 
-export const broadcastAttachmentUploaded: BroadcastFn = (data) =>
-  (_fns?.attachmentUploaded ?? noop)(data);
+export const broadcastAttachmentCreated: BroadcastFn = (data) => {
+  logBroadcast("attachment_created", data);
+  _fns?.attachmentCreated?.(data);
+};
 
-export const broadcastMessageAnalyzed: BroadcastFn = (data) =>
-  (_fns?.messageAnalyzed ?? noop)(data);
+export const broadcastAttachmentUploaded: BroadcastFn = (data) => {
+  logBroadcast("attachment_uploaded", data);
+  _fns?.attachmentUploaded?.(data);
+};
 
-export const broadcastVoiceRecordingStarted: BroadcastFn = (data) =>
-  (_fns?.voiceRecordingStarted ?? noop)(data);
+export const broadcastMessageAnalyzed: BroadcastFn = (data) => {
+  logBroadcast("message_analyzed", data);
+  _fns?.messageAnalyzed?.(data);
+};
 
-export const broadcastVoiceRecordingStopped: BroadcastFn = (data) =>
-  (_fns?.voiceRecordingStopped ?? noop)(data);
+export const broadcastVoiceRecordingStarted: BroadcastFn = (data) => {
+  logBroadcast("voice_recording_started", data);
+  _fns?.voiceRecordingStarted?.(data);
+};
 
-export const broadcastVoiceRecordingUploaded: BroadcastFn = (data) =>
-  (_fns?.voiceRecordingUploaded ?? noop)(data);
+export const broadcastVoiceRecordingStopped: BroadcastFn = (data) => {
+  logBroadcast("voice_recording_stopped", data);
+  _fns?.voiceRecordingStopped?.(data);
+};
 
-export const broadcastVoicePcmData: BroadcastFn = (data) =>
-  (_fns?.voicePcmData ?? noop)(data);
+export const broadcastVoiceRecordingUploaded: BroadcastFn = (data) => {
+  logBroadcast("voice_recording_uploaded", data);
+  _fns?.voiceRecordingUploaded?.(data);
+};
 
-export const broadcastVoiceActiveUser: BroadcastFn = (data) =>
-  (_fns?.voiceActiveUser ?? noop)(data);
+export const broadcastVoicePcmData: BroadcastFn = (data) => {
+  // PCM data is high-volume; logging is skipped unconditionally
+  _fns?.voicePcmData?.(data);
+};
 
-export const broadcastAnalysisQueueStatus: BroadcastFn = (data) =>
-  (_fns?.analysisQueueStatus ?? noop)(data);
+export const broadcastVoiceActiveUser: BroadcastFn = (data) => {
+  logBroadcast("voice_active_user", data);
+  _fns?.voiceActiveUser?.(data);
+};
 
-export const broadcastRaw: BroadcastRawFn = (type, data) =>
-  (_fns?.raw ?? noopRaw)(type, data);
+export const broadcastAnalysisQueueStatus: BroadcastFn = (data) => {
+  logBroadcast("analysis_queue_status", data);
+  _fns?.analysisQueueStatus?.(data);
+};
 
-export const broadcastBinary: BroadcastBinaryFn = (data) =>
-  (_fns?.binary ?? noopBinary)(data);
+export const broadcastRaw: BroadcastRawFn = (type, data) => {
+  logBroadcast(type, data);
+  _fns?.raw?.(type, data);
+};
+
+export const broadcastBinary: BroadcastBinaryFn = (data) => {
+  // Binary data is high-volume; logging is skipped unconditionally
+  _fns?.binary?.(data);
+};
