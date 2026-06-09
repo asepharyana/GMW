@@ -9,7 +9,7 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy workspace files
+# Copy dependency definition files first for caching
 COPY pnpm-workspace.yaml .
 COPY pnpm-lock.yaml .
 COPY package.json .
@@ -17,11 +17,19 @@ COPY package.json .
 # Copy patches (pnpm patchedDependencies)
 COPY patches ./patches
 
+# Copy workspace dependency
+COPY packages/shared ./packages/shared
+
 # Copy service
 COPY services/frontend ./services/frontend
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+
+# Build shared workspace dependency first (required for TypeScript declarations)
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm --filter './packages/shared' run build
 
 # Build frontend (env vars injected at build time)
 RUN VITE_BE_API_URL=${VITE_BE_API_URL} VITE_BE_WS_URL=${VITE_BE_WS_URL} pnpm --filter './services/frontend' run build
