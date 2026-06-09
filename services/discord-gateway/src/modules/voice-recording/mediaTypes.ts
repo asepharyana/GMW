@@ -60,6 +60,7 @@ export type DiscordPlayerOwner = "none" | "browser-bridge" | "music" | "screen";
 
 export interface DiscordPlayOptions {
   inputType?: StreamType;
+  /** Enable volume control via resource.volume (required for setMusicVolume to work). */
   inlineVolume?: boolean;
   volume?: number;
 }

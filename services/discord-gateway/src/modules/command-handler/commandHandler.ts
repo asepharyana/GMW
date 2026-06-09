@@ -178,12 +178,11 @@ export class CommandHandler {
       };
     }
 
-    // Publish reply on the designated reply channel.
-    const redisPub = new Redis(config.REDIS_URL);
+    // Publish reply on the designated reply channel using the persistent publisher.
     try {
-      await redisPub.publish(cmd.replyChannel, JSON.stringify(reply));
-    } finally {
-      await redisPub.quit();
+      await this.redisPub.publish(cmd.replyChannel, JSON.stringify(reply));
+    } catch (err) {
+      logger.error({ err }, "Failed to publish command reply");
     }
 
     // Always refresh status keys after every command so the backend has

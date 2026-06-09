@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { ConfigError } from "@bete/shared/errors";
 import { z } from "zod";
 
 const configSchema = z
@@ -86,7 +87,31 @@ const configSchema = z
       .url()
       .default("https://upload.asepharyana.my.id/api/upload"),
   })
-  .parse(process.env);
+  .superRefine((value, ctx) => {
+    if (!value.DATABASE_URL && !value.DATABASE_HOST) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["DATABASE_URL"],
+        message: "Either DATABASE_URL or DATABASE_HOST must be provided",
+      });
+    }
+  });
 
-export const config = configSchema;
+export function loadConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): z.infer<typeof configSchema> {
+  try {
+    return configSchema.parse(env);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const messages = error.issues
+        .map((e) => `${e.path.join(".")}: ${e.message}`)
+        .join("\n");
+      throw new ConfigError(`Configuration validation failed:\n${messages}`);
+    }
+    throw error;
+  }
+}
+
+export const config = loadConfig();
 export type Config = typeof config;

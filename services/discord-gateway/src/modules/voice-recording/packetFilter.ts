@@ -1,8 +1,8 @@
 import { Transform, TransformCallback } from "node:stream";
 
 /**
- * Transform stream untuk memfilter audio packets yang terlalu kecil
- * Packet yang terlalu kecil kemungkinan gagal didekripsi oleh Discord
+ * Transform stream to filter out audio packets that are too small.
+ * Packets that are too small are likely to fail decryption by Discord.
  */
 export class PacketFilter extends Transform {
   private minPacketSize: number;
@@ -21,7 +21,7 @@ export class PacketFilter extends Transform {
   ): void {
     this.totalCount++;
 
-    // Filter packet yang terlalu kecil
+    // Filter out undersized packets
     if (chunk.length >= this.minPacketSize) {
       this.push(chunk);
     } else {

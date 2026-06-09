@@ -11,7 +11,7 @@ export interface WsHandlers {
   onMessageUpdated?: (data: unknown) => void;
   onMessageDeleted?: (data: unknown) => void;
   onMessageAnalyzed?: (data: unknown) => void;
-  onAttachmentUploaded?: () => void;
+  onAttachmentUploaded?: (data: unknown) => void;
   onUserState?: (users: unknown[]) => void;
   onUiState?: (state: unknown) => void;
   onMediaState?: (state: unknown) => void;
@@ -72,7 +72,7 @@ function doConnect(): WebSocket {
             h.onMessageAnalyzed?.(msg.data);
             break;
           case "attachment_uploaded":
-            h.onAttachmentUploaded?.();
+            h.onAttachmentUploaded?.(msg.data);
             break;
           case "user_state":
             h.onUserState?.((msg.users as unknown[]) || []);
@@ -147,7 +147,8 @@ export function useDashboardSocket(handlers: WsHandlers) {
       onMessageUpdated: (d) => handlersRef.current.onMessageUpdated?.(d),
       onMessageDeleted: (d) => handlersRef.current.onMessageDeleted?.(d),
       onMessageAnalyzed: (d) => handlersRef.current.onMessageAnalyzed?.(d),
-      onAttachmentUploaded: () => handlersRef.current.onAttachmentUploaded?.(),
+      onAttachmentUploaded: (d) =>
+        handlersRef.current.onAttachmentUploaded?.(d),
       onUserState: (u) => handlersRef.current.onUserState?.(u),
       onUiState: (s) => handlersRef.current.onUiState?.(s),
       onMediaState: (s) => handlersRef.current.onMediaState?.(s),

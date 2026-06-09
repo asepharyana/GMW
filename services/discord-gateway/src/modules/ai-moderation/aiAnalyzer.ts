@@ -22,7 +22,6 @@ import type {
   AnalysisQueueStatus,
   AnalysisResult,
   MessageRecord,
-  ModerationBroadcaster,
 } from "../message-capture/types.js";
 import { attemptAutoDeleteFlaggedMessage } from "./autoDeleteManager.js";
 import { estimateTokens } from "./conversationContext.js";
@@ -30,22 +29,12 @@ import { logModerationError } from "./responseLogger.js";
 
 const logger = createChildLogger("ai-analyzer");
 
-type ModerationGlobal = typeof globalThis & {
-  moderationBroadcaster?: ModerationBroadcaster;
-};
-
-function getModerationBroadcaster(): ModerationBroadcaster | undefined {
-  return (globalThis as ModerationGlobal).moderationBroadcaster;
-}
-
 // Redis EventBroadcaster — set by startPendingAIAnalysisWorker.
 // Used to publish analysis completion events so the backend
 // redis-bridge can forward them to frontend WebSocket clients.
 let _redisEventBroadcaster: EventBroadcaster | undefined;
 
 function broadcastAnalysisCompleted(row: MessageRecord): void {
-  // In-memory WS broadcast (direct-connected DG clients)
-  getModerationBroadcaster()?.messageAnalyzed(row);
   // Redis pub/sub broadcast → backend → frontend WebSocket
   if (_redisEventBroadcaster) {
     _redisEventBroadcaster.messageAnalyzed(row).catch((err: unknown) =>

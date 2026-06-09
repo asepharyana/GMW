@@ -59,7 +59,8 @@ export class DiscordPlayer {
 
     const resource = createAudioResource(stream, {
       inputType: options.inputType ?? StreamType.OggOpus,
-      inlineVolume: options.inlineVolume ?? false,
+      // Default to true so setMusicVolume/setResourceVolume works
+      inlineVolume: options.inlineVolume ?? true,
     });
 
     if (this.owner === owner) {

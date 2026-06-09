@@ -257,7 +257,6 @@ export async function getMessagesByChannel(
       .select()
       .from(messagesTable)
       .where(and(...conditions))
-      // P3: add secondary sort by id for stable pagination
       .orderBy(desc(messagesTable.created_at), desc(messagesTable.id))
       .limit(limit)
       .offset(offset);

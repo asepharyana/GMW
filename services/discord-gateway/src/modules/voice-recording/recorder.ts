@@ -1,4 +1,4 @@
-import fs, { promises as fsPromises } from "node:fs";
+import { promises as fsPromises } from "node:fs";
 import path from "node:path";
 import { createChildLogger } from "@bete/shared/logger";
 import { retryWithBackoff } from "@bete/shared/utils";
@@ -32,13 +32,16 @@ const logger = createChildLogger("recorder");
 
 let _eventBroadcaster: EventBroadcaster | undefined;
 
+/** @internal Export for uploader.ts to broadcast voice_recording_uploaded events */
+export { _eventBroadcaster };
+
 export function setEventBroadcaster(broadcaster: EventBroadcaster | undefined) {
   _eventBroadcaster = broadcaster;
 }
 
 const recordingsDir = config.RECORDINGS_DIR;
 
-// Pastikan folder recordings ada
+// Ensure recordings directory exists
 (async () => {
   try {
     await fsPromises.mkdir(recordingsDir, { recursive: true });
@@ -94,7 +97,7 @@ export async function startRecording(
     logger.error({ error: err }, "Voice connection error");
   });
 
-  // Tunggu sampai benar-benar terhubung dengan retry logic
+  // Wait until fully connected with retry logic
   try {
     await retryWithBackoff(
       () =>
@@ -148,7 +151,7 @@ export async function startRecording(
       speaking: true,
     });
 
-    // Jangan record kalau sudah ada stream aktif untuk user ini
+    // Skip if user already has an active stream
     if (receiver.subscriptions.has(userId)) return;
 
     const userDir = path.join(recordingsDir, userId);
@@ -157,17 +160,19 @@ export async function startRecording(
     });
 
     try {
-      // --- OGG file recording with segment rotation ---
-      const packetFilterForOgg = new PacketFilter(
-        config.PACKET_FILTER_MIN_SIZE,
-      );
+      // Subscribe to the audio stream FIRST, then immediately attach all event
+      // handlers before piping — prevents race condition where initial packets
+      // arrive before listeners are registered.
       const audioStream = receiver.subscribe(userId, {
         end: {
           behavior: EndBehaviorType.AfterSilence,
           duration: config.AUDIO_STREAM_SILENCE_DURATION_MS,
         },
       });
-      const oggPacketStream = audioStream.pipe(packetFilterForOgg);
+
+      const packetFilterForOgg = new PacketFilter(
+        config.PACKET_FILTER_MIN_SIZE,
+      );
       const segmentManager = new SegmentManager(
         userDir,
         config.RECORDING_SEGMENT_MS,
@@ -186,6 +191,33 @@ export async function startRecording(
           _eventBroadcaster?.voicePcmData(outBuf, userId);
         },
       });
+
+      // Attach all audioStream event handlers BEFORE pipe() to avoid data loss
+      audioStream.on("data", (chunk: Buffer) => {
+        if (chunk.length < 8) return;
+        segmentManager.rotateIfNeeded(packetFilterForOgg);
+        decoder.rotateIfNeeded();
+        decoder.write(chunk);
+      });
+
+      audioStream.on("end", () => {
+        segmentManager.close(packetFilterForOgg);
+        decoder.destroy();
+        _eventBroadcaster?.voiceActiveUser(userId, {
+          username: userMetadata.username,
+          avatar: userMetadata.avatarUrl,
+          speaking: false,
+        });
+      });
+
+      audioStream.on("error", (error: Error) => {
+        segmentManager.close(packetFilterForOgg);
+        decoder.destroy();
+        logger.error({ userId, error: error.message }, "Audio stream error");
+      });
+
+      // Now pipe for OGG recording (safe — event handlers already attached)
+      const oggPacketStream = audioStream.pipe(packetFilterForOgg);
 
       const activeSession = activeSessions.get(channel.guild.id);
       let currentSegment = segmentManager.open(oggPacketStream);
@@ -256,30 +288,6 @@ export async function startRecording(
         logger.error({ userId, error: msg }, "File write error");
       });
 
-      // Attach event handlers directly to the existing audioStream (no double subscription)
-      audioStream.on("data", (chunk: Buffer) => {
-        if (chunk.length < 8) return;
-        segmentManager.rotateIfNeeded(oggPacketStream);
-        decoder.rotateIfNeeded();
-        decoder.write(chunk);
-      });
-
-      audioStream.on("end", () => {
-        segmentManager.close(oggPacketStream);
-        decoder.destroy();
-        _eventBroadcaster?.voiceActiveUser(userId, {
-          username: userMetadata.username,
-          avatar: userMetadata.avatarUrl,
-          speaking: false,
-        });
-      });
-
-      audioStream.on("error", (error: Error) => {
-        segmentManager.close(oggPacketStream);
-        decoder.destroy();
-        logger.error({ userId, error: error.message }, "Audio stream error");
-      });
-
       packetFilterForOgg.on("error", (err) => {
         segmentManager.close(oggPacketStream);
         logger.error({ userId, error: err.message }, "PacketFilter error");
@@ -292,7 +300,7 @@ export async function startRecording(
     }
   });
 
-  // Handle disconnect yang tidak disengaja
+  // Handle unexpected disconnection
   connection.on(VoiceConnectionStatus.Disconnected, async () => {
     if (config.VERBOSE) {
       logger.warn("Disconnected from voice channel. Reconnecting...");
@@ -310,7 +318,7 @@ export async function startRecording(
           config.RECONNECT_TIMEOUT_MS,
         ),
       ]);
-      // Berhasil reconnect
+      // Reconnected successfully
     } catch {
       logger.error("Could not reconnect. Destroying connection");
       connection.destroy();
@@ -328,7 +336,7 @@ export async function startRecording(
 }
 
 /**
- * Hentikan recording dan disconnect dari voice channel.
+ * Stop recording and disconnect from voice channel.
  */
 export function stopRecording(guildId: string): void {
   const connection = getVoiceConnection(guildId);

@@ -68,12 +68,11 @@ export async function uploadRecordingSegment(input: {
     await updateVoiceRecordingAsUploaded(id, downloadUrl, Date.now());
     logger.info({ id, downloadUrl }, "Recording segment uploaded successfully");
 
-    // 4. Broadcast via WebSocket if broadcaster exists globally
-    const broadcaster = (globalThis as any).moderationBroadcaster;
-    if (broadcaster) {
-      const payload = JSON.stringify({
-        type: "voice_recording_uploaded",
-        data: {
+    // 4. Broadcast via Redis EventBroadcaster (forwarded to WebSocket clients by backend)
+    const { _eventBroadcaster } = await import("../recorder.js");
+    if (_eventBroadcaster) {
+      _eventBroadcaster
+        .voiceRecordingUploaded({
           id,
           user_id: userId,
           username,
@@ -87,26 +86,13 @@ export async function uploadRecordingSegment(input: {
           upload_status: "uploaded",
           created_at: Date.now(),
           uploaded_at: Date.now(),
-        },
-        timestamp: Date.now(),
-      });
-
-      broadcaster
-        .getClients()
-        .forEach(
-          (client: { readyState: number; send: (data: string) => void }) => {
-            if (client.readyState === 1) {
-              try {
-                client.send(payload);
-              } catch (err) {
-                logger.warn(
-                  { err },
-                  "Failed to send recording upload event to client",
-                );
-              }
-            }
-          },
-        );
+        })
+        .catch((err: unknown) => {
+          logger.warn(
+            { err },
+            "Failed to broadcast voice recording upload event",
+          );
+        });
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
