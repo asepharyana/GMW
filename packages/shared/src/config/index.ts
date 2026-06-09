@@ -16,6 +16,8 @@ export const configSchema = z
       .min(1, "DISCORD_TOKEN is required")
       .transform((value) => value.replace(/^("|')|(?:("|'))$/g, "")),
     MONITOR_GUILD_ID: z.string().min(1).optional(),
+    TEXT_GUILD_ID: z.string().min(1).optional(),
+    TEXT_CHANNEL_ID: z.string().min(1).optional(),
 
     // ── Legacy voice ─────────────────────────────────────────────────────
     VOICE_GUILD_ID: z.string().min(1).optional(),
@@ -231,7 +233,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     const parsed = configSchema.parse(env);
     return {
       ...parsed,
-      EFFECTIVE_TEXT_GUILD_ID: parsed.MONITOR_GUILD_ID,
+      EFFECTIVE_TEXT_GUILD_ID: parsed.TEXT_GUILD_ID ?? parsed.MONITOR_GUILD_ID,
       EFFECTIVE_VOICE_GUILD_ID: parsed.VOICE_GUILD_ID,
     };
   } catch (error) {

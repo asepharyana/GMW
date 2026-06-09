@@ -10,7 +10,7 @@ export function useAudioPlayback() {
     Array.from({ length: 32 }, () => 0.04),
   );
   const audioContextRef = useRef<AudioContext | null>(null);
-  const userTimelinesRef = useRef(new Map<number, number>());
+  const userTimelinesRef = useRef(new Map<string, number>());
 
   const handleIncomingPcm = useCallback(
     (data: { userId: string; pcm: string }) => {
@@ -57,13 +57,12 @@ export function useAudioPlayback() {
       source.connect(audioContext.destination);
 
       // Schedule playback per user to avoid overlaps
-      const userIdHash = parseInt(data.userId, 10);
       const currentTime = audioContext.currentTime;
-      let nextStart = userTimelinesRef.current.get(userIdHash) || 0;
+      let nextStart = userTimelinesRef.current.get(data.userId) || 0;
       if (nextStart < currentTime) nextStart = currentTime + 0.05;
       source.start(nextStart);
       userTimelinesRef.current.set(
-        userIdHash,
+        data.userId,
         nextStart + audioBuffer.duration,
       );
     },

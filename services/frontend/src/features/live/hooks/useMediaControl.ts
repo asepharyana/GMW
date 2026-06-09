@@ -52,6 +52,10 @@ export function useMediaControl() {
       const state = await skipMedia();
       setMediaState(state);
       return state;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -64,6 +68,10 @@ export function useMediaControl() {
       const state = await stopMedia();
       setMediaState(state);
       return state;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      throw err;
     } finally {
       setLoading(false);
     }

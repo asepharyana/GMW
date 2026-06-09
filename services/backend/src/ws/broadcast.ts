@@ -17,7 +17,10 @@ export interface BroadcastFunctions {
   messageCreated: BroadcastFn;
   messageUpdated: BroadcastFn;
   messageDeleted: BroadcastFn;
+  messageAnalyzed: BroadcastFn;
   attachmentUploaded: BroadcastFn;
+  voicePcmData: BroadcastFn;
+  voiceActiveUser: BroadcastFn;
   raw: BroadcastRawFn;
   binary: BroadcastBinaryFn;
 }
@@ -52,6 +55,15 @@ export const broadcastMessageDeleted: BroadcastFn = (data) =>
 
 export const broadcastAttachmentUploaded: BroadcastFn = (data) =>
   (_fns?.attachmentUploaded ?? noop)(data);
+
+export const broadcastMessageAnalyzed: BroadcastFn = (data) =>
+  (_fns?.messageAnalyzed ?? noop)(data);
+
+export const broadcastVoicePcmData: BroadcastFn = (data) =>
+  (_fns?.voicePcmData ?? noop)(data);
+
+export const broadcastVoiceActiveUser: BroadcastFn = (data) =>
+  (_fns?.voiceActiveUser ?? noop)(data);
 
 export const broadcastRaw: BroadcastRawFn = (type, data) =>
   (_fns?.raw ?? noopRaw)(type, data);

@@ -96,7 +96,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
               },
             );
           } else if (message.type === "voice_command" && message.command) {
-            // Forward voice commands to discord-gateway
+            // Forward voice commands to discord-gateway with payload
             import("../shared/redis/index.js").then(
               ({ getCommandPublisher }) => {
                 const publisher = getCommandPublisher();
@@ -107,7 +107,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
                     JSON.stringify({
                       id: commandId,
                       type: message.command,
-                      payload: {},
+                      payload: message.payload ?? {},
                       replyChannel: `reply:${commandId}`,
                     }),
                   )
@@ -186,8 +186,14 @@ export function createWebSocketServer(server: Server): WebSocketServer {
       broadcast({ type: "message_updated", data }),
     messageDeleted: (data: unknown) =>
       broadcast({ type: "message_deleted", data }),
+    messageAnalyzed: (data: unknown) =>
+      broadcast({ type: "message_analyzed", data }),
     attachmentUploaded: (data: unknown) =>
       broadcast({ type: "attachment_uploaded", data }),
+    voicePcmData: (data: unknown) =>
+      broadcast({ type: "voice_pcm_data", data }),
+    voiceActiveUser: (data: unknown) =>
+      broadcast({ type: "voice_active_user", data }),
     raw: (type: string, data: unknown) => broadcast({ type, data }),
     binary: broadcastBinary,
   });

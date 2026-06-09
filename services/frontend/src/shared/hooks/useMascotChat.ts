@@ -1,4 +1,6 @@
 import { useCallback, useState } from "react";
+import type { ChatResponse } from "../api/client";
+import { request } from "../api/client";
 import { createChildLogger } from "../logger";
 
 const logger = createChildLogger("useMascotChat");
@@ -18,17 +20,10 @@ export function useMascotChat(context?: ChatContext) {
   const handleSendMessage = useCallback(
     async (message: string): Promise<string> => {
       try {
-        const response = await fetch("/api/mascot/chat", {
+        const data = await request<ChatResponse>("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message, context }),
         });
-
-        if (!response.ok) {
-          throw new Error(`Mascot backend responded with ${response.status}`);
-        }
-
-        const data = (await response.json()) as { response?: string };
         return data.response || fallbackResponse(message, context);
       } catch (error) {
         logger.warn("Mascot backend unavailable, using fallback", { error });

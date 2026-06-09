@@ -124,6 +124,10 @@ export interface AppConfig {
   monitorGuildId: string | null;
 }
 
+export interface ChatResponse {
+  response?: string;
+}
+
 export type DashboardTab = "live" | "messages";
 
 // ─── Messages ────────────────────────────────────────────────────────────────
