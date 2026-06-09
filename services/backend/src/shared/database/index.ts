@@ -16,7 +16,7 @@ export async function initializeDatabase() {
 
   const databaseUrl =
     config.DATABASE_URL ||
-    `postgresql://${config.DATABASE_USER}${config.DATABASE_PASSWORD ? `:${config.DATABASE_PASSWORD}` : ""}@${config.DATABASE_HOST}:${config.DATABASE_PORT}/${config.DATABASE_NAME}`;
+    `postgresql://${config.POSTGRES_USER}${config.POSTGRES_PASSWORD ? `:${config.POSTGRES_PASSWORD}` : ""}@${config.POSTGRES_HOST}:${config.POSTGRES_PORT}/${config.POSTGRES_DB}`;
 
   pool = new Pool({
     connectionString: databaseUrl,

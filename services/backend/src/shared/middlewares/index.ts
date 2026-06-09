@@ -60,7 +60,7 @@ export function requireParam(
   name: string,
 ): string {
   if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`Missing ${kind}: ${name}`);
+    throw new ValidationError(`Missing ${kind}: ${name}`);
   }
   return value;
 }

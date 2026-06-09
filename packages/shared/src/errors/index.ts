@@ -33,30 +33,6 @@ export class UnauthorizedError extends AppError {
   }
 }
 
-export class ForbiddenError extends AppError {
-  constructor(message = "Forbidden") {
-    super(message, "FORBIDDEN", 403);
-    this.name = "ForbiddenError";
-  }
-}
-
-export class ConflictError extends AppError {
-  constructor(message: string) {
-    super(message, "CONFLICT", 409);
-    this.name = "ConflictError";
-  }
-}
-
-export class InternalServerError extends AppError {
-  constructor(
-    message = "Internal server error",
-    details?: Record<string, unknown>,
-  ) {
-    super(message, "INTERNAL_SERVER_ERROR", 500, details);
-    this.name = "InternalServerError";
-  }
-}
-
 export class DatabaseError extends AppError {
   constructor(message: string, details?: Record<string, unknown>) {
     super(message, "DATABASE_ERROR", 500, details);
@@ -68,19 +44,5 @@ export class ConfigError extends AppError {
   constructor(message: string) {
     super(message, "CONFIG_ERROR", 500);
     this.name = "ConfigError";
-  }
-}
-
-export class DiscordError extends AppError {
-  constructor(message: string, details?: Record<string, unknown>) {
-    super(message, "DISCORD_ERROR", 500, details);
-    this.name = "DiscordError";
-  }
-}
-
-export class TimeoutError extends AppError {
-  constructor(operation: string) {
-    super(`${operation} timed out`, "TIMEOUT", 504);
-    this.name = "TimeoutError";
   }
 }

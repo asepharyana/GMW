@@ -5,7 +5,7 @@ import {
   updateAttachmentAsUploaded,
   updateAttachmentDiscordUrl,
 } from "../message-capture/messageStore.js";
-import { uploadToTele } from "./teleUpload.js";
+import { uploadToTele } from "../voice-recording/teleUpload.js";
 
 const logger = createChildLogger("attachment-uploader");
 

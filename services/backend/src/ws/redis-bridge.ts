@@ -32,14 +32,7 @@ const SUBSCRIPTIONS: ChannelMapping[] = [
 let subscriber: Redis | null = null;
 
 function createSubscriber(): Redis {
-  if (config.REDIS_URL) {
-    return new Redis(config.REDIS_URL, { keyPrefix: "" });
-  }
-  return new Redis({
-    host: config.REDIS_HOST,
-    port: config.REDIS_PORT,
-    keyPrefix: "",
-  });
+  return new Redis(config.REDIS_URL, { keyPrefix: "" });
 }
 
 /**
@@ -93,7 +86,7 @@ function handleSubscriptionMessage(channel: string, message: string): void {
 }
 
 export async function startRedisBridge(): Promise<void> {
-  if (!config.REDIS_URL && !config.REDIS_HOST) {
+  if (!config.REDIS_URL) {
     logger.info("Redis not configured, skipping Redis bridge");
     return;
   }

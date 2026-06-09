@@ -1,6 +1,7 @@
 import type { Server } from "node:http";
 import { createChildLogger } from "@bete/shared/logger";
 import { WebSocket, WebSocketServer } from "ws";
+import { setBroadcastFunctions } from "./broadcast.js";
 
 const logger = createChildLogger("ws.server");
 
@@ -149,7 +150,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
   // Don't let the interval keep the process alive after wss closes
   heartbeatInterval.unref();
 
-  // Expose broadcast functions on globalThis
+  // Defines broadcast functions and injects them via setBroadcastFunctions
   function broadcast(event: Omit<BroadcastEvent, "timestamp">) {
     const payload = JSON.stringify({
       ...event,
@@ -166,7 +167,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     }
   }
 
-  function broadcastRaw(data: Buffer) {
+  function broadcastBinary(data: Buffer) {
     for (const client of clients) {
       if (client.readyState === WebSocket.OPEN) {
         try {
@@ -178,7 +179,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     }
   }
 
-  globalThis.__broadcastFns = {
+  setBroadcastFunctions({
     messageCreated: (data: unknown) =>
       broadcast({ type: "message_created", data }),
     messageUpdated: (data: unknown) =>
@@ -188,13 +189,12 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     attachmentUploaded: (data: unknown) =>
       broadcast({ type: "attachment_uploaded", data }),
     raw: (type: string, data: unknown) => broadcast({ type, data }),
-    binary: broadcastRaw,
-  };
+    binary: broadcastBinary,
+  });
 
   // Cleanup on close
   wss.on("close", () => {
     clearInterval(heartbeatInterval);
-    globalThis.__broadcastFns = undefined;
   });
 
   logger.info({ path: "/ws" }, "WebSocket server created");

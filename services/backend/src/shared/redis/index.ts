@@ -31,18 +31,11 @@ let publisherClient: Redis | null = null;
 let subscriberClient: Redis | null = null;
 
 function ensureRedisConfig(): boolean {
-  return !!(config.REDIS_URL || config.REDIS_HOST);
+  return !!(config.REDIS_URL);
 }
 
 function createClient(): Redis {
-  if (config.REDIS_URL) {
-    return new Redis(config.REDIS_URL, { keyPrefix: "" });
-  }
-  return new Redis({
-    host: config.REDIS_HOST,
-    port: config.REDIS_PORT,
-    keyPrefix: "",
-  });
+  return new Redis(config.REDIS_URL, { keyPrefix: "" });
 }
 
 // ---------------------------------------------------------------------------
