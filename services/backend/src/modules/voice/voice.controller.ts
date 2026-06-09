@@ -12,13 +12,15 @@ export async function handleGetVoiceStatus(_req: Request, res: Response) {
   res.json(status);
 }
 
+/** Safely extract a string value that may be a single string or string array. */
+function asString(val: unknown): string {
+  if (Array.isArray(val)) return String(val[0] ?? "");
+  return String(val ?? "");
+}
+
 export async function handleConnectVoice(req: Request, res: Response) {
-  const guildId = Array.isArray(req.body.guildId)
-    ? req.body.guildId[0]
-    : req.body.guildId;
-  const channelId = Array.isArray(req.body.channelId)
-    ? req.body.channelId[0]
-    : req.body.channelId;
+  const guildId = asString(req.body.guildId);
+  const channelId = asString(req.body.channelId);
   if (!guildId || !channelId) {
     return res.status(400).json({
       error: "VALIDATION_ERROR",
@@ -35,17 +37,13 @@ export async function handleDisconnectVoice(_req: Request, res: Response) {
 }
 
 export async function handleGetVoiceChannels(req: Request, res: Response) {
-  const guildId = Array.isArray(req.params.guildId)
-    ? req.params.guildId[0]
-    : req.params.guildId;
+  const guildId = asString(req.params.guildId);
   const channels = await getVoiceChannels(guildId);
   res.json(channels);
 }
 
 export async function handleVoiceCommand(req: Request, res: Response) {
-  const command = Array.isArray(req.body.command)
-    ? req.body.command[0]
-    : req.body.command;
+  const command = asString(req.body.command);
 
   if (!command) {
     return res.status(400).json({
@@ -55,7 +53,7 @@ export async function handleVoiceCommand(req: Request, res: Response) {
   }
 
   try {
-    await publishCommandNoReply(command as string);
+    await publishCommandNoReply(command);
     res.json({ success: true, command });
   } catch (err) {
     res.status(500).json({

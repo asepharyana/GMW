@@ -35,7 +35,7 @@ interface VoiceStatusPayload {
 }
 
 interface MediaStatusPayload {
-  playing: string;
+  playing: boolean;
   musicVolume: number;
   current: unknown;
   queue: unknown[];
@@ -341,25 +341,34 @@ export class CommandHandler {
     }
   }
 
-  private async handleMediaQueue(_cmd: BackendCommand): Promise<CommandReply> {
+  private getCurrentMediaStatus(): MediaStatusPayload {
+    return {
+      playing: discordPlayer.getStatus() === "playing",
+      musicVolume: discordPlayer.getMusicVolume(),
+      current: null,
+      queue: [],
+    };
+  }
+
+  private async handleMediaQueue(cmd: BackendCommand): Promise<CommandReply> {
     // Media queueing is handled at a higher level (frontend / backend streams
     // audio directly).  Log the request for now.
     logger.info("media:queue received — media queueing is handled externally");
     return {
-      id: _cmd.id,
+      id: cmd.id,
       success: true,
-      data: { note: "media queueing handled externally" },
+      data: this.getCurrentMediaStatus(),
     };
   }
 
   private async handleMediaSkip(cmd: BackendCommand): Promise<CommandReply> {
     discordPlayer.stop("music");
-    return { id: cmd.id, success: true, data: { action: "skipped" } };
+    return { id: cmd.id, success: true, data: this.getCurrentMediaStatus() };
   }
 
   private async handleMediaStop(cmd: BackendCommand): Promise<CommandReply> {
     discordPlayer.stop("music");
-    return { id: cmd.id, success: true, data: { action: "stopped" } };
+    return { id: cmd.id, success: true, data: this.getCurrentMediaStatus() };
   }
 
   private async handleMediaVolume(cmd: BackendCommand): Promise<CommandReply> {
@@ -376,7 +385,7 @@ export class CommandHandler {
     return {
       id: cmd.id,
       success: true,
-      data: { volume: discordPlayer.getMusicVolume() },
+      data: this.getCurrentMediaStatus(),
     };
   }
 
@@ -579,14 +588,7 @@ export class CommandHandler {
   }
 
   private publishMediaStatus(): void {
-    const status: MediaStatusPayload = {
-      playing: String(discordPlayer.getStatus()),
-      musicVolume: discordPlayer.getMusicVolume(),
-      current: null,
-      queue: [],
-    };
-
-    this.setKey(MEDIA_STATUS_KEY, JSON.stringify(status));
+    this.setKey(MEDIA_STATUS_KEY, JSON.stringify(this.getCurrentMediaStatus()));
   }
 
   /**

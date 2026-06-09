@@ -260,7 +260,7 @@ export async function writeRedisStatus(
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-export async function startRedisBridge(): Promise<void> {
+export async function startCommandBridge(): Promise<void> {
   if (!ensureRedisConfig()) {
     logger.info("Redis not configured, skipping command channel bridge");
     return;
@@ -272,7 +272,7 @@ export async function startRedisBridge(): Promise<void> {
   logger.info("Redis command channel initialized");
 }
 
-export async function stopRedisBridge(): Promise<void> {
+export async function stopCommandBridge(): Promise<void> {
   if (publisherClient) {
     await publisherClient.quit();
     publisherClient = null;

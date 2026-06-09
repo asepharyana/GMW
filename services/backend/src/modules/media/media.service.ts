@@ -47,8 +47,14 @@ export async function getStatus(): Promise<MediaState> {
   const cached = await readRedisStatus("media:status");
 
   if (cached) {
+    const rawPlaying = cached.playing;
+    // Handle both boolean (new) and string (legacy from String(discordPlayer.getStatus()))
+    const playing =
+      rawPlaying === true ||
+      rawPlaying === "playing" ||
+      rawPlaying === "buffering";
     return {
-      playing: Boolean(cached.playing),
+      playing,
       musicVolume: Number(cached.musicVolume ?? 1.0),
       current: (cached.current as MediaItem | null) ?? null,
       queue: (cached.queue as MediaItem[]) ?? [],

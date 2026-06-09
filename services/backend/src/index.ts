@@ -1,6 +1,10 @@
 import type { Server } from "node:http";
 import { createChildLogger } from "@bete/shared/logger";
 import { startHttpServer } from "./http/server.js";
+import { closeDatabase } from "./shared/database/index.js";
+import { stopCommandBridge } from "./shared/redis/index.js";
+import { stopRedisBridge as stopEventBridge } from "./ws/redis-bridge.js";
+import { closeWebSocketServer } from "./ws/server.js";
 
 const logger = createChildLogger("backend");
 
@@ -17,22 +21,43 @@ async function main() {
   }
 }
 
-function shutdown(signal: string) {
+async function shutdown(signal: string) {
   logger.info({ signal }, "Shutting down gracefully");
 
-  if (httpServer) {
-    httpServer.close(() => {
-      logger.info("HTTP server closed");
-      process.exit(0);
-    });
+  try {
+    // 1. Stop accepting new HTTP connections
+    if (httpServer) {
+      await new Promise<void>((resolve) => {
+        httpServer!.close(() => {
+          logger.info("HTTP server closed");
+          resolve();
+        });
+      });
+    }
 
-    // Force exit after 10s if connections don't close
-    setTimeout(() => {
-      logger.error("Forced shutdown after timeout");
-      process.exit(1);
-    }, 10_000).unref();
-  } else {
+    // 2. Close WebSocket server
+    closeWebSocketServer();
+
+    // 3. Stop Redis bridges (event subscriptions + command channel)
+    await Promise.allSettled([
+      stopEventBridge().catch((err) =>
+        logger.warn({ err }, "Error stopping event bridge"),
+      ),
+      stopCommandBridge().catch((err) =>
+        logger.warn({ err }, "Error stopping command bridge"),
+      ),
+    ]);
+
+    // 4. Close database pool
+    await closeDatabase().catch((err) =>
+      logger.warn({ err }, "Error closing database"),
+    );
+
+    logger.info("Graceful shutdown completed");
     process.exit(0);
+  } catch (err) {
+    logger.error({ err }, "Error during graceful shutdown");
+    process.exit(1);
   }
 }
 
@@ -41,12 +66,12 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 process.on("uncaughtException", (err) => {
   logger.error({ err }, "Uncaught exception");
-  process.exit(1);
+  shutdown("uncaughtException");
 });
 
 process.on("unhandledRejection", (reason) => {
   logger.error({ reason }, "Unhandled rejection");
-  process.exit(1);
+  shutdown("unhandledRejection");
 });
 
 main();

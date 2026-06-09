@@ -15,6 +15,9 @@ export function useVoiceControl() {
   const [textChannels, setTextChannels] = useState<Channel[]>([]);
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>({
     connected: false,
+    activeGuildId: null,
+    activeChannelId: null,
+    activeChannelName: null,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

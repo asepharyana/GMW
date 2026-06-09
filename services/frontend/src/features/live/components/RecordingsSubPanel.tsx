@@ -1,43 +1,24 @@
-// ─── Recordings Sub-Panel — BUG 1 FIX: useEffect instead of useMemo for side effects ──
+// ─── Recordings Sub-Panel ──
 
 import { Download, Mic } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { VoiceRecording } from "../../../shared/api/client";
+import { listRecordings } from "../../../shared/api/client";
 import { formatBytes, formatDate } from "../../../shared/lib/utils";
 import { Badge, Button, EmptyStateMascot, Skeleton } from "../../../shared/ui";
-
-interface VoiceRecording {
-  id: string;
-  user_id: string;
-  username: string;
-  avatar_url: string | null;
-  guild_id: string | null;
-  channel_id: string | null;
-  channel_name: string | null;
-  filename: string;
-  size_bytes: number;
-  download_url: string | null;
-  upload_status: "pending" | "uploaded" | "failed";
-  upload_error: string | null;
-  created_at: number;
-  uploaded_at: number | null;
-}
 
 export function RecordingsSubPanel() {
   const [recordings, setRecordings] = useState<VoiceRecording[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // BUG 1 FIX: proper useEffect for async data fetching
   useEffect(() => {
     let cancelled = false;
     async function loadRecordings() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch("/api/recordings");
-        if (!response.ok)
-          throw new Error(`Failed to load recordings: ${response.status}`);
-        const data = (await response.json()) as VoiceRecording[];
+        const data = await listRecordings();
         if (!cancelled) setRecordings(data);
       } catch (err) {
         if (!cancelled)

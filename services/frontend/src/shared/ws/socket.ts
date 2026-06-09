@@ -11,6 +11,7 @@ export interface WsHandlers {
   onMessageUpdated?: (data: unknown) => void;
   onMessageDeleted?: (data: unknown) => void;
   onMessageAnalyzed?: (data: unknown) => void;
+  onAttachmentCreated?: (data: unknown) => void;
   onAttachmentUploaded?: (data: unknown) => void;
   onUserState?: (users: unknown[]) => void;
   onUiState?: (state: unknown) => void;
@@ -99,8 +100,7 @@ function doConnect(): WebSocket {
             h.onVoiceActiveUser?.(msg.data);
             break;
           case "attachment_created":
-            // attachment_created is informational — same data shape as message_created
-            h.onMessageCreated?.(msg.data);
+            h.onAttachmentCreated?.(msg.data);
             break;
           case "analysis_queue_status":
             // analysis_queue_status is monitoring-only — no UI action needed
@@ -147,6 +147,7 @@ export function useDashboardSocket(handlers: WsHandlers) {
       onMessageUpdated: (d) => handlersRef.current.onMessageUpdated?.(d),
       onMessageDeleted: (d) => handlersRef.current.onMessageDeleted?.(d),
       onMessageAnalyzed: (d) => handlersRef.current.onMessageAnalyzed?.(d),
+      onAttachmentCreated: (d) => handlersRef.current.onAttachmentCreated?.(d),
       onAttachmentUploaded: (d) =>
         handlersRef.current.onAttachmentUploaded?.(d),
       onUserState: (u) => handlersRef.current.onUserState?.(u),

@@ -88,6 +88,10 @@ export default function App() {
       messages
         .fetchMessages(monitorGuildId || undefined)
         .catch(() => undefined),
+    onAttachmentCreated: () =>
+      messages
+        .fetchMessages(monitorGuildId || undefined)
+        .catch(() => undefined),
     onMediaState: (state) => media.setMediaState(state as MediaState),
     onVoiceRecordingUploaded: (d) =>
       window.dispatchEvent(

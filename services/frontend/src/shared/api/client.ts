@@ -1,6 +1,6 @@
 // ─── Shared HTTP client — all API endpoints in one file ──────────────────────
 
-import type { MessageRecord } from "@bete/shared";
+import type { MessageRecord, PageResult } from "@bete/shared";
 
 const BE_API_URL = import.meta.env.VITE_BE_API_URL || "http://localhost:3001";
 const BE_WS_URL = import.meta.env.VITE_BE_WS_URL || "ws://localhost:3001";
@@ -54,12 +54,7 @@ export function getAPIURL(): string {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface PageResult<T> {
-  data: T[];
-  nextCursor: string | null;
-}
-
-export type { MessageRecord };
+export type { MessageRecord, PageResult };
 
 export interface Guild {
   id: string;
@@ -76,9 +71,9 @@ export interface Channel {
 
 export interface VoiceStatus {
   connected: boolean;
-  activeGuildId?: string | null;
-  activeChannelId?: string | null;
-  activeChannelName?: string | null;
+  activeGuildId: string | null;
+  activeChannelId: string | null;
+  activeChannelName: string | null;
 }
 
 export interface ActiveSpeaker {
@@ -235,6 +230,29 @@ export function setMediaVolume(volume: number): Promise<MediaState> {
     method: "POST",
     body: JSON.stringify({ volume }),
   });
+}
+
+// ─── Recordings ──────────────────────────────────────────────────────────────
+
+export interface VoiceRecording {
+  id: string;
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  guild_id: string | null;
+  channel_id: string | null;
+  channel_name: string | null;
+  filename: string;
+  size_bytes: number;
+  download_url: string | null;
+  upload_status: "pending" | "uploaded" | "failed";
+  upload_error: string | null;
+  created_at: number;
+  uploaded_at: number | null;
+}
+
+export function listRecordings(limit = 50): Promise<VoiceRecording[]> {
+  return request<VoiceRecording[]>(`/api/recordings?limit=${limit}`);
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import type { PageResult } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import { getPool } from "../../shared/database/index.js";
 import type {
@@ -7,11 +8,6 @@ import type {
 } from "./messages.schema.js";
 
 const logger = createChildLogger("messages.repository");
-
-export interface PageResult<T> {
-  data: T[];
-  nextCursor: string | null;
-}
 
 export interface AttachmentResult {
   id: string;

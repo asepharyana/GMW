@@ -11,6 +11,9 @@ interface BroadcastEvent {
   timestamp: string;
 }
 
+// Track the active WebSocket server for lifecycle management
+let _wss: WebSocketServer | null = null;
+
 async function sendInitialStates(ws: WebSocket): Promise<void> {
   // Send initial user state
   ws.send(
@@ -51,10 +54,18 @@ async function sendInitialStates(ws: WebSocket): Promise<void> {
   }
 }
 
+export function closeWebSocketServer(): void {
+  if (!_wss) return;
+  logger.info("Closing WebSocket server");
+  _wss.close(() => logger.info("WebSocket server closed"));
+  _wss = null;
+}
+
 export function createWebSocketServer(server: Server): WebSocketServer {
   const clients = new Set<WebSocket>();
 
   const wss = new WebSocketServer({ server, path: "/ws" });
+  _wss = wss;
 
   wss.on("connection", (ws: WebSocket) => {
     clients.add(ws);
@@ -188,12 +199,22 @@ export function createWebSocketServer(server: Server): WebSocketServer {
       broadcast({ type: "message_deleted", data }),
     messageAnalyzed: (data: unknown) =>
       broadcast({ type: "message_analyzed", data }),
+    attachmentCreated: (data: unknown) =>
+      broadcast({ type: "attachment_created", data }),
     attachmentUploaded: (data: unknown) =>
       broadcast({ type: "attachment_uploaded", data }),
+    voiceRecordingStarted: (data: unknown) =>
+      broadcast({ type: "voice_recording_started", data }),
+    voiceRecordingStopped: (data: unknown) =>
+      broadcast({ type: "voice_recording_stopped", data }),
+    voiceRecordingUploaded: (data: unknown) =>
+      broadcast({ type: "voice_recording_uploaded", data }),
     voicePcmData: (data: unknown) =>
       broadcast({ type: "voice_pcm_data", data }),
     voiceActiveUser: (data: unknown) =>
       broadcast({ type: "voice_active_user", data }),
+    analysisQueueStatus: (data: unknown) =>
+      broadcast({ type: "analysis_queue_status", data }),
     raw: (type: string, data: unknown) => broadcast({ type, data }),
     binary: broadcastBinary,
   });

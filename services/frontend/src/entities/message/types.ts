@@ -3,6 +3,7 @@ export type {
   AISeverity,
   AIStatus,
   MessageRecord,
+  PageResult,
 } from "@bete/shared";
 
 export interface MessageMetadata {
@@ -25,9 +26,4 @@ export function parseMetadata(value: string | null): MessageMetadata {
   } catch {
     return {};
   }
-}
-
-export interface PageResult<T> {
-  data: T[];
-  nextCursor: string | null;
 }
