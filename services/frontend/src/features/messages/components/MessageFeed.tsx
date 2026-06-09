@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useEffect, useMemo, useRef } from "react";
 import type { MessageRecord } from "../../../shared/api/client";
 import { cardItem, cardStagger } from "../../../shared/hooks/useFramerStagger";
-import { ScrollArea, EmptyStateMascot } from "../../../shared/ui";
+import { EmptyStateMascot, ScrollArea } from "../../../shared/ui";
 import { MessageCard, MessageCardSkeleton } from "./MessageCard";
 
 export interface MessageFeedProps {
@@ -96,10 +96,7 @@ export function MessageFeed({
       >
         {groupedMessages.map((group) => (
           <motion.div key={group.messages[0].id} variants={cardItem}>
-            <MessageCard
-              messages={group.messages}
-              onReanalyze={onReanalyze}
-            />
+            <MessageCard messages={group.messages} onReanalyze={onReanalyze} />
           </motion.div>
         ))}
 

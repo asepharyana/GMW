@@ -1,11 +1,10 @@
-import { BarChart3, MessageSquare, Radio } from "lucide-react";
+import { MessageSquare, Radio } from "lucide-react";
 import type { DashboardTab } from "../../entities/ui/types";
 import { cn } from "../lib/utils";
 
 const tabs: Array<{ id: DashboardTab; label: string; Icon: typeof Radio }> = [
   { id: "live", label: "Live", Icon: Radio },
   { id: "messages", label: "Messages", Icon: MessageSquare },
-  { id: "analytics", label: "Analytics", Icon: BarChart3 },
 ];
 
 interface MobileTabBarProps {

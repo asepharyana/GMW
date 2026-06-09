@@ -1,5 +1,5 @@
-import { getPool } from "../../shared/database/index.js";
 import { createChildLogger } from "@bete/shared/logger";
+import { getPool } from "../../shared/database/index.js";
 import type {
   MessageCreate,
   MessageQuery,
@@ -61,7 +61,9 @@ function mapMessageRow(row: Record<string, unknown>) {
 }
 
 export class MessagesRepository {
-  async findMany(query: MessageQuery): Promise<PageResult<ReturnType<typeof mapMessageRow>>> {
+  async findMany(
+    query: MessageQuery,
+  ): Promise<PageResult<ReturnType<typeof mapMessageRow>>> {
     const pool = getPool();
     const limit = query.limit ?? 50;
     const clauses: string[] = [];
@@ -101,7 +103,8 @@ export class MessagesRepository {
     );
 
     const data = rows.slice(0, limit).map(mapMessageRow);
-    const nextCursor = rows.length > limit ? String(rows[limit].created_at) : null;
+    const nextCursor =
+      rows.length > limit ? String(rows[limit].created_at) : null;
 
     logger.debug({ count: data.length, nextCursor }, "Found messages");
     return { data, nextCursor };
@@ -109,10 +112,9 @@ export class MessagesRepository {
 
   async findById(id: string) {
     const pool = getPool();
-    const { rows } = await pool.query(
-      `SELECT * FROM messages WHERE id = $1`,
-      [id],
-    );
+    const { rows } = await pool.query(`SELECT * FROM messages WHERE id = $1`, [
+      id,
+    ]);
 
     if (rows.length === 0) return null;
     return mapMessageRow(rows[0] as Record<string, unknown>);
@@ -140,7 +142,8 @@ export class MessagesRepository {
     );
 
     const data = rows.slice(0, limit).map(mapMessageRow);
-    const nextCursor = rows.length > limit ? String(rows[limit].created_at) : null;
+    const nextCursor =
+      rows.length > limit ? String(rows[limit].created_at) : null;
 
     return { data, nextCursor };
   }
@@ -260,6 +263,58 @@ export class MessagesRepository {
     return rowCount ?? 0;
   }
 
+  /**
+   * Mark a single message for re-analysis by resetting ai_status to 'pending'.
+   * Skips messages already in 'pending' state to avoid write amplification.
+   */
+  async markForReanalysis(id: string): Promise<void> {
+    const pool = getPool();
+    await pool.query(
+      `UPDATE messages SET ai_status = 'pending'
+       WHERE id = $1 AND ai_status != 'pending'`,
+      [id],
+    );
+    logger.debug({ id }, "Message marked for re-analysis");
+  }
+
+  /**
+   * Retrieve messages flagged for review (ai_status IN ('warn', 'flagged')).
+   * Optionally filtered by channelId, with configurable limit.
+   */
+  async getReviewMessages(
+    channelId?: string,
+    limit: number = 20,
+  ): Promise<Record<string, unknown>[]> {
+    const pool = getPool();
+
+    if (channelId) {
+      const { rows } = await pool.query(
+        `SELECT id, guild_id, channel_id, user_id, username, avatar_url,
+                content, type, created_at, ai_status, ai_severity,
+                ai_confidence, ai_analysis
+         FROM messages
+         WHERE ai_status IN ('warn', 'flagged')
+           AND channel_id = $1
+         ORDER BY created_at DESC
+         LIMIT $2`,
+        [channelId, limit],
+      );
+      return rows;
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, guild_id, channel_id, user_id, username, avatar_url,
+              content, type, created_at, ai_status, ai_severity,
+              ai_confidence, ai_analysis
+       FROM messages
+       WHERE ai_status IN ('warn', 'flagged')
+       ORDER BY created_at DESC
+       LIMIT $1`,
+      [limit],
+    );
+    return rows;
+  }
+
   async delete(id: string): Promise<boolean> {
     const pool = getPool();
     const { rowCount } = await pool.query(
@@ -308,7 +363,8 @@ export class MessagesRepository {
       uploaded_at: (r.uploaded_at as number | null) ?? null,
     }));
 
-    const nextCursor = data.length > limit ? String(data[limit].created_at) : null;
+    const nextCursor =
+      data.length > limit ? String(data[limit].created_at) : null;
     const trimmed = data.slice(0, limit);
 
     return { data: trimmed, nextCursor };

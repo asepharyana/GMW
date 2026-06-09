@@ -1,5 +1,5 @@
-import { PassThrough } from "node:stream";
 import { spawn } from "node:child_process";
+import { PassThrough } from "node:stream";
 import { createChildLogger } from "@bete/shared/logger";
 import { StreamType } from "@discordjs/voice";
 import type Redis from "ioredis";
@@ -39,23 +39,39 @@ export class VoiceTransmitter {
     // Spawn FFmpeg to encode 24kHz mono PCM → OggOpus
     // Input: 24kHz mono s16le (raw PCM)
     // Output: OGG container with Opus audio
-    this.ffmpegProcess = spawn("ffmpeg", [
-      "-f", "s16le",           // Input format: signed 16-bit little-endian
-      "-ar", "24000",          // Input sample rate: 24kHz
-      "-ac", "1",              // Input channels: mono
-      "-i", "pipe:0",          // Read from stdin
-      "-f", "ogg",             // Output format: OGG
-      "-c:a", "libopus",       // Codec: Opus
-      "-b:a", "96k",           // Bitrate: 96kbps
-      "-ar", "48000",          // Output sample rate: 48kHz
-      "-ac", "2",              // Output channels: stereo
-      "-application", "lowdelay", // Low delay mode for real-time
-      "-frame_duration", "20", // 20ms frames
-      "-packet_loss", "0",     // No packet loss expected
-      "pipe:1",                // Write to stdout
-    ], {
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    this.ffmpegProcess = spawn(
+      "ffmpeg",
+      [
+        "-f",
+        "s16le", // Input format: signed 16-bit little-endian
+        "-ar",
+        "24000", // Input sample rate: 24kHz
+        "-ac",
+        "1", // Input channels: mono
+        "-i",
+        "pipe:0", // Read from stdin
+        "-f",
+        "ogg", // Output format: OGG
+        "-c:a",
+        "libopus", // Codec: Opus
+        "-b:a",
+        "96k", // Bitrate: 96kbps
+        "-ar",
+        "48000", // Output sample rate: 48kHz
+        "-ac",
+        "2", // Output channels: stereo
+        "-application",
+        "lowdelay", // Low delay mode for real-time
+        "-frame_duration",
+        "20", // 20ms frames
+        "-packet_loss",
+        "0", // No packet loss expected
+        "pipe:1", // Write to stdout
+      ],
+      {
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
 
     // Pipe PCM data to FFmpeg stdin
     if (this.ffmpegProcess.stdin) {
@@ -69,16 +85,20 @@ export class VoiceTransmitter {
     });
 
     this.ffmpegProcess.on("error", (err) => {
-      const msg = err.message === "spawn ffmpeg ENOENT"
-        ? "FFmpeg/avconv not found! Install ffmpeg in the container."
-        : err.message;
+      const msg =
+        err.message === "spawn ffmpeg ENOENT"
+          ? "FFmpeg/avconv not found! Install ffmpeg in the container."
+          : err.message;
       logger.error({ error: msg }, "FFmpeg process error");
     });
 
     this.ffmpegProcess.on("exit", (code) => {
       if (code !== 0) {
         const stderr = Buffer.concat(stderrChunks).toString();
-        logger.error({ code, stderr: stderr.slice(-500) }, "FFmpeg exited with error");
+        logger.error(
+          { code, stderr: stderr.slice(-500) },
+          "FFmpeg exited with error",
+        );
       }
     });
 
@@ -90,11 +110,16 @@ export class VoiceTransmitter {
       });
     }
 
-    logger.info("Voice transmitter pipeline ready (PCM → FFmpeg → OggOpus → Discord)");
+    logger.info(
+      "Voice transmitter pipeline ready (PCM → FFmpeg → OggOpus → Discord)",
+    );
 
     // Subscribe to Redis channel for PCM data
     await this.redisSub.subscribe(this.TRANSMIT_CHANNEL);
-    logger.info({ channel: this.TRANSMIT_CHANNEL }, "Subscribed to transmit channel");
+    logger.info(
+      { channel: this.TRANSMIT_CHANNEL },
+      "Subscribed to transmit channel",
+    );
 
     this.redisSub.on("message", (channel, message) => {
       if (channel !== this.TRANSMIT_CHANNEL || !this.pcmStream) return;

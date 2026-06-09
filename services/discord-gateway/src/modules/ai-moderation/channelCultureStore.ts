@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import {
-  channelCulturesTable,
   ChannelCulture,
+  channelCulturesTable,
 } from "../../shared/database/schema.js";
 
 /**

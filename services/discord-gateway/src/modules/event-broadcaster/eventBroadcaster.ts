@@ -138,7 +138,7 @@ export class EventBroadcaster {
   async voicePcmData(
     pcmBuffer: Buffer,
     userId: string,
-    metadata?: any,
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     await this.publisher.publish("discord:voice:pcm", {
       type: "voice_pcm_data",

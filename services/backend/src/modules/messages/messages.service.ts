@@ -46,12 +46,33 @@ export class MessagesService {
     return messagesRepository.getAttachmentsByChannel(channelId, query);
   }
 
+  async markForReanalysis(id: string): Promise<void> {
+    if (!id) {
+      throw new ValidationError("message ID is required");
+    }
+
+    logger.debug({ id }, "Marking message for re-analysis");
+    await messagesRepository.markForReanalysis(id);
+  }
+
+  async getReviewMessages(
+    channelId?: string,
+    limit?: number,
+  ): Promise<Record<string, unknown>[]> {
+    logger.debug({ channelId, limit }, "Getting review messages");
+    return messagesRepository.getReviewMessages(channelId, limit);
+  }
+
   async reanalyzeErrorBatch(opts: {
     guildId?: string;
     channelId?: string;
     messageIds?: string[];
   }) {
-    if (!opts.guildId && !opts.channelId && (!opts.messageIds || opts.messageIds.length === 0)) {
+    if (
+      !opts.guildId &&
+      !opts.channelId &&
+      (!opts.messageIds || opts.messageIds.length === 0)
+    ) {
       throw new ValidationError(
         "At least one of guildId, channelId, or messageIds[] is required",
       );

@@ -1,5 +1,5 @@
-import { getPool } from "../../shared/database/index.js";
 import { createChildLogger } from "@bete/shared/logger";
+import { getPool } from "../../shared/database/index.js";
 
 const logger = createChildLogger("health.repository");
 

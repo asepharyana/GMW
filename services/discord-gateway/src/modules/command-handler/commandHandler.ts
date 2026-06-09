@@ -377,7 +377,9 @@ export class CommandHandler {
     };
   }
 
-  private async handleVoiceTransmitStart(cmd: BackendCommand): Promise<CommandReply> {
+  private async handleVoiceTransmitStart(
+    cmd: BackendCommand,
+  ): Promise<CommandReply> {
     if (!discordPlayer.isConnected()) {
       return {
         id: cmd.id,
@@ -412,7 +414,9 @@ export class CommandHandler {
     }
   }
 
-  private async handleVoiceTransmitStop(cmd: BackendCommand): Promise<CommandReply> {
+  private async handleVoiceTransmitStop(
+    cmd: BackendCommand,
+  ): Promise<CommandReply> {
     try {
       await voiceTransmitter.stop();
       logger.info("Voice transmit stopped");
@@ -464,11 +468,9 @@ export class CommandHandler {
    * Fire-and-forget SET using the persistent Redis publisher connection.
    */
   private setKey(key: string, value: string): void {
-    this.redisPub
-      .set(key, value)
-      .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        logger.warn({ key, error: msg }, "Failed to update Redis status key");
-      });
+    this.redisPub.set(key, value).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.warn({ key, error: msg }, "Failed to update Redis status key");
+    });
   }
 }

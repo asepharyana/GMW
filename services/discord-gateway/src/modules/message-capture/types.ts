@@ -177,6 +177,22 @@ export interface AnalysisResult {
   evidence?: string[];
 }
 
+export interface VoiceRecordingUploadData {
+  id: string;
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  guild_id: string | null;
+  channel_id: string | null;
+  channel_name: string | null;
+  filename: string;
+  size_bytes: number;
+  download_url: string;
+  upload_status: string;
+  created_at: number;
+  uploaded_at: number;
+}
+
 export type ModerationWsEvent =
   | { type: "ui_state"; state: unknown }
   | { type: "user_state"; users: unknown[] }
@@ -187,7 +203,7 @@ export type ModerationWsEvent =
   | { type: "attachment_created"; data: AttachmentRecord }
   | { type: "analysis_queue_status"; data: AnalysisQueueStatus }
   | { type: "media_state"; state: unknown }
-  | { type: "voice_recording_uploaded"; data: any };
+  | { type: "voice_recording_uploaded"; data: VoiceRecordingUploadData };
 
 export interface AnalysisQueueStatus {
   queuedConversations: number;

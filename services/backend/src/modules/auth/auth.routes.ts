@@ -1,8 +1,8 @@
+import { UnauthorizedError } from "@bete/shared/errors";
+import { createChildLogger } from "@bete/shared/logger";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { config } from "../../shared/config/index.js";
-import { UnauthorizedError } from "@bete/shared/errors";
-import { createChildLogger } from "@bete/shared/logger";
 import { asyncHandler } from "../../shared/middlewares/index.js";
 
 const logger = createChildLogger("auth.routes");

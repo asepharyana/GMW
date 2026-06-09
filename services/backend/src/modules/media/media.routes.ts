@@ -1,8 +1,8 @@
+import { createChildLogger } from "@bete/shared/logger";
 import type { Request, Response, Router } from "express";
 import express from "express";
-import { createChildLogger } from "@bete/shared/logger";
 import { asyncHandler } from "../../shared/middlewares/index.js";
-import { queue, skip, stop, setVolume, getStatus } from "./media.service.js";
+import { getStatus, queue, setVolume, skip, stop } from "./media.service.js";
 
 const logger = createChildLogger("media.routes");
 

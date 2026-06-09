@@ -1,7 +1,7 @@
 import { createChildLogger } from "@bete/shared/logger";
 import { config } from "../../shared/config/config.js";
-import { uploadToTele } from "../attachment-upload/teleUpload.js";
 import { executeAll, executeGet } from "../../shared/database/drizzle.js";
+import { uploadToTele } from "../attachment-upload/teleUpload.js";
 
 const logger = createChildLogger("sticker-cache");
 

@@ -1,7 +1,7 @@
 import path from "node:path";
 import Database from "better-sqlite3";
-import { createChildLogger } from "../src/logger";
-import * as postgres from "../src/database/postgres";
+import { createChildLogger } from "@bete/shared/logger";
+import { getPool, closeDatabase, initializeDatabase } from "../services/backend/src/shared/database/index.js";
 
 const logger = createChildLogger("migrate-data");
 
@@ -76,7 +76,8 @@ async function migrateData(): Promise<void> {
     logger.info({ dbPath }, "SQLite database opened");
 
     // Initialize PostgreSQL pool
-    const pool = postgres.getPool();
+    await initializeDatabase();
+    const pool = getPool();
     logger.info("PostgreSQL connection pool initialized");
 
     // Migrate muxer_jobs table
@@ -85,7 +86,7 @@ async function migrateData(): Promise<void> {
     const muxerJobs = muxerJobsStmt.all() as MuxerJob[];
 
     for (const job of muxerJobs) {
-      await postgres.query(
+      await pool.query(
         `INSERT INTO muxer_jobs (id, data, status, attempts, maxAttempts, createdAt, updatedAt, error)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (id) DO NOTHING`,
@@ -109,7 +110,7 @@ async function migrateData(): Promise<void> {
     const messages = messagesStmt.all() as Message[];
 
     for (const msg of messages) {
-      await postgres.query(
+      await pool.query(
         `INSERT INTO messages (
           id, guild_id, channel_id, thread_id, user_id, username, avatar_url,
           content, edited_content, created_at, edited_at, deleted_at, type,
@@ -153,7 +154,7 @@ async function migrateData(): Promise<void> {
     const attachments = attachmentsStmt.all() as Attachment[];
 
     for (const att of attachments) {
-      await postgres.query(
+      await pool.query(
         `INSERT INTO attachments (
           id, message_id, guild_id, channel_id, thread_id, user_id, filename,
           size, type, discord_url, uploaded_url, upload_status, upload_error,
@@ -189,7 +190,7 @@ async function migrateData(): Promise<void> {
     const uiStates = uiStateStmt.all() as UiState[];
 
     for (const state of uiStates) {
-      await postgres.query(
+      await pool.query(
         `INSERT INTO ui_state (key, value, updated_at)
          VALUES ($1, $2, $3)
          ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
@@ -224,7 +225,7 @@ async function migrateData(): Promise<void> {
     }
 
     // Close PostgreSQL pool
-    await postgres.closePool();
+    await closeDatabase();
     logger.info("PostgreSQL connection pool closed");
   }
 }

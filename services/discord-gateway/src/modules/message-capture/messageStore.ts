@@ -672,7 +672,7 @@ export async function getPendingMessagesByConversation(
         .limit(limit)
         .for("update", { skipLocked: true });
 
-      const pendingIds = await pendingIdsQuery;
+      const pendingIds = (await pendingIdsQuery) as Array<{ id: string }>;
 
       if (pendingIds.length === 0) return [];
 
@@ -682,7 +682,7 @@ export async function getPendingMessagesByConversation(
         .where(
           inArray(
             messagesTable.id,
-            (pendingIds as any[]).map((r) => r.id as string),
+            pendingIds.map((r) => r.id),
           ),
         )
         .returning();
@@ -897,7 +897,7 @@ export async function getIncompleteMessagesByConversation(
         .limit(limit)
         .for("update", { skipLocked: true });
 
-      const pendingIds = await pendingIdsQuery;
+      const pendingIds = (await pendingIdsQuery) as Array<{ id: string }>;
 
       if (pendingIds.length === 0) return [];
 
@@ -907,7 +907,7 @@ export async function getIncompleteMessagesByConversation(
         .where(
           inArray(
             messagesTable.id,
-            (pendingIds as any[]).map((r) => r.id as string),
+            pendingIds.map((r) => r.id),
           ),
         )
         .returning();

@@ -66,38 +66,61 @@ export function createWebSocketServer(server: Server): WebSocketServer {
 
     ws.on("message", (data: Buffer) => {
       // Handle JSON messages from browser
-      if (typeof data === 'string' || (Buffer.isBuffer(data) && data.length > 0 && data[0] === 0x7B)) {
+      if (
+        typeof data === "string" ||
+        (Buffer.isBuffer(data) && data.length > 0 && data[0] === 0x7b)
+      ) {
         try {
           const message = JSON.parse(data.toString());
 
-          if (message.type === 'voice_transmit' && message.buffer) {
+          if (message.type === "voice_transmit" && message.buffer) {
             // Forward PCM data to Redis for discord-gateway
-            import('../shared/redis/index.js').then(({ getCommandPublisher }) => {
-              const publisher = getCommandPublisher();
-              publisher.publish('backend:voice:transmit', JSON.stringify({
-                type: 'pcm',
-                buffer: message.buffer
-              })).catch((err: Error) => {
-                logger.error({ err }, 'Failed to publish voice transmit to Redis');
-              });
-            });
-          } else if (message.type === 'voice_command' && message.command) {
+            import("../shared/redis/index.js").then(
+              ({ getCommandPublisher }) => {
+                const publisher = getCommandPublisher();
+                publisher
+                  .publish(
+                    "backend:voice:transmit",
+                    JSON.stringify({
+                      type: "pcm",
+                      buffer: message.buffer,
+                    }),
+                  )
+                  .catch((err: Error) => {
+                    logger.error(
+                      { err },
+                      "Failed to publish voice transmit to Redis",
+                    );
+                  });
+              },
+            );
+          } else if (message.type === "voice_command" && message.command) {
             // Forward voice commands to discord-gateway
-            import('../shared/redis/index.js').then(({ getCommandPublisher }) => {
-              const publisher = getCommandPublisher();
-              const commandId = `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-              publisher.publish('backend:command', JSON.stringify({
-                id: commandId,
-                type: message.command,
-                payload: {},
-                replyChannel: `reply:${commandId}`
-              })).catch((err: Error) => {
-                logger.error({ err }, 'Failed to publish voice command to Redis');
-              });
-            });
+            import("../shared/redis/index.js").then(
+              ({ getCommandPublisher }) => {
+                const publisher = getCommandPublisher();
+                const commandId = `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+                publisher
+                  .publish(
+                    "backend:command",
+                    JSON.stringify({
+                      id: commandId,
+                      type: message.command,
+                      payload: {},
+                      replyChannel: `reply:${commandId}`,
+                    }),
+                  )
+                  .catch((err: Error) => {
+                    logger.error(
+                      { err },
+                      "Failed to publish voice command to Redis",
+                    );
+                  });
+              },
+            );
           }
         } catch (err) {
-          logger.debug({ err }, 'Failed to parse WebSocket message as JSON');
+          logger.debug({ err }, "Failed to parse WebSocket message as JSON");
         }
       }
     });

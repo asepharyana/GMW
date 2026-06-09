@@ -1,4 +1,7 @@
 import { useCallback, useState } from "react";
+import { createChildLogger } from "../logger";
+
+const logger = createChildLogger("useMascotChat");
 
 export interface ChatContext {
   messageCount: number;
@@ -28,7 +31,7 @@ export function useMascotChat(context?: ChatContext) {
         const data = (await response.json()) as { response?: string };
         return data.response || fallbackResponse(message, context);
       } catch (error) {
-        console.warn("Mascot backend unavailable, using fallback", error);
+        logger.warn("Mascot backend unavailable, using fallback", { error });
         return fallbackResponse(message, context);
       }
     },
@@ -53,7 +56,10 @@ function fallbackResponse(input: string, context?: ChatContext): string {
     return `Ada ${context?.messageCount || 0} pesan di konteks dashboard saat ini 📊`;
   }
 
-  if (lower.includes("berapa") && (lower.includes("orang") || lower.includes("user"))) {
+  if (
+    lower.includes("berapa") &&
+    (lower.includes("orang") || lower.includes("user"))
+  ) {
     return `Ada ${context?.activeParticipants || 0} user aktif yang terdeteksi 👥`;
   }
 

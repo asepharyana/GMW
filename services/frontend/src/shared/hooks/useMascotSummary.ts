@@ -34,7 +34,7 @@ function generateInsight(messages: MessageRecord[]): string {
   // Hitung average panjang pesan
   const avgLength = Math.round(
     recentMessages.reduce((sum, m) => sum + (m.content?.length || 0), 0) /
-      recentMessages.length
+      recentMessages.length,
   );
 
   // Tentukan tipe percakapan

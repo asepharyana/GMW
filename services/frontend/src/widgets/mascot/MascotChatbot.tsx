@@ -32,7 +32,8 @@ export function MascotChatbot({
     {
       id: "init-1",
       role: "mascot",
-      content: "Halo! 👋 Saya mascot mu. Ada yang bisa aku bantu tentang conversation atau analytics?",
+      content:
+        "Halo! 👋 Saya mascot mu. Ada yang bisa aku bantu tentang conversation atau analytics?",
       timestamp: Date.now(),
     },
   ]);
@@ -162,7 +163,7 @@ export function MascotChatbot({
                   animate={{ opacity: 1, y: 0 }}
                   className={cn(
                     "flex gap-2",
-                    message.role === "user" ? "justify-end" : "justify-start"
+                    message.role === "user" ? "justify-end" : "justify-start",
                   )}
                 >
                   {message.role === "mascot" && (
@@ -177,7 +178,7 @@ export function MascotChatbot({
                       "max-w-xs px-3 py-2 rounded-xl text-sm break-words",
                       message.role === "user"
                         ? "bg-primary text-white rounded-br-none"
-                        : "bg-muted text-foreground rounded-bl-none"
+                        : "bg-muted text-foreground rounded-bl-none",
                     )}
                   >
                     {message.content}
@@ -204,12 +205,20 @@ export function MascotChatbot({
                       />
                       <motion.div
                         animate={{ y: [0, -4, 0] }}
-                        transition={{ duration: 0.6, repeat: Infinity, delay: 0.1 }}
+                        transition={{
+                          duration: 0.6,
+                          repeat: Infinity,
+                          delay: 0.1,
+                        }}
                         className="w-2 h-2 bg-muted-foreground rounded-full"
                       />
                       <motion.div
                         animate={{ y: [0, -4, 0] }}
-                        transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
+                        transition={{
+                          duration: 0.6,
+                          repeat: Infinity,
+                          delay: 0.2,
+                        }}
                         className="w-2 h-2 bg-muted-foreground rounded-full"
                       />
                     </div>
@@ -252,15 +261,20 @@ export function MascotChatbot({
 }
 
 // Default mascot responses based on keywords
-function generateMascotResponse(input: string, messages: ChatMessage[]): string {
+function generateMascotResponse(
+  input: string,
+  messages: ChatMessage[],
+): string {
   const lowerInput = input.toLowerCase();
   const responseMap: Record<string, string> = {
     halo: "Halo juga! 👋 Senang ketemu kamu. Ada yang bisa aku bantu?",
     terima: "Sama-sama! 😊",
     apa: "Aku adalah mascot virtual yang membantu kamu memahami conversation dan analytics. Tanya aku apa saja!",
-    siapa: "Aku mascot mu yang baik hati! Siap membantu dengan insights tentang chat dan analytics.",
+    siapa:
+      "Aku mascot mu yang baik hati! Siap membantu dengan insights tentang chat dan analytics.",
     chat: "Setiap chat yang terjadi di sini aku analisis untuk memberikan insights yang berguna. Keren kan? 😎",
-    pesan: "Aku bisa memberikan ringkasan tentang pesan-pesan yang dikirim, siapa yang paling aktif, dan topik populer!",
+    pesan:
+      "Aku bisa memberikan ringkasan tentang pesan-pesan yang dikirim, siapa yang paling aktif, dan topik populer!",
     analitik:
       "Analytics menunjukkan pola conversation, waktu aktif, partisipan utama, dan banyak hal menarik lainnya! 📊",
     berapa:

@@ -1,9 +1,6 @@
-import { getPool } from "../../shared/database/index.js";
-import {
-  publishCommand,
-  readRedisStatus,
-} from "../../shared/redis/index.js";
 import { createChildLogger } from "@bete/shared/logger";
+import { getPool } from "../../shared/database/index.js";
+import { publishCommand, readRedisStatus } from "../../shared/redis/index.js";
 
 const logger = createChildLogger("voice.service");
 
@@ -32,8 +29,7 @@ export interface VoiceStatus {
  */
 export async function getGuilds(): Promise<Guild[]> {
   const reply = await publishCommand<Guild[]>("guilds:list", {});
-  if (reply?.success && reply.data && reply.data.length > 0)
-    return reply.data;
+  if (reply?.success && reply.data && reply.data.length > 0) return reply.data;
 
   // Fallback: Postgres with synthetic names
   logger.warn(
@@ -59,8 +55,7 @@ export async function getTextChannels(guildId: string): Promise<Channel[]> {
   const reply = await publishCommand<Channel[]>("guilds:text-channels", {
     guildId,
   });
-  if (reply?.success && reply.data && reply.data.length > 0)
-    return reply.data;
+  if (reply?.success && reply.data && reply.data.length > 0) return reply.data;
 
   // Fallback: Postgres with synthetic names
   logger.warn(
@@ -117,12 +112,14 @@ export async function connectVoice(
 
   // Fallback: read from Redis status key
   const cached = await readRedisStatus("voice:status");
-  return (cached as unknown as VoiceStatus) ?? {
-    connected: false,
-    activeGuildId: null,
-    activeChannelId: null,
-    activeChannelName: null,
-  };
+  return (
+    (cached as unknown as VoiceStatus) ?? {
+      connected: false,
+      activeGuildId: null,
+      activeChannelId: null,
+      activeChannelName: null,
+    }
+  );
 }
 
 /**
@@ -133,10 +130,12 @@ export async function disconnectVoice(): Promise<VoiceStatus> {
   if (reply?.success && reply.data) return reply.data;
 
   const cached = await readRedisStatus("voice:status");
-  return (cached as unknown as VoiceStatus) ?? {
-    connected: false,
-    activeGuildId: null,
-    activeChannelId: null,
-    activeChannelName: null,
-  };
+  return (
+    (cached as unknown as VoiceStatus) ?? {
+      connected: false,
+      activeGuildId: null,
+      activeChannelId: null,
+      activeChannelName: null,
+    }
+  );
 }

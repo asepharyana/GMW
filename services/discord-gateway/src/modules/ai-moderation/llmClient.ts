@@ -84,14 +84,14 @@ export async function llmChat(
     signal,
   } = opts;
 
-  const params: any = {
+  const params = {
     model,
     messages,
-  };
+    ...(stream !== undefined ? { stream } : {}),
+  } as OpenAI.Chat.Completions.ChatCompletionCreateParams;
 
   // Attach optional parameters only if explicitly provided to maintain
   // maximum compatibility with various LLM providers and local APIs.
-  if (stream !== undefined) params.stream = stream;
   if (temperature !== undefined) params.temperature = temperature;
   if (top_p !== undefined) params.top_p = top_p;
   if (max_tokens !== undefined) params.max_tokens = max_tokens;
@@ -103,7 +103,9 @@ export async function llmChat(
   return retryWithBackoff(
     async () => {
       return withLlmConcurrency(async () => {
-        const execute = async (currentParams: any) => {
+        const execute = async (
+          currentParams: OpenAI.Chat.Completions.ChatCompletionCreateParams,
+        ) => {
           const response = await client.chat.completions.create(currentParams, {
             signal,
           });
@@ -161,7 +163,9 @@ export async function llmChat(
               { model },
               "Provider rejected non-streaming request. Fallback to stream: true initiated.",
             );
-            params.stream = true;
+            (
+              params as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming
+            ).stream = true;
             return await execute(params);
           }
 

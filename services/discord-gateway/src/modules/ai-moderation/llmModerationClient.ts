@@ -11,11 +11,9 @@ import type {
   AttachmentRecord,
   MessageRecord,
 } from "../message-capture/types.js";
-
+import { getChannelCulture } from "./channelCultureStore.js";
 import { llmChat, llmVision } from "./llmClient.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
-import { initializeUserReputation } from "./userReputationStore.js";
-import { getChannelCulture } from "./channelCultureStore.js";
 import { logModerationAnalysis, logModerationError } from "./responseLogger.js";
 import {
   getStickerFromCache,
@@ -46,6 +44,7 @@ import {
   upsertCachedMediaByPhash,
 } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
+import { initializeUserReputation } from "./userReputationStore.js";
 
 const SeveritySchema = z.enum(["none", "low", "medium", "high", "critical"]);
 const RecommendedActionSchema = z.enum([
@@ -170,7 +169,7 @@ function deriveRecommendedAction(
 /**
  * Helper to extract JSON from a potentially conversational or markdown-wrapped string.
  */
-export function extractJson(content: string): any {
+export function extractJson(content: string): unknown {
   const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
   const matches = content.matchAll(codeBlockRegex);
   for (const match of matches) {
@@ -1046,7 +1045,7 @@ async function runTextOnlyBatch(
     if (rawContent.length > 0 && rawContent.length < 20) {
       const groupKey = rawContent.toLowerCase();
       if (shortContentGroups.has(groupKey)) {
-        shortContentGroups.get(groupKey)!.push(msg);
+        shortContentGroups.get(groupKey)?.push(msg);
       } else {
         shortContentGroups.set(groupKey, [msg]);
         deduplicatedTargets.push(msg); // first occurrence = representative
@@ -1278,9 +1277,6 @@ async function prepareMediaMessage(
   const webTextMap = new Map<string, string[]>();
   const mediaAnalysisMap = new Map<string, string[]>();
 
-  const getAttachmentImageUrl = (att: AttachmentRecord): string | null =>
-    att.uploaded_url ?? att.discord_url ?? null;
-
   const maxDimension = config.AI_LLM_IMAGE_MAX_DIMENSION ?? 1024;
   const content = getAnalysisContent(target);
 
@@ -1292,93 +1288,14 @@ async function prepareMediaMessage(
     .filter(
       (att) =>
         att.message_id === targetId &&
-        getAttachmentImageUrl(att) &&
+        (att.uploaded_url ?? att.discord_url ?? null) &&
         att.type.startsWith("image/"),
     )
     .slice(0, 8);
 
   for (const att of msgAttachments) {
     downloadPromises.push(
-      (async () => {
-        const urlToUse = getAttachmentImageUrl(att);
-        if (!urlToUse) {
-          log.warn(
-            { attachmentId: att.id, messageId: att.message_id },
-            "Skipping attachment: no uploaded URL available",
-          );
-          return;
-        }
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-        try {
-          const res = await fetch(urlToUse, { signal: controller.signal });
-          if (!res.ok || !res.body) {
-            log.warn(
-              { attachmentId: att.id, url: urlToUse, status: res.status },
-              "Failed to download attachment: HTTP error or no body",
-            );
-            return;
-          }
-
-          let totalBytes = 0;
-          const chunks: Uint8Array[] = [];
-          const reader = res.body.getReader();
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            if (value) {
-              totalBytes += value.length;
-              if (totalBytes > 10 * 1024 * 1024) {
-                log.warn(
-                  { attachmentId: att.id, totalBytes },
-                  "Attachment too large (>10MB) — skipping",
-                );
-                reader.cancel();
-                return;
-              }
-              chunks.push(value);
-            }
-          }
-
-          const imageBytes = Buffer.concat(chunks);
-          const sniffedMime = sniffImageMimeType(imageBytes);
-          if (!sniffedMime) {
-            log.warn(
-              { attachmentId: att.id },
-              "Skipping attachment: not a recognised image format",
-            );
-            return;
-          }
-
-          const { data: resizedBuffer, mimeType: resizedMime } =
-            await resizeImageForVision(imageBytes, maxDimension);
-
-          const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
-          const part: MessageImagePart = {
-            type: "image_url",
-            image_url: { url: dataUrl },
-            sourceLabel: `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`,
-          };
-          const existing = imageMap.get(targetId) ?? [];
-          if (existing.length < 8) {
-            existing.push(part);
-            imageMap.set(targetId, existing);
-          }
-        } catch (err) {
-          log.warn(
-            {
-              attachmentId: att.id,
-              error: err instanceof Error ? err.message : String(err),
-            },
-            "Error downloading attachment",
-          );
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      })(),
+      downloadSingleAttachment(att, targetId, maxDimension, imageMap),
     );
   }
 
@@ -1388,186 +1305,23 @@ async function prepareMediaMessage(
 
   for (const url of urls) {
     downloadPromises.push(
-      (async () => {
-        const result = await fetchUrlSafely(url);
-        if (result.type === "image" && result.data && result.mimeType) {
-          const { data: resizedBuffer, mimeType: resizedMime } =
-            await resizeImageForVision(result.data, maxDimension);
-
-          const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
-          const part: MessageImagePart = {
-            type: "image_url",
-            image_url: { url: dataUrl },
-            sourceLabel: `[gambar di atas berasal dari link ${url} pada pesan id=${targetId}]`,
-          };
-          const existing = imageMap.get(targetId) ?? [];
-          if (existing.length < 8) {
-            existing.push(part);
-            imageMap.set(targetId, existing);
-          }
-        } else if (result.type === "text" && result.textContent) {
-          urlWebTexts.push(`[Isi Web dari ${url}]: ${result.textContent}`);
-        }
-      })(),
+      fetchUrlInline(url, targetId, maxDimension, imageMap, urlWebTexts),
     );
   }
 
   // ── Sticker / embed / custom emoji download promises ──
   const mediaEvidence = extractMessageMediaEvidence(target.metadata);
-  const mediaCandidates: Array<{
-    messageId: string;
-    url: string;
-    label: string;
-    stickerName?: string;
-    customEmojiId?: string;
-    customEmojiName?: string;
-  }> = [
-    ...mediaEvidence.stickers
-      .filter((s) => s.url)
-      .map((s) => ({
-        messageId: targetId,
-        url: s.url,
-        label: `[gambar di atas adalah sticker "${s.name}" dari pesan id=${targetId}]`,
-        stickerName: s.name,
-      })),
-    ...mediaEvidence.embeds.flatMap((embed) =>
-      [
-        embed.image
-          ? {
-              messageId: targetId,
-              url: embed.image,
-              label: `[gambar di atas berasal dari embed image pada pesan id=${targetId}]`,
-            }
-          : null,
-        embed.thumbnail
-          ? {
-              messageId: targetId,
-              url: embed.thumbnail,
-              label: `[gambar di atas berasal dari embed thumbnail pada pesan id=${targetId}]`,
-            }
-          : null,
-      ].filter(
-        (
-          c,
-        ): c is {
-          messageId: string;
-          url: string;
-          label: string;
-          stickerName?: string;
-          customEmojiId?: string;
-          customEmojiName?: string;
-        } => c !== null,
-      ),
-    ),
-    ...mediaEvidence.customEmojis.map((emoji) => ({
-      messageId: targetId,
-      url: emoji.url,
-      label: `[gambar di atas adalah custom emoji "${emoji.name}" dari pesan id=${targetId}]`,
-      customEmojiId: emoji.id,
-      customEmojiName: emoji.name,
-    })),
-  ];
+  const mediaCandidates = buildMediaCandidates(targetId, mediaEvidence);
 
   for (const candidate of mediaCandidates) {
     downloadPromises.push(
-      (async () => {
-        if ((imageMap.get(targetId)?.length ?? 0) >= 8) return;
-
-        if (candidate.customEmojiId || candidate.stickerName) {
-          const visionCacheKey = candidate.customEmojiId
-            ? makeCustomEmojiCacheKey(candidate.customEmojiId)
-            : makeStickerCacheKey(candidate.stickerName!);
-          const cachedVision = await getCachedMediaAnalysis(visionCacheKey);
-          if (cachedVision) {
-            log.debug(
-              { cacheKey: visionCacheKey },
-              "Vision cache HIT for media candidate — skipped download",
-            );
-            const analysisText = `[Media analysis for message ${candidate.messageId}] ${candidate.label}: ${cachedVision}`;
-            const existing = mediaAnalysisMap.get(targetId) ?? [];
-            existing.push(analysisText);
-            mediaAnalysisMap.set(targetId, existing);
-            return;
-          }
-        }
-
-        if (candidate.stickerName && isStickerCacheReady()) {
-          try {
-            const cached = await getStickerFromCache(candidate.stickerName);
-            if (cached && cached.imageUrl) {
-              const part: MessageImagePart = {
-                type: "image_url",
-                image_url: { url: cached.imageUrl },
-                sourceLabel: candidate.label,
-                stickerName: candidate.stickerName,
-              };
-              const existing = imageMap.get(targetId) ?? [];
-              if (existing.length < 8) {
-                existing.push(part);
-                imageMap.set(targetId, existing);
-              }
-              return;
-            }
-          } catch (stickerErr) {
-            log.warn(
-              {
-                stickerName: candidate.stickerName,
-                error:
-                  stickerErr instanceof Error
-                    ? stickerErr.message
-                    : String(stickerErr),
-              },
-              "Sticker cache lookup failed — falling through to network fetch",
-            );
-          }
-        }
-
-        const result = await fetchUrlSafely(candidate.url);
-        if (result.type !== "image" || !result.data || !result.mimeType) {
-          log.warn(
-            {
-              url: candidate.url,
-              resultType: result.type,
-              resultHasData: !!result.data,
-              messageId: candidate.messageId,
-              label: candidate.stickerName
-                ? `sticker:${candidate.stickerName}`
-                : candidate.customEmojiName
-                  ? `emoji:${candidate.customEmojiName}`
-                  : "embed/other",
-            },
-            "Media candidate fetch did not return a usable image — skipping",
-          );
-          return;
-        }
-
-        const { data: resizedBuffer, mimeType: resizedMime } =
-          await resizeImageForVision(result.data, maxDimension);
-
-        const base64 = resizedBuffer.toString("base64");
-
-        if (candidate.stickerName) {
-          uploadAndCacheSticker(
-            candidate.stickerName,
-            resizedBuffer,
-            resizedMime,
-          ).catch(() => {});
-        }
-
-        const part: MessageImagePart = {
-          type: "image_url",
-          image_url: { url: `data:${resizedMime};base64,${base64}` },
-          sourceLabel: candidate.label,
-          stickerName: candidate.stickerName,
-          customEmojiId: candidate.customEmojiId,
-          customEmojiName: candidate.customEmojiName,
-        };
-        const existing = imageMap.get(targetId) ?? [];
-        if (existing.length < 8) {
-          existing.push(part);
-          imageMap.set(targetId, existing);
-        }
-      })(),
+      downloadMediaCandidate(
+        candidate,
+        targetId,
+        maxDimension,
+        imageMap,
+        mediaAnalysisMap,
+      ),
     );
   }
 
@@ -2131,4 +1885,276 @@ Kategori: spam`;
         ? [content.length > 120 ? content.slice(0, 120) + "..." : content]
         : [],
   };
+}
+
+// ---------------------------------------------------------------------------
+// Refactored helpers for prepareMediaMessage (extracted to reduce CC)
+// ---------------------------------------------------------------------------
+
+async function downloadSingleAttachment(
+  att: AttachmentRecord,
+  targetId: string,
+  maxDimension: number,
+  imageMap: Map<string, MessageImagePart[]>,
+): Promise<void> {
+  const urlToUse = att.uploaded_url ?? att.discord_url ?? null;
+  if (!urlToUse) {
+    log.warn(
+      { attachmentId: att.id, messageId: att.message_id },
+      "Skipping attachment: no uploaded URL available",
+    );
+    return;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await fetch(urlToUse, { signal: controller.signal });
+    if (!res.ok || !res.body) {
+      log.warn(
+        { attachmentId: att.id, url: urlToUse, status: res.status },
+        "Failed to download attachment: HTTP error or no body",
+      );
+      return;
+    }
+
+    let totalBytes = 0;
+    const chunks: Uint8Array[] = [];
+    const reader = res.body.getReader();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        totalBytes += value.length;
+        if (totalBytes > 10 * 1024 * 1024) {
+          log.warn(
+            { attachmentId: att.id, totalBytes },
+            "Attachment too large (>10MB) — skipping",
+          );
+          reader.cancel();
+          return;
+        }
+        chunks.push(value);
+      }
+    }
+
+    const imageBytes = Buffer.concat(chunks);
+    const sniffedMime = sniffImageMimeType(imageBytes);
+    if (!sniffedMime) {
+      log.warn(
+        { attachmentId: att.id },
+        "Skipping attachment: not a recognised image format",
+      );
+      return;
+    }
+
+    const { data: resizedBuffer, mimeType: resizedMime } =
+      await resizeImageForVision(imageBytes, maxDimension);
+
+    const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
+    const part: MessageImagePart = {
+      type: "image_url",
+      image_url: { url: dataUrl },
+      sourceLabel: `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`,
+    };
+    addImageToMap(imageMap, targetId, part);
+  } catch (err) {
+    log.warn(
+      {
+        attachmentId: att.id,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      "Error downloading attachment",
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function downloadMediaCandidate(
+  candidate: MediaCandidate,
+  targetId: string,
+  maxDimension: number,
+  imageMap: Map<string, MessageImagePart[]>,
+  mediaAnalysisMap: Map<string, string[]>,
+): Promise<void> {
+  if ((imageMap.get(targetId)?.length ?? 0) >= 8) return;
+
+  if (candidate.customEmojiId || candidate.stickerName) {
+    const visionCacheKey = candidate.customEmojiId
+      ? makeCustomEmojiCacheKey(candidate.customEmojiId)
+      : makeStickerCacheKey(candidate.stickerName!);
+    const cachedVision = await getCachedMediaAnalysis(visionCacheKey);
+    if (cachedVision) {
+      log.debug(
+        { cacheKey: visionCacheKey },
+        "Vision cache HIT for media candidate — skipped download",
+      );
+      const analysisText = `[Media analysis for message ${candidate.messageId}] ${candidate.label}: ${cachedVision}`;
+      const existing = mediaAnalysisMap.get(targetId) ?? [];
+      existing.push(analysisText);
+      mediaAnalysisMap.set(targetId, existing);
+      return;
+    }
+  }
+
+  if (candidate.stickerName && isStickerCacheReady()) {
+    try {
+      const cached = await getStickerFromCache(candidate.stickerName);
+      if (cached && cached.imageUrl) {
+        const part: MessageImagePart = {
+          type: "image_url",
+          image_url: { url: cached.imageUrl },
+          sourceLabel: candidate.label,
+          stickerName: candidate.stickerName,
+        };
+        addImageToMap(imageMap, targetId, part);
+        return;
+      }
+    } catch (stickerErr) {
+      log.warn(
+        {
+          stickerName: candidate.stickerName,
+          error:
+            stickerErr instanceof Error
+              ? stickerErr.message
+              : String(stickerErr),
+        },
+        "Sticker cache lookup failed — falling through to network fetch",
+      );
+    }
+  }
+
+  const result = await fetchUrlSafely(candidate.url);
+  if (result.type !== "image" || !result.data || !result.mimeType) {
+    log.warn(
+      {
+        url: candidate.url,
+        resultType: result.type,
+        resultHasData: !!result.data,
+        messageId: candidate.messageId,
+        label: candidate.stickerName
+          ? `sticker:${candidate.stickerName}`
+          : candidate.customEmojiName
+            ? `emoji:${candidate.customEmojiName}`
+            : "embed/other",
+      },
+      "Media candidate fetch did not return a usable image — skipping",
+    );
+    return;
+  }
+
+  const { data: resizedBuffer, mimeType: resizedMime } =
+    await resizeImageForVision(result.data, maxDimension);
+  const base64 = resizedBuffer.toString("base64");
+
+  if (candidate.stickerName) {
+    uploadAndCacheSticker(
+      candidate.stickerName,
+      resizedBuffer,
+      resizedMime,
+    ).catch(() => {});
+  }
+
+  const part: MessageImagePart = {
+    type: "image_url",
+    image_url: { url: `data:${resizedMime};base64,${base64}` },
+    sourceLabel: candidate.label,
+    stickerName: candidate.stickerName,
+    customEmojiId: candidate.customEmojiId,
+    customEmojiName: candidate.customEmojiName,
+  };
+  addImageToMap(imageMap, targetId, part);
+}
+
+async function fetchUrlInline(
+  url: string,
+  targetId: string,
+  maxDimension: number,
+  imageMap: Map<string, MessageImagePart[]>,
+  urlWebTexts: string[],
+): Promise<void> {
+  const result = await fetchUrlSafely(url);
+  if (result.type === "image" && result.data && result.mimeType) {
+    const { data: resizedBuffer, mimeType: resizedMime } =
+      await resizeImageForVision(result.data, maxDimension);
+
+    const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
+    const part: MessageImagePart = {
+      type: "image_url",
+      image_url: { url: dataUrl },
+      sourceLabel: `[gambar di atas berasal dari link ${url} pada pesan id=${targetId}]`,
+    };
+    addImageToMap(imageMap, targetId, part);
+  } else if (result.type === "text" && result.textContent) {
+    urlWebTexts.push(`[Isi Web dari ${url}]: ${result.textContent}`);
+  }
+}
+
+function addImageToMap(
+  imageMap: Map<string, MessageImagePart[]>,
+  targetId: string,
+  part: MessageImagePart,
+): void {
+  const existing = imageMap.get(targetId) ?? [];
+  if (existing.length < 8) {
+    existing.push(part);
+    imageMap.set(targetId, existing);
+  }
+}
+
+interface MediaCandidate {
+  messageId: string;
+  url: string;
+  label: string;
+  stickerName?: string;
+  customEmojiId?: string;
+  customEmojiName?: string;
+}
+
+function buildMediaCandidates(
+  targetId: string,
+  mediaEvidence: ReturnType<typeof extractMessageMediaEvidence>,
+): MediaCandidate[] {
+  return [
+    ...mediaEvidence.stickers
+      .filter((s) => s.url)
+      .map(
+        (s): MediaCandidate => ({
+          messageId: targetId,
+          url: s.url,
+          label: `[gambar di atas adalah sticker "${s.name}" dari pesan id=${targetId}]`,
+          stickerName: s.name,
+        }),
+      ),
+    ...mediaEvidence.embeds.flatMap((embed): MediaCandidate[] =>
+      [
+        embed.image
+          ? ({
+              messageId: targetId,
+              url: embed.image,
+              label: `[gambar di atas berasal dari embed image pada pesan id=${targetId}]`,
+            } as MediaCandidate)
+          : null,
+        embed.thumbnail
+          ? ({
+              messageId: targetId,
+              url: embed.thumbnail,
+              label: `[gambar di atas berasal dari embed thumbnail pada pesan id=${targetId}]`,
+            } as MediaCandidate)
+          : null,
+      ].filter((c): c is MediaCandidate => c !== null),
+    ),
+    ...mediaEvidence.customEmojis.map(
+      (emoji): MediaCandidate => ({
+        messageId: targetId,
+        url: emoji.url,
+        label: `[gambar di atas adalah custom emoji "${emoji.name}" dari pesan id=${targetId}]`,
+        customEmojiId: emoji.id,
+        customEmojiName: emoji.name,
+      }),
+    ),
+  ];
 }

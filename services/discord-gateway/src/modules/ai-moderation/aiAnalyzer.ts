@@ -7,7 +7,6 @@ import { LRUCache } from "lru-cache";
 import { Piscina } from "piscina";
 import { config } from "../../shared/config/config.js";
 import type { EventBroadcaster } from "../event-broadcaster/index.js";
-import { invalidateAnalyticsCache } from "../message-capture/analyticsStore.js";
 import { isAgeRestrictedMetadata } from "../message-capture/messageMetadata.js";
 import {
   getConversationKeysWithIncompleteAnalysis,
@@ -500,7 +499,6 @@ async function processIndividualFallback(
     const rows = await updateMessagesAIAnalysisBulk(updates);
     for (const row of rows) {
       broadcastAnalysisCompleted(row);
-      invalidateAnalyticsCache(row.guild_id);
       scheduleAutoDelete(row);
 
       // Update reputation autonomously (Belajar & Kebijaksanaan)

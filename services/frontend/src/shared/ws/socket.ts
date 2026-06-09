@@ -157,10 +157,8 @@ export function useDashboardSocket(handlers: WsHandlers) {
         handlersRef.current.onVoiceRecordingStarted?.(d),
       onVoiceRecordingStopped: (d) =>
         handlersRef.current.onVoiceRecordingStopped?.(d),
-      onVoicePcmData: (d) =>
-        handlersRef.current.onVoicePcmData?.(d),
-      onVoiceActiveUser: (d) =>
-        handlersRef.current.onVoiceActiveUser?.(d),
+      onVoicePcmData: (d) => handlersRef.current.onVoicePcmData?.(d),
+      onVoiceActiveUser: (d) => handlersRef.current.onVoiceActiveUser?.(d),
     };
 
     _listeners.add(wrapper);

@@ -1,6 +1,6 @@
+import { createChildLogger } from "@bete/shared/logger";
 import { sql } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/index.js";
-import { createChildLogger } from "@bete/shared/logger";
 
 const logger = createChildLogger("recordings.service");
 

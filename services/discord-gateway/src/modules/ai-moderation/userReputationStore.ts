@@ -1,9 +1,9 @@
-import { eq, and, desc } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import {
-  userReputationsTable,
   messagesTable,
   UserReputation,
+  userReputationsTable,
 } from "../../shared/database/schema.js";
 
 /**

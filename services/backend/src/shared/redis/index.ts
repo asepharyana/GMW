@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { createChildLogger } from "@bete/shared/logger";
 import Redis from "ioredis";
 import { config } from "../config/index.js";
-import { createChildLogger } from "@bete/shared/logger";
 
 const logger = createChildLogger("redis.command-channel");
 
@@ -73,13 +73,21 @@ export async function publishCommand<T = unknown>(
   timeoutMs = 5000,
 ): Promise<CommandReply<T> | null> {
   if (!ensureRedisConfig()) {
-    logger.warn({ commandType }, "Redis not configured, skipping command publish");
+    logger.warn(
+      { commandType },
+      "Redis not configured, skipping command publish",
+    );
     return null;
   }
 
   const id = randomUUID();
   const replyChannel = `backend:command:reply:${id}`;
-  const command: CommandMessage = { id, type: commandType, payload, replyChannel };
+  const command: CommandMessage = {
+    id,
+    type: commandType,
+    payload,
+    replyChannel,
+  };
 
   return new Promise<CommandReply<T> | null>((resolve) => {
     const pub = getPublisher();
@@ -88,7 +96,9 @@ export async function publishCommand<T = unknown>(
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      sub.unsubscribe(replyChannel).catch(() => {/* ignore */});
+      sub.unsubscribe(replyChannel).catch(() => {
+        /* ignore */
+      });
       logger.warn({ id, commandType }, "Command timed out waiting for reply");
       resolve(null);
     }, timeoutMs);
@@ -99,11 +109,16 @@ export async function publishCommand<T = unknown>(
       if (channel !== replyChannel || settled) return;
       settled = true;
       clearTimeout(timer);
-      sub.unsubscribe(replyChannel).catch(() => {/* ignore */});
+      sub.unsubscribe(replyChannel).catch(() => {
+        /* ignore */
+      });
 
       try {
         const reply: CommandReply<T> = JSON.parse(message);
-        logger.debug({ id, commandType, success: reply.success }, "Command reply received");
+        logger.debug(
+          { id, commandType, success: reply.success },
+          "Command reply received",
+        );
         resolve(reply);
       } catch (err) {
         logger.error({ id, err }, "Failed to parse command reply");
@@ -113,29 +128,34 @@ export async function publishCommand<T = unknown>(
 
     sub.on("message", onMessage);
 
-    sub.subscribe(replyChannel).then(() => {
-      pub
-        .publish("backend:command", JSON.stringify(command))
-        .then(() => {
-          logger.debug({ id, commandType }, "Command published");
-        })
-        .catch((err: Error) => {
-          if (!settled) {
-            settled = true;
-            clearTimeout(timer);
-            sub.unsubscribe(replyChannel).catch(() => {/* ignore */});
-            logger.error({ err }, "Failed to publish command");
-            resolve(null);
-          }
-        });
-    }).catch((err: Error) => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        logger.error({ err }, "Failed to subscribe to reply channel");
-        resolve(null);
-      }
-    });
+    sub
+      .subscribe(replyChannel)
+      .then(() => {
+        pub
+          .publish("backend:command", JSON.stringify(command))
+          .then(() => {
+            logger.debug({ id, commandType }, "Command published");
+          })
+          .catch((err: Error) => {
+            if (!settled) {
+              settled = true;
+              clearTimeout(timer);
+              sub.unsubscribe(replyChannel).catch(() => {
+                /* ignore */
+              });
+              logger.error({ err }, "Failed to publish command");
+              resolve(null);
+            }
+          });
+      })
+      .catch((err: Error) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          logger.error({ err }, "Failed to subscribe to reply channel");
+          resolve(null);
+        }
+      });
   });
 }
 
@@ -147,7 +167,10 @@ export async function publishCommandNoReply(
   payload: Record<string, unknown> = {},
 ): Promise<void> {
   if (!ensureRedisConfig()) {
-    logger.warn({ commandType }, "Redis not configured, skipping command publish");
+    logger.warn(
+      { commandType },
+      "Redis not configured, skipping command publish",
+    );
     return;
   }
 
@@ -213,7 +236,9 @@ export function subscribe(
 // Status helpers — read keys set by discord-gateway
 // ---------------------------------------------------------------------------
 
-export async function readRedisStatus(key: string): Promise<Record<string, unknown> | null> {
+export async function readRedisStatus(
+  key: string,
+): Promise<Record<string, unknown> | null> {
   if (!ensureRedisConfig()) {
     return null;
   }

@@ -1,8 +1,10 @@
 // ─── Audio transmit hook — captures mic, encodes to PCM, sends via WebSocket ──
 import { useCallback, useRef, useState } from "react";
 import { getAPIURL } from "../api/client";
+import { createChildLogger } from "../logger";
 
 const SAMPLE_RATE = 24000;
+const logger = createChildLogger("useAudioTransmit");
 
 async function sendTransmitCommand(command: string): Promise<void> {
   // Send via HTTP API
@@ -12,9 +14,12 @@ async function sendTransmitCommand(command: string): Promise<void> {
     body: JSON.stringify({ command }),
   });
   if (!resp.ok) {
-    console.warn("HTTP command response:", resp.status, resp.statusText);
+    logger.warn("HTTP command response", {
+      status: resp.status,
+      statusText: resp.statusText,
+    });
     const text = await resp.text().catch(() => resp.statusText);
-    console.warn("HTTP command failed:", text);
+    logger.warn("HTTP command failed", { error: text });
     throw new Error(`HTTP ${resp.status}: ${text}`);
   }
 }
@@ -72,16 +77,18 @@ export function useAudioTransmit(socketRef: {
 
       // Base64 encode
       const bytes = new Uint8Array(pcmData.buffer);
-      let binary = '';
+      let binary = "";
       for (let i = 0; i < bytes.length; i++) {
         binary += String.fromCharCode(bytes[i]);
       }
       const base64 = btoa(binary);
 
-      socketRef.current.send(JSON.stringify({
-        type: 'voice_transmit',
-        buffer: base64
-      }));
+      socketRef.current.send(
+        JSON.stringify({
+          type: "voice_transmit",
+          buffer: base64,
+        }),
+      );
     };
   }, [socketRef]);
 

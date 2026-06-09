@@ -225,7 +225,9 @@ function MessageRow({
       {shouldShowContent ? (
         <p
           className={`whitespace-pre-wrap break-words text-sm leading-6 ${
-            message.deleted_at ? "text-muted-foreground/60" : "text-foreground/90"
+            message.deleted_at
+              ? "text-muted-foreground/60"
+              : "text-foreground/90"
           }`}
         >
           {renderContentWithCustomEmojis(displayContent)}
@@ -412,7 +414,9 @@ export function MessageCard({ messages, onReanalyze }: MessageCardProps) {
 
           {/* Message rows — divided by separator when multiple */}
           <div
-            className={hasMultiple ? "divide-y divide-border/30 space-y-2.5" : ""}
+            className={
+              hasMultiple ? "divide-y divide-border/30 space-y-2.5" : ""
+            }
           >
             {messages.map((msg, idx) => (
               <div

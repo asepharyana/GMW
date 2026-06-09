@@ -1,6 +1,6 @@
+import { createChildLogger } from "@bete/shared/logger";
 import type { Request, Response, Router } from "express";
 import express from "express";
-import { createChildLogger } from "@bete/shared/logger";
 import { asyncHandler } from "../../shared/middlewares/index.js";
 import { analysisService } from "./analysis.service.js";
 

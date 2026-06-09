@@ -1,6 +1,6 @@
 import "dotenv/config";
+import { ConfigError } from "@bete/shared/errors";
 import { z } from "zod";
-import { ConfigError } from "../errors/errors.js";
 
 const configSchema = z
   .object({

@@ -1,9 +1,6 @@
-import type { NextFunction, Request, Response } from "express";
 import { createChildLogger } from "@bete/shared/logger";
-import {
-  asyncHandler,
-  requireParam,
-} from "../../shared/middlewares/index.js";
+import type { NextFunction, Request, Response } from "express";
+import { asyncHandler, requireParam } from "../../shared/middlewares/index.js";
 import { messageQuerySchema } from "./messages.schema.js";
 import { messagesService } from "./messages.service.js";
 
@@ -28,7 +25,11 @@ export function handleGetMessagesByChannel(
   next: NextFunction,
 ) {
   return asyncHandler(async (req: Request, res: Response) => {
-    const channelId = requireParam(req.params.channelId, "route parameter", "channelId");
+    const channelId = requireParam(
+      req.params.channelId,
+      "route parameter",
+      "channelId",
+    );
     const query = messageQuerySchema.parse(req.query);
     logger.debug({ channelId, query }, "Handling get messages by channel");
     const result = await messagesService.getMessagesByChannel(channelId, query);
@@ -55,7 +56,11 @@ export function handleGetAttachmentsByChannel(
   next: NextFunction,
 ) {
   return asyncHandler(async (req: Request, res: Response) => {
-    const channelId = requireParam(req.params.channelId, "route parameter", "channelId");
+    const channelId = requireParam(
+      req.params.channelId,
+      "route parameter",
+      "channelId",
+    );
     const query = messageQuerySchema.parse(req.query);
     logger.debug({ channelId, query }, "Handling get attachments by channel");
     const result = await messagesService.getAttachmentsByChannel(

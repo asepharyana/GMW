@@ -260,7 +260,7 @@ On SIGINT/SIGTERM/uncaughtException/unhandledRejection:
 ### Shared Infrastructure (9 files)
 - `src/shared/config/config.ts`
 - `src/shared/database/` (5 files)
-- `src/shared/errors/errors.ts`
+- `@bete/shared/errors` (shared package)
 - `src/shared/logger/logger.ts`
 - `src/shared/logger/serialization.ts`
 - `src/shared/utils/retry.ts`

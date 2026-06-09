@@ -96,7 +96,7 @@ export async function retryWithBackoff<T>(
       err.name = "AbortError";
       throw err;
     }
-    
+
     try {
       return await fn();
     } catch (err) {
@@ -109,7 +109,7 @@ export async function retryWithBackoff<T>(
         minTimeout * factor ** attempt + Math.random() * 100,
         maxTimeout,
       );
-      
+
       await new Promise<void>((resolve, reject) => {
         let timeoutId: NodeJS.Timeout;
         const onAbort = () => {
@@ -119,12 +119,12 @@ export async function retryWithBackoff<T>(
           reject(abortErr);
         };
         if (signal?.aborted) return onAbort();
-        
+
         timeoutId = setTimeout(() => {
           if (signal) signal.removeEventListener("abort", onAbort);
           resolve();
         }, backoff);
-        
+
         if (signal) signal.addEventListener("abort", onAbort, { once: true });
       });
     }

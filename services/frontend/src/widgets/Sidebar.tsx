@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { BarChart3, MessageSquare, Radio } from "lucide-react";
+import { MessageSquare, Radio } from "lucide-react";
 import type { DashboardTab } from "../entities/ui/types";
 import type { MessageRecord } from "../shared/api/client";
 import { useMascotChat } from "../shared/hooks/useMascotChat";
@@ -11,7 +11,6 @@ const navItems: Array<{ id: DashboardTab; label: string; icon: typeof Radio }> =
   [
     { id: "live", label: "Live", icon: Radio },
     { id: "messages", label: "Messages", icon: MessageSquare },
-    { id: "analytics", label: "Analytics", icon: BarChart3 },
   ];
 
 interface SidebarProps {
@@ -37,7 +36,7 @@ export function Sidebar({
       recentMessages.map((message) => message.user_id),
     ).size,
     lastActivity: recentMessages.length > 0 ? "Active" : "Idle",
-    topicsDiscussed: ["Messages", "Moderation", "Analytics"],
+    topicsDiscussed: ["Messages", "Moderation"],
     guildId,
     channelId,
   });

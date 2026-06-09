@@ -1,13 +1,13 @@
-import { eq, desc, sql, and } from "drizzle-orm";
+import { createChildLogger } from "@bete/shared/logger";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { config } from "../../shared/config/config.js";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import {
-  messagesTable,
   channelCulturesTable,
+  messagesTable,
 } from "../../shared/database/schema.js";
-import { config } from "../../shared/config/config.js";
-import { createChildLogger } from "@bete/shared/logger";
-import { llmChat } from "./llmClient.js";
 import { updateChannelCulture } from "./channelCultureStore.js";
+import { llmChat } from "./llmClient.js";
 
 const CULTURE_LEARNING_INTERVAL = 1000 * 60 * 60 * 12; // 12 hours
 const log = createChildLogger("cultureLearner");

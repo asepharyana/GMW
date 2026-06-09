@@ -1,7 +1,7 @@
+import { createChildLogger } from "@bete/shared/logger";
 import Redis from "ioredis";
 import { config } from "../shared/config/index.js";
 import { getCommandPublisher } from "../shared/redis/index.js";
-import { createChildLogger } from "@bete/shared/logger";
 import { broadcastRaw } from "./broadcast.js";
 
 const logger = createChildLogger("ws.redis-bridge");

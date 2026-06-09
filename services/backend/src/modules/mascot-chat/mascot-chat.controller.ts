@@ -1,5 +1,5 @@
-import type { Request, Response } from "express";
 import { createChildLogger } from "@bete/shared/logger";
+import type { Request, Response } from "express";
 import { mascotChatService } from "./mascot-chat.service.js";
 
 const logger = createChildLogger("mascot-chat.controller");
@@ -20,11 +20,15 @@ export async function handleMascotChat(req: Request, res: Response) {
 
     logger.debug(
       { userId, messageLength: message.length, context },
-      "Received mascot chat message"
+      "Received mascot chat message",
     );
 
     // Process message & generate response
-    const response = await mascotChatService.processMessage(message, context, userId);
+    const response = await mascotChatService.processMessage(
+      message,
+      context,
+      userId,
+    );
 
     // Save conversation to database
     await mascotChatService.saveConversation({

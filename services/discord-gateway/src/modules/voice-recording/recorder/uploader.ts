@@ -91,18 +91,22 @@ export async function uploadRecordingSegment(input: {
         timestamp: Date.now(),
       });
 
-      broadcaster.getClients().forEach((client: any) => {
-        if (client.readyState === 1) {
-          try {
-            client.send(payload);
-          } catch (err) {
-            logger.warn(
-              { err },
-              "Failed to send recording upload event to client",
-            );
-          }
-        }
-      });
+      broadcaster
+        .getClients()
+        .forEach(
+          (client: { readyState: number; send: (data: string) => void }) => {
+            if (client.readyState === 1) {
+              try {
+                client.send(payload);
+              } catch (err) {
+                logger.warn(
+                  { err },
+                  "Failed to send recording upload event to client",
+                );
+              }
+            }
+          },
+        );
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);

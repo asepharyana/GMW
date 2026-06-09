@@ -1,4 +1,3 @@
-import "./mock-crc.js";
 import "libsodium-wrappers";
 import "@snazzah/davey";
 import "dotenv/config";

@@ -110,7 +110,6 @@ export function useMessages() {
     }
   }, []);
 
-
   const reanalyzeAllErrors = useCallback(async (): Promise<number> => {
     // Optimistically mark all error messages as pending
     setMessages((prev) =>
