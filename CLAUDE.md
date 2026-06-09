@@ -111,7 +111,6 @@ Express 5 + Helmet HTTP server with WebSocket (ws) on port 3001 (default).
 - `recordings/` — Voice recording listing
 - `ui-state/` — Persistent UI state for dashboard
 - `config/` — App config endpoint
-- `analytics/` — Analytics (schema defined)
 
 **WebSocket events (outbound to frontend):**
 - `message_created`, `message_updated`, `message_deleted`, `message_analyzed`
@@ -222,7 +221,6 @@ React 19 + Vite 8 + Tailwind CSS 4 + TypeScript dashboard.
     - Hooks: `useVoiceControl`, `useMediaControl`
   - `messages/` — Message list with filters
     - Hooks: `useMessages`
-  - `analytics/` — Analytics (hook scaffolded)
 - `shared/`
   - `api/client.ts` — All HTTP API calls + types
   - `ws/socket.ts` — WebSocket singleton with `useDashboardSocket` hook

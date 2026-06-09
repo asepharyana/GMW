@@ -100,7 +100,7 @@ export async function pruneExpiredTexts(): Promise<number> {
       `DELETE FROM text_analysis_cache WHERE expires_at < $1`,
       [Date.now()],
     );
-    return (result as any).rowCount ?? 0;
+    return (result as unknown as { rowCount?: number }).rowCount ?? 0;
   } catch (error) {
     logger.error(
       { error: error instanceof Error ? error.message : String(error) },

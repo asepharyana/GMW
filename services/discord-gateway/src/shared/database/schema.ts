@@ -4,9 +4,12 @@ import {
   foreignKey as pgForeignKey,
   index as pgIndex,
   integer as pgInteger,
+  jsonb as pgJsonb,
   real as pgReal,
   pgTable,
   text as pgText,
+  timestamp as pgTimestamp,
+  uuid as pgUuid,
 } from "drizzle-orm/pg-core";
 
 // PostgreSQL Schema
@@ -492,6 +495,30 @@ export const pgCorrectedModerationsTable = pgTable(
   }),
 );
 
+/**
+ * Mascot Chat Messages Table (PostgreSQL)
+ * Stores AI mascot chat conversation history
+ */
+export const pgMascotChatMessagesTable = pgTable(
+  "mascot_chat_messages",
+  {
+    id: pgUuid("id").defaultRandom().primaryKey(),
+    user_id: pgText("user_id").notNull(),
+    user_message: pgText("user_message").notNull(),
+    mascot_response: pgText("mascot_response").notNull(),
+    context: pgJsonb("context").notNull().default("{}"),
+    created_at: pgTimestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    userCreatedIdx: pgIndex("idx_mascot_chat_messages_user_created").on(
+      table.user_id,
+      table.created_at.desc(),
+    ),
+  }),
+);
+
 // Runtime table exports
 // =====================
 
@@ -509,6 +536,7 @@ export const stickerCacheTable = pgStickerCacheTable;
 export const correctedModerationsTable = pgCorrectedModerationsTable;
 export const userReputationsTable = pgUserReputationsTable;
 export const channelCulturesTable = pgChannelCulturesTable;
+export const mascotChatMessagesTable = pgMascotChatMessagesTable;
 
 // Export table types for use in queries
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;
@@ -550,3 +578,7 @@ export type UserReputationInsert = typeof userReputationsTable.$inferInsert;
 
 export type ChannelCulture = typeof channelCulturesTable.$inferSelect;
 export type ChannelCultureInsert = typeof channelCulturesTable.$inferInsert;
+
+export type MascotChatMessage = typeof mascotChatMessagesTable.$inferSelect;
+export type MascotChatMessageInsert =
+  typeof mascotChatMessagesTable.$inferInsert;

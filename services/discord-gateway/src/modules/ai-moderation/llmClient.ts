@@ -14,6 +14,24 @@ import { withLlmConcurrency } from "./concurrencyLimiter.js";
 
 const log = createChildLogger("llm-client");
 
+/**
+ * Covers all LLM response chunk shapes the streaming handler supports.
+ * Different providers (OpenAI, Anthropic-compatible, local LLMs) may return
+ * content in different fields — we try them all via optional chaining.
+ */
+type LLMResponseChunk = {
+  choices?: Array<{
+    delta?: { content?: string | null };
+    message?: { content?: string | null };
+    finish_reason?: string | null;
+    text?: string;
+  }>;
+  message?: { content?: string | null };
+  content?: string;
+  response?: string;
+  finish_reason?: string;
+};
+
 // ---------------------------------------------------------------------------
 // Lazy singleton — created on first use so that config is always resolved.
 // ---------------------------------------------------------------------------
@@ -112,7 +130,7 @@ export async function llmChat(
           if (currentParams.stream) {
             let content = "";
             let finishReason = "stop";
-            for await (const chunk of response as any) {
+            for await (const chunk of response as unknown as AsyncIterable<LLMResponseChunk>) {
               const choice = chunk?.choices?.[0];
               const textChunk =
                 choice?.delta?.content ||

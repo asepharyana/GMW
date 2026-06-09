@@ -5,8 +5,8 @@
  * Individual services re-export from here; they do NOT define their own schemas.
  */
 
-import { ConfigError } from "../errors/index.js";
 import { z } from "zod";
+import { ConfigError } from "../errors/index.js";
 
 export const configSchema = z
   .object({
@@ -18,13 +18,8 @@ export const configSchema = z
     MONITOR_GUILD_ID: z.string().min(1).optional(),
 
     // ── Legacy voice ─────────────────────────────────────────────────────
-    GUILD_ID: z.string().min(1).optional(),
     VOICE_GUILD_ID: z.string().min(1).optional(),
     VOICE_CHANNEL_ID: z.string().min(1).optional(),
-
-    // ── Text capture legacy ──────────────────────────────────────────────
-    TEXT_GUILD_ID: z.string().min(1).optional(),
-    TEXT_CHANNEL_ID: z.string().min(1).optional(),
 
     // ── Recording ────────────────────────────────────────────────────────
     RECORDINGS_DIR: z.string().default("./recordings"),
@@ -35,7 +30,10 @@ export const configSchema = z
     DECODER_COOLDOWN_MS: z.coerce.number().positive().default(30000),
 
     // ── Audio ────────────────────────────────────────────────────────────
-    AUDIO_STREAM_SILENCE_DURATION_MS: z.coerce.number().positive().default(3000),
+    AUDIO_STREAM_SILENCE_DURATION_MS: z.coerce
+      .number()
+      .positive()
+      .default(3000),
     PACKET_FILTER_MIN_SIZE: z.coerce.number().positive().default(8),
     OPUS_FRAME_SIZE: z.coerce.number().positive().default(960),
     AUDIO_SAMPLE_RATE: z.coerce.number().positive().default(48000),
@@ -43,7 +41,7 @@ export const configSchema = z
     AVATAR_SIZE: z.coerce.number().positive().default(64),
 
     // ── Server ───────────────────────────────────────────────────────────
-    WEBSERVER_PORT: z.coerce.number().positive().default(3000),
+    WEBSERVER_PORT: z.coerce.number().positive().default(3001),
     NODE_ENV: z
       .enum(["development", "production", "test"])
       .default("development"),
@@ -55,7 +53,7 @@ export const configSchema = z
       .optional()
       .transform((v) => v === "true")
       .default(false),
-    ADMIN_PASSWORD: z.string().default("admin123"),
+    ADMIN_PASSWORD: z.string(),
 
     // ── Database (PostgreSQL) ────────────────────────────────────────────
     DATABASE_URL: z.string().optional(),
@@ -104,7 +102,11 @@ export const configSchema = z
     AI_LLM_MODEL: z.string().default("text"),
     AI_LLM_VISION_MODEL: z.string().optional(),
     AI_LLM_MAX_CONCURRENT: z.coerce.number().int().positive().default(5),
-    AI_LLM_IMAGE_MAX_DIMENSION: z.coerce.number().int().positive().default(1024),
+    AI_LLM_IMAGE_MAX_DIMENSION: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(1024),
     AI_LLM_TEXT_BATCH_SIZE: z.coerce.number().int().positive().default(20),
     AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS: z.coerce
       .number()
@@ -114,14 +116,21 @@ export const configSchema = z
 
     // ── AI Analysis Timing ──────────────────────────────────────────────
     AI_ANALYSIS_DEBOUNCE_MS: z.coerce.number().positive().default(500),
-    AI_ANALYSIS_RECOVERY_INTERVAL_MS: z.coerce.number().positive().default(15000),
+    AI_ANALYSIS_RECOVERY_INTERVAL_MS: z.coerce
+      .number()
+      .positive()
+      .default(15000),
     AI_ANALYSIS_ERROR_COOLDOWN_MS: z.coerce.number().positive().default(30000),
 
     // ── AI Analysis Batch ───────────────────────────────────────────────
     AI_ANALYSIS_MAX_BATCH_SIZE: z.coerce.number().int().positive().default(200),
     AI_ANALYSIS_MAX_CONTEXT_TOKENS: z.coerce.number().positive().default(8000),
     AI_ANALYSIS_MAX_TARGET_TOKENS: z.coerce.number().positive().default(4000),
-    AI_ANALYSIS_CONTEXT_MESSAGE_LIMIT: z.coerce.number().int().positive().default(20),
+    AI_ANALYSIS_CONTEXT_MESSAGE_LIMIT: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(20),
     AI_ANALYSIS_PROCESSING_TIMEOUT_MS: z.coerce
       .number()
       .positive()
@@ -159,7 +168,9 @@ export const configSchema = z
       .default(false),
     AUTO_DELETE_FLAGGED_DELAY_MS: z.coerce.number().min(0).default(0),
     AUTO_DELETE_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.5),
-    AUTO_DELETE_ALLOWED_SEVERITIES: z.string().default("critical,high,medium,low"),
+    AUTO_DELETE_ALLOWED_SEVERITIES: z
+      .string()
+      .default("critical,high,medium,low"),
     AUTO_DELETE_ALLOWED_CATEGORIES: z.string().default(""),
     AUTO_DELETE_EXCLUDED_CHANNEL_IDS: z.string().default(""),
     AUTO_DELETE_EXCLUDED_USER_IDS: z.string().default(""),
@@ -215,15 +226,13 @@ export type AppConfig = z.infer<typeof configSchema> & {
   EFFECTIVE_VOICE_GUILD_ID?: string;
 };
 
-export function loadConfig(
-  env: NodeJS.ProcessEnv = process.env,
-): AppConfig {
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   try {
     const parsed = configSchema.parse(env);
     return {
       ...parsed,
       EFFECTIVE_TEXT_GUILD_ID: parsed.MONITOR_GUILD_ID,
-      EFFECTIVE_VOICE_GUILD_ID: parsed.VOICE_GUILD_ID ?? parsed.GUILD_ID,
+      EFFECTIVE_VOICE_GUILD_ID: parsed.VOICE_GUILD_ID,
     };
   } catch (error) {
     if (error instanceof z.ZodError) {

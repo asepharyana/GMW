@@ -4,6 +4,10 @@ import { mascotChatService } from "./mascot-chat.service.js";
 
 const logger = createChildLogger("mascot-chat.controller");
 
+interface AuthenticatedRequest extends Request {
+  userId?: string;
+}
+
 export async function handleMascotChat(req: Request, res: Response) {
   try {
     const { message, context } = req.body;
@@ -16,7 +20,7 @@ export async function handleMascotChat(req: Request, res: Response) {
     }
 
     // Get user ID from auth middleware (if available)
-    const userId = (req as any).userId || "anonymous";
+    const userId = (req as AuthenticatedRequest).userId || "anonymous";
 
     logger.debug(
       { userId, messageLength: message.length, context },
@@ -56,7 +60,7 @@ export async function handleMascotChat(req: Request, res: Response) {
 
 export async function getMascotChatHistory(req: Request, res: Response) {
   try {
-    const userId = (req as any).userId || "anonymous";
+    const userId = (req as AuthenticatedRequest).userId || "anonymous";
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
 
     const history = await mascotChatService.getChatHistory(userId, limit);
@@ -76,7 +80,7 @@ export async function getMascotChatHistory(req: Request, res: Response) {
 
 export async function clearMascotChatHistory(req: Request, res: Response) {
   try {
-    const userId = (req as any).userId || "anonymous";
+    const userId = (req as AuthenticatedRequest).userId || "anonymous";
 
     await mascotChatService.clearChatHistory(userId);
 

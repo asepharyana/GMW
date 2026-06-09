@@ -1,5 +1,7 @@
 // ─── Shared HTTP client — all API endpoints in one file ──────────────────────
 
+import type { MessageRecord } from "@bete/shared";
+
 const BE_API_URL = import.meta.env.VITE_BE_API_URL || "http://localhost:3001";
 const BE_WS_URL = import.meta.env.VITE_BE_WS_URL || "ws://localhost:3001";
 
@@ -57,32 +59,7 @@ export interface PageResult<T> {
   nextCursor: string | null;
 }
 
-export interface MessageRecord {
-  id: string;
-  guild_id: string;
-  channel_id: string;
-  thread_id: string | null;
-  user_id: string;
-  username: string;
-  avatar_url: string | null;
-  content: string;
-  edited_content: string | null;
-  created_at: number;
-  edited_at: number | null;
-  deleted_at: number | null;
-  type: "text" | "edited" | "deleted";
-  metadata: string | null;
-  ai_status?: string | null;
-  ai_moderation_flags?: string | null;
-  ai_moderation_score?: number | null;
-  ai_analysis?: string | null;
-  ai_categories?: string | null;
-  ai_severity?: string | null;
-  ai_confidence?: number | null;
-  ai_recommended_action?: string | null;
-  ai_analyzed_at?: number | null;
-  ai_error?: string | null;
-}
+export type { MessageRecord };
 
 export interface Guild {
   id: string;

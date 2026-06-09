@@ -37,33 +37,7 @@ export interface ServerInsights {
 }
 
 export class MascotChatRepository {
-  private initialized = false;
-
-  async ensureSchema(): Promise<void> {
-    if (this.initialized) return;
-
-    const pool = getPool();
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS mascot_chat_messages (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id TEXT NOT NULL,
-        user_message TEXT NOT NULL,
-        mascot_response TEXT NOT NULL,
-        context JSONB NOT NULL DEFAULT '{}'::jsonb,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      )
-    `);
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_mascot_chat_messages_user_created
-      ON mascot_chat_messages (user_id, created_at DESC)
-    `);
-
-    this.initialized = true;
-    logger.info("Mascot chat schema ready");
-  }
-
   async saveConversation(input: SaveConversationInput): Promise<void> {
-    await this.ensureSchema();
     const pool = getPool();
 
     await pool.query(
@@ -88,7 +62,6 @@ export class MascotChatRepository {
     userId: string,
     limit: number,
   ): Promise<MascotChatHistoryRow[]> {
-    await this.ensureSchema();
     const pool = getPool();
 
     const { rows } = await pool.query<MascotChatHistoryRow>(
@@ -107,7 +80,6 @@ export class MascotChatRepository {
   }
 
   async clearChatHistory(userId: string): Promise<void> {
-    await this.ensureSchema();
     const pool = getPool();
 
     const { rowCount } = await pool.query(
@@ -122,7 +94,6 @@ export class MascotChatRepository {
     guildId?: string,
     channelId?: string,
   ): Promise<ServerInsights> {
-    await this.ensureSchema();
     const pool = getPool();
 
     try {

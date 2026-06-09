@@ -413,7 +413,7 @@ async function processIndividualFallback(
       type: "individual",
       message,
       skipNormalAnalysis: false,
-    } as any)) as
+    } as unknown)) as
       | { ok: true; results: AnalysisResult[] }
       | { ok: false; results: AnalysisResult[]; error: string };
 
@@ -443,7 +443,7 @@ async function processIndividualFallback(
         type: "individual",
         message,
         skipNormalAnalysis: true,
-      } as any)) as
+      } as unknown)) as
         | { ok: true; results: AnalysisResult[] }
         | { ok: false; results: AnalysisResult[]; error: string };
 

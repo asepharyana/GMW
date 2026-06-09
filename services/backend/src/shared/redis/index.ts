@@ -31,7 +31,7 @@ let publisherClient: Redis | null = null;
 let subscriberClient: Redis | null = null;
 
 function ensureRedisConfig(): boolean {
-  return !!(config.REDIS_URL);
+  return !!config.REDIS_URL;
 }
 
 function createClient(): Redis {

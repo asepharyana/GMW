@@ -1,6 +1,9 @@
 import "dotenv/config";
 import type { AppConfig as SharedAppConfig } from "@bete/shared/config";
-import { config as sharedConfig, loadConfig as sharedLoadConfig } from "@bete/shared/config";
+import {
+  config as sharedConfig,
+  loadConfig as sharedLoadConfig,
+} from "@bete/shared/config";
 
 // Re-export the unified config with EFFECTIVE_* fields added
 export type AppConfig = SharedAppConfig & {

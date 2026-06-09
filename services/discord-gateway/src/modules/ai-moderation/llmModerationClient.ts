@@ -179,7 +179,12 @@ export function extractJson(content: string): unknown {
       if (parsed && typeof parsed === "object") {
         return parsed;
       }
-    } catch (_) {}
+    } catch (err) {
+      log.debug(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Failed to parse JSON from code block — trying next block",
+      );
+    }
   }
 
   for (let start = 0; start < content.length; start++) {
@@ -224,7 +229,12 @@ export function extractJson(content: string): unknown {
             if (parsed && typeof parsed === "object") {
               return parsed;
             }
-          } catch (_) {}
+          } catch (err) {
+            log.debug(
+              { err: err instanceof Error ? err.message : String(err) },
+              "Failed to parse JSON candidate — trying next position",
+            );
+          }
           break;
         }
       }
@@ -266,7 +276,7 @@ export function parseModerationResponse(
       parsed = { results: [parsed] };
     } else {
       const arrayKey = Object.keys(parsed).find((key) => {
-        const val = (parsed as any)[key];
+        const val = parsed[key];
         return (
           Array.isArray(val) &&
           val.length > 0 &&
@@ -274,12 +284,12 @@ export function parseModerationResponse(
             (item: unknown) =>
               typeof item === "object" &&
               item !== null &&
-              "message_id" in (item as any),
+              "message_id" in (item as Record<string, unknown>),
           )
         );
       });
       if (arrayKey) {
-        parsed.results = (parsed as any)[arrayKey];
+        parsed.results = parsed[arrayKey];
       } else {
         parsed = { results: [parsed] };
       }

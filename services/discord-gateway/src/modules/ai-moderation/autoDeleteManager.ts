@@ -4,6 +4,10 @@ import { config } from "../../shared/config/config.js";
 import { createModerationAction } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
 
+interface ChannelWithSend {
+  send: (content: string | object, options?: unknown) => Promise<unknown>;
+}
+
 const logger = createChildLogger("auto-delete-manager");
 
 const parseStringList = (value?: string | null): string[] => {
@@ -353,7 +357,7 @@ export async function attemptAutoDeleteFlaggedMessage(
         if (
           logChannel &&
           "send" in logChannel &&
-          typeof (logChannel as any).send === "function"
+          typeof (logChannel as ChannelWithSend).send === "function"
         ) {
           const severity = message.ai_severity ?? "none";
           const categories =
@@ -362,7 +366,7 @@ export async function attemptAutoDeleteFlaggedMessage(
             0,
             200,
           );
-          await (logChannel as any).send(
+          await (logChannel as ChannelWithSend).send(
             `**🧹 Auto-Delete** — Pesan dari <@${message.user_id}> di <#${channelId}>\n` +
               `**Status:** ${message.ai_status}\n` +
               `**Severitas:** ${severity}\n` +

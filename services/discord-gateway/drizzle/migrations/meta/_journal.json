@@ -50,6 +50,13 @@
       "when": 1780900000000,
       "tag": "0006_replace_base64_with_image_url",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781174400000,
+      "tag": "0007_mascot_chat_table",
+      "breakpoints": true
     }
   ]
 }

@@ -1,42 +1,42 @@
 import type fs from "node:fs";
-import type prism from "prism-media";
 import type {
-  AIStatus,
-  AISeverity,
   AIRecommendedAction,
+  AISeverity,
+  AIStatus,
+  AnalysisQueueStatus,
+  AttachmentRecord,
   BroadcasterClient,
+  MessageRecord,
   ModerationBroadcaster,
   RoleMetadata,
   UserMetadata,
-  MessageRecord,
-  AttachmentRecord,
   VoiceRecordingUploadData,
-  AnalysisQueueStatus,
 } from "@bete/shared";
+import type prism from "prism-media";
 
 // Re-export all shared types for backward compatibility
 export type {
-  AIStatus,
-  AISeverity,
   AIRecommendedAction,
-  BroadcasterClient,
-  ModerationBroadcaster,
-  RoleMetadata,
-  UserMetadata,
-  MessageRecord,
+  AISeverity,
+  AIStatus,
+  AnalysisQueueStatus,
+  AnalysisResult,
   AttachmentRecord,
-  VoiceSegmentRecord,
+  BroadcasterClient,
   DashboardMessage,
   MessageQuery,
-  PageResult,
-  AnalysisResult,
-  VoiceRecordingUploadData,
-  AnalysisQueueStatus,
+  MessageRecord,
   MessageReview,
   ModerationAction,
+  ModerationActionType,
+  ModerationBroadcaster,
+  PageResult,
   RetentionPolicy,
   ReviewStatus,
-  ModerationActionType,
+  RoleMetadata,
+  UserMetadata,
+  VoiceRecordingUploadData,
+  VoiceSegmentRecord,
 } from "@bete/shared";
 
 // Types that are LOCAL ONLY (not in shared) — keep here
