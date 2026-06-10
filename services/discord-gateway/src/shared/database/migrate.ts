@@ -139,6 +139,7 @@ export async function runMigrations(): Promise<void> {
 
           await migratePostgres(db, {
             migrationsFolder: "./drizzle/migrations",
+            migrationsSchema: "public",
           });
         } finally {
           await client.query("SELECT pg_advisory_unlock($1, $2)", [
