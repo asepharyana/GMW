@@ -1,6 +1,8 @@
 import { ConfigError, DatabaseError } from "@bete/shared/errors";
 import { createChildLogger } from "@bete/shared/logger";
 import { Client } from "discord.js-selfbot-v13";
+import { inArray, lt } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { startPendingAIAnalysisWorker } from "../modules/ai-moderation/aiAnalyzer.js";
 import { CommandHandler } from "../modules/command-handler/commandHandler.js";
 import {
@@ -11,18 +13,173 @@ import {
   registerMessageCapture,
   setEventBroadcaster as setMessageCaptureEventBroadcaster,
 } from "../modules/message-capture/messageCapture.js";
+import { getExpiredMessages } from "../modules/message-capture/messageStore.js";
 import { setEventBroadcaster as setRecorderEventBroadcaster } from "../modules/voice-recording/recorder.js";
 import { VoiceController } from "../modules/voice-recording/voiceController.js";
 import { config } from "../shared/config/config.js";
 import {
   closeDatabase,
+  getDatabase,
   initializeDatabase,
 } from "../shared/database/drizzle.js";
 import { runMigrations } from "../shared/database/migrate.js";
+import type * as schema from "../shared/database/schema.js";
+import {
+  attachmentsTable,
+  messagesTable,
+  voiceRecordingsTable,
+} from "../shared/database/schema.js";
 import { createDiscordClientOptions } from "../shared/discord/clientOptions.js";
 import { createGracefulShutdown } from "./shutdown.js";
 
 const logger = createChildLogger("discord-gateway");
+
+// ─── Retention Cleanup ─────────────────────────────────────────────────────
+
+function startRetentionCleanup(): void {
+  const intervalMs = config.RETENTION_CLEANUP_INTERVAL_MS;
+  const dryRun = config.RETENTION_DRY_RUN;
+
+  logger.info(
+    {
+      intervalMs,
+      dryRun,
+      messagesDays: config.RETENTION_MESSAGES_DAYS,
+      attachmentsDays: config.RETENTION_ATTACHMENTS_DAYS,
+      voiceDays: config.RETENTION_VOICE_DAYS,
+    },
+    "Starting retention cleanup scheduler",
+  );
+
+  async function runCleanupTick(): Promise<void> {
+    const db = getDatabase() as unknown as NodePgDatabase<typeof schema>;
+
+    // ── Expired messages ────────────────────────────────────────────────
+    if (config.RETENTION_MESSAGES_DAYS > 0) {
+      try {
+        const expiredMessages = await getExpiredMessages(
+          config.RETENTION_MESSAGES_DAYS,
+        );
+
+        if (expiredMessages.length > 0) {
+          const ids = expiredMessages.map((m: { id: string }) => m.id);
+          logger.info(
+            { count: ids.length, dryRun },
+            "Expired messages found for cleanup",
+          );
+
+          if (!dryRun) {
+            await db
+              .delete(messagesTable)
+              .where(inArray(messagesTable.id, ids));
+            logger.info({ count: ids.length }, "Expired messages deleted");
+          }
+        }
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+          },
+          "Failed to clean up expired messages",
+        );
+      }
+    }
+
+    // ── Expired attachments ─────────────────────────────────────────────
+    if (config.RETENTION_ATTACHMENTS_DAYS > 0) {
+      try {
+        const cutoff =
+          Date.now() - config.RETENTION_ATTACHMENTS_DAYS * 24 * 60 * 60 * 1000;
+
+        const expiredAttachments = await db
+          .select({ id: attachmentsTable.id })
+          .from(attachmentsTable)
+          .where(lt(attachmentsTable.created_at, cutoff))
+          .limit(1000);
+
+        if (expiredAttachments.length > 0) {
+          const ids = expiredAttachments.map((a: { id: string }) => a.id);
+          logger.info(
+            { count: ids.length, dryRun },
+            "Expired attachments found for cleanup",
+          );
+
+          if (!dryRun) {
+            await db
+              .delete(attachmentsTable)
+              .where(inArray(attachmentsTable.id, ids));
+            logger.info({ count: ids.length }, "Expired attachments deleted");
+          }
+        }
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+          },
+          "Failed to clean up expired attachments",
+        );
+      }
+    }
+
+    // ── Expired voice recordings ────────────────────────────────────────
+    if (config.RETENTION_VOICE_DAYS > 0) {
+      try {
+        const cutoff =
+          Date.now() - config.RETENTION_VOICE_DAYS * 24 * 60 * 60 * 1000;
+
+        const expiredRecordings = await db
+          .select({ id: voiceRecordingsTable.id })
+          .from(voiceRecordingsTable)
+          .where(lt(voiceRecordingsTable.created_at, cutoff))
+          .limit(1000);
+
+        if (expiredRecordings.length > 0) {
+          const ids = expiredRecordings.map((r: { id: string }) => r.id);
+          logger.info(
+            { count: ids.length, dryRun },
+            "Expired voice recordings found for cleanup",
+          );
+
+          if (!dryRun) {
+            await db
+              .delete(voiceRecordingsTable)
+              .where(inArray(voiceRecordingsTable.id, ids));
+            logger.info(
+              { count: ids.length },
+              "Expired voice recordings deleted",
+            );
+          }
+        }
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+          },
+          "Failed to clean up expired voice recordings",
+        );
+      }
+    }
+  }
+
+  // Run immediately on start, then schedule
+  runCleanupTick().catch((error) => {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Initial retention cleanup tick failed",
+    );
+  });
+
+  setInterval(() => {
+    runCleanupTick().catch((error) => {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "Retention cleanup tick failed",
+      );
+    });
+  }, intervalMs);
+}
+
+// ─── Bootstrap ─────────────────────────────────────────────────────────────
 
 export async function initializeDiscordGateway() {
   if (config.AI_ANALYSIS_ENABLED && !config.AI_LLM_API_KEY) {
@@ -98,6 +255,9 @@ export async function initializeDiscordGateway() {
     // Start command handler after Discord is ready
     commandHandler.start(client, voiceController);
     logger.info("Command handler started");
+
+    // Start retention cleanup scheduler
+    startRetentionCleanup();
   });
 
   client.on("error", (err) => {

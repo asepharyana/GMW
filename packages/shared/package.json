@@ -11,6 +11,8 @@
     "./database/schema": "./dist/database/schema.js",
     "./errors": "./dist/errors/index.js",
     "./logger": "./dist/logger/index.js",
+    "./moderation-types": "./dist/moderation-types.js",
+    "./redis-channels": "./dist/redis-channels.js",
     "./utils": "./dist/utils/index.js"
   },
   "scripts": {

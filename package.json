@@ -22,8 +22,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "latest",
-    "@types/better-sqlite3": "^7.6.13",
-    "better-sqlite3": "^11.9.1",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.22.2",
     "typescript": "^5.9.3"

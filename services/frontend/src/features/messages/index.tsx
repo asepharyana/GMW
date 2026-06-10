@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Filter, RotateCw, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { MessageRecord } from "../../shared/api/client";
+import { type MessageRecord, request } from "../../shared/api/client";
 import { cardItem, cardStagger } from "../../shared/hooks/useFramerStagger";
 import {
   Badge,
@@ -58,9 +58,9 @@ export function MessagesPanel({
     setIsSearching(true);
     try {
       const params = new URLSearchParams({ q: searchQuery, limit: "50" });
-      const response = await fetch(`/api/analysis/search?${params}`);
-      if (!response.ok) throw new Error("Search failed");
-      const data = await response.json();
+      const data = await request<{ results: MessageRecord[] }>(
+        `/api/analysis/search?${params}`,
+      );
       setSearchResults(data.results || []);
       setShowSearch(true);
     } catch {

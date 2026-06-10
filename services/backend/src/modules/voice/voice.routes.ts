@@ -3,7 +3,6 @@ import express from "express";
 import {
   handleConnectVoice,
   handleDisconnectVoice,
-  handleGetVoiceChannels,
   handleGetVoiceStatus,
   handleVoiceCommand,
 } from "./voice.controller.js";
@@ -19,9 +18,6 @@ export function createVoiceRouter(): Router {
 
   // POST /api/disconnect
   router.post("/disconnect", handleDisconnectVoice);
-
-  // GET /api/guilds/:guildId/voice-channels
-  router.get("/guilds/:guildId/voice-channels", handleGetVoiceChannels);
 
   // POST /api/voice/command — send arbitrary voice command (transmit start/stop)
   router.post("/voice/command", handleVoiceCommand);

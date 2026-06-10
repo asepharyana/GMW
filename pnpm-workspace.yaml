@@ -9,7 +9,6 @@ packages:
 allowBuilds:
   '@discordjs/opus': true
   '@lng2004/node-datachannel': true
-  better-sqlite3: true
   esbuild: true
   node-av: true
   node-crc: true
@@ -28,7 +27,6 @@ minimumReleaseAgeExclude:
 onlyBuiltDependencies:
   - '@discordjs/opus'
   - '@lng2004/node-datachannel'
-  - better-sqlite3
   - esbuild
   - node-av
   - sharp
