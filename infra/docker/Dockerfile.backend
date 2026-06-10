@@ -5,6 +5,10 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
+# Install build tools for native dependencies (node-crc, @discordjs/opus)
+# @discordjs/voice is a shared workspace dependency needed even by backend
+RUN apk add --no-cache python3 make g++
+
 # Create non-root user
 RUN addgroup -S app && adduser -S -G app app
 
