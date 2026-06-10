@@ -92,14 +92,42 @@ async function seedDrizzleHistory(client: PoolClient): Promise<void> {
     "Seeding Drizzle migration history — marking first migration as already applied on this pre-existing database",
   );
 
-  // Create the Drizzle tracking table and insert a row for the first migration.
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
-      id SERIAL PRIMARY KEY,
-      hash text NOT NULL,
-      created_at bigint
-    )
-  `);
+  // Create the Drizzle tracking table if it does not exist.
+  // PG15+ locks down CREATE on the public schema for non-owner roles,
+  // so we handle the permission error gracefully by checking if the
+  // table already exists (it was created by a previous migration run).
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
+        id SERIAL PRIMARY KEY,
+        hash text NOT NULL,
+        created_at bigint
+      )
+    `);
+  } catch (createErr: unknown) {
+    if (
+      createErr instanceof Error &&
+      "code" in createErr &&
+      (createErr as { code: string }).code === "42501"
+    ) {
+      // Permission denied — check if the table actually exists anyway
+      const existsAfter = await client.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_name = '__drizzle_migrations'
+        )
+      `);
+      if (existsAfter.rows[0]?.exists === true) {
+        logger.warn(
+          "CREATE TABLE __drizzle_migrations denied (42501) but table already exists — continuing",
+        );
+      } else {
+        throw createErr;
+      }
+    } else {
+      throw createErr;
+    }
+  }
   // Drizzle's __drizzle_migrations table has no UNIQUE(hash)
   // constraint, so check manually before inserting.
   const alreadySeeded = await client.query(
