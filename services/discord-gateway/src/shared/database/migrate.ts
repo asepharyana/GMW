@@ -137,10 +137,26 @@ export async function runMigrations(): Promise<void> {
           // new (pending) migrations — it is idempotent after that.
           await seedDrizzleHistory(client);
 
-          await migratePostgres(db, {
-            migrationsFolder: "./drizzle/migrations",
-            migrationsSchema: "public",
-          });
+          // Monkey-patch client.query to intercept and ignore Drizzle's
+          // hardcoded schema creation, which fails in PG15+ restricted public schemas.
+          const originalQuery = client.query;
+          client.query = (async (...args: any[]) => {
+            const queryText = args[0];
+            const text = typeof queryText === "string" ? queryText : queryText?.text;
+            if (text && typeof text === "string" && text.includes('CREATE SCHEMA IF NOT EXISTS "public"')) {
+              return { rows: [], command: "CREATE", rowCount: 0, oid: 0, fields: [] };
+            }
+            return Function.prototype.apply.call(originalQuery, client, args);
+          }) as typeof client.query;
+
+          try {
+            await migratePostgres(db, {
+              migrationsFolder: "./drizzle/migrations",
+              migrationsSchema: "public",
+            });
+          } finally {
+            client.query = originalQuery;
+          }
         } finally {
           await client.query("SELECT pg_advisory_unlock($1, $2)", [
             MIGRATION_LOCK_KEY_1,
