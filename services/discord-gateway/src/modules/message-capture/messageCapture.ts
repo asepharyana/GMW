@@ -46,7 +46,8 @@ export function shouldCaptureMessageLocation(
   if (
     message.channelId === "1310988070996414494" ||
     message.channelId === "1265679542144467035" ||
-    message.channelId === "1310867899745046558"
+    message.channelId === "1310867899745046558" ||
+    message.channelId === "1323365288447574128"
   )
     return false;
   if (!message.guildId || message.guildId !== target.guildId) return false;
