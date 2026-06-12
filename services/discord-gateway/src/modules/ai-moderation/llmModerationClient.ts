@@ -151,7 +151,14 @@ function hasMediaContent(
 ): boolean {
   if (target.metadata) {
     const evidence = extractMessageMediaEvidence(target.metadata);
-    if (evidence.stickers.length > 0 || evidence.embeds.length > 0) return true;
+    // Check all media types from metadata — attachments in particular are
+    // captured at message-creation time so they exist before the DB record.
+    if (
+      evidence.stickers.length > 0 ||
+      evidence.embeds.length > 0 ||
+      evidence.attachments.length > 0
+    )
+      return true;
   }
   if (attachments?.some((a) => a.message_id === target.id)) return true;
   return false;
@@ -1206,7 +1213,26 @@ export async function runModerationAnalysis(
         // Safety: skip cache entries that are artifacts of API/parse errors.
         // A previous bug cached error results as "flagged", causing 24h false positives.
         // This guards against both legacy corrupt entries and any future write-path bugs.
-        if (
+        const hasMediaInMeta =
+          target.metadata &&
+          (() => {
+            const ev = extractMessageMediaEvidence(target.metadata);
+            return (
+              ev.attachments.length > 0 ||
+              ev.stickers.length > 0 ||
+              ev.embeds.length > 0
+            );
+          })();
+
+        if (hasMediaInMeta) {
+          log.debug(
+            {
+              messageId: target.id,
+              cacheKey,
+            },
+            "Cache entry exists but message has media in metadata — treating as miss",
+          );
+        } else if (
           cached.flags.some((f) =>
             [
               "analysis_api_failed",
@@ -1314,6 +1340,31 @@ export async function runModerationAnalysis(
     // Do NOT cache error results (API failures, parse failures, incomplete).
     // Caching a transient error would turn it into a 24h false positive.
     if (result.status === "error") continue;
+
+    // Do NOT cache text-only analysis for messages with media evidence in
+    // metadata (attachments, stickers, embeds).  A complete analysis needs
+    // full media context, and caching a text-only result would prevent future
+    // media-aware re-analysis.  The attachment DB record may not exist yet
+    // due to a race condition, so we check the message's own metadata field.
+    if (target.metadata) {
+      const evidence = extractMessageMediaEvidence(target.metadata);
+      if (
+        evidence.attachments.length > 0 ||
+        evidence.stickers.length > 0 ||
+        evidence.embeds.length > 0
+      ) {
+        log.debug(
+          {
+            messageId: target.id,
+            attachments: evidence.attachments.length,
+            stickers: evidence.stickers.length,
+            embeds: evidence.embeds.length,
+          },
+          "Skipping cache for text-only result — message has media evidence in metadata",
+        );
+        continue;
+      }
+    }
 
     const cacheKey = makeTextModerationCacheKey(rawContent);
     setCachedTextModeration(cacheKey, {
