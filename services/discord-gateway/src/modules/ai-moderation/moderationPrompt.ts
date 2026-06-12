@@ -35,6 +35,7 @@ Bahasa utama komunitas ini adalah BAHASA INDONESIA. Bahasa Inggris adalah bahasa
 - Makian/kata kasar umum (emosi marah seperti "anjing", "asu", "bangsat", "ngehe") BUKAN pelanggaran SARA. Kata-kata emosi ini bisa di-flag sebagai "harassment" atau "vulgar_language" HANYA jika ditujukan langsung ke orang lain sebagai hinaan atau ancaman.
 - **VULGARITAS ANATOMI/SEKSUAL SELALU DILARANG:** Kata-kata yang merujuk pada alat kelamin atau anatomi seksual (seperti "kontol", "memek", "titten", "tit", "dick") atau istilah seksual eksplisit WAJIB DI-FLAG sebagai "vulgar_language" atau "sexual_content" WALAUPUN dalam konteks bercanda, slang, atau tanpa target (tidak terarah). JANGAN PERNAH menganggapnya aman dengan alasan "konteks percakapan santai".
 - Kata "asus" adalah merk teknologi, jangan pernah dianggap sebagai makian "asu".
+- **NAMA PROYEK/KOMUNITAS INI:** "IMPHNEN", "imphnen", "Imphens", varian seperti "imphnen.asepharyana.my.id" atau "imphnen.tech" adalah NAMA PROYEK/KOMUNITAS dari bot moderasi ini sendiri (Discord Moderation Watcher). BUKAN agama, BUKAN kitab suci, BUKAN parodi SARA, dan BUKAN penistaan. Menyebut/mempromosikan nama proyek ini adalah AMAN. JANGAN flag sebagai "sara" hanya karena mengandung kata "imphnen".
 - **EKSPRESI RELIGIUS/KEAGAMAAN ADALAH AMAN:** "Astaghfirullah", "Astaga", "Astagfirullah", "Alhamdulillah", "Subhanallah", "Allahuakbar", "MasyaAllah", "Bismillah", "InsyaAllah", "Laa ilaha illallah", "Masha Allah", dan variasi ejaan lainnya (termasuk all caps, repeating huruf, atau tanpa spasi seperti "astagafirullahh") adalah SERUAN/DOA KEAGAMAAN NORMAL dalam budaya Indonesia dan BUKAN vulgar_language. JANGAN flag sebagai vulgar atau harassment. Penggunaan huruf kapital semua untuk ekspresi keterkejutan adalah hal wajar di budaya internet Indonesia dan TIDAK menjadikannya pelanggaran.
 - "woy"/"woi" adalah sapaan/interjeksi informal Indonesia dan tidak boleh dianggap SARA, hate speech, atau harassment tanpa target hinaan/ancaman jelas.
 - Kata-kata AMAN: "kakek" (family term), "Wah" (exclamation), "hadeh" (slang exclamation). Jangan flag sebagai vulgar_language atau harassment.
@@ -56,7 +57,7 @@ Pedoman ini mencerminkan nilai-nilai yang dijunjung server. Terapkan dengan bija
 	SARA (Suku, Agama, Ras, Antargolongan) adalah konsep hukum dan budaya Indonesia yang sangat serius. Pelanggaran SARA agama adalah salah satu pelanggaran paling berat di server ini. Berikut adalah kategori deteksi WAJIB:
 
 	**1. PARODI AYAT / KITAB SUCI PALSU — WAJIB DI-FLAG**
-	- Membuat atau menyebut "ayat" palsu dengan format mirip kitab suci (misal: "Imphnemia 11:17", "Kitab Kesedihan pasal 3 ayat 1", "Surat Kebodohan ayat 5").
+	- Membuat atau menyebut "ayat" palsu dengan format mirip kitab suci (misal: "Kitabonia 11:17", "Kitab Kesedihan pasal 3 ayat 1", "Surat Kebodohan ayat 5").
 	- Penggunaan format penulisan kitab suci (pasal:ayat, surat..., kitab...) untuk konten lelucon/sindiran.
 	- Membuat variasi nama kitab suci yang diplintir (misal: "Injil Palsu", "Taurat Receh", "Al-Quran Edisi MLM").
 	- Parodi doa atau ritual agama yang mengolok-olok (misal: "Doa untuk WiFi lemot", "Wudu pakai bensin", "Sholat sambil TikTok").
@@ -285,8 +286,8 @@ Input: [target] id=17171 user=dian432: Apakah bisa ngodonf disitu?
 Output: {"results":[{"message_id":"17171","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim bertanya tentang pemrograman. Kata 'ngodonf' adalah typo natural (QWERTY f-g, o-i) dari 'ngoding'. Bukan obfuscation kata kasar. Konteks percakapan wajar."}]}
 
 Contoh 20 — Parodi ayat palsu (SARA agama):
-Input: [target] id=20201 user=parodist: Imphnemia 11:17 — "Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"
-Output: {"results":[{"message_id":"20201","status":"flagged","flags":["sara"],"score":0.92,"categories":["sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Imphnemia 11:17","Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"],"analysis":"Pengirim membuat ayat palsu dengan format penulisan kitab suci (pasal:ayat) yang memparodikan wahyu. Ini adalah penistaan agama serius, bukan humor. Melanggar kebijakan SARA."}]}
+Input: [target] id=20201 user=parodist: Kitabonia 11:17 — "Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"
+Output: {"results":[{"message_id":"20201","status":"flagged","flags":["sara"],"score":0.92,"categories":["sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Kitabonia 11:17","Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"],"analysis":"Pengirim membuat ayat palsu dengan format penulisan kitab suci (pasal:ayat) yang memparodikan wahyu. Ini adalah penistaan agama serius, bukan humor. Melanggar kebijakan SARA."}]}
 
 Contoh 21 — Membuat agama palsu / mengaku Tuhan (SARA agama):
 Input: [target] id=21212 user=troll: ayo bikin agama, aku tuhannya, yg mau jadi malaikat DM aku
@@ -379,8 +380,8 @@ Input: [target] id=17171 user=dian432: Apakah bisa ngodonf disitu?
 Output: {"results":[{"message_id":"17171","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim bertanya tentang pemrograman. Kata 'ngodonf' adalah typo natural (QWERTY f-g, o-i) dari 'ngoding'. Bukan obfuscation kata kasar. Konteks percakapan wajar."}]}
 
 Contoh 20 — Parodi ayat palsu (SARA agama):
-Input: [target] id=20201 user=parodist: Imphnemia 11:17 — "Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"
-Output: {"results":[{"message_id":"20201","status":"flagged","flags":["sara"],"score":0.92,"categories":["sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Imphnemia 11:17","Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"],"analysis":"Pengirim membuat ayat palsu dengan format penulisan kitab suci (pasal:ayat) yang memparodikan wahyu. Ini adalah penistaan agama serius, bukan humor. Melanggar kebijakan SARA."}]}
+Input: [target] id=20201 user=parodist: Kitabonia 11:17 — "Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"
+Output: {"results":[{"message_id":"20201","status":"flagged","flags":["sara"],"score":0.92,"categories":["sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Kitabonia 11:17","Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"],"analysis":"Pengirim membuat ayat palsu dengan format penulisan kitab suci (pasal:ayat) yang memparodikan wahyu. Ini adalah penistaan agama serius, bukan humor. Melanggar kebijakan SARA."}]}
 
 Contoh 21 — Membuat agama palsu / mengaku Tuhan (SARA agama):
 Input: [target] id=21212 user=troll: ayo bikin agama, aku tuhannya, yg mau jadi malaikat DM aku
@@ -470,8 +471,8 @@ Input: [target] id=15151 user=troll: AKU RAJA TITTEN
 Output: {"results":[{"message_id":"15151","status":"flagged","flags":["vulgar_language"],"score":0.85,"categories":["vulgar_language"],"severity":"medium","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["AKU RAJA TITTEN"],"analysis":"Pesan menggunakan kata vulgar bahasa asing ('titten' berarti payudara dalam bahasa Jerman) dengan huruf kapital. Ini adalah pelanggaran vulgar_language meskipun formatnya seperti candaan."}]}
 
 Contoh 20 — Parodi ayat palsu (SARA agama):
-Input: [target] id=20201 user=parodist: Imphnemia 11:17 — "Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"
-Output: {"results":[{"message_id":"20201","status":"flagged","flags":["sara"],"score":0.92,"categories":["sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Imphnemia 11:17","Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"],"analysis":"Pengirim membuat ayat palsu dengan format penulisan kitab suci (pasal:ayat) yang memparodikan wahyu. Ini adalah penistaan agama serius, bukan humor. Melanggar kebijakan SARA."}]}
+Input: [target] id=20201 user=parodist: Kitabonia 11:17 — "Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"
+Output: {"results":[{"message_id":"20201","status":"flagged","flags":["sara"],"score":0.92,"categories":["sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Kitabonia 11:17","Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"],"analysis":"Pengirim membuat ayat palsu dengan format penulisan kitab suci (pasal:ayat) yang memparodikan wahyu. Ini adalah penistaan agama serius, bukan humor. Melanggar kebijakan SARA."}]}
 
 Contoh 21 — Membuat agama palsu / mengaku Tuhan (SARA agama):
 Input: [target] id=21212 user=troll: ayo bikin agama, aku tuhannya, yg mau jadi malaikat DM aku
