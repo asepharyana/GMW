@@ -1465,7 +1465,11 @@ Aturan:
 - warn: spam ringan, promosi tidak jelas, atau pelanggaran ringan
 - flagged: harassment, SARA, NSFW, judi, ancaman, atau pelanggaran serius
 
-PENTING: Slang Indonesia ("anjay", "wkwk", "njir", "gws", dll) dan makian umum ("asu", "anjing", "bangsat") yang TIDAK ditujukan ke orang lain = clean.
+PENTING (False Positive Prevention):
+- Slang Indonesia ("anjay", "wkwk", "njir", "gws", dll) dan makian umum ("asu", "anjing", "bangsat") yang TIDAK ditujukan ke orang lain = clean.
+- Konten coding/programming (kode, log error, SQL, command line, error message, stack trace, nama library) = clean. JANGAN flag hanya karena ada kata "error" atau "crash" dalam konteks teknis.
+- Nama proyek, tools, framework (IMPHNEN, Bete, Cursor, Claude, React, Discord) = clean.
+- Percakapan multilingual (campuran Indonesia-Inggris) = clean.
 
 Pesan: "${truncatedContent}"
 
