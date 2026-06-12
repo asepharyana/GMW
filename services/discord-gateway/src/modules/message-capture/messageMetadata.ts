@@ -81,7 +81,9 @@ export interface RichMessageMetadata {
     messageId: string | null;
     channelId: string | null;
     guildId: string | null;
+    type: string | null;
   } | null;
+  isCrosspost: boolean;
 }
 
 export function getMessageLocation(message: Message): MessageLocation {
@@ -235,8 +237,10 @@ export function getMessageMetadata(message: Message): RichMessageMetadata {
           messageId: message.reference.messageId ?? null,
           channelId: message.reference.channelId ?? null,
           guildId: message.reference.guildId ?? null,
+          type: (message.reference.type as unknown as string | undefined) ?? null,
         }
       : null,
+    isCrosspost: message.flags?.has(1 << 1) ?? false,
   };
 }
 
@@ -258,6 +262,7 @@ export function parseRichMessageMetadata(
       member: (parsed.member ?? null) as RichMessageMetadata["member"],
       channel: parsed.channel as RichMessageMetadata["channel"],
       reference: (parsed.reference ?? null) as RichMessageMetadata["reference"],
+      isCrosspost: Boolean(parsed.isCrosspost),
     };
   } catch {
     return null;

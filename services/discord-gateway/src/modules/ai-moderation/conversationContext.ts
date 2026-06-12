@@ -41,6 +41,26 @@ export function estimateTokens(text: string): number {
 }
 
 /**
+ * Formats reference info for a message (reply/forward/crosspost)
+ */
+function formatReferenceInfo(msg: MessageRecord): string {
+  const parts: string[] = [];
+  if (msg.is_reply && msg.reference_message_id) {
+    parts.push(`[reply_to: ${msg.reference_message_id}]`);
+    if (msg.reference_channel_id) {
+      parts.push(`(reply_channel: ${msg.reference_channel_id})`);
+    }
+  }
+  if (msg.is_forward && msg.reference_message_id) {
+    parts.push(`[forward_from: ${msg.reference_message_id}]`);
+  }
+  if (msg.is_crosspost) {
+    parts.push(`[crosspost]`);
+  }
+  return parts.length > 0 ? ` ${parts.join(" ")}` : "";
+}
+
+/**
  * Formats a single message for context or target display
  */
 export function formatMessageForPrompt(
@@ -51,7 +71,8 @@ export function formatMessageForPrompt(
   const timestamp = formatTimestamp(msg.created_at);
   const mediaEvidence = formatMediaEvidenceForPrompt(msg.metadata);
   const mediaSuffix = mediaEvidence ? ` ${mediaEvidence}` : "";
-  return `[${label}] id=${msg.id} time=${timestamp} user=${msg.username}: ${content}${mediaSuffix}`;
+  const refInfo = formatReferenceInfo(msg);
+  return `[${label}] id=${msg.id} time=${timestamp} user=${msg.username}: ${content}${mediaSuffix}${refInfo}`;
 }
 
 /**

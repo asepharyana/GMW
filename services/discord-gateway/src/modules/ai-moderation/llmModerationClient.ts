@@ -45,6 +45,7 @@ import {
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 import { initializeUserReputation } from "./userReputationStore.js";
 import { getUserProfile } from "./userProfileStore.js";
+import { getMessageById } from "../message-capture/messageStore.js";
 
 export { sniffImageMimeType } from "./imageMimeSniffer.js";
 export { extractJson } from "./jsonExtractor.js";
@@ -140,6 +141,53 @@ function getAnalysisContent(message: MessageRecord): string {
     "",
   );
   return stripped.trim();
+}
+
+/**
+ * Builds a <reference> XML element for reply/forward/crosspost context.
+ * Fetches the parent message content if available so the LLM can evaluate
+ * the reply in context.
+ */
+async function buildReferenceXml(msg: MessageRecord): Promise<string> {
+  const parts: string[] = [];
+  if (msg.is_reply && msg.reference_message_id) {
+    parts.push(`type="reply"`);
+  } else if (msg.is_forward && msg.reference_message_id) {
+    parts.push(`type="forward"`);
+  }
+  if (msg.is_crosspost) {
+    parts.push(`type="crosspost"`);
+  }
+  if (!msg.reference_message_id) return "";
+
+  // Try to fetch parent message content
+  let parentContent = "";
+  if (msg.reference_message_id) {
+    try {
+      const parent = await getMessageById(msg.reference_message_id);
+      if (parent) {
+        const parentText = parent.edited_content ?? parent.content;
+        parentContent = parentText.slice(0, 500);
+      }
+    } catch {
+      // Parent fetch failed — still inject reference with available info
+    }
+  }
+
+  const attr = parts.join(" ");
+  const parentXml = parentContent
+    ? `<parent_content>${escapeXml(parentContent)}</parent_content>`
+    : "";
+  return `<reference ${attr} message_id="${msg.reference_message_id}" channel_id="${msg.reference_channel_id ?? ""}" guild_id="${msg.reference_guild_id ?? ""}">${parentXml}</reference>`;
+}
+
+/** Simple XML-escaping for content text. */
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 // ---------------------------------------------------------------------------
@@ -748,7 +796,6 @@ async function runTextOnlyBatch(
   let lastRaw: unknown = null;
 
   const channelId = targets.length > 0 ? targets[0].channel_id : "";
-  const guildId = targets.length > 0 ? targets[0].guild_id : "";
   const channelCultureObj = channelId
     ? await getChannelCulture(channelId)
     : null;
@@ -802,8 +849,8 @@ async function runTextOnlyBatch(
         channelCulture,
       });
 
-      const messagesBlock = batch
-        .map((msg) => {
+      const messagesBlock = await Promise.all(
+        batch.map(async (msg) => {
           const content = getAnalysisContent(msg);
 
           // Inject fetched web content for URLs found in this message
@@ -822,9 +869,11 @@ async function runTextOnlyBatch(
 
           // XML delimiters wrap each message for prompt safety (R1)
           const profileLine = userProfileCtx ? `\n  ${userProfileCtx}` : "";
-          return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}${profileLine}\n  <content>${content}</content>${webContext}\n</message>`;
-        })
-        .join("\n");
+          const refXml = await buildReferenceXml(msg);
+          const refLine = refXml ? `\n  ${refXml}` : "";
+          return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}${profileLine}${refLine}\n  <content>${content}</content>${webContext}\n</message>`;
+        }),
+      ).then((blocks) => blocks.join("\n"));
 
       // XML delimiter wraps the entire messages block (R1)
       return `${systemText}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
@@ -1040,8 +1089,10 @@ async function prepareMediaMessage(
   const userProfileCtx = profile
     ? `\n  <user_profile>${profile.profile_summary}</user_profile>`
     : "";
+  const refXml = await buildReferenceXml(target);
+  const refLine = refXml ? `\n  ${refXml}` : "";
 
-  const messageBlock = `<message id="${target.id}" user="${target.username}">\n  ${userCtx}${userProfileCtx}\n  <content>${content}</content>${mediaContext ? ` ${mediaContext}` : ""}${webContext}${mediaAnalysisContext}\n</message>`;
+  const messageBlock = `<message id="${target.id}" user="${target.username}">\n  ${userCtx}${userProfileCtx}${refLine}\n  <content>${content}</content>${mediaContext ? ` ${mediaContext}` : ""}${webContext}${mediaAnalysisContext}\n</message>`;
 
   return { targetId, messageBlock };
 }

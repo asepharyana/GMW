@@ -1,5 +1,6 @@
 import {
   bigint as pgBigint,
+  boolean as pgBoolean,
   foreignKey as pgForeignKey,
   index as pgIndex,
   integer as pgInteger,
@@ -30,6 +31,12 @@ export const pgMessagesTable = pgTable(
     type: pgText("type", { enum: ["text", "edited", "deleted"] })
       .notNull()
       .default("text"),
+    is_reply: pgBoolean("is_reply"),
+    is_forward: pgBoolean("is_forward"),
+    is_crosspost: pgBoolean("is_crosspost"),
+    reference_message_id: pgText("reference_message_id"),
+    reference_channel_id: pgText("reference_channel_id"),
+    reference_guild_id: pgText("reference_guild_id"),
     metadata: pgText("metadata"),
     ai_status: pgText("ai_status", {
       enum: ["pending", "processing", "clean", "warn", "flagged", "error"],

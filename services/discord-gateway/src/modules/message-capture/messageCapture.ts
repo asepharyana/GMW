@@ -94,6 +94,20 @@ function buildMessageRecord(
   const location = getMessageLocation(message);
   const metadata = getMessageMetadata(message);
   const guildId = requireMessageGuildId(message);
+  const ref = message.reference;
+
+  // is_reply: type === 'REPLY' OR reference type === 'DEFAULT'
+  // is_forward: reference type === 'FORWARD'
+  // is_crosspost: message flags has CROSSPOSTED
+  const msgType = message.type as string;
+  const refType = (ref?.type as string | undefined) ?? null;
+  const isReply =
+    msgType === "REPLY" || (refType === "DEFAULT" && msgType !== "FORWARD")
+      ? true
+      : null;
+  const isForward = refType === "FORWARD" ? true : null;
+  const isCrosspost =
+    message.flags?.has(1 << 1) || msgType === "CROSSPOSTED" ? true : null;
 
   return {
     id: message.id,
@@ -109,6 +123,12 @@ function buildMessageRecord(
     edited_at: null,
     deleted_at: null,
     type,
+    is_reply: isReply,
+    is_forward: isForward,
+    is_crosspost: isCrosspost,
+    reference_message_id: ref?.messageId ?? null,
+    reference_channel_id: ref?.channelId ?? null,
+    reference_guild_id: ref?.guildId ?? null,
     metadata: JSON.stringify(metadata),
   };
 }

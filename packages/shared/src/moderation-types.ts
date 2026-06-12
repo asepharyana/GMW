@@ -64,6 +64,12 @@ export interface MessageRecord {
   edited_at: number | null;
   deleted_at: number | null;
   type: "text" | "edited" | "deleted";
+  is_reply: boolean | null;
+  is_forward: boolean | null;
+  is_crosspost: boolean | null;
+  reference_message_id: string | null;
+  reference_channel_id: string | null;
+  reference_guild_id: string | null;
   metadata: string | null;
   ai_status?: AIStatus | null;
   ai_moderation_flags?: string | null;
