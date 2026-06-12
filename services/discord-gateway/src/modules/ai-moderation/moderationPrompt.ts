@@ -605,6 +605,10 @@ export interface BuildSystemPromptOptions {
    * Formatted XML block containing the AI-generated channel culture summary.
    */
   channelCulture?: string;
+  /**
+   * Formatted profile summary for the user being moderated.
+   */
+  userProfile?: string;
 }
 
 export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
@@ -615,6 +619,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
     correction,
     correctedExamples,
     channelCulture,
+    userProfile,
   } = options;
 
   // Backward compatibility: if mode is not set but includeMediaInstructions is,
@@ -647,6 +652,11 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
   // Channel Culture Injection (Learning)
   if (channelCulture) {
     parts.push(`## Kultur Channel (Pembelajaran AI)\n${channelCulture}`);
+  }
+
+  // User Profile Injection (Learning)
+  if (userProfile) {
+    parts.push(`## Profil Pengirim (Pembelajaran AI)\n${userProfile}`);
   }
 
   parts.push(

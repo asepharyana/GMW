@@ -133,6 +133,9 @@ export function startPendingAIAnalysisWorker(
   import("./cultureLearner.js")
     .then((m) => m.startCultureLearnerWorker())
     .catch(console.error);
+  import("./userProfileLearner.js")
+    .then((m) => m.startUserProfileLearnerWorker())
+    .catch(console.error);
 
   setInterval(() => {
     revertStuckProcessingMessages(300000).catch((err: unknown) => {

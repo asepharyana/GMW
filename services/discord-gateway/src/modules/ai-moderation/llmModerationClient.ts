@@ -44,6 +44,7 @@ import {
 } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 import { initializeUserReputation } from "./userReputationStore.js";
+import { getUserProfile } from "./userProfileStore.js";
 
 export { sniffImageMimeType } from "./imageMimeSniffer.js";
 export { extractJson } from "./jsonExtractor.js";
@@ -762,11 +763,19 @@ async function runTextOnlyBatch(
 
     // Abstract user reputation (no history — prevents confirmation bias)
     const userContexts = new Map<string, string>();
+    const userProfiles = new Map<string, string>();
     for (const msg of batch) {
       if (!userContexts.has(msg.user_id)) {
         const rep = await initializeUserReputation(msg.user_id, msg.guild_id);
         const contextStr = `<user_reputation trust_score="${rep.trust_score}" />`;
         userContexts.set(msg.user_id, contextStr);
+      }
+      if (!userProfiles.has(msg.user_id)) {
+        const profile = await getUserProfile(msg.user_id);
+        userProfiles.set(
+          msg.user_id,
+          profile ? `<user_profile>${profile.profile_summary}</user_profile>` : "",
+        );
       }
     }
 
@@ -804,9 +813,11 @@ async function runTextOnlyBatch(
             .join("\n");
           const webContext = urlContexts ? `\n${urlContexts}` : "";
           const userCtx = userContexts.get(msg.user_id) ?? "";
+          const userProfileCtx = userProfiles.get(msg.user_id) ?? "";
 
           // XML delimiters wrap each message for prompt safety (R1)
-          return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}\n  <content>${content}</content>${webContext}\n</message>`;
+          const profileLine = userProfileCtx ? `\n  ${userProfileCtx}` : "";
+          return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}${profileLine}\n  <content>${content}</content>${webContext}\n</message>`;
         })
         .join("\n");
 
@@ -1020,8 +1031,12 @@ async function prepareMediaMessage(
 
   const rep = await initializeUserReputation(target.user_id, target.guild_id);
   const userCtx = `<user_reputation trust_score="${rep.trust_score}" />`;
+  const profile = await getUserProfile(target.user_id);
+  const userProfileCtx = profile
+    ? `\n  <user_profile>${profile.profile_summary}</user_profile>`
+    : "";
 
-  const messageBlock = `<message id="${target.id}" user="${target.username}">\n  ${userCtx}\n  <content>${content}</content>${mediaContext ? ` ${mediaContext}` : ""}${webContext}${mediaAnalysisContext}\n</message>`;
+  const messageBlock = `<message id="${target.id}" user="${target.username}">\n  ${userCtx}${userProfileCtx}\n  <content>${content}</content>${mediaContext ? ` ${mediaContext}` : ""}${webContext}${mediaAnalysisContext}\n</message>`;
 
   return { targetId, messageBlock };
 }

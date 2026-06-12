@@ -366,6 +366,27 @@ export const pgCorrectedModerationsTable = pgTable(
 );
 
 /**
+ * User Profiles Table (PostgreSQL)
+ * Stores AI-generated summaries of user personality, communication style,
+ * and behavior patterns based on their message history.
+ * Injected as context for AI moderation like channel cultures.
+ */
+export const pgUserProfilesTable = pgTable(
+  "user_profiles",
+  {
+    user_id: pgText("user_id").primaryKey(),
+    guild_id: pgText("guild_id").notNull(),
+    profile_summary: pgText("profile_summary").notNull(),
+    last_analyzed_at: pgBigint("last_analyzed_at", {
+      mode: "number",
+    }).notNull(),
+  },
+  (table) => ({
+    guildIdx: pgIndex("idx_user_profiles_guild_id").on(table.guild_id),
+  }),
+);
+
+/**
  * Mascot Chat Messages Table (PostgreSQL)
  * Stores AI mascot chat conversation history
  */
@@ -406,6 +427,7 @@ export const stickerCacheTable = pgStickerCacheTable;
 export const correctedModerationsTable = pgCorrectedModerationsTable;
 export const userReputationsTable = pgUserReputationsTable;
 export const channelCulturesTable = pgChannelCulturesTable;
+export const userProfilesTable = pgUserProfilesTable;
 export const mascotChatMessagesTable = pgMascotChatMessagesTable;
 
 // Export table types for use in queries
@@ -448,6 +470,9 @@ export type UserReputationInsert = typeof userReputationsTable.$inferInsert;
 
 export type ChannelCulture = typeof channelCulturesTable.$inferSelect;
 export type ChannelCultureInsert = typeof channelCulturesTable.$inferInsert;
+
+export type UserProfile = typeof userProfilesTable.$inferSelect;
+export type UserProfileInsert = typeof userProfilesTable.$inferInsert;
 
 export type MascotChatMessage = typeof mascotChatMessagesTable.$inferSelect;
 export type MascotChatMessageInsert =
