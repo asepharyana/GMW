@@ -1,4 +1,4 @@
-CREATE TABLE "corrected_moderations" (
+CREATE TABLE IF NOT EXISTS "corrected_moderations" (
 	"id" text PRIMARY KEY NOT NULL,
 	"message_id" text NOT NULL,
 	"original_flags" text NOT NULL,
@@ -8,5 +8,5 @@ CREATE TABLE "corrected_moderations" (
 	"created_at" bigint NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX "idx_corrected_moderations_created_at" ON "corrected_moderations" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "idx_corrected_moderations_message_id" ON "corrected_moderations" USING btree ("message_id");
+CREATE INDEX IF NOT EXISTS "idx_corrected_moderations_created_at" ON "corrected_moderations" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_corrected_moderations_message_id" ON "corrected_moderations" USING btree ("message_id");
