@@ -103,7 +103,7 @@ export function MessagesPanel({
       animate="animate"
     >
       <motion.div variants={cardItem}>
-        <Card className="border-primary/20">
+        <Card>
           <CardHeader>
             <CardTitle className="text-primary">Messages</CardTitle>
             {guildName && (
@@ -141,7 +141,7 @@ export function MessagesPanel({
           </Badge>
           <Badge
             variant="outline"
-            className="text-xs bg-pink-100 text-pink-700 border-pink-200"
+            className="text-xs bg-primary/10 text-primary border-primary/20"
           >
             {stats.flagged} flagged
           </Badge>
@@ -224,7 +224,7 @@ export function MessagesPanel({
                 setRetryingAll(false);
               }
             }}
-            className="rounded-xl bg-pink-100 text-pink-700 hover:bg-pink-200 border-pink-200"
+            className="rounded-xl bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/20"
           >
             <RotateCw
               className={`mr-1.5 h-3.5 w-3.5 ${retryingAll ? "animate-spin" : ""}`}
@@ -248,7 +248,7 @@ export function MessagesPanel({
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
                   aiFilter === f
                     ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-primary-soft"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
                 }`}
               >
                 {f}

@@ -12,10 +12,10 @@ type BadgeVariant =
 const variants: Record<BadgeVariant, string> = {
   default: "border-transparent bg-primary text-primary-foreground",
   secondary: "border-transparent bg-muted text-muted-foreground",
-  destructive: "border-transparent bg-[#FCA5A5] text-red-800",
+  destructive: "border-transparent bg-destructive/15 text-destructive",
   outline: "border-border text-foreground",
-  success: "border-transparent bg-[#BBF7D0] text-green-800",
-  warning: "border-transparent bg-[#FDE68A] text-amber-800",
+  success: "border-transparent bg-emerald-100 text-emerald-700",
+  warning: "border-transparent bg-amber-100 text-amber-700",
 };
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {

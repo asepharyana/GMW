@@ -45,7 +45,7 @@ export function Sidebar({
     <>
       <motion.nav
         className={cn(
-          "relative hidden shrink-0 flex-col overflow-visible border-r border-[#7EC8E3]/20 bg-white/70 backdrop-blur-md transition-all duration-300 md:flex",
+          "relative hidden shrink-0 flex-col overflow-visible border-r border-border/50 bg-background/70 backdrop-blur-sm transition-all duration-300 md:flex",
           collapsed ? "w-16" : "w-64",
         )}
         layout
@@ -60,7 +60,7 @@ export function Sidebar({
         >
           <img
             src="https://raw.githubusercontent.com/IMPHNEN/imphnen-frontend-service/develop/docs/logo.svg"
-            alt="GMW"
+            alt="IMPHNEN"
             className="h-8 w-8 rounded-xl"
           />
 
@@ -88,16 +88,9 @@ export function Sidebar({
                   "group relative flex items-center rounded-xl p-2.5 text-sm font-medium transition-all duration-200 ease-out",
                   collapsed ? "justify-center" : "gap-3",
                   isActive
-                    ? "bg-primary-soft text-primary ring-2 ring-primary/20"
-                    : "text-muted-foreground hover:bg-primary-soft/40 hover:text-primary/80",
+                    ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                    : "text-muted-foreground hover:bg-primary/5 hover:text-primary/70",
                 )}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform =
-                    "translateX(2px) scale(1.1)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateX(0) scale(1)";
-                }}
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 {!collapsed && <span>{item.label}</span>}
@@ -114,7 +107,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={() => mascotChat.setIsOpen(!mascotChat.isOpen)}
-            className="relative z-50 rounded-2xl p-1 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="relative z-50 rounded-xl p-1 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/40"
             title="Chat dengan mascot"
           >
             <MascotImage size="sm" />
@@ -125,7 +118,7 @@ export function Sidebar({
         isOpen={mascotChat.isOpen}
         onClose={() => mascotChat.setIsOpen(false)}
         onSendMessage={mascotChat.handleSendMessage}
-        mascotName="Discord Watcher"
+        mascotName="IMPHNEN Mascot"
         className="fixed bottom-[170px] left-[80px] z-[9999]"
       />
     </>

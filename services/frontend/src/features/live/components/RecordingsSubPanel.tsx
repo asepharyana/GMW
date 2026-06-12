@@ -42,7 +42,7 @@ export function RecordingsSubPanel() {
         {[1, 2, 3].map((i) => (
           <div
             key={i}
-            className="flex items-center gap-4 rounded-xl border border-sky-200 bg-white p-4"
+            className="flex items-center gap-4 rounded-xl border border-border bg-card p-4"
           >
             <Skeleton className="h-10 w-10 rounded-xl" />
             <div className="flex-1 space-y-2">
@@ -83,7 +83,7 @@ export function RecordingsSubPanel() {
           key={rec.id}
           className="flex items-center gap-4 rounded-xl border border-sky-200 bg-white p-4"
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#7EC8E3]/15 text-[#7EC8E3]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <Mic className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -120,7 +120,7 @@ export function RecordingsSubPanel() {
                 href={rec.download_url}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-lg bg-[#7EC8E3] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#7EC8E3]/80"
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
                 <Download className="h-4 w-4" />
               </a>

@@ -10,7 +10,15 @@ import {
 } from "../../../shared/ui";
 import { EmptyStateMascot } from "../../../shared/ui";
 
-function FlagsBar({ flag, count, max }: { flag: string; count: number; max: number }) {
+function FlagsBar({
+  flag,
+  count,
+  max,
+}: {
+  flag: string;
+  count: number;
+  max: number;
+}) {
   const pct = max > 0 ? (count / max) * 100 : 0;
   return (
     <div className="flex items-center gap-3">
@@ -20,7 +28,7 @@ function FlagsBar({ flag, count, max }: { flag: string; count: number; max: numb
       <div className="flex-1">
         <div className="h-2.5 rounded-full bg-primary/10">
           <motion.div
-            className="h-2.5 rounded-full bg-gradient-to-r from-[#7EC8E3] to-pink-400"
+            className="h-2.5 rounded-full bg-gradient-to-r from-primary to-blue-400"
             initial={{ width: 0 }}
             animate={{ width: `${pct}%` }}
             transition={{ duration: 0.8, ease: "easeOut" }}
@@ -40,16 +48,16 @@ export function CorrectionStatsContent() {
   if (loading) {
     return (
       <div className="grid gap-4 md:grid-cols-3">
-        <Skeleton className="h-32 rounded-2xl" />
-        <Skeleton className="h-32 rounded-2xl" />
-        <Skeleton className="h-32 rounded-2xl" />
+        <Skeleton className="h-32 rounded-xl" />
+        <Skeleton className="h-32 rounded-xl" />
+        <Skeleton className="h-32 rounded-xl" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <Card className="rounded-2xl border-red-200 bg-red-50">
+      <Card className="rounded-xl border-red-200 bg-red-50">
         <CardContent className="flex items-center gap-3 py-6">
           <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
           <p className="flex-1 text-sm text-red-700">{error}</p>
@@ -68,11 +76,12 @@ export function CorrectionStatsContent() {
 
   if (!stats || stats.total_corrections === 0) {
     return (
-      <Card className="rounded-2xl">
+      <Card className="rounded-xl">
         <CardContent className="flex flex-col items-center py-12">
           <EmptyStateMascot />
           <p className="mt-4 text-sm text-muted-foreground text-center max-w-md">
-            No corrections yet. When admins correct false positives, statistics will appear here.
+            No corrections yet. When admins correct false positives, statistics
+            will appear here.
           </p>
         </CardContent>
       </Card>
@@ -97,7 +106,7 @@ export function CorrectionStatsContent() {
             animate: { opacity: 1, y: 0, transition: { duration: 0.4 } },
           }}
         >
-          <Card className="rounded-2xl">
+          <Card className="rounded-xl">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Total Corrections
@@ -117,7 +126,7 @@ export function CorrectionStatsContent() {
             animate: { opacity: 1, y: 0, transition: { duration: 0.4 } },
           }}
         >
-          <Card className="rounded-2xl">
+          <Card className="rounded-xl">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Last 7 Days
@@ -134,7 +143,7 @@ export function CorrectionStatsContent() {
 
       {/* Flags bar chart */}
       {stats.by_flag.length > 0 && (
-        <Card className="rounded-2xl">
+        <Card className="rounded-xl">
           <CardHeader>
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Most Corrected Flags

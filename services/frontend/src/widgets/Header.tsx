@@ -8,7 +8,7 @@ import { Badge } from "../shared/ui";
 import type { WsStatus } from "../shared/ws/socket";
 
 const titles: Record<DashboardTab, string> = {
-  live: "Voice, Media & Recordings",
+  live: "Voice & Media",
   messages: "Messages & Moderation",
   tuner: "Prompt Tuner",
 };
@@ -51,7 +51,7 @@ function WsIndicator({ status }: { status: WsStatus }) {
 /** Voice status indicator dot */
 function VoiceIndicator({ voiceStatus }: { voiceStatus: VoiceStatus }) {
   const isConnected = voiceStatus.connected;
-  const dot = isConnected ? "bg-[#7EC8E3]" : "bg-gray-300";
+  const dot = isConnected ? "bg-primary" : "bg-gray-300";
   const label = isConnected
     ? voiceStatus.activeChannelName || "connected"
     : "idle";
@@ -65,9 +65,9 @@ function VoiceIndicator({ voiceStatus }: { voiceStatus: VoiceStatus }) {
 
 export function Header({ activeTab, wsStatus, voiceStatus }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-10 border-b border-[#7EC8E3]/20 bg-white/70 px-4 py-4 backdrop-blur-md md:px-8">
+    <header className="sticky top-0 z-10 border-b border-border/50 bg-background/70 px-4 py-4 backdrop-blur-sm md:px-8">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        {/* Left: animated tab title + subtitle */}
+        {/* Left: IMPHNEN brand + tab title */}
         <motion.div
           key={activeTab}
           variants={fadeSlideUp}
@@ -75,16 +75,21 @@ export function Header({ activeTab, wsStatus, voiceStatus }: HeaderProps) {
           animate="animate"
           className="flex items-center gap-3"
         >
-          <div>
+          <div className="flex items-center gap-3">
+            <img
+              src="https://raw.githubusercontent.com/IMPHNEN/imphnen-frontend-service/develop/docs/logo.svg"
+              alt="IMPHNEN"
+              className="h-7 w-7"
+            />
             <h1 className="text-xl font-bold tracking-tight">
-              <span className="text-[#7EC8E3]">GMW</span>
+              <span className="gradient-text">IMPHNEN</span>
               <span className="mx-2 text-muted-foreground">·</span>
               {titles[activeTab]}
             </h1>
-            <p className="text-sm text-muted-foreground">
-              {subtitles[activeTab]}
-            </p>
           </div>
+          <p className="text-sm text-muted-foreground hidden md:block">
+            {subtitles[activeTab]}
+          </p>
         </motion.div>
 
         {/* Right: status badges */}
@@ -92,7 +97,7 @@ export function Header({ activeTab, wsStatus, voiceStatus }: HeaderProps) {
           {/* WS Badge */}
           <Badge
             variant="outline"
-            className="border-[#7EC8E3]/20 bg-white/50 px-3 py-1.5 text-xs text-muted-foreground"
+            className="border-border bg-card/50 px-3 py-1.5 text-xs text-muted-foreground"
           >
             {wsStatus === "connected" ? (
               <Wifi className="mr-1.5 h-3 w-3 text-emerald-400" />
@@ -106,10 +111,8 @@ export function Header({ activeTab, wsStatus, voiceStatus }: HeaderProps) {
           <Badge
             variant="outline"
             className={cn(
-              "border-[#7EC8E3]/20 bg-white/50 px-3 py-1.5 text-xs",
-              voiceStatus.connected
-                ? "text-[#7EC8E3]"
-                : "text-muted-foreground",
+              "border-border bg-card/50 px-3 py-1.5 text-xs",
+              voiceStatus.connected ? "text-primary" : "text-muted-foreground",
             )}
           >
             <VoiceIndicator voiceStatus={voiceStatus} />

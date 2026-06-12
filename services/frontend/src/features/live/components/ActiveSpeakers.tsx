@@ -18,12 +18,12 @@ export function ActiveSpeakers({ speakers }: ActiveSpeakersProps) {
         return (
           <div
             key={key}
-            className="flex items-center gap-3 rounded-xl border border-sky-200 bg-white p-3"
+            className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
           >
             <img
               src={s.avatar}
               alt=""
-              className="h-8 w-8 rounded-full object-cover ring-2 ring-[#7EC8E3]/40"
+              className="h-8 w-8 rounded-full object-cover ring-2 ring-primary/30"
             />
             <div className="min-w-0">
               <div className="truncate text-sm font-medium">{s.username}</div>

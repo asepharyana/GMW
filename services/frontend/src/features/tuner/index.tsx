@@ -1,9 +1,4 @@
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "../../shared/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../shared/ui";
 import { CorrectionStatsContent } from "./components/CorrectionStats";
 import { CorrectionHistoryContent } from "./components/CorrectionHistory";
 import { SubmitCorrectionContent } from "./components/SubmitCorrection";

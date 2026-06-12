@@ -376,8 +376,8 @@ export function MessageCard({ messages, onReanalyze }: MessageCardProps) {
 
   return (
     <article
-      className={`group rounded-2xl border bg-white shadow-sm transition-all hover:border-primary/30 hover:shadow-md ${
-        firstMsg.deleted_at ? "border-red-200 opacity-60" : "border-primary/20"
+      className={`group rounded-xl border bg-card shadow-sm transition-all hover:border-primary/30 hover:shadow-md ${
+        firstMsg.deleted_at ? "border-red-200 opacity-60" : "border-border"
       }`}
     >
       <div className="flex gap-3 p-4">
@@ -437,7 +437,7 @@ export function MessageCard({ messages, onReanalyze }: MessageCardProps) {
 
 export function MessageCardSkeleton() {
   return (
-    <article className="rounded-2xl border border-primary/20 bg-white p-4 shadow-sm">
+    <article className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="flex gap-3">
         <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
         <div className="min-w-0 flex-1 space-y-3">

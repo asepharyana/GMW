@@ -31,8 +31,12 @@ export function DashboardLayout({
 }: DashboardLayoutProps) {
   return (
     <div className="relative min-h-screen bg-background text-foreground">
-      {/* Sakura particle layer */}
+      {/* Background layers */}
       <ParticleBackground />
+      <div
+        className="fixed inset-0 pointer-events-none grid-pattern opacity-[0.03]"
+        aria-hidden="true"
+      />
 
       <div className="relative flex min-h-screen">
         <Sidebar

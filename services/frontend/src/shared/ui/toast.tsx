@@ -1,5 +1,12 @@
 // ─── Toast notification system ──────────────────────────────────────────────
 import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+  X,
+} from "lucide-react";
+import {
   createContext,
   type ReactNode,
   useCallback,
@@ -58,17 +65,17 @@ export function useToast() {
 }
 
 const typeStyles: Record<Toast["type"], string> = {
-  info: "border-l-primary bg-white text-foreground",
-  success: "border-l-green-500 bg-white text-foreground",
-  error: "border-l-red-500 bg-white text-foreground",
-  warning: "border-l-amber-500 bg-white text-foreground",
+  info: "border-l-primary bg-card text-card-foreground",
+  success: "border-l-emerald-500 bg-card text-card-foreground",
+  error: "border-l-destructive bg-card text-card-foreground",
+  warning: "border-l-amber-500 bg-card text-card-foreground",
 };
 
-const typeIcons: Record<Toast["type"], string> = {
-  info: "💠",
-  success: "🌸",
-  error: "😿",
-  warning: "⚠️",
+const typeIcons: Record<Toast["type"], React.ReactNode> = {
+  info: <Info className="h-4 w-4 text-primary" />,
+  success: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
+  error: <AlertCircle className="h-4 w-4 text-destructive" />,
+  warning: <AlertTriangle className="h-4 w-4 text-amber-500" />,
 };
 
 function ToastContainer() {
@@ -82,15 +89,14 @@ function ToastContainer() {
         <div
           key={toast.id}
           className={cn(
-            "flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm shadow-md cursor-pointer transition-all hover:scale-[1.02] border-l-4",
+            "group flex items-center gap-2.5 rounded-lg border border-border px-4 py-3 text-sm shadow-md cursor-pointer transition-all hover:scale-[1.02] border-l-4",
             typeStyles[toast.type],
           )}
           onClick={() => removeToast(toast.id)}
         >
-          <span className="text-base leading-none">
-            {typeIcons[toast.type]}
-          </span>
-          <span>{toast.message}</span>
+          <span className="flex-shrink-0">{typeIcons[toast.type]}</span>
+          <span className="flex-1">{toast.message}</span>
+          <X className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       ))}
     </div>

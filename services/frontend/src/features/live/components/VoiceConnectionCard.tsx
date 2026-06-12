@@ -36,10 +36,10 @@ export function VoiceConnectionCard({
   onStreamingToggle,
 }: VoiceConnectionCardProps) {
   return (
-    <div className="rounded-2xl border border-sky-200 bg-white shadow-md">
+    <div className="rounded-xl border border-border bg-card shadow-sm">
       <div className="p-6">
         <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          <Radio className="h-5 w-5 text-[#7EC8E3]" /> Voice Bridge
+          <Radio className="h-5 w-5 text-primary" /> Voice Bridge
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Join a Discord voice channel, listen, and transmit audio.
@@ -75,7 +75,7 @@ export function VoiceConnectionCard({
           <Button
             disabled={!selectedGuild || !selectedChannel || voiceLoading}
             onClick={onJoin}
-            className="bg-[#7EC8E3] text-white hover:bg-[#7EC8E3]/80"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {status.connected ? "Reconnect" : "Join Voice"}
           </Button>

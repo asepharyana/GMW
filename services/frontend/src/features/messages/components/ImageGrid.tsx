@@ -12,7 +12,7 @@ interface ImageItem {
 function kindBadge(kind: ImageItem["kind"]): string {
   switch (kind) {
     case "sticker":
-      return "bg-pink-100 text-pink-700 border-pink-200";
+      return "bg-primary/10 text-primary border-primary/20";
     case "attachment":
       return "bg-primary-soft text-primary border-primary/30";
     case "embed":
@@ -82,7 +82,7 @@ export function ImageGrid({ messages }: { messages: MessageRecord[] }) {
             href={image.url}
             target="_blank"
             rel="noreferrer"
-            className="group overflow-hidden rounded-2xl border border-primary/20 bg-white shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
+            className="group overflow-hidden rounded-xl border border-primary/20 bg-white shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
           >
             <div className="relative aspect-video overflow-hidden">
               {image.kind === "sticker" ? (

@@ -15,7 +15,7 @@ interface MobileTabBarProps {
 
 export function MobileTabBar({ activeTab, onTabChange }: MobileTabBarProps) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-primary/20 bg-white rounded-t-xl md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-border bg-card shadow-lg md:hidden">
       {tabs.map(({ id, label, Icon }) => (
         <button
           key={id}
@@ -28,6 +28,9 @@ export function MobileTabBar({ activeTab, onTabChange }: MobileTabBarProps) {
         >
           <Icon className="h-5 w-5" />
           <span className="text-[10px]">{label}</span>
+          {activeTab === id && (
+            <span className="h-0.5 w-6 rounded-full bg-primary mx-auto mt-0.5" />
+          )}
         </button>
       ))}
     </nav>

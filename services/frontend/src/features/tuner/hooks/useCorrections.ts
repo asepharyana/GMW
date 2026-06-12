@@ -27,7 +27,9 @@ export function useCorrectionStats() {
     }
   }, []);
 
-  useEffect(() => { fetch().catch(() => undefined); }, [fetch]);
+  useEffect(() => {
+    fetch().catch(() => undefined);
+  }, [fetch]);
 
   return { stats, loading, error, refetch: fetch };
 }
@@ -51,7 +53,9 @@ export function useCorrectionHistory() {
       cursorRef.current = result.nextCursor;
       hasMoreRef.current = result.nextCursor !== null;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load corrections");
+      setError(
+        err instanceof Error ? err.message : "Failed to load corrections",
+      );
     } finally {
       setLoading(false);
     }
@@ -61,7 +65,10 @@ export function useCorrectionHistory() {
     if (!cursorRef.current || loadingMore) return;
     setLoadingMore(true);
     try {
-      const result = await listCorrections({ limit: 20, cursor: cursorRef.current });
+      const result = await listCorrections({
+        limit: 20,
+        cursor: cursorRef.current,
+      });
       setEntries((prev) => [...prev, ...result.data]);
       cursorRef.current = result.nextCursor;
       hasMoreRef.current = result.nextCursor !== null;
@@ -72,9 +79,19 @@ export function useCorrectionHistory() {
     }
   }, [loadingMore]);
 
-  useEffect(() => { fetchInitial().catch(() => undefined); }, [fetchInitial]);
+  useEffect(() => {
+    fetchInitial().catch(() => undefined);
+  }, [fetchInitial]);
 
-  return { entries, loading, loadingMore, error, hasMore: hasMoreRef.current, loadMore, refetch: fetchInitial };
+  return {
+    entries,
+    loading,
+    loadingMore,
+    error,
+    hasMore: hasMoreRef.current,
+    loadMore,
+    refetch: fetchInitial,
+  };
 }
 
 // ─── Submit ─────────────────────────────────────────────────────────────────
@@ -84,28 +101,32 @@ export function useSubmitCorrection() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<CorrectionEntry | null>(null);
 
-  const submit = useCallback(async (data: {
-    message_id: string;
-    original_flags: string[];
-    corrected_flags: string[];
-    correction_notes?: string;
-    content_snippet: string;
-  }) => {
-    setSubmitting(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const result = await submitCorrection(data);
-      setSuccess(result);
-      return result;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to submit correction";
-      setError(msg);
-      throw err;
-    } finally {
-      setSubmitting(false);
-    }
-  }, []);
+  const submit = useCallback(
+    async (data: {
+      message_id: string;
+      original_flags: string[];
+      corrected_flags: string[];
+      correction_notes?: string;
+      content_snippet: string;
+    }) => {
+      setSubmitting(true);
+      setError(null);
+      setSuccess(null);
+      try {
+        const result = await submitCorrection(data);
+        setSuccess(result);
+        return result;
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : "Failed to submit correction";
+        setError(msg);
+        throw err;
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [],
+  );
 
   const reset = useCallback(() => {
     setError(null);

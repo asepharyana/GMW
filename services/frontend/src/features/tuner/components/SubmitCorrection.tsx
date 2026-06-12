@@ -67,7 +67,10 @@ export function SubmitCorrectionContent() {
         content_snippet: contentSnippet.trim(),
       });
 
-      addToast("Correction submitted — the AI prompt will learn from this.", "success");
+      addToast(
+        "Correction submitted — the AI prompt will learn from this.",
+        "success",
+      );
 
       // Reset form
       setMessageId("");
@@ -86,14 +89,14 @@ export function SubmitCorrectionContent() {
       transition={{ duration: 0.4 }}
       className="max-w-2xl"
     >
-      <Card className="rounded-2xl">
+      <Card className="rounded-xl">
         <CardHeader>
           <CardTitle className="text-sm font-medium text-muted-foreground">
             Submit Correction
           </CardTitle>
           <CardDescription className="text-xs">
-            Record a false positive — a message that was incorrectly flagged by AI moderation.
-            This helps the system learn and improve accuracy.
+            Record a false positive — a message that was incorrectly flagged by
+            AI moderation. This helps the system learn and improve accuracy.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -134,10 +137,20 @@ export function SubmitCorrectionContent() {
                 placeholder="e.g. sexual_deviation"
                 value={flagInput}
                 onChange={(e) => setFlagInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFlag(); } }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addFlag();
+                  }
+                }}
                 className="flex-1"
               />
-              <Button variant="outline" size="sm" onClick={addFlag} type="button">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addFlag}
+                type="button"
+              >
                 Add
               </Button>
             </div>

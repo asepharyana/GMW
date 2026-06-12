@@ -70,7 +70,7 @@ export function MascotImage({
         >
           <div className="relative">
             {/* Chat bubble */}
-            <div className="bg-gradient-to-br from-primary/90 to-primary/80 text-white rounded-2xl px-4 py-2.5 shadow-lg backdrop-blur-sm border border-primary/50">
+            <div className="bg-primary/90 text-primary-foreground rounded-xl px-4 py-2.5 shadow-lg backdrop-blur-sm border border-primary/30">
               <div className="flex items-start gap-2">
                 <MessageCircle className="h-4 w-4 shrink-0 mt-0.5 text-white/80" />
                 <p className="text-xs leading-relaxed font-medium line-clamp-3">

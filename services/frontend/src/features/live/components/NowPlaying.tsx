@@ -11,10 +11,10 @@ export function NowPlaying({ current, queue }: NowPlayingProps) {
   if (!current) return null;
 
   return (
-    <div className="rounded-2xl border border-sky-200 bg-white shadow-md">
+    <div className="rounded-xl border border-border bg-card shadow-sm">
       <div className="p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#7EC8E3]/15 text-[#7EC8E3]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
             {current.mode === "screen" ? (
               <MonitorUp className="h-5 w-5" />
             ) : (
@@ -34,15 +34,15 @@ export function NowPlaying({ current, queue }: NowPlayingProps) {
       </div>
 
       {queue.length > 0 && (
-        <div className="border-t border-sky-100 p-4">
+        <div className="border-t border-border p-4">
           <div className="mb-2 text-sm font-medium">Queue ({queue.length})</div>
           <div className="space-y-1.5">
             {queue.map((item, i) => (
               <div
                 key={`${item.source}-${i}`}
-                className="flex items-center gap-3 rounded-lg border-l-2 border-l-[#7EC8E3] border border-sky-200 bg-white p-2.5 text-sm"
+                className="flex items-center gap-3 rounded-lg border-l-2 border-l-primary border-border bg-card p-2.5 text-sm"
               >
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#7EC8E3]/15 text-xs font-medium text-[#7EC8E3]">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
                   {i + 1}
                 </span>
                 <div className="min-w-0">

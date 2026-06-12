@@ -24,7 +24,7 @@ export function ScreenSubPanel({
   };
 
   return (
-    <div className="rounded-2xl border border-sky-200 bg-white p-4 shadow-md space-y-4">
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-4">
       <Input
         value={source}
         onChange={(e) => setSource(e.target.value)}
@@ -32,11 +32,7 @@ export function ScreenSubPanel({
         placeholder="Screen share URL or local file path"
       />
       <div className="flex flex-wrap gap-2">
-        <Button
-          className="bg-[#7EC8E3] text-white hover:bg-[#7EC8E3]/80"
-          disabled={loading || !source.trim()}
-          onClick={submit}
-        >
+        <Button disabled={loading || !source.trim()} onClick={submit}>
           <MonitorUp className="mr-1.5 h-4 w-4" /> Start
         </Button>
         <Button variant="secondary" disabled={loading} onClick={onSkip}>

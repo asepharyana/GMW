@@ -3,40 +3,40 @@
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 222 20% 12%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 20% 12%;
-    --primary: 199 80% 50%;
-    --primary-soft: 199 80% 92%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 210 20% 94%;
-    --secondary-foreground: 222 20% 12%;
-    --muted: 210 20% 94%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 340 80% 65%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 55%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 199 30% 85%;
-    --input: 199 30% 85%;
-    --ring: 199 80% 50%;
+    --background: 1 0 0;
+    --foreground: 0.141 0.005 285.823;
+    --card: 1 0 0;
+    --card-foreground: 0.141 0.005 285.823;
+    --primary: 0.623 0.214 259.815;
+    --primary-soft: 0.92 0.04 259.815;
+    --primary-foreground: 0.97 0.014 254.604;
+    --secondary: 0.967 0.001 286.375;
+    --secondary-foreground: 0.21 0.006 285.885;
+    --muted: 0.967 0.001 286.375;
+    --muted-foreground: 0.552 0.016 285.938;
+    --accent: 0.967 0.001 286.375;
+    --accent-foreground: 0.21 0.006 285.885;
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.97 0.014 254.604;
+    --border: 0.92 0.004 286.32;
+    --input: 0.92 0.004 286.32;
+    --ring: 0.623 0.214 259.815;
     --radius: 1rem;
-    --primary-glow: 199 80% 50% / 0.15;
-    --accent-glow: 340 80% 65% / 0.15;
-    --card-shadow: 199 30% 70% / 0.12;
+    --primary-glow: 0.623 0.214 259.815 / 0.15;
+    --accent-glow: 0.552 0.016 285.938 / 0.15;
+    --card-shadow: 0.92 0.004 286.32 / 0.3;
   }
 
   * {
-    border-color: hsl(var(--border));
+    border-color: oklch(var(--border));
   }
 
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background-color: oklch(var(--background));
+    color: oklch(var(--foreground));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: Poppins, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
   html,
@@ -47,18 +47,27 @@
 }
 
 @layer utilities {
-  .card-shadow {
-    box-shadow: 0 1px 3px hsl(var(--card-shadow)), 0 1px 2px -1px hsl(var(--card-shadow));
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-sm border border-[oklch(0.92_0.004_286.32)] rounded-xl;
   }
 
-  .shine {
-    background: linear-gradient(
-      135deg,
-      hsl(var(--primary-soft)) 0%,
-      hsl(var(--background)) 50%,
-      hsl(var(--primary-soft)) 100%
-    );
-    background-size: 200% 200%;
+  .grid-pattern {
+    background-image:
+      linear-gradient(oklch(0.92 0.004 286.32 / 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(0.92 0.004 286.32 / 0.3) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-400;
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.5s ease-out;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
   }
 }
 
@@ -80,6 +89,16 @@
   }
 }
 
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .animate-bar-pulse {
   animation: bar-pulse 0.4s ease-in-out infinite;
   transform-origin: bottom;
@@ -88,10 +107,10 @@
 .animate-shimmer {
   background: linear-gradient(
     90deg,
-    hsl(199 30% 90%) 0%,
-    hsl(199 30% 95%) 40%,
-    hsl(199 30% 90%) 80%,
-    hsl(199 30% 85%) 100%
+    oklch(0.92 0.004 286.32 / 0.5) 0%,
+    oklch(0.967 0.001 286.375) 40%,
+    oklch(0.92 0.004 286.32 / 0.5) 80%,
+    oklch(0.92 0.004 286.32 / 0.7) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
