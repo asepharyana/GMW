@@ -47,12 +47,27 @@ const EXCLUDED_CHANNEL_IDS = new Set([
   "1323365288447574128",
 ]);
 
+function getParentChannelId(
+  message: MessageLocationInput,
+): string | null | undefined {
+  try {
+    const m = message as {
+      channel?: { isThread?: () => boolean; parentId?: string };
+    };
+    if (m.channel?.isThread?.() && m.channel.parentId)
+      return m.channel.parentId;
+  } catch {
+    // Not a thread or can't resolve — fall back to channelId
+  }
+  return null;
+}
+
 export function shouldCaptureMessageLocation(
   message: MessageLocationInput,
   target: TextCaptureTarget,
 ): boolean {
-  if (message.channelId && EXCLUDED_CHANNEL_IDS.has(message.channelId))
-    return false;
+  const effectiveId = getParentChannelId(message) ?? message.channelId;
+  if (effectiveId && EXCLUDED_CHANNEL_IDS.has(effectiveId)) return false;
   if (!message.guildId || message.guildId !== target.guildId) return false;
   if (target.channelId && message.channelId !== target.channelId) return false;
   return true;
