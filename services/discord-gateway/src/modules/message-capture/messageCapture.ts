@@ -39,6 +39,34 @@ export interface MessageLocationInput {
   channelId?: string | null;
 }
 
+function isAgeRestrictedChannel(message: Message): boolean {
+  try {
+    const channel = message.channel as {
+      nsfw?: boolean;
+      nsfwLevel?: string | number | null;
+      isThread?: () => boolean;
+      parent?: { nsfw?: boolean; nsfwLevel?: string | number | null } | null;
+    };
+    if (channel.nsfw) return true;
+    if (
+      typeof channel.nsfwLevel === "string" &&
+      channel.nsfwLevel.toUpperCase() === "AGE_RESTRICTED"
+    )
+      return true;
+    if (channel.isThread?.() && channel.parent) {
+      if (channel.parent.nsfw) return true;
+      if (
+        typeof channel.parent.nsfwLevel === "string" &&
+        channel.parent.nsfwLevel.toUpperCase() === "AGE_RESTRICTED"
+      )
+        return true;
+    }
+  } catch {
+    // Can't determine → allow capture
+  }
+  return false;
+}
+
 export function shouldCaptureMessageLocation(
   message: MessageLocationInput,
   target: TextCaptureTarget,
@@ -214,6 +242,7 @@ export function registerMessageCapture(client: Client): void {
   client.on("messageCreate", async (message) => {
     if (!shouldCaptureMessageLocation(message, getTextCaptureTarget())) return;
     if (message.author?.bot) return;
+    if (isAgeRestrictedChannel(message)) return;
 
     try {
       await captureMessage(message, "text");
@@ -232,6 +261,7 @@ export function registerMessageCapture(client: Client): void {
     if (!shouldCaptureMessageLocation(newMessage, getTextCaptureTarget()))
       return;
     if (newMessage.author?.bot) return;
+    if (isAgeRestrictedChannel(newMessage as Message)) return;
 
     try {
       const existing = await getMessageById(newMessage.id);
