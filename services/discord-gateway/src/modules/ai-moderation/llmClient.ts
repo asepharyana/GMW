@@ -298,6 +298,8 @@ const VALID_PRIMARY_AI_FLAGS = new Set([
   "self_promo",
   "conflict_instigation",
   "offensive_username",
+  "potential_evasion",
+  "unclear_context",
 ]);
 
 function normalizeFlag(value: string): string | null {

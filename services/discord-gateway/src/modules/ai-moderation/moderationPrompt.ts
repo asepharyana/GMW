@@ -35,7 +35,7 @@ Bahasa utama komunitas ini adalah BAHASA INDONESIA. Bahasa Inggris adalah bahasa
 - Makian/kata kasar umum (emosi marah seperti "anjing", "asu", "bangsat", "ngehe") BUKAN pelanggaran SARA. Kata-kata emosi ini bisa di-flag sebagai "harassment" atau "vulgar_language" HANYA jika ditujukan langsung ke orang lain sebagai hinaan atau ancaman.
 - **VULGARITAS ANATOMI/SEKSUAL SELALU DILARANG:** Kata-kata yang merujuk pada alat kelamin atau anatomi seksual (seperti "kontol", "memek", "titten", "tit", "dick") atau istilah seksual eksplisit WAJIB DI-FLAG sebagai "vulgar_language" atau "sexual_content" WALAUPUN dalam konteks bercanda, slang, atau tanpa target (tidak terarah). JANGAN PERNAH menganggapnya aman dengan alasan "konteks percakapan santai".
 - Kata "asus" adalah merk teknologi, jangan pernah dianggap sebagai makian "asu".
-- **NAMA PROYEK/KOMUNITAS INI:** "IMPHNEN", "imphnen", "Imphens", varian seperti "imphnen.asepharyana.my.id" atau "imphnen.tech" adalah NAMA PROYEK/KOMUNITAS dari bot moderasi ini sendiri (Discord Moderation Watcher). BUKAN agama, BUKAN kitab suci, BUKAN parodi SARA, dan BUKAN penistaan. Menyebut/mempromosikan nama proyek ini adalah AMAN. JANGAN flag sebagai "sara" hanya karena mengandung kata "imphnen".
+- **NAMA PROYEK/KOMUNITAS INI:** "IMPHNEN", "imphnen", "Imphens", "IMP", atau varian ejaan lainnya adalah NAMA PROYEK/KOMUNITAS dari bot moderasi ini sendiri (Discord Moderation Watcher). Termasuk semua subdomain dan TLD: "*.imphnen.*", "imphnen.*", "*.imphnen.*.*". BUKAN agama, BUKAN kitab suci, BUKAN parodi SARA, dan BUKAN penistaan. Menyebut/mempromosikan nama proyek ini adalah AMAN. JANGAN flag sebagai "sara" hanya karena mengandung kata "imphnen".
 - **EKSPRESI RELIGIUS/KEAGAMAAN ADALAH AMAN:** "Astaghfirullah", "Astaga", "Astagfirullah", "Alhamdulillah", "Subhanallah", "Allahuakbar", "MasyaAllah", "Bismillah", "InsyaAllah", "Laa ilaha illallah", "Masha Allah", dan variasi ejaan lainnya (termasuk all caps, repeating huruf, atau tanpa spasi seperti "astagafirullahh") adalah SERUAN/DOA KEAGAMAAN NORMAL dalam budaya Indonesia dan BUKAN vulgar_language. JANGAN flag sebagai vulgar atau harassment. Penggunaan huruf kapital semua untuk ekspresi keterkejutan adalah hal wajar di budaya internet Indonesia dan TIDAK menjadikannya pelanggaran.
 - "woy"/"woi" adalah sapaan/interjeksi informal Indonesia dan tidak boleh dianggap SARA, hate speech, atau harassment tanpa target hinaan/ancaman jelas.
 - Kata-kata AMAN: "kakek" (family term), "Wah" (exclamation), "hadeh" (slang exclamation). Jangan flag sebagai vulgar_language atau harassment.
@@ -383,37 +383,17 @@ Contoh 20 — Parodi ayat palsu (SARA agama):
 Input: [target] id=20201 user=parodist: Kitabonia 11:17 — "Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"
 Output: {"results":[{"message_id":"20201","status":"flagged","flags":["sara"],"score":0.92,"categories":["sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Kitabonia 11:17","Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"],"analysis":"Pengirim membuat ayat palsu dengan format penulisan kitab suci (pasal:ayat) yang memparodikan wahyu. Ini adalah penistaan agama serius, bukan humor. Melanggar kebijakan SARA."}]}
 
-Contoh 21 — Membuat agama palsu / mengaku Tuhan (SARA agama):
-Input: [target] id=21212 user=troll: ayo bikin agama, aku tuhannya, yg mau jadi malaikat DM aku
-Output: {"results":[{"message_id":"21212","status":"flagged","flags":["sara"],"score":0.95,"categories":["sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["ayo bikin agama, aku tuhannya, yg mau jadi malaikat DM aku"],"analysis":"Pengirim mengajak membuat agama palsu dan mengaku sebagai Tuhan. Ini adalah penistaan agama yang sangat serius, bukan candaan. Melanggar kebijakan SARA."}]}
-
 Contoh 22 — Istilah agama sebagai joke (SARA agama, shirkmaxxing):
 Input: [target] id=22223 user=edgy: Shirkmaxxing grindset, nanti halalmaxxing juga
 Output: {"results":[{"message_id":"22223","status":"flagged","flags":["sara"],"score":0.88,"categories":["sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Shirkmaxxing grindset","halalmaxxing juga"],"analysis":"Pengirim menggunakan istilah suci agama Islam (shirk/syirik dan halal) sebagai bahan candaan dengan suffix meme. Ini adalah penistaan terhadap konsep teologis serius. Melanggar SARA."}]}
 
-Contoh 23 — Mockery tokoh agama (SARA agama, Hashem):
-Input: [target] id=23234 user=edgelord: Hashem is watching you jerk off lol
-Output: {"results":[{"message_id":"23234","status":"flagged","flags":["sara"],"score":0.94,"categories":["sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Hashem is watching you jerk off lol"],"analysis":"Pengirim menggunakan nama suci Yahudi (Hashem) dalam konteks vulgar dan merendahkan. Ini adalah penistaan/blasphemy serius terhadap figur agama. Melanggar SARA."}]}
 
-Contoh 24 — Nabi palsu (SARA agama, Ba'al):
-Input: [target] id=24245 user=provokator: nabi palsu ba'al, sembah aja patung
-Output: {"results":[{"message_id":"24245","status":"flagged","flags":["sara","hate_speech"],"score":0.9,"categories":["sara","hate_speech"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["nabi palsu ba'al","sembah aja patung"],"analysis":"Pengirim menyindir konsep nabi dengan referensi Ba'al dan menyuruh menyembah patung. Ini adalah penistaan dan provokasi terhadap agama monoteis. Melanggar SARA."}]}
-
-Contoh 25 — Parodi bahasa keagamaan untuk mengejek (SARA agama):
-Input: [target] id=25256 user=sindiran: Bodoh admin-admin kita itu. Mereka tidak minta petunjuk dari Tuhan
-Output: {"results":[{"message_id":"25256","status":"flagged","flags":["sara","hate_speech"],"score":0.82,"categories":["sara","hate_speech"],"severity":"high","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Bodoh admin-admin kita itu","tidak minta petunjuk dari Tuhan"],"analysis":"Pengirim menggunakan bahasa keagamaan ('petunjuk dari Tuhan') untuk mengejek admin. Ini adalah parodi yang menggunakan framework agama untuk merendahkan orang lain. Melanggar SARA dan hate speech."}]}
-
-Contoh 26 — Provokasi antar-agama (SARA agama):
-Input: [target] id=26267 user=provokator: Islam/Kristen itu agama sesat semua, cuma agama gue yg bener
-Output: {"results":[{"message_id":"26267","status":"flagged","flags":["sara","hate_speech","conflict_instigation"],"score":0.95,"categories":["sara","hate_speech","conflict_instigation"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Islam/Kristen itu agama sesat semua","cuma agama gue yg bener"],"analysis":"Pengirim menyerang agama lain sebagai 'sesat' dan mengklaim kebenaran mutlak agamanya sendiri dengan tone provokatif. Ini adalah provokasi antar-agama serius. Melanggar SARA."}]}
 
 Contoh 27 — Ekspresi keagamaan normal (AMAN, BUKAN SARA):
 Input: [target] id=27278 user=muslim_user: Astaghfirullah, sabar ya bro
 Output: {"results":[{"message_id":"27278","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim mengucapkan istighfar (doa normal) dalam konteks menenangkan teman. Ini adalah ekspresi keagamaan wajar dalam budaya Indonesia, bukan penistaan. Aman."}]}
 
-Contoh 28 — Diskusi teologis sopan (AMAN, BUKAN SARA):
-Input: [target] id=28289 user=thinker: Menurutku konsep trinitas dalam Kristen menarik dibandingkan tauhid dalam Islam. Apa pendapat kalian?
-Output: {"results":[{"message_id":"28289","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.9,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim membandingkan konsep teologis antar agama dengan bahasa sopan dan tone diskusi, bukan provokasi. Mengajak diskusi dengan hormat. Aman."}]}`;
+`;
 
 /**
  * Media-capable examples extracted from FEW_SHOT_EXAMPLES for media-mode prompts.

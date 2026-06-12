@@ -756,6 +756,11 @@ async function runTextOnlyBatch(
     ? channelCultureObj.culture_summary
     : undefined;
 
+  // Log channel culture & user profiles for debugging
+  if (channelCulture) {
+    log.debug({ channelId, culturePreview: channelCulture.slice(0, 120) }, "Injected channel culture into prompt");
+  }
+
   // Run sub-batches sequentially to avoid rate limits
   for (let i = 0; i < subBatches.length; i++) {
     const batch = subBatches[i];
@@ -1091,6 +1096,11 @@ async function runMediaBatch(
   const channelCulture = channelCultureObj
     ? channelCultureObj.culture_summary
     : undefined;
+
+  // Log channel culture for debugging
+  if (channelCulture) {
+    log.debug({ channelId, culturePreview: channelCulture.slice(0, 120) }, "Injected channel culture into prompt (media path)");
+  }
 
   const correctedExamples = await buildCorrectedFewShotExamples();
   const systemText = buildSystemPromptModular({
