@@ -278,6 +278,34 @@ export function isAgeRestrictedMetadata(
   );
 }
 
+export function isAgeRestrictedMessage(message: Message): boolean {
+  try {
+    const channel = message.channel as {
+      nsfw?: boolean;
+      nsfwLevel?: string | number | null;
+      isThread?: () => boolean;
+      parent?: { nsfw?: boolean; nsfwLevel?: string | number | null } | null;
+    };
+    if (channel.nsfw) return true;
+    if (
+      typeof channel.nsfwLevel === "string" &&
+      channel.nsfwLevel.toUpperCase() === "AGE_RESTRICTED"
+    )
+      return true;
+    if (channel.isThread?.() && channel.parent) {
+      if (channel.parent.nsfw) return true;
+      if (
+        typeof channel.parent.nsfwLevel === "string" &&
+        channel.parent.nsfwLevel.toUpperCase() === "AGE_RESTRICTED"
+      )
+        return true;
+    }
+  } catch {
+    // Can't determine → allow capture
+  }
+  return false;
+}
+
 export function extractMessageMediaEvidence(
   metadata: string | null | undefined,
 ): MessageMediaEvidence {

@@ -8,6 +8,7 @@ import {
   getDisplayContent,
   getMessageLocation,
   getMessageMetadata,
+  isAgeRestrictedMessage,
 } from "../message-capture/messageMetadata.js";
 import {
   getMessageById,
@@ -39,44 +40,18 @@ export interface MessageLocationInput {
   channelId?: string | null;
 }
 
-function isAgeRestrictedChannel(message: Message): boolean {
-  try {
-    const channel = message.channel as {
-      nsfw?: boolean;
-      nsfwLevel?: string | number | null;
-      isThread?: () => boolean;
-      parent?: { nsfw?: boolean; nsfwLevel?: string | number | null } | null;
-    };
-    if (channel.nsfw) return true;
-    if (
-      typeof channel.nsfwLevel === "string" &&
-      channel.nsfwLevel.toUpperCase() === "AGE_RESTRICTED"
-    )
-      return true;
-    if (channel.isThread?.() && channel.parent) {
-      if (channel.parent.nsfw) return true;
-      if (
-        typeof channel.parent.nsfwLevel === "string" &&
-        channel.parent.nsfwLevel.toUpperCase() === "AGE_RESTRICTED"
-      )
-        return true;
-    }
-  } catch {
-    // Can't determine → allow capture
-  }
-  return false;
-}
+const EXCLUDED_CHANNEL_IDS = new Set([
+  "1310988070996414494",
+  "1265679542144467035",
+  "1310867899745046558",
+  "1323365288447574128",
+]);
 
 export function shouldCaptureMessageLocation(
   message: MessageLocationInput,
   target: TextCaptureTarget,
 ): boolean {
-  if (
-    message.channelId === "1310988070996414494" ||
-    message.channelId === "1265679542144467035" ||
-    message.channelId === "1310867899745046558" ||
-    message.channelId === "1323365288447574128"
-  )
+  if (message.channelId && EXCLUDED_CHANNEL_IDS.has(message.channelId))
     return false;
   if (!message.guildId || message.guildId !== target.guildId) return false;
   if (target.channelId && message.channelId !== target.channelId) return false;
@@ -242,7 +217,7 @@ export function registerMessageCapture(client: Client): void {
   client.on("messageCreate", async (message) => {
     if (!shouldCaptureMessageLocation(message, getTextCaptureTarget())) return;
     if (message.author?.bot) return;
-    if (isAgeRestrictedChannel(message)) return;
+    if (isAgeRestrictedMessage(message)) return;
 
     try {
       await captureMessage(message, "text");
@@ -261,7 +236,7 @@ export function registerMessageCapture(client: Client): void {
     if (!shouldCaptureMessageLocation(newMessage, getTextCaptureTarget()))
       return;
     if (newMessage.author?.bot) return;
-    if (isAgeRestrictedChannel(newMessage as Message)) return;
+    if (isAgeRestrictedMessage(newMessage as Message)) return;
 
     try {
       const existing = await getMessageById(newMessage.id);
