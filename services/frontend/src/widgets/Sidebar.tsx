@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MessageSquare, Radio } from "lucide-react";
+import { MessageSquare, Radio, SlidersHorizontal } from "lucide-react";
 import type { DashboardTab } from "../entities/ui/types";
 import type { MessageRecord } from "../shared/api/client";
 import { useMascotChat } from "../shared/hooks/useMascotChat";
@@ -11,6 +11,7 @@ const navItems: Array<{ id: DashboardTab; label: string; icon: typeof Radio }> =
   [
     { id: "live", label: "Live", icon: Radio },
     { id: "messages", label: "Messages", icon: MessageSquare },
+    { id: "tuner", label: "Tuner", icon: SlidersHorizontal },
   ];
 
 interface SidebarProps {

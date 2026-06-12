@@ -4,6 +4,7 @@ import { LivePanel } from "./features/live";
 import { useMediaControl } from "./features/live/hooks/useMediaControl";
 import { useVoiceControl } from "./features/live/hooks/useVoiceControl";
 import { MessagesPanel } from "./features/messages";
+import { TunerPanel } from "./features/tuner";
 import { ModerationAlertListener } from "./features/messages/components/ModerationAlertListener";
 import {
   mergeMessages,
@@ -34,7 +35,7 @@ export default function App() {
   const [monitorGuildId, setMonitorGuildId] = useState("");
 
   const audio = useAudioPlayback();
-  const activeTab = uiState.activeTab || "live";
+  const activeTab = uiState.activeTab || "messages";
   const selectedVoiceGuild =
     uiState.selectedVoiceGuild || uiState.selectedGuild || "";
 
@@ -181,6 +182,12 @@ export default function App() {
             onStop={media.stop}
             onVolumeChange={media.setVolume}
           />
+        )
+      ) : activeTab === "tuner" ? (
+        !isAuthenticated ? (
+          <AuthOverlay onAuthenticated={() => setIsAuthenticated(true)} />
+        ) : (
+          <TunerPanel />
         )
       ) : (
         <MessagesPanel

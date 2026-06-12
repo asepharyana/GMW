@@ -92,6 +92,37 @@ export const pgMessagesTable = pgTable(
 );
 
 /**
+ * Corrected Moderations Table (PostgreSQL)
+ * Stores manual corrections of AI moderation false positives
+ * for few-shot injection into LLM moderation prompts.
+ */
+export const pgCorrectedModerationsTable = pgTable(
+  "corrected_moderations",
+  {
+    id: pgText("id").primaryKey(),
+    message_id: pgText("message_id").notNull(),
+    original_flags: pgText("original_flags").notNull(),
+    corrected_flags: pgText("corrected_flags").notNull(),
+    correction_notes: pgText("correction_notes"),
+    content_snippet: pgText("content_snippet").notNull(),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    createdAtIdx: pgIndex("idx_corrected_moderations_created_at").on(
+      table.created_at,
+    ),
+    messageIdx: pgIndex("idx_corrected_moderations_message_id").on(
+      table.message_id,
+    ),
+  }),
+);
+
+export type CorrectedModeration =
+  typeof pgCorrectedModerationsTable.$inferSelect;
+export type CorrectedModerationInsert =
+  typeof pgCorrectedModerationsTable.$inferInsert;
+
+/**
  * Attachments Table (PostgreSQL)
  * Stores attachment metadata with upload status tracking
  */

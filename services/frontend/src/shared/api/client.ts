@@ -118,7 +118,7 @@ export interface UIState {
   selectedTextChannel?: string;
   selectedAnalyticsGuild?: string;
   selectedAnalyticsChannel?: string;
-  activeTab?: "live" | "messages";
+  activeTab?: "live" | "messages" | "tuner";
   isListening?: boolean;
   isStreaming?: boolean;
 }
@@ -131,7 +131,7 @@ export interface ChatResponse {
   response?: string;
 }
 
-export type DashboardTab = "live" | "messages";
+export type DashboardTab = "live" | "messages" | "tuner";
 
 // ─── Messages ────────────────────────────────────────────────────────────────
 
@@ -269,6 +269,52 @@ export function login(password: string): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ password }),
+  });
+}
+
+// ─── Corrections (Adaptive Prompt Tuner) ──────────────────────────────────────
+
+export interface CorrectionStats {
+  total_corrections: number;
+  recent_count_7d: number;
+  by_flag: Array<{ flag: string; count: number }>;
+}
+
+export interface CorrectionEntry {
+  id: string;
+  message_id: string;
+  original_flags: string;
+  corrected_flags: string;
+  correction_notes: string | null;
+  content_snippet: string;
+  created_at: number;
+}
+
+export function getCorrectionStats(): Promise<CorrectionStats> {
+  return request<CorrectionStats>("/api/corrections/stats");
+}
+
+export function listCorrections(
+  params: { limit?: number; cursor?: string } = {},
+): Promise<{ data: CorrectionEntry[]; nextCursor: string | null }> {
+  const sp = new URLSearchParams();
+  if (params.limit) sp.set("limit", String(params.limit));
+  if (params.cursor) sp.set("cursor", params.cursor);
+  return request<{ data: CorrectionEntry[]; nextCursor: string | null }>(
+    `/api/corrections?${sp}`,
+  );
+}
+
+export function submitCorrection(data: {
+  message_id: string;
+  original_flags: string[];
+  corrected_flags: string[];
+  correction_notes?: string;
+  content_snippet: string;
+}): Promise<CorrectionEntry> {
+  return request<CorrectionEntry>("/api/corrections", {
+    method: "POST",
+    body: JSON.stringify(data),
   });
 }
 

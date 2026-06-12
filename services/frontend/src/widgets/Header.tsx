@@ -10,11 +10,13 @@ import type { WsStatus } from "../shared/ws/socket";
 const titles: Record<DashboardTab, string> = {
   live: "Voice, Media & Recordings",
   messages: "Messages & Moderation",
+  tuner: "Prompt Tuner",
 };
 
 const subtitles: Record<DashboardTab, string> = {
   live: "Join voice channels, play media, stream audio, and browse recordings.",
   messages: "Capture, analyse, and moderate Discord messages.",
+  tuner: "Monitor correction patterns and improve AI moderation accuracy.",
 };
 
 interface HeaderProps {
