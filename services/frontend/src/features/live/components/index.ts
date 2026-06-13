@@ -6,4 +6,5 @@ export { MusicSubPanel } from "./MusicSubPanel";
 export { NowPlaying } from "./NowPlaying";
 export { RecordingsSubPanel } from "./RecordingsSubPanel";
 export { ScreenSubPanel } from "./ScreenSubPanel";
+export { MicLevelMeter } from "./MicLevelMeter";
 export { VoiceConnectionCard } from "./VoiceConnectionCard";

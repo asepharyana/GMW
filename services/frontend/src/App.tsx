@@ -194,6 +194,7 @@ export default function App() {
             levels={audio.levels}
             isListening={audio.isListening}
             isStreaming={transmit.isStreaming}
+            micLevel={transmit.micLevel}
             mediaState={media.mediaState}
             mediaLoading={media.loading}
             onGuildChange={(id) =>

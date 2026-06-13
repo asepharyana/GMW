@@ -1,6 +1,7 @@
 import { Headphones, Radio } from "lucide-react";
 import type { Channel, Guild, VoiceStatus } from "../../../shared/api/client";
 import { Button, Select } from "../../../shared/ui";
+import { MicLevelMeter } from "./MicLevelMeter";
 
 interface VoiceConnectionCardProps {
   guilds: Guild[];
@@ -11,6 +12,7 @@ interface VoiceConnectionCardProps {
   voiceLoading: boolean;
   isListening: boolean;
   isStreaming: boolean;
+  micLevel: number;
   onGuildChange: (id: string) => void;
   onChannelChange: (id: string) => void;
   onJoin: () => void;
@@ -28,6 +30,7 @@ export function VoiceConnectionCard({
   voiceLoading,
   isListening,
   isStreaming,
+  micLevel,
   onGuildChange,
   onChannelChange,
   onJoin,
@@ -100,6 +103,11 @@ export function VoiceConnectionCard({
             <Radio className="mr-1.5 h-4 w-4" />{" "}
             {isStreaming ? "Stop Transmit" : "Transmit"}
           </Button>
+          {isStreaming && (
+            <div className="flex items-center pl-1">
+              <MicLevelMeter level={micLevel} />
+            </div>
+          )}
         </div>
       </div>
     </div>

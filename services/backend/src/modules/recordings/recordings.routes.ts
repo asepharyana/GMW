@@ -16,10 +16,12 @@ export function createRecordingsRouter(): Router {
       const limit = Number(req.query.limit) || 50;
       const channelId = req.query.channelId as string | undefined;
       const userId = req.query.userId as string | undefined;
-      logger.debug({ limit, channelId, userId }, "Fetching recordings");
+      const cursor = req.query.cursor as string | undefined;
+      logger.debug({ limit, channelId, userId, cursor }, "Fetching recordings");
       const result = await recordingsService.getRecent(limit, {
         channelId,
         userId,
+        cursor,
       });
       res.json(result);
     }),

@@ -1,7 +1,7 @@
 // ─── Recordings Sub-Panel ──
 
-import { Download, Mic, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Download, Mic, Pause, Play, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { VoiceRecording } from "../../../shared/api/client";
 import { deleteRecording, listRecordings } from "../../../shared/api/client";
 import { formatBytes, formatDate } from "../../../shared/lib/utils";
@@ -10,9 +10,14 @@ import { EmptyStateMascot } from "../../../widgets/mascot/MascotImage";
 
 export function RecordingsSubPanel() {
   const [recordings, setRecordings] = useState<VoiceRecording[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [activePlayingId, setActivePlayingId] = useState<string | null>(null);
+  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
 
   const loadRecordings = useCallback(async (
     opts?: { signal?: AbortSignal },
@@ -20,8 +25,12 @@ export function RecordingsSubPanel() {
     try {
       setLoading(true);
       setError(null);
-      const data = await listRecordings();
-      if (!opts?.signal?.aborted) setRecordings(data);
+      const data = await listRecordings({ limit: 50 });
+      if (!opts?.signal?.aborted) {
+        setRecordings(data.items);
+        setNextCursor(data.nextCursor);
+        setHasMore(data.hasMore);
+      }
     } catch (err) {
       if (!opts?.signal?.aborted)
         setError(err instanceof Error ? err.message : String(err));
@@ -29,6 +38,21 @@ export function RecordingsSubPanel() {
       if (!opts?.signal?.aborted) setLoading(false);
     }
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return;
+    try {
+      setLoadingMore(true);
+      const data = await listRecordings({ limit: 50, cursor: nextCursor });
+      setRecordings((prev) => [...prev, ...data.items]);
+      setNextCursor(data.nextCursor);
+      setHasMore(data.hasMore);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, loadingMore]);
 
   useEffect(() => {
     const ab = new AbortController();
@@ -56,6 +80,22 @@ export function RecordingsSubPanel() {
         return next;
       });
     }
+  }, []);
+
+  const handleTogglePlay = useCallback((id: string) => {
+    setActivePlayingId((prev) => {
+      if (prev === id) {
+        // Pause current
+        audioRefs.current.get(id)?.pause();
+        return null;
+      }
+      // Pause any previously playing
+      if (prev) audioRefs.current.get(prev)?.pause();
+      // Play new
+      const audio = audioRefs.current.get(id);
+      if (audio) audio.play().catch(() => {});
+      return id;
+    });
   }, []);
 
   if (loading) {
@@ -147,18 +187,50 @@ export function RecordingsSubPanel() {
               {rec.upload_status}
             </Badge>
             {rec.download_url && (
-              <a
-                href={rec.download_url}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                <Download className="h-4 w-4" />
-              </a>
+              <>
+                <Button
+                  size="sm"
+                  variant={activePlayingId === rec.id ? "default" : "outline"}
+                  onClick={() => handleTogglePlay(rec.id)}
+                >
+                  {activePlayingId === rec.id
+                    ? <Pause className="h-4 w-4" />
+                    : <Play className="h-4 w-4" />}
+                </Button>
+                <audio
+                  ref={(el) => {
+                    if (el) audioRefs.current.set(rec.id, el);
+                    else audioRefs.current.delete(rec.id);
+                  }}
+                  src={rec.download_url}
+                  preload="none"
+                  onEnded={() => setActivePlayingId((p) => p === rec.id ? null : p)}
+                  className="hidden"
+                />
+                <a
+                  href={rec.download_url}
+                  download={rec.filename}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
+              </>
             )}
           </div>
         </div>
       ))}
+        {hasMore && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loadingMore}
+              onClick={loadMore}
+            >
+              {loadingMore ? "Loading..." : "Load More"}
+            </Button>
+          </div>
+        )}
     </div>
   );
 }

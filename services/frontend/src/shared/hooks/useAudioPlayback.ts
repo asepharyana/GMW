@@ -1,5 +1,5 @@
 // ─── Audio playback hook — receives PCM from WebSocket and plays through Web Audio API ──
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createLogger } from "../lib/logger.js";
 
 const logger = createLogger("use-audio-playback");
@@ -21,6 +21,26 @@ export function useAudioPlayback() {
   );
   const audioContextRef = useRef<AudioContext | null>(null);
   const userTimelinesRef = useRef(new Map<string, number>());
+
+  // Cleanup AudioContext on unmount to prevent leak
+  useEffect(() => {
+    return () => {
+      const ctx = audioContextRef.current;
+      if (ctx) {
+        ctx.close();
+        audioContextRef.current = null;
+      }
+      userTimelinesRef.current.clear();
+    };
+  }, []);
+
+  // Prune stale timeline entries (> 30s old) based on current audioContext time
+  const pruneTimelines = useCallback(() => {
+    const now = audioContextRef.current?.currentTime ?? performance.now() / 1000;
+    for (const [userId, endTime] of userTimelinesRef.current) {
+      if (endTime + 30 < now) userTimelinesRef.current.delete(userId);
+    }
+  }, []);
 
   const handleIncomingPcm = useCallback(
     (data: { userId: string; pcm: string }) => {
@@ -77,6 +97,7 @@ export function useAudioPlayback() {
           data.userId,
           nextStart + audioBuffer.duration,
         );
+        pruneTimelines();
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger.error("Failed to decode PCM audio", {
@@ -85,7 +106,7 @@ export function useAudioPlayback() {
         });
       }
     },
-    [isListening],
+    [isListening, pruneTimelines],
   );
 
   const toggleListening = useCallback(async () => {

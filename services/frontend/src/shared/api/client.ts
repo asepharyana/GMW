@@ -254,8 +254,16 @@ export interface VoiceRecording {
   uploaded_at: number | null;
 }
 
-export function listRecordings(limit = 50): Promise<VoiceRecording[]> {
-  return request<VoiceRecording[]>(`/api/recordings?limit=${limit}`);
+export function listRecordings(params?: {
+  limit?: number;
+  cursor?: string;
+}): Promise<{ items: VoiceRecording[]; nextCursor: string | null; hasMore: boolean }> {
+  const sp = new URLSearchParams();
+  sp.set("limit", String(params?.limit ?? 50));
+  if (params?.cursor) sp.set("cursor", params.cursor);
+  return request<{ items: VoiceRecording[]; nextCursor: string | null; hasMore: boolean }>(
+    `/api/recordings?${sp}`,
+  );
 }
 
 export function deleteRecording(id: string): Promise<void> {

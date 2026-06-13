@@ -4,18 +4,45 @@ import { getDatabase } from "../../shared/database/index.js";
 
 const logger = createChildLogger("recordings.service");
 
+export interface RecordingRow {
+  id: string;
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  guild_id: string | null;
+  channel_id: string | null;
+  channel_name: string | null;
+  filename: string;
+  size_bytes: number;
+  download_url: string | null;
+  upload_status: string;
+  upload_error: string | null;
+  created_at: number;
+  uploaded_at: number | null;
+  duration_bytes: number;
+}
+
+export interface PaginatedRecordings {
+  items: RecordingRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 export class RecordingsService {
   async getRecent(
     limit = 50,
-    filters?: { channelId?: string; userId?: string },
-  ) {
+    filters?: { channelId?: string; userId?: string; cursor?: string },
+  ): Promise<PaginatedRecordings> {
     logger.info({ limit }, "getRecent called");
     const db = getDatabase();
-    logger.debug({ limit }, "Fetching recent voice recordings");
 
     const conditions: string[] = [];
     const params: unknown[] = [];
 
+    if (filters?.cursor) {
+      params.push(filters.cursor);
+      conditions.push(`created_at < $${params.length}::numeric`);
+    }
     if (filters?.channelId) {
       params.push(filters.channelId);
       conditions.push(`channel_id = $${params.length}`);
@@ -37,10 +64,14 @@ export class RecordingsService {
       FROM voice_recordings
       ${sql.raw(whereClause)}
       ORDER BY created_at DESC
-      LIMIT ${limit}
+      LIMIT ${limit + 1}
     `);
 
-    return rows;
+    const items = rows.slice(0, limit) as RecordingRow[];
+    const hasMore = rows.length > limit;
+    const nextCursor = hasMore ? String(items[items.length - 1]!.created_at) : null;
+
+    return { items, nextCursor, hasMore };
   }
 
   async deleteById(id: string): Promise<void> {

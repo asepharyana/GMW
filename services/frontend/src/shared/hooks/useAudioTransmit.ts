@@ -4,6 +4,7 @@ import { getAPIURL } from "../api/client.js";
 import { createLogger } from "../lib/logger";
 
 const SAMPLE_RATE = 24000;
+const LEVEL_THROTTLE_MS = 50; // 20Hz mic level updates
 const logger = createLogger("useAudioTransmit");
 
 async function sendTransmitCommand(command: string): Promise<void> {
@@ -44,9 +45,14 @@ export function useAudioTransmit(socketRef: {
   readonly current: WebSocket | null;
 }) {
   const [isStreaming, setIsStreaming] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
+  const [micLevel, setMicLevel] = useState(0);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const isTransmittingRef = useRef(false);
+  const lastLevelUpdateRef = useRef(0);
 
   const stop = useCallback(() => {
     // 6c: Prefer WebSocket round-trip over HTTP for lower latency
@@ -54,10 +60,16 @@ export function useAudioTransmit(socketRef: {
       sendTransmitCommand("voice:transmit:stop").catch(() => {});
     }
 
+    setMicError(null);
     setIsStreaming(false);
+    isTransmittingRef.current = false;
     if (processorRef.current) {
       processorRef.current.disconnect();
       processorRef.current = null;
+    }
+    if (sourceRef.current) {
+      sourceRef.current.disconnect();
+      sourceRef.current = null;
     }
     if (audioContextRef.current) {
       audioContextRef.current.close();
@@ -67,17 +79,36 @@ export function useAudioTransmit(socketRef: {
       for (const track of streamRef.current.getTracks()) track.stop();
       streamRef.current = null;
     }
+    setMicLevel(0);
   }, [socketRef]);
 
   const start = useCallback(async () => {
+    // Reset mic error on new attempt
+    setMicError(null);
+
     // 6c: Prefer WebSocket round-trip over HTTP for lower latency
     if (!sendWsCommand(socketRef, "voice:transmit:start")) {
       await sendTransmitCommand("voice:transmit:start");
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        setMicError(
+          "Microphone access denied. Please allow microphone permissions.",
+        );
+      } else {
+        const message = err instanceof Error ? err.message : String(err);
+        setMicError(`Microphone access failed: ${message}`);
+      }
+      logger.error("getUserMedia failed", { error: String(err) });
+      return;
+    }
     streamRef.current = stream;
     setIsStreaming(true);
+    isTransmittingRef.current = true;
     const AudioContextCtor =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext })
@@ -85,14 +116,31 @@ export function useAudioTransmit(socketRef: {
     const audioContext = new AudioContextCtor({ sampleRate: SAMPLE_RATE });
     audioContextRef.current = audioContext;
     const source = audioContext.createMediaStreamSource(stream);
+    sourceRef.current = source;
     const processor = audioContext.createScriptProcessor(1024, 1, 1);
     processorRef.current = processor;
     source.connect(processor);
     processor.connect(audioContext.destination);
     processor.onaudioprocess = (event) => {
+      const inputData = event.inputBuffer.getChannelData(0);
+
+      // Compute RMS from input buffer for mic level metering
+      let sumSquares = 0;
+      for (let i = 0; i < inputData.length; i++) {
+        sumSquares += inputData[i] * inputData[i];
+      }
+      const rms = Math.sqrt(sumSquares / inputData.length);
+      const now = Date.now();
+      if (now - lastLevelUpdateRef.current >= LEVEL_THROTTLE_MS) {
+        lastLevelUpdateRef.current = now;
+        // Scale so conversational speech hits ~0.3-0.6
+        setMicLevel(Math.min(1, rms * 3));
+      }
+
+      if (!isTransmittingRef.current) return;
       if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN)
         return;
-      const inputData = event.inputBuffer.getChannelData(0);
+
       const pcmData = new Int16Array(inputData.length);
       for (let i = 0; i < inputData.length; i++)
         pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
@@ -114,10 +162,34 @@ export function useAudioTransmit(socketRef: {
     };
   }, [socketRef]);
 
-  const toggle = useCallback(async () => {
-    if (isStreaming) stop();
-    else await start();
-  }, [isStreaming, start, stop]);
+  const stopTransmit = useCallback(() => {
+    if (!isTransmittingRef.current) return;
+    isTransmittingRef.current = false;
+    if (!sendWsCommand(socketRef, "voice:transmit:stop")) {
+      sendTransmitCommand("voice:transmit:stop").catch(() => {});
+    }
+    setIsStreaming(false);
+  }, [socketRef]);
 
-  return { isStreaming, toggle, stop, start };
+  const startTransmit = useCallback(async () => {
+    if (isTransmittingRef.current) return;
+    isTransmittingRef.current = true;
+    if (!sendWsCommand(socketRef, "voice:transmit:start")) {
+      await sendTransmitCommand("voice:transmit:start");
+    }
+    setIsStreaming(true);
+  }, [socketRef]);
+
+  const toggle = useCallback(async () => {
+    if (isStreaming) {
+      stopTransmit();
+    } else if (streamRef.current) {
+      // Mic already captured, resume transmission without re-acquiring
+      await startTransmit();
+    } else {
+      await start();
+    }
+  }, [isStreaming, startTransmit, stopTransmit, start]);
+
+  return { isStreaming, micError, micLevel, toggle, stopTransmit, startTransmit, stop, start };
 }

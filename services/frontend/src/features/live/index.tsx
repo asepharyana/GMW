@@ -39,6 +39,7 @@ interface LivePanelProps {
   levels: number[];
   isListening: boolean;
   isStreaming: boolean;
+  micLevel: number;
   mediaState: MediaState;
   mediaLoading: boolean;
   onGuildChange: (id: string) => void;
@@ -65,6 +66,7 @@ export function LivePanel({
   levels,
   isListening,
   isStreaming,
+  micLevel,
   mediaState,
   mediaLoading,
   onGuildChange,
@@ -96,6 +98,7 @@ export function LivePanel({
           voiceLoading={voiceLoading}
           isListening={isListening}
           isStreaming={isStreaming}
+          micLevel={micLevel}
           onGuildChange={onGuildChange}
           onChannelChange={onChannelChange}
           onJoin={onJoin}

@@ -35,7 +35,7 @@ export function AudioVisualizer({ levels }: AudioVisualizerProps) {
     const height = canvas.height / dpr;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.scale(dpr, dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const barWidth = width / levels.length;
     const maxBarHeight = height * 0.85;

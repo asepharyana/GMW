@@ -19,9 +19,11 @@ import {
   Skeleton,
 } from "../../../shared/ui";
 import { useDashboardStats } from "../hooks/useDashboard";
+import { useUIState } from "../../../shared/hooks/useUIState";
 
 export function DashboardStatsContent() {
   const { stats, loading, error, refetch } = useDashboardStats();
+  const { patchUIState } = useUIState();
 
   if (loading) {
     return <StatsSkeleton />;
@@ -100,6 +102,7 @@ export function DashboardStatsContent() {
       icon: Mic,
       color: "text-cyan-500",
       bg: "bg-cyan-100",
+      onClick: () => patchUIState({ activeTab: "live" }),
     },
     {
       title: "AI Profiles",
@@ -123,7 +126,11 @@ export function DashboardStatsContent() {
         className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
         {cards.map((card) => (
-          <Card key={card.title} className="overflow-hidden">
+          <Card
+            key={card.title}
+            className={cn("overflow-hidden", card.onClick && "cursor-pointer transition-colors hover:bg-accent/50")}
+            onClick={card.onClick}
+          >
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
