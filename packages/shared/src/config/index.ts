@@ -82,6 +82,14 @@ export const configSchema = z
 
     // ── Redis ────────────────────────────────────────────────────────────
     REDIS_URL: z.string().default("redis://localhost:6379"),
+    // ── Voice PCM WebSocket (direct gateway→backend, bypasses Redis) ────
+    VOICE_PCM_WS_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === "true")
+      .default(true),
+    BACKEND_WS_URL: z.string().default("ws://backend:3000/ws"),
+    BACKEND_WS_TOKEN: z.string().optional().default(""),
 
     // ── Connection ───────────────────────────────────────────────────────
     VOICE_CONNECTION_TIMEOUT_MS: z.coerce.number().positive().default(15000),
