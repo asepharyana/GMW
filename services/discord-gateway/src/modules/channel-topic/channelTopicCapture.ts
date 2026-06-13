@@ -7,8 +7,11 @@ const logger = createChildLogger("channel-topic");
 
 function isMonitoredGuild(guildId: string | null | undefined): boolean {
   if (!guildId) return false;
-  const guildIds = (config as any).EFFECTIVE_MONITOR_GUILD_IDS as string[] | undefined;
-  if (!guildIds || guildIds.length === 0) return config.MONITOR_GUILD_ID === guildId;
+  const guildIds = (config as any).EFFECTIVE_MONITOR_GUILD_IDS as
+    | string[]
+    | undefined;
+  if (!guildIds || guildIds.length === 0)
+    return config.MONITOR_GUILD_ID === guildId;
   return guildIds.includes(guildId);
 }
 

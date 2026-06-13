@@ -1,5 +1,6 @@
 import http from "node:http";
 import { createChildLogger } from "@bete/shared/logger";
+import type { AppConfig as GatewayConfig } from "../../shared/config/config.js";
 import { config } from "../../shared/config/config.js";
 
 const logger = createChildLogger("gateway-metrics");
@@ -73,7 +74,9 @@ function formatMetrics(): string {
   const lines: string[] = [];
 
   for (const [fullName, metric] of metrics) {
-    const baseName = fullName.includes("{") ? fullName.slice(0, fullName.indexOf("{")) : fullName;
+    const baseName = fullName.includes("{")
+      ? fullName.slice(0, fullName.indexOf("{"))
+      : fullName;
     lines.push(`# HELP ${baseName} ${metric.help}`);
     lines.push(`# TYPE ${baseName} ${metric.type}`);
     lines.push(`${fullName} ${metric.value}`);
@@ -85,7 +88,7 @@ function formatMetrics(): string {
 export function startMetricsServer(): void {
   if (server) return;
 
-  const port = config.METRICS_PORT;
+  const port = (config as any).METRICS_PORT ?? 9090;
   logger.info({ port }, "Starting metrics HTTP server");
 
   server = http.createServer((req, res) => {

@@ -213,8 +213,9 @@ export function resolveMediaUrl(
       }
     });
 
-    // -- stderr (capture for diagnostics) ----------------------------------
+    // -- stderr (capture for diagnostics, capped at 4KB) ----------------------------------
 
+    const MAX_STDERR = 4096;
     if (proc.stderr) {
       proc.stderr.on("data", (chunk: Buffer) => {
         stderrBuf += chunk.toString("utf8");
@@ -295,6 +296,7 @@ export async function extractMediaInfo(url: string): Promise<MediaInfo> {
 
     let stdoutBuf = "";
     let stderrBuf = "";
+    const MAX_STDERR = 4096;
 
     if (proc.stdout) {
       proc.stdout.on("data", (chunk: Buffer) => {
@@ -304,7 +306,9 @@ export async function extractMediaInfo(url: string): Promise<MediaInfo> {
 
     if (proc.stderr) {
       proc.stderr.on("data", (chunk: Buffer) => {
-        stderrBuf += chunk.toString("utf8");
+        if (stderrBuf.length < MAX_STDERR) {
+          stderrBuf += chunk.toString("utf8").slice(0, MAX_STDERR - stderrBuf.length);
+        }
       });
     }
 

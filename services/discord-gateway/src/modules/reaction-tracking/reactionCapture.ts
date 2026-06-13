@@ -1,8 +1,14 @@
 import { createChildLogger } from "@bete/shared/logger";
-import type { Client, MessageReaction, User } from "discord.js-selfbot-v13";
+import type {
+  Client,
+  MessageReaction,
+  PartialMessageReaction,
+  PartialUser,
+  User,
+} from "discord.js-selfbot-v13";
+import { config } from "../../shared/config/config.js";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import { reactionsTable } from "../../shared/database/schema.js";
-import { config } from "../../shared/config/config.js";
 import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";
 
 const logger = createChildLogger("reaction-tracking");
@@ -11,12 +17,17 @@ const logger = createChildLogger("reaction-tracking");
 
 function isMonitoredGuild(guildId: string | null | undefined): boolean {
   if (!guildId) return false;
-  const guildIds = (config as any).EFFECTIVE_MONITOR_GUILD_IDS as string[] | undefined;
-  if (!guildIds || guildIds.length === 0) return config.MONITOR_GUILD_ID === guildId;
+  const guildIds = (config as any).EFFECTIVE_MONITOR_GUILD_IDS as
+    | string[]
+    | undefined;
+  if (!guildIds || guildIds.length === 0)
+    return config.MONITOR_GUILD_ID === guildId;
   return guildIds.includes(guildId);
 }
 
-function getEmojiIdentifier(reaction: MessageReaction): {
+function getEmojiIdentifier(
+  reaction: MessageReaction | PartialMessageReaction,
+): {
   emoji: string;
   emojiId: string | null;
   animated: boolean;
@@ -39,8 +50,8 @@ function getEmojiIdentifier(reaction: MessageReaction): {
 // ─── Event Handlers ──────────────────────────────────────────────────────
 
 async function handleReactionAdd(
-  reaction: MessageReaction,
-  user: User,
+  reaction: MessageReaction | PartialMessageReaction,
+  user: User | PartialUser,
 ): Promise<void> {
   const guildId = reaction.message.guildId;
   if (!isMonitoredGuild(guildId)) return;
@@ -52,19 +63,22 @@ async function handleReactionAdd(
 
   try {
     const db = getDatabase();
-    await (db as any).insert(reactionsTable).values({
-      id,
-      message_id: reaction.message.id,
-      channel_id: reaction.message.channelId,
-      guild_id: guildId,
-      user_id: user.id,
-      username: user.username,
-      emoji,
-      emoji_id: emojiId,
-      animated,
-      reaction_type: "add",
-      created_at: now,
-    }).onConflictDoNothing();
+    await (db as any)
+      .insert(reactionsTable)
+      .values({
+        id,
+        message_id: reaction.message.id,
+        channel_id: reaction.message.channelId,
+        guild_id: guildId,
+        user_id: user.id,
+        username: user.username,
+        emoji,
+        emoji_id: emojiId,
+        animated,
+        reaction_type: "add",
+        created_at: now,
+      })
+      .onConflictDoNothing();
 
     logger.debug(
       { messageId: reaction.message.id, emoji, userId: user.id },
@@ -79,8 +93,8 @@ async function handleReactionAdd(
 }
 
 async function handleReactionRemove(
-  reaction: MessageReaction,
-  user: User,
+  reaction: MessageReaction | PartialMessageReaction,
+  user: User | PartialUser,
 ): Promise<void> {
   const guildId = reaction.message.guildId;
   if (!isMonitoredGuild(guildId)) return;
@@ -92,19 +106,22 @@ async function handleReactionRemove(
 
   try {
     const db = getDatabase();
-    await (db as any).insert(reactionsTable).values({
-      id,
-      message_id: reaction.message.id,
-      channel_id: reaction.message.channelId,
-      guild_id: guildId,
-      user_id: user.id,
-      username: user.username,
-      emoji,
-      emoji_id: emojiId,
-      animated,
-      reaction_type: "remove",
-      created_at: now,
-    }).onConflictDoNothing();
+    await (db as any)
+      .insert(reactionsTable)
+      .values({
+        id,
+        message_id: reaction.message.id,
+        channel_id: reaction.message.channelId,
+        guild_id: guildId,
+        user_id: user.id,
+        username: user.username,
+        emoji,
+        emoji_id: emojiId,
+        animated,
+        reaction_type: "remove",
+        created_at: now,
+      })
+      .onConflictDoNothing();
 
     logger.debug(
       { messageId: reaction.message.id, emoji, userId: user.id },
@@ -126,45 +143,61 @@ export function registerReactionCapture(
 ): void {
   logger.info("Registering reaction capture");
 
-  client.on("messageReactionAdd", async (reaction, user) => {
-    await handleReactionAdd(reaction, user);
+  client.on(
+    "messageReactionAdd",
+    async (
+      reaction: MessageReaction | PartialMessageReaction,
+      user: User | PartialUser,
+    ) => {
+      await handleReactionAdd(reaction, user);
 
-    const guildId = reaction.message.guildId;
-    if (!isMonitoredGuild(guildId)) return;
+      const guildId = reaction.message.guildId;
+      if (!isMonitoredGuild(guildId)) return;
 
-    const { emoji, emojiId, animated } = getEmojiIdentifier(reaction);
+      const { emoji, emojiId, animated } = getEmojiIdentifier(reaction);
 
-    eventBroadcaster.reactionAdded({
-      message_id: reaction.message.id,
-      channel_id: reaction.message.channelId,
-      guild_id: guildId,
-      user_id: user.id,
-      username: user.username,
-      emoji,
-      emoji_id: emojiId,
-      animated,
-      created_at: Date.now(),
-    }).catch(() => {});
-  });
+      eventBroadcaster
+        .reactionAdded({
+          message_id: reaction.message.id,
+          channel_id: reaction.message.channelId,
+          guild_id: guildId,
+          user_id: user.id,
+          username: user.username,
+          emoji,
+          emoji_id: emojiId,
+          animated,
+          created_at: Date.now(),
+        })
+        .catch(() => {});
+    },
+  );
 
-  client.on("messageReactionRemove", async (reaction, user) => {
-    await handleReactionRemove(reaction, user);
+  client.on(
+    "messageReactionRemove",
+    async (
+      reaction: MessageReaction | PartialMessageReaction,
+      user: User | PartialUser,
+    ) => {
+      await handleReactionRemove(reaction, user);
 
-    const guildId = reaction.message.guildId;
-    if (!isMonitoredGuild(guildId)) return;
+      const guildId = reaction.message.guildId;
+      if (!isMonitoredGuild(guildId)) return;
 
-    const { emoji, emojiId, animated } = getEmojiIdentifier(reaction);
+      const { emoji, emojiId, animated } = getEmojiIdentifier(reaction);
 
-    eventBroadcaster.reactionRemoved({
-      message_id: reaction.message.id,
-      channel_id: reaction.message.channelId,
-      guild_id: guildId,
-      user_id: user.id,
-      username: user.username,
-      emoji,
-      emoji_id: emojiId,
-      animated,
-      created_at: Date.now(),
-    }).catch(() => {});
-  });
+      eventBroadcaster
+        .reactionRemoved({
+          message_id: reaction.message.id,
+          channel_id: reaction.message.channelId,
+          guild_id: guildId,
+          user_id: user.id,
+          username: user.username,
+          emoji,
+          emoji_id: emojiId,
+          animated,
+          created_at: Date.now(),
+        })
+        .catch(() => {});
+    },
+  );
 }

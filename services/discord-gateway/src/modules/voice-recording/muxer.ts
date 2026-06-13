@@ -1,9 +1,10 @@
 import { createChildLogger } from "@bete/shared/logger";
 import { eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { getDatabase } from "../../shared/database/drizzle.js";
-import { muxerJobsTable } from "../../shared/database/schema.js";
 import { config } from "../../shared/config/config.js";
+import { getDatabase } from "../../shared/database/drizzle.js";
+import type * as schema from "../../shared/database/schema.js";
+import { muxerJobsTable } from "../../shared/database/schema.js";
 import { buildMuxFfmpegArgs, runFfmpeg } from "./ffmpegProcess.js";
 
 const logger = createChildLogger("muxer");
@@ -59,10 +60,7 @@ export function startMuxerWorker(): void {
 
   pollTimer = setInterval(() => {
     processNextJobs().catch((err: unknown) => {
-      logger.error(
-        { error: String(err) },
-        "Muxer worker tick failed",
-      );
+      logger.error({ error: String(err) }, "Muxer worker tick failed");
     });
   }, 10_000);
 }
@@ -126,7 +124,9 @@ async function processJob(
     const data = JSON.parse(job.data) as MuxerJobData;
 
     if (!data.inputs || data.inputs.length < 2) {
-      throw new Error(`Muxer job ${job.id} needs at least 2 inputs, got ${data.inputs?.length ?? 0}`);
+      throw new Error(
+        `Muxer job ${job.id} needs at least 2 inputs, got ${data.inputs?.length ?? 0}`,
+      );
     }
 
     logger.info(
@@ -156,10 +156,7 @@ async function processJob(
       .set({ status: "completed", updatedAt: Date.now() })
       .where(eq(muxerJobsTable.id, job.id));
 
-    logger.info(
-      { jobId: job.id, output: data.output },
-      "Muxer job completed",
-    );
+    logger.info({ jobId: job.id, output: data.output }, "Muxer job completed");
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
     const newAttempts = job.attempts + 1;
@@ -174,7 +171,10 @@ async function processJob(
           updatedAt: Date.now(),
         })
         .where(eq(muxerJobsTable.id, job.id));
-      logger.error({ jobId: job.id, error: errMsg }, "Muxer job failed permanently");
+      logger.error(
+        { jobId: job.id, error: errMsg },
+        "Muxer job failed permanently",
+      );
     } else {
       await db
         .update(muxerJobsTable)

@@ -85,7 +85,10 @@ function getTextCaptureTargets(): TextCaptureTarget[] {
   const { EFFECTIVE_MONITOR_GUILD_IDS, TEXT_CHANNEL_ID } = config as any;
   if (EFFECTIVE_MONITOR_GUILD_IDS?.length) {
     if (TEXT_CHANNEL_ID) {
-      return EFFECTIVE_MONITOR_GUILD_IDS.map((guildId: string) => ({ guildId, channelId: TEXT_CHANNEL_ID }));
+      return EFFECTIVE_MONITOR_GUILD_IDS.map((guildId: string) => ({
+        guildId,
+        channelId: TEXT_CHANNEL_ID,
+      }));
     }
     return EFFECTIVE_MONITOR_GUILD_IDS.map((guildId: string) => ({ guildId }));
   }
@@ -99,7 +102,9 @@ function shouldCaptureForAnyTarget(
   targets: TextCaptureTarget[],
 ): boolean {
   if (targets.length === 0) return false;
-  return targets.some((target) => shouldCaptureMessageLocation(message, target));
+  return targets.some((target) =>
+    shouldCaptureMessageLocation(message, target),
+  );
 }
 
 function requireMessageGuildId(message: Message): string {
@@ -292,8 +297,7 @@ export function registerMessageCapture(client: Client): void {
   });
 
   client.on("messageUpdate", async (_oldMessage, newMessage) => {
-    if (!shouldCaptureForAnyTarget(newMessage, targets))
-      return;
+    if (!shouldCaptureForAnyTarget(newMessage, targets)) return;
     if (newMessage.author?.bot) return;
     if (isAgeRestrictedMessage(newMessage as Message)) return;
 
@@ -321,9 +325,14 @@ export function registerMessageCapture(client: Client): void {
 
         // Save edit history snapshot before overwriting
         if (oldContent) {
-          insertMessageEdit(newMessage.id, oldContent, editedAt).catch((err: unknown) => {
-            logger.error({ messageId: newMessage.id, error: err }, "Failed to save edit history");
-          });
+          insertMessageEdit(newMessage.id, oldContent, editedAt).catch(
+            (err: unknown) => {
+              logger.error(
+                { messageId: newMessage.id, error: err },
+                "Failed to save edit history",
+              );
+            },
+          );
         }
 
         await updateMessageAsEdited(

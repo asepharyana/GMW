@@ -1,4 +1,5 @@
 import { createChildLogger } from "@bete/shared/logger";
+import type { AppConfig as GatewayConfig } from "../../shared/config/config.js";
 import { config } from "../../shared/config/config.js";
 
 const logger = createChildLogger("webhook-notifier");
@@ -29,11 +30,16 @@ export async function triggerWebhook(
   eventType: string,
   payload: WebhookPayload,
 ): Promise<void> {
-  const urls = config.WEBHOOK_URLS;
+  const urls = (config as any).WEBHOOK_URLS as string[] | undefined;
   if (!urls || urls.length === 0) return;
 
-  const enabledEvents = config.WEBHOOK_EVENTS;
-  if (enabledEvents.length > 0 && !enabledEvents.includes(eventType)) return;
+  const enabledEvents = (config as any).WEBHOOK_EVENTS as string[] | undefined;
+  if (
+    enabledEvents &&
+    enabledEvents.length > 0 &&
+    !enabledEvents.includes(eventType)
+  )
+    return;
 
   const body = JSON.stringify({
     ...payload,
@@ -59,7 +65,11 @@ export async function triggerWebhook(
 
 // ─── Internal ────────────────────────────────────────────────────────────
 
-async function sendWebhook(url: string, body: string): Promise<void> {
+async function sendWebhook(
+  url: string | undefined,
+  body: string,
+): Promise<void> {
+  if (!url) return;
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {

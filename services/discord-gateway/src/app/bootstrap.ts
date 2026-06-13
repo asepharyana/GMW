@@ -4,16 +4,29 @@ import { Client } from "discord.js-selfbot-v13";
 import { inArray, lt } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { startPendingAIAnalysisWorker } from "../modules/ai-moderation/aiAnalyzer.js";
+import { registerChannelTopicCapture } from "../modules/channel-topic/index.js";
 import { CommandHandler } from "../modules/command-handler/commandHandler.js";
 import {
   EventBroadcaster,
   RedisEventPublisher,
 } from "../modules/event-broadcaster/index.js";
 import {
+  startMetricsServer,
+  stopMetricsServer,
+} from "../modules/gateway-metrics/index.js";
+import { registerGuildMemberEvents } from "../modules/guild-member-events/index.js";
+import {
   registerMessageCapture,
   setEventBroadcaster as setMessageCaptureEventBroadcaster,
 } from "../modules/message-capture/messageCapture.js";
 import { getExpiredMessages } from "../modules/message-capture/messageStore.js";
+import { registerReactionCapture } from "../modules/reaction-tracking/index.js";
+import { registerThreadCapture } from "../modules/thread-tracking/index.js";
+import { registerPresenceCapture } from "../modules/user-presence/index.js";
+import {
+  startMuxerWorker,
+  stopMuxerWorker,
+} from "../modules/voice-recording/muxer.js";
 import { setEventBroadcaster as setRecorderEventBroadcaster } from "../modules/voice-recording/recorder.js";
 import { VoiceController } from "../modules/voice-recording/voiceController.js";
 import { config } from "../shared/config/config.js";
@@ -212,6 +225,7 @@ export async function initializeDiscordGateway() {
     client,
     eventBroadcaster,
     commandHandler,
+    stopMetricsServer,
   });
 
   try {
@@ -252,6 +266,16 @@ export async function initializeDiscordGateway() {
     registerMessageCapture(client);
     startPendingAIAnalysisWorker(client, eventBroadcaster);
 
+    // Register new event captures
+    registerReactionCapture(client, eventBroadcaster);
+    registerThreadCapture(client, eventBroadcaster);
+    registerPresenceCapture(client, eventBroadcaster);
+    registerChannelTopicCapture(client, eventBroadcaster);
+    registerGuildMemberEvents(client, eventBroadcaster);
+
+    // Start background workers
+    startMuxerWorker();
+
     // Start command handler after Discord is ready
     commandHandler.start(client, voiceController);
     logger.info("Command handler started");
@@ -281,6 +305,9 @@ export async function initializeDiscordGateway() {
     logger.error({ reason, promise }, "Unhandled rejection");
     gracefulShutdown("unhandledRejection");
   });
+
+  // Start metrics server
+  startMetricsServer();
 
   logger.info("Calling Discord client.login");
   client

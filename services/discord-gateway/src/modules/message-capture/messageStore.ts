@@ -53,7 +53,11 @@ export class MessageStore {
 
   // ── Edit History ────────────────────────────────────────────────────────
 
-  insertMessageEdit(messageId: string, oldContent: string, editedAt: number): Promise<void> {
+  insertMessageEdit(
+    messageId: string,
+    oldContent: string,
+    editedAt: number,
+  ): Promise<void> {
     return this.messages.insertMessageEdit(messageId, oldContent, editedAt);
   }
 
@@ -313,7 +317,8 @@ export const insertMessageEdit = (
   messageId: string,
   oldContent: string,
   editedAt: number,
-): Promise<void> => getInstance().insertMessageEdit(messageId, oldContent, editedAt);
+): Promise<void> =>
+  getInstance().insertMessageEdit(messageId, oldContent, editedAt);
 
 // Messages
 export const insertMessage = (message: MessageRecord): Promise<void> =>

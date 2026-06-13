@@ -184,6 +184,106 @@ export class EventBroadcaster {
     });
   }
 
+  async reactionAdded(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing reaction_added");
+    await this.publisher.publish(EventChannels.REACTION_ADDED, {
+      type: "reaction_added",
+      data,
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
+  async reactionRemoved(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing reaction_removed");
+    await this.publisher.publish(EventChannels.REACTION_REMOVED, {
+      type: "reaction_removed",
+      data,
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
+  async threadCreated(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing thread_created");
+    await this.publisher.publish(EventChannels.THREAD_CREATED, {
+      type: "thread_created",
+      data,
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
+  async threadDeleted(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing thread_deleted");
+    await this.publisher.publish(EventChannels.THREAD_DELETED, {
+      type: "thread_deleted",
+      data,
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
+  async threadUpdated(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing thread_updated");
+    await this.publisher.publish(EventChannels.THREAD_UPDATED, {
+      type: "thread_updated",
+      data,
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
+  async channelTopicUpdated(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing channel_topic_updated");
+    await this.publisher.publish(EventChannels.CHANNEL_TOPIC_UPDATED, {
+      type: "channel_topic_updated",
+      data,
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
+  async presenceUpdated(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing presence_updated");
+    await this.publisher.publish(EventChannels.PRESENCE_UPDATED, {
+      type: "presence_updated",
+      data,
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
+  async guildMemberAdded(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing guild_member_added");
+    await this.publisher.publish(EventChannels.GUILD_MEMBER_ADDED, {
+      type: "guild_member_added",
+      data,
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
+  async guildMemberRemoved(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing guild_member_removed");
+    await this.publisher.publish(EventChannels.GUILD_MEMBER_REMOVED, {
+      type: "guild_member_removed",
+      data,
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
+  async voiceAnalyzed(data: unknown): Promise<void> {
+    this.logger.debug({ data }, "Publishing voice_analyzed");
+    await this.publisher.publish(EventChannels.VOICE_ANALYZED, {
+      type: "voice_analyzed",
+      data,
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
   async analysisQueueStatus(data: unknown): Promise<void> {
     this.logger.debug({ data }, "Publishing analysis_queue_status");
     await this.publisher.publish(EventChannels.ANALYSIS_QUEUE_STATUS, {

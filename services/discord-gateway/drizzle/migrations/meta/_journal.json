@@ -71,6 +71,13 @@
       "when": 1781316000000,
       "tag": "0009_add_reply_forward_crosspost",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781390000000,
+      "tag": "0010_add_reactions_and_edit_history",
+      "breakpoints": true
     }
   ]
 }

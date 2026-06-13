@@ -2,7 +2,10 @@ import { createChildLogger, type Logger } from "@bete/shared/logger";
 import { and, desc, eq, or, type SQL } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "../../shared/database/schema.js";
-import { messagesTable, messageEditsTable } from "../../shared/database/schema.js";
+import {
+  messageEditsTable,
+  messagesTable,
+} from "../../shared/database/schema.js";
 import type { MessageRecord } from "../message-capture/types.js";
 
 // ─── Shared Helpers ──────────────────────────────────────────────────────────
@@ -152,11 +155,18 @@ export class MessagesCrud {
     try {
       await this.db
         .insert(messageEditsTable)
-        .values({ message_id: messageId, old_content: oldContent, edited_at: editedAt })
+        .values({
+          message_id: messageId,
+          old_content: oldContent,
+          edited_at: editedAt,
+        })
         .onConflictDoNothing();
     } catch (error) {
       this.logger.error(
-        { messageId, error: error instanceof Error ? error.message : String(error) },
+        {
+          messageId,
+          error: error instanceof Error ? error.message : String(error),
+        },
         "Failed to insert message edit",
       );
       throw error;

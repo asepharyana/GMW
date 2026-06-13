@@ -390,6 +390,47 @@ export const pgUserProfilesTable = pgTable(
  * Mascot Chat Messages Table (PostgreSQL)
  * Stores AI mascot chat conversation history
  */
+export const pgReactionsTable = pgTable(
+  "message_reactions",
+  {
+    id: pgText("id").primaryKey(),
+    message_id: pgText("message_id").notNull(),
+    channel_id: pgText("channel_id").notNull(),
+    guild_id: pgText("guild_id").notNull(),
+    user_id: pgText("user_id").notNull(),
+    username: pgText("username").notNull(),
+    emoji: pgText("emoji").notNull(),
+    emoji_id: pgText("emoji_id"),
+    animated: pgBoolean("animated").notNull().default(false),
+    reaction_type: pgText("reaction_type", {
+      enum: ["add", "remove"],
+    }).notNull(),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    messageIdIdx: pgIndex("idx_reactions_message_id").on(table.message_id),
+    userIdIdx: pgIndex("idx_reactions_user_id").on(table.user_id),
+    guildCreatedIdx: pgIndex("idx_reactions_guild_created").on(
+      table.guild_id,
+      table.created_at,
+    ),
+  }),
+);
+
+export const pgMessageEditsTable = pgTable(
+  "message_edits",
+  {
+    id: pgUuid("id").defaultRandom().primaryKey(),
+    message_id: pgText("message_id").notNull(),
+    old_content: pgText("old_content").notNull(),
+    edited_at: pgBigint("edited_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    messageIdIdx: pgIndex("idx_message_edits_message_id").on(table.message_id),
+    editedAtIdx: pgIndex("idx_message_edits_edited_at").on(table.edited_at),
+  }),
+);
+
 export const pgMascotChatMessagesTable = pgTable(
   "mascot_chat_messages",
   {
@@ -428,6 +469,8 @@ export const correctedModerationsTable = pgCorrectedModerationsTable;
 export const userReputationsTable = pgUserReputationsTable;
 export const channelCulturesTable = pgChannelCulturesTable;
 export const userProfilesTable = pgUserProfilesTable;
+export const reactionsTable = pgReactionsTable;
+export const messageEditsTable = pgMessageEditsTable;
 export const mascotChatMessagesTable = pgMascotChatMessagesTable;
 
 // Export table types for use in queries

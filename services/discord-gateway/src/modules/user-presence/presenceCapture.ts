@@ -11,19 +11,25 @@ const PRESENCE_COOLDOWN_MS = 30_000;
 
 function isMonitoredGuild(guildId: string | null | undefined): boolean {
   if (!guildId) return false;
-  const guildIds = (config as any).EFFECTIVE_MONITOR_GUILD_IDS as string[] | undefined;
-  if (!guildIds || guildIds.length === 0) return config.MONITOR_GUILD_ID === guildId;
+  const guildIds = (config as any).EFFECTIVE_MONITOR_GUILD_IDS as
+    | string[]
+    | undefined;
+  if (!guildIds || guildIds.length === 0)
+    return config.MONITOR_GUILD_ID === guildId;
   return guildIds.includes(guildId);
 }
 
 function getStatus(presence: Presence): string {
   if (!presence) return "offline";
   const status = presence.status;
-  if (status === "online" || status === "idle" || status === "dnd") return status;
+  if (status === "online" || status === "idle" || status === "dnd")
+    return status;
   return "offline";
 }
 
-function getActivities(presence: Presence): Array<{ name: string; type: string }> {
+function getActivities(
+  presence: Presence,
+): Array<{ name: string; type: string }> {
   if (!presence?.activities) return [];
   return presence.activities.map((a) => ({
     name: a.name ?? "unknown",
@@ -47,38 +53,42 @@ export function registerPresenceCapture(
 ): void {
   logger.info("Registering presence capture");
 
-  client.on("presenceUpdate", async (_oldPresence: Presence | null, newPresence: Presence) => {
-    if (!newPresence?.guildId) return;
-    if (!isMonitoredGuild(newPresence.guildId)) return;
+  client.on(
+    "presenceUpdate",
+    async (_oldPresence: Presence | null, newPresence: Presence) => {
+      const guildId = newPresence.guild?.id ?? null;
+      if (!guildId) return;
+      if (!isMonitoredGuild(guildId)) return;
 
-    const userId = newPresence.userId ?? newPresence.user?.id;
-    if (!userId) return;
+      const userId = newPresence.userId ?? newPresence.user?.id;
+      if (!userId) return;
 
-    // Cooldown check
-    const now = Date.now();
-    const lastUpdate = presenceCooldowns.get(userId);
-    if (lastUpdate && now - lastUpdate < PRESENCE_COOLDOWN_MS) return;
-    presenceCooldowns.set(userId, now);
+      // Cooldown check
+      const now = Date.now();
+      const lastUpdate = presenceCooldowns.get(userId);
+      if (lastUpdate && now - lastUpdate < PRESENCE_COOLDOWN_MS) return;
+      presenceCooldowns.set(userId, now);
 
-    const data = {
-      user_id: userId,
-      username: newPresence.user?.username ?? "unknown",
-      status: getStatus(newPresence),
-      activities: getActivities(newPresence),
-      client_status: getClientStatus(newPresence),
-      guild_id: newPresence.guildId,
-      last_changed: now,
-    };
+      const data = {
+        user_id: userId,
+        username: newPresence.user?.username ?? "unknown",
+        status: getStatus(newPresence),
+        activities: getActivities(newPresence),
+        client_status: getClientStatus(newPresence),
+        guild_id: guildId,
+        last_changed: now,
+      };
 
-    logger.debug({ userId, status: data.status }, "Presence updated");
-    await eventBroadcaster.presenceUpdated(data).catch(() => {});
+      logger.debug({ userId, status: data.status }, "Presence updated");
+      await eventBroadcaster.presenceUpdated(data).catch(() => {});
 
-    // Periodic cleanup of stale cooldown entries
-    if (presenceCooldowns.size > 1000) {
-      const threshold = now - PRESENCE_COOLDOWN_MS * 10;
-      for (const [uid, ts] of presenceCooldowns) {
-        if (ts < threshold) presenceCooldowns.delete(uid);
+      // Periodic cleanup of stale cooldown entries
+      if (presenceCooldowns.size > 1000) {
+        const threshold = now - PRESENCE_COOLDOWN_MS * 10;
+        for (const [uid, ts] of presenceCooldowns) {
+          if (ts < threshold) presenceCooldowns.delete(uid);
+        }
       }
-    }
-  });
+    },
+  );
 }
