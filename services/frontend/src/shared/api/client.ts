@@ -72,11 +72,19 @@ export interface Channel {
   parentId?: string | null;
 }
 
+export interface GuildVoiceEntry {
+  guildId: string;
+  channelId: string;
+  channelName: string;
+  connectedAt: number;
+}
+
 export interface VoiceStatus {
   connected: boolean;
   activeGuildId: string | null;
   activeChannelId: string | null;
   activeChannelName: string | null;
+  connections: GuildVoiceEntry[];
 }
 
 export interface ActiveSpeaker {
