@@ -258,6 +258,7 @@ export interface VoiceRecording {
   download_url: string | null;
   upload_status: "pending" | "uploaded" | "failed";
   upload_error: string | null;
+  transcription?: string | null;
   created_at: number;
   uploaded_at: number | null;
 }

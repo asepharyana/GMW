@@ -6,8 +6,10 @@ import {
   insertVoiceRecording,
   updateVoiceRecordingAsFailed,
   updateVoiceRecordingAsUploaded,
+  updateVoiceRecordingTranscription,
 } from "../../../shared/database/voiceRecordingRepo.js";
 import { uploadToTele } from "../teleUpload.js";
+import { transcribeRecording } from "../voiceTranscriber.js";
 
 const logger = createChildLogger("recording-uploader");
 
@@ -93,6 +95,19 @@ export async function uploadRecordingSegment(input: {
             "Failed to broadcast voice recording upload event",
           );
         });
+    }
+
+    // 5. Fire-and-forget voice transcription
+    if (config.AI_VOICE_TRANSCRIPTION_ENABLED) {
+      transcribeRecording(oggPath).then((transcription) => {
+        if (transcription) {
+          updateVoiceRecordingTranscription(id, transcription).catch(
+            (err: unknown) => {
+              logger.warn({ id, err }, "Failed to persist transcription");
+            },
+          );
+        }
+      });
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);

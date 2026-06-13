@@ -167,6 +167,7 @@ export interface VoiceRecordingUploadData {
   upload_status: string;
   created_at: number;
   uploaded_at: number;
+  transcription?: string | null;
 }
 
 export interface AnalysisQueueStatus {

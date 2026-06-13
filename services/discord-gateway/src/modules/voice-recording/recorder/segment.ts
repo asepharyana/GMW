@@ -84,6 +84,16 @@ export async function collectUserMetadata(
 
   cacheMetadata(userId, result);
   return result;
+}
+
+function cacheMetadata(userId: string, metadata: UserMetadata): void {
+  if (metadataCache.size >= METADATA_CACHE_MAX) {
+    // Evict oldest entry via Map iteration (Map preserves insertion order)
+    const firstKey = metadataCache.keys().next().value;
+    if (firstKey) metadataCache.delete(firstKey);
+  }
+  metadataCache.set(userId, metadata);
+}
 
 // ---------------------------------------------------------------------------
 // Path helpers (was segment.ts)

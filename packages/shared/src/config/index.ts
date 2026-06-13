@@ -162,6 +162,13 @@ export const configSchema = z
       .default(50),
     PISCINA_MAX_THREADS: z.coerce.number().int().positive().optional(),
 
+    // ── Voice Transcription ────────────────────────────────────────────────
+    AI_VOICE_TRANSCRIPTION_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === "true")
+      .default(false),
+
     // ── OpenAI Moderation ───────────────────────────────────────────────
     OPENAI_MODERATION_API_KEY: z.string().optional(),
     OPENAI_MODERATION_BASE_URL: z

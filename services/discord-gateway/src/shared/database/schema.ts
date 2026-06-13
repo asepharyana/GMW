@@ -111,6 +111,7 @@ export const pgVoiceRecordingsTable = pgTable(
     upload_error: pgText("upload_error"),
     created_at: pgBigint("created_at", { mode: "number" }).notNull(),
     uploaded_at: pgBigint("uploaded_at", { mode: "number" }),
+    transcription: pgText("transcription"),
   },
   (table) => ({
     userIdIdx: pgIndex("idx_voice_recordings_user_id").on(table.user_id),

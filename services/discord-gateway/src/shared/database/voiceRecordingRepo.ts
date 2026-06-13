@@ -95,6 +95,23 @@ export async function updateVoiceRecordingAsFailed(
   }
 }
 
+export async function updateVoiceRecordingTranscription(
+  id: string,
+  transcription: string,
+): Promise<void> {
+  try {
+    await db()
+      .update(voiceRecordingsTable)
+      .set({ transcription })
+      .where(eq(voiceRecordingsTable.id, id));
+  } catch (error) {
+    logger.error(
+      { id, error: error instanceof Error ? error.message : String(error) },
+      "Failed to update voice recording transcription",
+    );
+  }
+}
+
 export async function listVoiceRecordings(
   limit = 100,
 ): Promise<VoiceRecording[]> {

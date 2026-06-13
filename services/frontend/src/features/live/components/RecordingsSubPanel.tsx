@@ -1,7 +1,7 @@
 // ─── Recordings Sub-Panel ──
 
 import { Download, Mic, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { VoiceRecording } from "../../../shared/api/client";
 import { deleteRecording, listRecordings } from "../../../shared/api/client";
 import { formatBytes, formatDate } from "../../../shared/lib/utils";
@@ -124,53 +124,55 @@ export function RecordingsSubPanel() {
   return (
     <div className="space-y-3">
       {recordings.map((rec) => (
-        <div
-          key={rec.id}
-          className="flex items-center gap-4 rounded-xl border border-sky-200 bg-white p-4"
-        >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Mic className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-medium">{rec.filename}</div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-              <span>{rec.username}</span>
-              <span>·</span>
-              <span>{rec.channel_name ?? rec.channel_id ?? "unknown"}</span>
-              <span>·</span>
-              <span>{formatDate(rec.created_at)}</span>
-              <span>·</span>
-              <span>{formatBytes(rec.size_bytes)}</span>
+        <div key={rec.id} className="rounded-xl border border-sky-200 bg-white">
+          <div className="flex items-center gap-4 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Mic className="h-5 w-5" />
             </div>
-            {rec.upload_error && (
-              <div className="mt-1 text-xs text-destructive">
-                {rec.upload_error}
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium">{rec.filename}</div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                <span>{rec.username}</span>
+                <span>·</span>
+                <span>{rec.channel_name ?? rec.channel_id ?? "unknown"}</span>
+                <span>·</span>
+                <span>{formatDate(rec.created_at)}</span>
+                <span>·</span>
+                <span>{formatBytes(rec.size_bytes)}</span>
               </div>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={deletingIds.has(rec.id)}
-              onClick={() => handleDelete(rec.id)}
-              className="text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-            <Badge
-              variant={
-                rec.upload_status === "uploaded"
-                  ? "success"
-                  : rec.upload_status === "failed"
-                    ? "destructive"
-                    : "secondary"
-              }
-            >
-              {rec.upload_status}
-            </Badge>
-            {rec.download_url && (
-              <>
+              {rec.upload_error && (
+                <div className="mt-1 text-xs text-destructive">
+                  {rec.upload_error}
+                </div>
+              )}
+              {rec.transcription && (
+                <div className="mt-1 line-clamp-2 text-xs text-muted-foreground italic">
+                  {rec.transcription}
+                </div>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={deletingIds.has(rec.id)}
+                onClick={() => handleDelete(rec.id)}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+              <Badge
+                variant={
+                  rec.upload_status === "uploaded"
+                    ? "success"
+                    : rec.upload_status === "failed"
+                      ? "destructive"
+                      : "secondary"
+                }
+              >
+                {rec.upload_status}
+              </Badge>
+              {rec.download_url && (
                 <a
                   href={rec.download_url}
                   download={rec.filename}
@@ -178,15 +180,15 @@ export function RecordingsSubPanel() {
                 >
                   <Download className="h-4 w-4" />
                 </a>
-              </>
-            )}
+              )}
+            </div>
           </div>
+          {rec.download_url && (
+            <div className="-mt-2 px-4 pb-4">
+              <WaveformPlayer downloadUrl={rec.download_url} filename={rec.filename} />
+            </div>
+          )}
         </div>
-        {rec.download_url && (
-          <div className="-mt-2 px-4 pb-4">
-            <WaveformPlayer downloadUrl={rec.download_url} filename={rec.filename} />
-          </div>
-        )}
       ))}
         {hasMore && (
           <div className="flex justify-center pt-2">
