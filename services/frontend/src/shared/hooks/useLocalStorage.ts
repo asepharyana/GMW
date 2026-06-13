@@ -56,6 +56,6 @@ export function uiStateValidator(): ShapeValidator<Record<string, unknown>> {
   return {
     validate: (v): v is Record<string, unknown> =>
       typeof v === "object" && v !== null && !Array.isArray(v),
-    defaults: { activeTab: "live" },
+    defaults: { activeTab: "messages" },
   };
 }
