@@ -170,9 +170,20 @@ export async function runMigrations(): Promise<void> {
           const originalQuery = client.query;
           client.query = (async (...args: any[]) => {
             const queryText = args[0];
-            const text = typeof queryText === "string" ? queryText : queryText?.text;
-            if (text && typeof text === "string" && text.includes('CREATE SCHEMA IF NOT EXISTS "public"')) {
-              return { rows: [], command: "CREATE", rowCount: 0, oid: 0, fields: [] };
+            const text =
+              typeof queryText === "string" ? queryText : queryText?.text;
+            if (
+              text &&
+              typeof text === "string" &&
+              text.includes('CREATE SCHEMA IF NOT EXISTS "public"')
+            ) {
+              return {
+                rows: [],
+                command: "CREATE",
+                rowCount: 0,
+                oid: 0,
+                fields: [],
+              };
             }
             return Function.prototype.apply.call(originalQuery, client, args);
           }) as typeof client.query;

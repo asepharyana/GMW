@@ -1,16 +1,15 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. AppError Hierarchy
 // ═══════════════════════════════════════════════════════════════════════════════
 import {
   AppError,
-  NotFoundError,
-  ValidationError,
-  UnauthorizedError,
-  DatabaseError,
   ConfigError,
+  DatabaseError,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
 } from "@bete/shared/errors";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 describe("AppError subclasses", () => {
   it("AppError carries code, statusCode, and details", () => {
@@ -47,10 +46,18 @@ describe("AppError subclasses", () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // 2. Shared Utilities
 // ═══════════════════════════════════════════════════════════════════════════════
-import { delay, retryWithBackoff, encodeCursor, decodeCursor, pageResult } from "@bete/shared/utils";
+import {
+  decodeCursor,
+  delay,
+  encodeCursor,
+  pageResult,
+  retryWithBackoff,
+} from "@bete/shared/utils";
 
 describe("delay", () => {
-  afterEach(() => { vi.useRealTimers(); });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it("resolves after specified time with fake timers", async () => {
     vi.useFakeTimers();
@@ -61,7 +68,9 @@ describe("delay", () => {
 });
 
 describe("retryWithBackoff", () => {
-  afterEach(() => { vi.useRealTimers(); });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it("resolves on first attempt", async () => {
     const fn = vi.fn().mockResolvedValue(42);
@@ -103,7 +112,10 @@ describe("pagination utils", () => {
     expect(r1.nextCursor).toBeNull();
 
     const r2 = pageResult(
-      [{ id: "a", created_at: 1 }, { id: "b", created_at: 2 }],
+      [
+        { id: "a", created_at: 1 },
+        { id: "b", created_at: 2 },
+      ],
       1,
     );
     expect(r2.data).toHaveLength(1);
@@ -115,25 +127,25 @@ describe("pagination utils", () => {
 // 3. Redis Channel Constants
 // ═══════════════════════════════════════════════════════════════════════════════
 import {
-  DISCORD_MESSAGE_CREATED,
-  DISCORD_MESSAGE_UPDATED,
-  DISCORD_MESSAGE_DELETED,
-  DISCORD_MESSAGE_ANALYZED,
-  DISCORD_ATTACHMENT_CREATED,
-  DISCORD_VOICE_STARTED,
-  DISCORD_VOICE_PCM,
-  DISCORD_ANALYSIS_QUEUE_STATUS,
   BACKEND_COMMAND,
-  VOICE_STATUS_KEY,
-  MEDIA_STATUS_KEY,
-  COMMAND_VOICE_CONNECT,
-  COMMAND_VOICE_DISCONNECT,
   COMMAND_GUILDS_LIST,
   COMMAND_MEDIA_QUEUE,
   COMMAND_MEDIA_SKIP,
   COMMAND_MEDIA_STOP,
   COMMAND_MEDIA_VOLUME,
   COMMAND_MODERATION_ACTION,
+  COMMAND_VOICE_CONNECT,
+  COMMAND_VOICE_DISCONNECT,
+  DISCORD_ANALYSIS_QUEUE_STATUS,
+  DISCORD_ATTACHMENT_CREATED,
+  DISCORD_MESSAGE_ANALYZED,
+  DISCORD_MESSAGE_CREATED,
+  DISCORD_MESSAGE_DELETED,
+  DISCORD_MESSAGE_UPDATED,
+  DISCORD_VOICE_PCM,
+  DISCORD_VOICE_STARTED,
+  MEDIA_STATUS_KEY,
+  VOICE_STATUS_KEY,
 } from "@bete/shared/redis-channels";
 
 describe("Redis channel constants", () => {
@@ -174,7 +186,7 @@ vi.hoisted(() => {
   process.env.DATABASE_URL = "postgres://test:test@localhost:5432/test";
 });
 
-import { loadConfig, configSchema } from "@bete/shared/config";
+import { configSchema, loadConfig } from "@bete/shared/config";
 
 describe("Config validation", () => {
   it("loadConfig succeeds with minimal valid env", () => {
@@ -217,7 +229,9 @@ describe("Config validation", () => {
   });
 
   it("gateway loadConfig adds EFFECTIVE_TEXT_GUILD_ID from MONITOR_GUILD_ID", async () => {
-    const { loadConfig: gwLoadConfig } = await import("../src/shared/config/config.js");
+    const { loadConfig: gwLoadConfig } = await import(
+      "../src/shared/config/config.js"
+    );
     const cfg = gwLoadConfig({
       DISCORD_TOKEN: "tok",
       DATABASE_URL: "pg://localhost/db",
@@ -227,7 +241,9 @@ describe("Config validation", () => {
   });
 
   it("gateway loadConfig prefers TEXT_GUILD_ID over MONITOR_GUILD_ID", async () => {
-    const { loadConfig: gwLoadConfig } = await import("../src/shared/config/config.js");
+    const { loadConfig: gwLoadConfig } = await import(
+      "../src/shared/config/config.js"
+    );
     const cfg = gwLoadConfig({
       DISCORD_TOKEN: "tok",
       DATABASE_URL: "pg://localhost/db",
@@ -266,21 +282,27 @@ describe("sniffImageMimeType", () => {
 
   it("detects WebP", () => {
     expect(
-      sniffImageMimeType(buf(0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50)),
+      sniffImageMimeType(
+        buf(0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50),
+      ),
     ).toBe("image/webp");
   });
 
   it("detects AVIF", () => {
     // ftyp box with avif brand at bytes 8-11
     expect(
-      sniffImageMimeType(buf(0, 0, 0, 0, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66)),
+      sniffImageMimeType(
+        buf(0, 0, 0, 0, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66),
+      ),
     ).toBe("image/avif");
   });
 
   it("detects HEIC", () => {
     // ftyp box with heic brand at bytes 8-11
     expect(
-      sniffImageMimeType(buf(0, 0, 0, 0, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63)),
+      sniffImageMimeType(
+        buf(0, 0, 0, 0, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63),
+      ),
     ).toBe("image/heic");
   });
 
@@ -295,8 +317,8 @@ describe("sniffImageMimeType", () => {
 
 import {
   clampScore,
-  deriveSeverity,
   deriveRecommendedAction,
+  deriveSeverity,
   hasDeferralAnalysis,
 } from "../src/modules/ai-moderation/severityDeriver.js";
 
@@ -364,7 +386,9 @@ describe("severityDeriver", () => {
     });
 
     it("detects English deferral: insufficient context", () => {
-      expect(hasDeferralAnalysis("insufficient context to moderate")).toBe(true);
+      expect(hasDeferralAnalysis("insufficient context to moderate")).toBe(
+        true,
+      );
     });
 
     it("detects cannot determine pattern", () => {
@@ -372,12 +396,16 @@ describe("severityDeriver", () => {
     });
 
     it("returns false for non-deferral text", () => {
-      expect(hasDeferralAnalysis("This message is perfectly clean")).toBe(false);
+      expect(hasDeferralAnalysis("This message is perfectly clean")).toBe(
+        false,
+      );
     });
 
     it("returns false for exception pattern (decisive verdict)", () => {
       expect(
-        hasDeferralAnalysis("tidak bisa menentukan karena tidak ada pelanggaran"),
+        hasDeferralAnalysis(
+          "tidak bisa menentukan karena tidak ada pelanggaran",
+        ),
       ).toBe(false);
     });
   });

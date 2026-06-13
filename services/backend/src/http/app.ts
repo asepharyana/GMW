@@ -9,7 +9,7 @@ import helmet from "helmet";
 import { createAnalysisRouter } from "../modules/analysis/analysis.routes.js";
 import { createAuthRouter } from "../modules/auth/auth.routes.js";
 import { createConfigRouter } from "../modules/config/config.routes.js";
-import { createCorrectionsRouter } from "../modules/corrections/corrections.routes.js";
+import { createDashboardRouter } from "../modules/dashboard/dashboard.routes.js";
 import { createHealthRouter } from "../modules/health/health.routes.js";
 import { createMascotChatRouter } from "../modules/mascot-chat/mascot-chat.routes.js";
 import { createMediaRouter } from "../modules/media/media.routes.js";
@@ -64,7 +64,7 @@ export function createHttpApp(): Express {
   // API routes
   app.use("/api", createAuthRouter());
   app.use("/api", createConfigRouter());
-  app.use("/api", createCorrectionsRouter());
+  app.use("/api", createDashboardRouter());
   app.use("/api", createMessagesRouter());
   app.use("/api", createAnalysisRouter());
   app.use("/api", createMascotChatRouter());

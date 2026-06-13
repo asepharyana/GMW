@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { AuthOverlay } from "./features/auth";
+import { DashboardPanel } from "./features/dashboard";
 import { LivePanel } from "./features/live";
 import { useMediaControl } from "./features/live/hooks/useMediaControl";
 import { useVoiceControl } from "./features/live/hooks/useVoiceControl";
 import { MessagesPanel } from "./features/messages";
-import { TunerPanel } from "./features/tuner";
 import { ModerationAlertListener } from "./features/messages/components/ModerationAlertListener";
 import {
   mergeMessages,
@@ -183,11 +183,11 @@ export default function App() {
             onVolumeChange={media.setVolume}
           />
         )
-      ) : activeTab === "tuner" ? (
+      ) : activeTab === "dashboard" ? (
         !isAuthenticated ? (
           <AuthOverlay onAuthenticated={() => setIsAuthenticated(true)} />
         ) : (
-          <TunerPanel />
+          <DashboardPanel />
         )
       ) : (
         <MessagesPanel

@@ -5,6 +5,7 @@ import type { ChatCompletion } from "openai/resources/chat/completions";
 import { config } from "../../shared/config/config.js";
 import { resizeImageForVision } from "../attachment-upload/imageResizer.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
+import { getMessageById } from "../message-capture/messageStore.js";
 import type {
   AnalysisResult,
   AttachmentRecord,
@@ -43,9 +44,8 @@ import {
   upsertCachedMediaByPhash,
 } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
-import { initializeUserReputation } from "./userReputationStore.js";
 import { getUserProfile } from "./userProfileStore.js";
-import { getMessageById } from "../message-capture/messageStore.js";
+import { initializeUserReputation } from "./userReputationStore.js";
 
 export { sniffImageMimeType } from "./imageMimeSniffer.js";
 export { extractJson } from "./jsonExtractor.js";
@@ -805,7 +805,10 @@ async function runTextOnlyBatch(
 
   // Log channel culture & user profiles for debugging
   if (channelCulture) {
-    log.debug({ channelId, culturePreview: channelCulture.slice(0, 120) }, "Injected channel culture into prompt");
+    log.debug(
+      { channelId, culturePreview: channelCulture.slice(0, 120) },
+      "Injected channel culture into prompt",
+    );
   }
 
   // Run sub-batches sequentially to avoid rate limits
@@ -826,7 +829,9 @@ async function runTextOnlyBatch(
         const profile = await getUserProfile(msg.user_id);
         userProfiles.set(
           msg.user_id,
-          profile ? `<user_profile>${profile.profile_summary}</user_profile>` : "",
+          profile
+            ? `<user_profile>${profile.profile_summary}</user_profile>`
+            : "",
         );
       }
     }
@@ -1150,7 +1155,10 @@ async function runMediaBatch(
 
   // Log channel culture for debugging
   if (channelCulture) {
-    log.debug({ channelId, culturePreview: channelCulture.slice(0, 120) }, "Injected channel culture into prompt (media path)");
+    log.debug(
+      { channelId, culturePreview: channelCulture.slice(0, 120) },
+      "Injected channel culture into prompt (media path)",
+    );
   }
 
   const correctedExamples = await buildCorrectedFewShotExamples();

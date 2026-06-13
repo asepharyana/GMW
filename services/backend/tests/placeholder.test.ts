@@ -1,17 +1,21 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-
 // ─── Shared Error Classes ────────────────────────────────────────────────────
 import {
   AppError,
-  NotFoundError,
-  ValidationError,
-  UnauthorizedError,
-  DatabaseError,
   ConfigError,
+  DatabaseError,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
 } from "@bete/shared/errors";
-
 // ─── Shared utilities ─────────────────────────────────────────────────────────
-import { delay, retryWithBackoff, encodeCursor, decodeCursor, pageResult } from "@bete/shared/utils";
+import {
+  decodeCursor,
+  delay,
+  encodeCursor,
+  pageResult,
+  retryWithBackoff,
+} from "@bete/shared/utils";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ─── Backend middleware ──────────────────────────────────────────────────────
 import { asyncHandler, requireParam } from "../src/shared/middlewares/index.js";
@@ -187,7 +191,9 @@ describe("pagination utilities", () => {
     const notJson = Buffer.from("not-json").toString("base64");
     expect(decodeCursor(notJson)).toBeNull();
     // Valid JSON but wrong shape (missing created_at / id)
-    const wrongShape = Buffer.from(JSON.stringify({ foo: "bar" })).toString("base64");
+    const wrongShape = Buffer.from(JSON.stringify({ foo: "bar" })).toString(
+      "base64",
+    );
     expect(decodeCursor(wrongShape)).toBeNull();
   });
 
@@ -255,7 +261,9 @@ describe("requireParam", () => {
   });
 
   it("throws ValidationError for undefined", () => {
-    expect(() => requireParam(undefined, "query", "q")).toThrow(ValidationError);
+    expect(() => requireParam(undefined, "query", "q")).toThrow(
+      ValidationError,
+    );
   });
 
   it("throws ValidationError for empty string", () => {
@@ -263,6 +271,8 @@ describe("requireParam", () => {
   });
 
   it("throws with a descriptive message", () => {
-    expect(() => requireParam(null, "header", "X-Token")).toThrow("Missing header: X-Token");
+    expect(() => requireParam(null, "header", "X-Token")).toThrow(
+      "Missing header: X-Token",
+    );
   });
 });

@@ -118,7 +118,7 @@ export interface UIState {
   selectedTextChannel?: string;
   selectedAnalyticsGuild?: string;
   selectedAnalyticsChannel?: string;
-  activeTab?: "live" | "messages" | "tuner";
+  activeTab?: "live" | "messages" | "dashboard";
   isListening?: boolean;
   isStreaming?: boolean;
 }
@@ -131,7 +131,7 @@ export interface ChatResponse {
   response?: string;
 }
 
-export type DashboardTab = "live" | "messages" | "tuner";
+export type DashboardTab = "live" | "messages" | "dashboard";
 
 // ─── Messages ────────────────────────────────────────────────────────────────
 
@@ -272,50 +272,73 @@ export function login(password: string): Promise<{ ok: boolean }> {
   });
 }
 
-// ─── Corrections (Adaptive Prompt Tuner) ──────────────────────────────────────
+// ─── Dashboard ─────────────────────────────────────────────────────────────────
 
-export interface CorrectionStats {
-  total_corrections: number;
-  recent_count_7d: number;
-  by_flag: Array<{ flag: string; count: number }>;
+export interface DashboardStats {
+  total_messages: number;
+  total_users: number;
+  total_flagged: number;
+  total_clean: number;
+  total_warned: number;
+  total_error: number;
+  total_voice_recordings: number;
+  total_profiles: number;
+  today_messages: number;
+  today_flagged: number;
+  active_users_24h: number;
+  top_channels: Array<{ channel_id: string; message_count: number }>;
+  moderation_overview: {
+    pending: number;
+    processing: number;
+    error: number;
+  };
 }
 
-export interface CorrectionEntry {
-  id: string;
-  message_id: string;
-  original_flags: string;
-  corrected_flags: string;
-  correction_notes: string | null;
-  content_snippet: string;
-  created_at: number;
+export interface DashboardUser {
+  user_id: string;
+  username: string | null;
+  avatar_url: string | null;
+  profile_summary: string | null;
+  total_messages: number;
+  flagged_count: number;
+  last_message_at: number | null;
+  trust_score: number | null;
 }
 
-export function getCorrectionStats(): Promise<CorrectionStats> {
-  return request<CorrectionStats>("/api/corrections/stats");
+export interface DashboardUserDetail extends DashboardUser {
+  last_analyzed_at: number | null;
+  clean_message_streak: number | null;
+  total_infractions: number | null;
+  clean_count: number;
+  recent_messages: Array<{
+    id: string;
+    content: string;
+    channel_id: string;
+    created_at: number;
+    ai_status: string | null;
+  }>;
 }
 
-export function listCorrections(
-  params: { limit?: number; cursor?: string } = {},
-): Promise<{ data: CorrectionEntry[]; nextCursor: string | null }> {
+export function getDashboardStats(): Promise<DashboardStats> {
+  return request<DashboardStats>("/api/dashboard/stats");
+}
+
+export function listDashboardUsers(
+  params: { limit?: number; cursor?: string; search?: string } = {},
+): Promise<{ data: DashboardUser[]; nextCursor: string | null }> {
   const sp = new URLSearchParams();
   if (params.limit) sp.set("limit", String(params.limit));
   if (params.cursor) sp.set("cursor", params.cursor);
-  return request<{ data: CorrectionEntry[]; nextCursor: string | null }>(
-    `/api/corrections?${sp}`,
+  if (params.search) sp.set("search", params.search);
+  return request<{ data: DashboardUser[]; nextCursor: string | null }>(
+    `/api/dashboard/users?${sp}`,
   );
 }
 
-export function submitCorrection(data: {
-  message_id: string;
-  original_flags: string[];
-  corrected_flags: string[];
-  correction_notes?: string;
-  content_snippet: string;
-}): Promise<CorrectionEntry> {
-  return request<CorrectionEntry>("/api/corrections", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
+export function getDashboardUserDetail(
+  userId: string,
+): Promise<DashboardUserDetail> {
+  return request<DashboardUserDetail>(`/api/dashboard/users/${userId}`);
 }
 
 // ─── UI State ────────────────────────────────────────────────────────────────

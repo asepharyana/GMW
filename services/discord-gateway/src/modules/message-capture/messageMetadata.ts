@@ -237,7 +237,8 @@ export function getMessageMetadata(message: Message): RichMessageMetadata {
           messageId: message.reference.messageId ?? null,
           channelId: message.reference.channelId ?? null,
           guildId: message.reference.guildId ?? null,
-          type: (message.reference.type as unknown as string | undefined) ?? null,
+          type:
+            (message.reference.type as unknown as string | undefined) ?? null,
         }
       : null,
     isCrosspost: message.flags?.has(1 << 1) ?? false,

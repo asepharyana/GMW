@@ -55,8 +55,5 @@ export async function updateUserProfile(
       },
     });
 
-  logger.debug(
-    { userId, guildId, profileSummary },
-    "User profile updated",
-  );
+  logger.debug({ userId, guildId, profileSummary }, "User profile updated");
 }

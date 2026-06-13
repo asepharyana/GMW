@@ -1,11 +1,11 @@
-import { MessageSquare, Radio, SlidersHorizontal } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Radio } from "lucide-react";
 import type { DashboardTab } from "../../entities/ui/types";
 import { cn } from "../lib/utils";
 
 const tabs: Array<{ id: DashboardTab; label: string; Icon: typeof Radio }> = [
   { id: "live", label: "Live", Icon: Radio },
   { id: "messages", label: "Messages", Icon: MessageSquare },
-  { id: "tuner", label: "Tuner", Icon: SlidersHorizontal },
+  { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
 ];
 
 interface MobileTabBarProps {

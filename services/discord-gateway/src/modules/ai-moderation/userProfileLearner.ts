@@ -6,8 +6,8 @@ import {
   messagesTable,
   userProfilesTable,
 } from "../../shared/database/schema.js";
-import { updateUserProfile } from "./userProfileStore.js";
 import { llmChat } from "./llmClient.js";
+import { updateUserProfile } from "./userProfileStore.js";
 
 const PROFILE_LEARNING_INTERVAL = 1000 * 60 * 60 * 12; // 12 hours
 const log = createChildLogger("userProfileLearner");
