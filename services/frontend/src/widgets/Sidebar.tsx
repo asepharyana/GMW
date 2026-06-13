@@ -74,33 +74,32 @@ export function Sidebar({
           )}
         </div>
 
-        {/* Navigation items */}
-        <div className="flex flex-col gap-1 px-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => onTabChange(item.id)}
-                title={collapsed ? item.label : undefined}
-                className={cn(
-                  "group relative flex items-center rounded-xl p-2.5 text-sm font-medium transition-all duration-200 ease-out",
-                  collapsed ? "justify-center" : "gap-3",
-                  isActive
-                    ? "bg-primary/10 text-primary ring-1 ring-primary/20"
-                    : "text-muted-foreground hover:bg-primary/5 hover:text-primary/70",
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
-              </button>
-            );
-          })}
+        {/* Navigation items — centered vertically */}
+        <div className="flex flex-1 flex-col justify-center">
+          <div className="flex flex-col gap-1 px-2">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onTabChange(item.id)}
+                  title={collapsed ? item.label : undefined}
+                  className={cn(
+                    "group relative flex items-center rounded-xl p-2.5 text-sm font-medium transition-all duration-200 ease-out",
+                    collapsed ? "justify-center" : "gap-3",
+                    isActive
+                      ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                      : "text-muted-foreground hover:bg-primary/5 hover:text-primary/70",
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {!collapsed && <span>{item.label}</span>}
+                </button>
+              );
+            })}
+          </div>
         </div>
-
-        {/* Spacer pushes mascot to bottom */}
-        <div className="flex-1" />
 
         {/* Mascot button */}
         <div className="flex justify-center pb-4">
