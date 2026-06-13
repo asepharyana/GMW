@@ -228,6 +228,7 @@ export default function App() {
           voiceChannels={voice.voiceChannels}
           selectedGuild={selectedVoiceGuild}
           selectedChannel={uiState.selectedVoiceChannel || ""}
+          micLevel={0}
           status={voice.voiceStatus}
           voiceLoading={voice.loading}
           activeSpeakers={activeSpeakers}

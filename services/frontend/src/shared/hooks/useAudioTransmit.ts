@@ -41,9 +41,20 @@ function sendWsCommand(
   return false;
 }
 
-export function useAudioTransmit(socketRef: {
-  readonly current: WebSocket | null;
-}) {
+export function useAudioTransmit(
+  socketRef: {
+    readonly current: WebSocket | null;
+  },
+): {
+  isStreaming: boolean;
+  micError: string | null;
+  micLevel: number;
+  toggle: () => Promise<void>;
+  stopTransmit: () => void;
+  startTransmit: () => Promise<void>;
+  stop: () => void;
+  start: () => Promise<void>;
+} {
   const [isStreaming, setIsStreaming] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [micLevel, setMicLevel] = useState(0);

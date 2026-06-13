@@ -1,5 +1,5 @@
 // ─── Audio playback hook — receives PCM from WebSocket and plays through Web Audio API ──
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { createLogger } from "../lib/logger.js";
 
 const logger = createLogger("use-audio-playback");
@@ -17,7 +17,15 @@ const LEVEL_SHAPE = Array.from(
 /** Reverse lookup: userIdHash → userId, populated by handleIncomingBinary */
 const userIdHashToId = new Map<number, string>();
 
-export function useAudioPlayback() {
+export function useAudioPlayback(): {
+  isListening: boolean;
+  levels: number[];
+  handleIncomingPcm: (data: { userId: string; pcm: string }) => void;
+  handleIncomingBinary: (data: ArrayBuffer) => void;
+  registerUserId: (userId: string) => void;
+  toggleListening: () => Promise<void>;
+  audioContextRef: RefObject<AudioContext | null>;
+} {
   const [isListening, setIsListening] = useState(false);
   const [levels, setLevels] = useState<number[]>(
     Array.from({ length: LEVEL_COUNT }, () => 0.04),

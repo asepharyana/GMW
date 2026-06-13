@@ -22,6 +22,7 @@ export function useVoiceControl() {
     activeGuildId: null,
     activeChannelId: null,
     activeChannelName: null,
+    connections: [],
   });
   const { loading, error, execute, clearError } = useAsyncAction();
 
