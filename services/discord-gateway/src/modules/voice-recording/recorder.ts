@@ -141,7 +141,7 @@ export async function startRecording(
     activeSessions,
     recordingsDir,
     pcmSender: _pcmWsClient
-      ? (pcm, userId) => _pcmWsClient.sendPcm(userId, pcm)
+      ? (pcm, userId) => _pcmWsClient!.sendPcm(userId, pcm)
       : undefined,
   });
 
