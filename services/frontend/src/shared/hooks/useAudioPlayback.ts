@@ -14,6 +14,9 @@ const LEVEL_SHAPE = Array.from(
   (_, i) => 0.3 + (Math.sin(i * 0.6) * 0.35 + 0.65) * 0.7,
 );
 
+/** Reverse lookup: userIdHash → userId, populated by handleIncomingBinary */
+const userIdHashToId = new Map<number, string>();
+
 export function useAudioPlayback() {
   const [isListening, setIsListening] = useState(false);
   const [levels, setLevels] = useState<number[]>(
@@ -42,11 +45,84 @@ export function useAudioPlayback() {
     }
   }, []);
 
+  /**
+   * Handle incoming binary PCM from WS.
+   * Format per chunk: 4-byte userId hash (UInt32LE) + raw PCM (Int16).
+   * userId hash → userId mapping is populated by voice_active_user events.
+   */
+  const handleIncomingBinary = useCallback(
+    (buffer: ArrayBuffer) => {
+      const view = new DataView(buffer);
+      if (buffer.byteLength < 5) return; // Need at least 4-byte hash + 1 PCM byte
+      const userIdHash = view.getUint32(0, true);
+      const userId = userIdHashToId.get(userIdHash) ?? `user:${userIdHash}`;
+      const pcmBytes = buffer.byteLength - 4;
+      if (pcmBytes === 0) return;
+
+      const int16Array = new Int16Array(
+        buffer,
+        4,
+        pcmBytes / 2,
+      );
+      if (int16Array.length === 0) return;
+
+      // RMS + level computation (same as before)
+      let sumSquares = 0;
+      const float32Array = new Float32Array(int16Array.length);
+      for (let i = 0; i < int16Array.length; i++) {
+        const normalized = int16Array[i] / 32768;
+        float32Array[i] = normalized;
+        sumSquares += normalized * normalized;
+      }
+      const rms = Math.sqrt(sumSquares / int16Array.length);
+      const dbLevel = Math.min(1, Math.max(0.04, rms * 8));
+
+      setLevels((prev) =>
+        prev.map((_, index) =>
+          Math.max(0.04, dbLevel * LEVEL_SHAPE[index] * 5),
+        ),
+      );
+
+      const audioContext = audioContextRef.current;
+      if (!isListening || !audioContext) return;
+
+      const audioBuffer = audioContext.createBuffer(
+        CHANNELS,
+        float32Array.length,
+        SAMPLE_RATE,
+      );
+      audioBuffer.getChannelData(0).set(float32Array);
+
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContext.destination);
+
+      const currentTime = audioContext.currentTime;
+      let nextStart = userTimelinesRef.current.get(userId) || 0;
+      if (nextStart < currentTime) nextStart = currentTime + 0.05;
+      source.start(nextStart);
+      userTimelinesRef.current.set(
+        userId,
+        nextStart + audioBuffer.duration,
+      );
+      pruneTimelines();
+    },
+    [isListening, pruneTimelines],
+  );
+
+  /**
+   * Register a userId → hash mapping from voice_active_user events.
+   */
+  const registerUserId = useCallback((userId: string) => {
+    const hash = fnv1a32(userId);
+    userIdHashToId.set(hash, userId);
+  }, []);
+
+  // Legacy JSON handler kept for backward compat
   const handleIncomingPcm = useCallback(
     (data: { userId: string; pcm: string }) => {
       // Decode base64 PCM data
       try {
-        // 5a: Replace manual charCodeAt loop with Uint8Array.from
         const bytes = Uint8Array.from(atob(data.pcm), (c) => c.charCodeAt(0));
         if (bytes.length === 0) return;
         const int16Array = new Int16Array(
@@ -133,7 +209,20 @@ export function useAudioPlayback() {
     isListening,
     levels,
     handleIncomingPcm,
+    handleIncomingBinary,
+    registerUserId,
     toggleListening,
     audioContextRef,
   };
 }
+
+/** 32-bit FNV-1a hash for userId → consistent 4-byte identifier */
+function fnv1a32(str: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+

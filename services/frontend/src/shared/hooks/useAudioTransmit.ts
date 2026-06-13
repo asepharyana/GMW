@@ -145,20 +145,13 @@ export function useAudioTransmit(socketRef: {
       for (let i = 0; i < inputData.length; i++)
         pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
 
-      // 6b: Safe loop instead of spread operator to avoid call-stack overflow
-      const bytes = new Uint8Array(pcmData.buffer);
-      let str = '';
-      for (let i = 0; i < bytes.length; i++) {
-        str += String.fromCharCode(bytes[i]);
-      }
-      const base64 = btoa(str);
-
-      socketRef.current.send(
-        JSON.stringify({
-          type: "voice_transmit",
-          buffer: base64,
-        }),
-      );
+      // Send as binary: 4-byte magic "PCM\0" + raw PCM Int16
+      const magic = new Uint8Array([0x50, 0x43, 0x4d, 0x00]); // "PCM\0"
+      const pcmBytes = new Uint8Array(pcmData.buffer);
+      const buf = new Uint8Array(magic.length + pcmBytes.length);
+      buf.set(magic, 0);
+      buf.set(pcmBytes, magic.length);
+      socketRef.current.send(buf.buffer);
     };
   }, [socketRef]);
 

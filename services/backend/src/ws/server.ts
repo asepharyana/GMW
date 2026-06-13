@@ -78,6 +78,40 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     );
 
     ws.on("message", (data: Buffer) => {
+      // Handle binary PCM from browser (FE→Discord transmit)
+      // Format: 4-byte magic "PCM\0" + raw PCM Int16 LE
+      if (
+        Buffer.isBuffer(data) &&
+        data.length > 4 &&
+        data[0] === 0x50 && // 'P'
+        data[1] === 0x43 && // 'C'
+        data[2] === 0x4d && // 'M'
+        data[3] === 0x00    // '\0'
+      ) {
+        const pcmBuffer = data.subarray(4);
+        const base64 = pcmBuffer.toString("base64");
+        import("../shared/redis/index.js").then(
+          ({ getCommandPublisher }) => {
+            const publisher = getCommandPublisher();
+            publisher
+              .publish(
+                BACKEND_VOICE_TRANSMIT,
+                JSON.stringify({
+                  type: "pcm",
+                  buffer: base64,
+                }),
+              )
+              .catch((err: Error) => {
+                logger.error(
+                  { err },
+                  "Failed to publish voice transmit to Redis",
+                );
+              });
+          },
+        );
+        return;
+      }
+
       // Handle JSON messages from browser
       if (
         typeof data === "string" ||
@@ -87,7 +121,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
           const message = JSON.parse(data.toString());
 
           if (message.type === "voice_transmit" && message.buffer) {
-            // Forward PCM data to Redis for discord-gateway
+            // Legacy: Forward PCM data to Redis for discord-gateway
             import("../shared/redis/index.js").then(
               ({ getCommandPublisher }) => {
                 const publisher = getCommandPublisher();

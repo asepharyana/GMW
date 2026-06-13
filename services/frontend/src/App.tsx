@@ -72,8 +72,7 @@ export default function App() {
   };
 
   const socket = useDashboardSocket({
-    onVoicePcmData: (d) =>
-      audio.handleIncomingPcm(d as { userId: string; pcm: string }),
+    onBinary: (d) => audio.handleIncomingBinary(d),
     onUserState: (users) =>
       setActiveSpeakers(
         (users as (ActiveSpeaker & { heardAt?: number })[]).map((u) => ({
@@ -81,17 +80,20 @@ export default function App() {
           heardAt: Date.now(),
         })),
       ),
-    onVoiceActiveUser: (data) =>
+    onVoiceActiveUser: (data) => {
+      const d = data as { userId?: string; id?: string; username: string; avatar: string; speaking: boolean };
+      if (d.userId) audio.registerUserId(d.userId);
       setActiveSpeakers((prev) =>
         updateSpeakerList(
           prev,
-          data as Partial<ActiveSpeaker> & {
+          d as Partial<ActiveSpeaker> & {
             userId?: string;
             id?: string;
             speaking: boolean;
           },
         ),
-      ),
+      );
+    },
     onVoiceRecordingStarted: () =>
       window.dispatchEvent(new CustomEvent("voice_recording_uploaded")),
     onVoiceRecordingStopped: () =>
