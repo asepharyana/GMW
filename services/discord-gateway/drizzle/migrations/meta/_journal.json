@@ -78,6 +78,13 @@
       "when": 1781390000000,
       "tag": "0010_add_reactions_and_edit_history",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781388000000,
+      "tag": "0011_add_voice_transcription",
+      "breakpoints": true
     }
   ]
 }
