@@ -1,9 +1,9 @@
 // ─── Recordings Sub-Panel ──
 
-import { Download, Mic } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Download, Mic, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import type { VoiceRecording } from "../../../shared/api/client";
-import { listRecordings } from "../../../shared/api/client";
+import { deleteRecording, listRecordings } from "../../../shared/api/client";
 import { formatBytes, formatDate } from "../../../shared/lib/utils";
 import { Badge, Button, Skeleton } from "../../../shared/ui";
 import { EmptyStateMascot } from "../../../widgets/mascot/MascotImage";
@@ -12,29 +12,50 @@ export function RecordingsSubPanel() {
   const [recordings, setRecordings] = useState<VoiceRecording[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+
+  const loadRecordings = useCallback(async (
+    opts?: { signal?: AbortSignal },
+  ) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await listRecordings();
+      if (!opts?.signal?.aborted) setRecordings(data);
+    } catch (err) {
+      if (!opts?.signal?.aborted)
+        setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (!opts?.signal?.aborted) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    async function loadRecordings() {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await listRecordings();
-        if (!cancelled) setRecordings(data);
-      } catch (err) {
-        if (!cancelled)
-          setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    loadRecordings();
+    const ab = new AbortController();
+    loadRecordings({ signal: ab.signal });
     const handler = () => loadRecordings();
     window.addEventListener("voice_recording_uploaded", handler);
     return () => {
-      cancelled = true;
+      ab.abort();
       window.removeEventListener("voice_recording_uploaded", handler);
     };
+  }, [loadRecordings]);
+
+  const handleDelete = useCallback(async (id: string) => {
+    if (!confirm("Delete this recording?")) return;
+    setDeletingIds((prev) => new Set(prev).add(id));
+    try {
+      await deleteRecording(id);
+      setRecordings((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   }, []);
 
   if (loading) {
@@ -64,7 +85,7 @@ export function RecordingsSubPanel() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => window.location.reload()}
+            onClick={() => loadRecordings()}
           >
             Retry
           </Button>
@@ -105,6 +126,15 @@ export function RecordingsSubPanel() {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={deletingIds.has(rec.id)}
+              onClick={() => handleDelete(rec.id)}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
             <Badge
               variant={
                 rec.upload_status === "uploaded"

@@ -97,10 +97,13 @@ export function useAudioTransmit(socketRef: {
       for (let i = 0; i < inputData.length; i++)
         pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
 
-      // 6b: Replace string-concatenation loop with single call
-      // 1024 samples → 2048 bytes — well within call-stack limits
+      // 6b: Safe loop instead of spread operator to avoid call-stack overflow
       const bytes = new Uint8Array(pcmData.buffer);
-      const base64 = btoa(String.fromCharCode(...bytes));
+      let str = '';
+      for (let i = 0; i < bytes.length; i++) {
+        str += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(str);
 
       socketRef.current.send(
         JSON.stringify({

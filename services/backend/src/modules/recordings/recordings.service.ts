@@ -42,6 +42,11 @@ export class RecordingsService {
 
     return rows;
   }
+
+  async deleteById(id: string): Promise<void> {
+    const db = getDatabase();
+    await db.execute(sql`DELETE FROM voice_recordings WHERE id = ${id}`);
+  }
 }
 
 export const recordingsService = new RecordingsService();

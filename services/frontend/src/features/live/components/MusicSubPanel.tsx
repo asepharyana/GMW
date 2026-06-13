@@ -1,5 +1,5 @@
-import { Music2, SkipForward, Square, Volume2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Music2, SkipForward, Square, Volume2, VolumeX } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Input } from "../../../shared/ui";
 
 interface MusicSubPanelProps {
@@ -24,16 +24,38 @@ export function MusicSubPanel({
     ? Math.max(0, Math.min(1, volume))
     : 1;
   const [draftVolume, setDraftVolume] = useState(Math.round(safeVolume * 100));
+  const [muted, setMuted] = useState(false);
+  const prevVolumeRef = useRef(safeVolume);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounced volume — poll every 200ms instead of instant send to avoid flood
+  // Proper debounce: setTimeout instead of setInterval polling
   useEffect(() => {
-    const id = setInterval(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
       const normalized = draftVolume / 100;
       if (Math.abs(normalized - safeVolume) >= 0.001)
         onVolumeChange(normalized);
     }, 200);
-    return () => clearInterval(id);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [draftVolume, safeVolume, onVolumeChange]);
+
+  const handleMute = useCallback(() => {
+    if (muted) {
+      // Unmute: restore previous volume
+      const restore = prevVolumeRef.current;
+      setDraftVolume(Math.round(restore * 100));
+      onVolumeChange(restore);
+      setMuted(false);
+    } else {
+      // Mute: save current, set to 0
+      prevVolumeRef.current = safeVolume;
+      setDraftVolume(0);
+      onVolumeChange(0);
+      setMuted(true);
+    }
+  }, [muted, safeVolume, onVolumeChange]);
 
   const submit = () => {
     const t = source.trim();
@@ -51,14 +73,23 @@ export function MusicSubPanel({
         placeholder="YouTube URL, Spotify track, or search terms"
       />
       <div className="flex items-center gap-3">
-        <Volume2 className="h-4 w-4 shrink-0 text-primary" />
+        <button
+          type="button"
+          onClick={handleMute}
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+        >
+          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+        </button>
         <input
           type="range"
           min={0}
           max={100}
           step={1}
           value={draftVolume}
-          onChange={(e) => setDraftVolume(Number(e.target.value))}
+          onChange={(e) => {
+            setDraftVolume(Number(e.target.value));
+            if (muted) setMuted(false);
+          }}
           className="h-2 w-full cursor-pointer accent-primary"
         />
         <span className="w-10 shrink-0 text-right text-sm tabular-nums text-muted-foreground">

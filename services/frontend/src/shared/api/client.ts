@@ -258,6 +258,10 @@ export function listRecordings(limit = 50): Promise<VoiceRecording[]> {
   return request<VoiceRecording[]>(`/api/recordings?limit=${limit}`);
 }
 
+export function deleteRecording(id: string): Promise<void> {
+  return request<void>(`/api/recordings/${id}`, { method: "DELETE" });
+}
+
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 export function login(password: string): Promise<{ ok: boolean }> {

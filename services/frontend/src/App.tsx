@@ -48,10 +48,43 @@ export default function App() {
     [monitorGuildId, voice.guilds],
   );
 
+  // Update speaker list from incremental voice_active_user events
+  const updateSpeakerList = (
+    prev: ActiveSpeaker[],
+    data: Partial<ActiveSpeaker> & { userId?: string; id?: string; speaking: boolean },
+  ): ActiveSpeaker[] => {
+    const key = data.userId ?? data.id;
+    if (!key) return prev;
+    const idx = prev.findIndex(
+      (s) => (s.userId ?? s.id) === key,
+    );
+    if (idx >= 0) {
+      const next = [...prev];
+      next[idx] = { ...next[idx], ...data };
+      return next;
+    }
+    return [...prev, data as ActiveSpeaker];
+  };
+
   const socket = useDashboardSocket({
     onVoicePcmData: (d) =>
       audio.handleIncomingPcm(d as { userId: string; pcm: string }),
     onUserState: (users) => setActiveSpeakers(users as ActiveSpeaker[]),
+    onVoiceActiveUser: (data) =>
+      setActiveSpeakers((prev) =>
+        updateSpeakerList(
+          prev,
+          data as Partial<ActiveSpeaker> & {
+            userId?: string;
+            id?: string;
+            speaking: boolean;
+          },
+        ),
+      ),
+    onVoiceRecordingStarted: () =>
+      window.dispatchEvent(new CustomEvent("voice_recording_uploaded")),
+    onVoiceRecordingStopped: () =>
+      window.dispatchEvent(new CustomEvent("voice_recording_uploaded")),
     onMessageCreated: (m) =>
       messages.setMessages((prev) => mergeMessages(prev, [m as MessageRecord])),
     onMessageUpdated: (m) => {

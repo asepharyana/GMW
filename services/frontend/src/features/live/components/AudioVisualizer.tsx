@@ -6,6 +6,23 @@ interface AudioVisualizerProps {
 
 export function AudioVisualizer({ levels }: AudioVisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
+    const ro = new ResizeObserver(() => {
+      const rect = container.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = 128 * dpr;
+      canvas.style.height = "128px";
+    });
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -13,15 +30,16 @@ export function AudioVisualizer({ levels }: AudioVisualizerProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.width / dpr;
+    const height = canvas.height / dpr;
 
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
 
     const barWidth = width / levels.length;
     const maxBarHeight = height * 0.85;
 
-    // IMPHNEN blue gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     gradient.addColorStop(0, "#23a1eb");
     gradient.addColorStop(1, "#3eb0f2");
@@ -34,7 +52,6 @@ export function AudioVisualizer({ levels }: AudioVisualizerProps) {
 
       ctx.fillStyle = gradient;
 
-      // More rounded bar
       const radius = barWidth * 0.4;
       ctx.beginPath();
       ctx.moveTo(x + radius, y);
@@ -49,11 +66,11 @@ export function AudioVisualizer({ levels }: AudioVisualizerProps) {
   }, [levels]);
 
   return (
-    <div className="relative w-full">
+    <div ref={containerRef} className="relative w-full">
       <canvas
         ref={canvasRef}
-        width={512}
-        height={128}
+        width={0}
+        height={0}
         className="w-full rounded-lg bg-primary/5"
         style={{ height: "128px" }}
       />

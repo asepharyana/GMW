@@ -25,5 +25,15 @@ export function createRecordingsRouter(): Router {
     }),
   );
 
+  // DELETE /api/recordings/:id
+  router.delete(
+    "/recordings/:id",
+    asyncHandler(async (req: Request, res: Response) => {
+      const { id } = req.params;
+      await recordingsService.deleteById(id);
+      res.json({ ok: true });
+    }),
+  );
+
   return router;
 }
