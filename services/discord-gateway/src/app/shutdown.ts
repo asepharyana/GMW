@@ -36,18 +36,22 @@ export function createGracefulShutdown(options: GracefulShutdownOptions) {
     try {
       options.stopMetricsServer?.();
       stopMuxerWorker();
-      options.logger.info("Closing database...");
-      await options.closeDatabase();
-      options.logger.info("Database closed");
 
+      // 1. Voice disconnect (may write final DB records)
       options.logger.info("Stopping voice connection...");
       await options.voiceController.disconnect();
 
+      // 2. Close Redis/pubsub after voice is done
       options.logger.info("Closing event broadcaster...");
       await options.eventBroadcaster.close();
 
       options.logger.info("Closing command handler...");
       await options.commandHandler.close();
+
+      // 3. DB pool LAST – voice disconnect may finalize recordings
+      options.logger.info("Closing database...");
+      await options.closeDatabase();
+      options.logger.info("Database closed");
 
       options.logger.info("Destroying Discord client...");
       try {

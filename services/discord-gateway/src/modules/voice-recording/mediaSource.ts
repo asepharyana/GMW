@@ -61,7 +61,12 @@ function parseSeconds(value: string): number {
  * Returns the parsed header and a new Readable that contains all remaining
  * data (the audio stream).
  */
-function readFirstTwoLines(stdout: Readable): Promise<{
+const MAX_HEADER_BUFFER = 65536; // 64KB safety limit for metadata headers
+
+function readFirstTwoLines(
+  stdout: Readable,
+  maxBufferSize: number = MAX_HEADER_BUFFER,
+): Promise<{
   title: string;
   duration: number;
   remaining: Readable;
@@ -82,6 +87,11 @@ function readFirstTwoLines(stdout: Readable): Promise<{
     function onData(chunk: Buffer) {
       if (stage === "done") return;
       buffer = Buffer.concat([buffer, chunk]);
+      if (buffer.length > maxBufferSize) {
+        cleanup();
+        reject(new Error(`Metadata header exceeded ${maxBufferSize} bytes`));
+        return;
+      }
       processBuffer();
     }
 
@@ -297,10 +307,15 @@ export async function extractMediaInfo(url: string): Promise<MediaInfo> {
     let stdoutBuf = "";
     let stderrBuf = "";
     const MAX_STDERR = 4096;
+    const MAX_STDOUT = 1_048_576; // 1MB safety limit
 
     if (proc.stdout) {
       proc.stdout.on("data", (chunk: Buffer) => {
-        stdoutBuf += chunk.toString("utf8");
+        if (stdoutBuf.length < MAX_STDOUT) {
+          stdoutBuf += chunk
+            .toString("utf8")
+            .slice(0, MAX_STDOUT - stdoutBuf.length);
+        }
       });
     }
 

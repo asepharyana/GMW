@@ -60,7 +60,7 @@ export async function uploadRecordingSegment(input: {
       filename: fileName,
       contentType: "audio/ogg",
       uploadUrl: config.TELE_UPLOAD_URL,
-      retries: 0,
+      retries: 3,
     });
     const downloadUrl = uploadResult.url;
 

@@ -134,10 +134,10 @@ async function processJob(
       "Processing muxer job",
     );
 
-    // Build filter: concat all inputs with a crossfade or simple concat
-    // We use amix for mixing multiple audio streams (not sequential concat)
-    const inputLabels = data.inputs.map((_, i) => `[${i}:a]`);
-    const filterComplex = `${inputLabels.join("")}amix=inputs=${data.inputs.length}:duration=first:dropout_transition=2[out]`;
+    // Sequential concat of all OGG segments (amix = simultaneous mix, wrong for this)
+    const inputLabels = data.inputs.map((_, i) => `[${i}:a:0]`);
+    const n = data.inputs.length;
+    const filterComplex = `${inputLabels.join("")}concat=n=${n}:v=0:a=1[out]`;
 
     const args = buildMuxFfmpegArgs({
       inputs: data.inputs,

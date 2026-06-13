@@ -48,7 +48,12 @@ export function runFfmpeg(args: string[]): Promise<void> {
     logger.debug({ args }, "Starting ffmpeg");
 
     const proc = spawn("ffmpeg", args, {
-      stdio: ["ignore", "inherit", "inherit"],
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stderrBuf = "";
+    proc.stderr?.on("data", (chunk: Buffer) => {
+      stderrBuf += chunk.toString("utf8");
     });
 
     proc.on("close", (code) => {
@@ -56,8 +61,9 @@ export function runFfmpeg(args: string[]): Promise<void> {
         logger.debug("ffmpeg completed successfully");
         resolve();
       } else {
-        logger.warn({ exitCode: code }, "ffmpeg exited with non-zero code");
-        reject(new Error(`ffmpeg exited with code ${code}`));
+        const detail = stderrBuf.trim().slice(0, 2000);
+        logger.warn({ exitCode: code, stderr: detail }, "ffmpeg exited with non-zero code");
+        reject(new Error(`ffmpeg exited with code ${code}: ${detail}`));
       }
     });
 
