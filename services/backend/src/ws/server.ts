@@ -2,6 +2,7 @@ import type { Server } from "node:http";
 import { BACKEND_COMMAND, BACKEND_VOICE_TRANSMIT } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import { WebSocket, WebSocketServer } from "ws";
+import { config } from "../shared/config/index.js";
 import { setBroadcastFunctions } from "./broadcast.js";
 
 const logger = createChildLogger("ws.server");
@@ -63,21 +64,49 @@ export function closeWebSocketServer(): void {
 }
 
 export function createWebSocketServer(server: Server): WebSocketServer {
-  const clients = new Set<WebSocket>();
+  // Separate tracking: gateway sends PCM → forwarded to frontend only
+  const frontendClients = new Set<WebSocket>();
+  const gatewayClients = new Set<WebSocket>();
 
   const wss = new WebSocketServer({ server, path: "/ws" });
   _wss = wss;
 
-  wss.on("connection", (ws: WebSocket) => {
-    clients.add(ws);
-    logger.info(`Client connected (${clients.size} total)`);
+  wss.on("connection", (ws: WebSocket, req) => {
+    // Parse auth token from query string
+    const rawUrl = req.url ?? "/";
+    let isGateway = false;
 
-    // Send initial states (user, ui, media) — fire-and-forget
-    sendInitialStates(ws).catch((err) =>
-      logger.error({ err }, "sendInitialStates failed"),
-    );
+    try {
+      const url = new URL(rawUrl, "http://localhost");
+      const token = url.searchParams.get("token");
+      isGateway =
+        token !== null &&
+        config.BACKEND_WS_TOKEN !== "" &&
+        token === config.BACKEND_WS_TOKEN;
+    } catch {
+      // Malformed URL — treat as frontend
+    }
+
+    if (isGateway) {
+      gatewayClients.add(ws);
+      logger.info("Discord gateway WebSocket client authenticated");
+      // Gateway doesn't need initial states
+    } else {
+      frontendClients.add(ws);
+      logger.info(`Frontend client connected (${frontendClients.size} total)`);
+      // Send initial states (user, ui, media) — fire-and-forget
+      sendInitialStates(ws).catch((err) =>
+        logger.error({ err }, "sendInitialStates failed"),
+      );
+    }
 
     ws.on("message", (data: Buffer) => {
+      // Gateway PCM forward — broadcast raw binary to frontend clients only
+      if (isGateway && Buffer.isBuffer(data)) {
+        broadcastBinaryToFrontend(data);
+        return;
+      }
+
       // Handle binary PCM from browser (FE→Discord transmit)
       // Format: 4-byte magic "PCM\0" + raw PCM Int16 LE
       if (
@@ -173,20 +202,31 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     });
 
     ws.on("close", () => {
-      clients.delete(ws);
-      logger.info(`Client disconnected (${clients.size} total)`);
+      if (isGateway) {
+        gatewayClients.delete(ws);
+        logger.info("Discord gateway WebSocket disconnected");
+      } else {
+        frontendClients.delete(ws);
+        logger.info(
+          `Frontend client disconnected (${frontendClients.size} total)`,
+        );
+      }
     });
 
     ws.on("error", (err: Error) => {
       logger.error({ err }, "WebSocket client error");
-      clients.delete(ws);
+      if (isGateway) {
+        gatewayClients.delete(ws);
+      } else {
+        frontendClients.delete(ws);
+      }
     });
   });
 
-  // Heartbeat every 30s
+  // Heartbeat every 30s — frontend clients only
   const heartbeatInterval = setInterval(() => {
     const message = JSON.stringify({ type: "heartbeat" });
-    for (const client of clients) {
+    for (const client of frontendClients) {
       if (client.readyState === WebSocket.OPEN) {
         client.send(message);
       }
@@ -196,13 +236,29 @@ export function createWebSocketServer(server: Server): WebSocketServer {
   // Don't let the interval keep the process alive after wss closes
   heartbeatInterval.unref();
 
-  // Defines broadcast functions and injects them via setBroadcastFunctions
+  // Forward gateway binary to frontend clients (no loopback to gateway)
+  function broadcastBinaryToFrontend(data: Buffer) {
+    for (const client of frontendClients) {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(data);
+        } catch (err) {
+          logger.error(
+            { err },
+            "Failed to send binary to frontend client",
+          );
+        }
+      }
+    }
+  }
+
+  // JSON event broadcast — frontend clients only
   function broadcast(event: Omit<BroadcastEvent, "timestamp">) {
     const payload = JSON.stringify({
       ...event,
       timestamp: new Date().toISOString(),
     });
-    for (const client of clients) {
+    for (const client of frontendClients) {
       if (client.readyState === WebSocket.OPEN) {
         try {
           client.send(payload);
@@ -214,7 +270,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
   }
 
   function broadcastBinary(data: Buffer) {
-    for (const client of clients) {
+    for (const client of frontendClients) {
       if (client.readyState === WebSocket.OPEN) {
         try {
           client.send(data);
