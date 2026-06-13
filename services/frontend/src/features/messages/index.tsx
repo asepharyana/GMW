@@ -29,7 +29,7 @@ interface MessagesPanelProps {
   loadingMore?: boolean;
 }
 
-type AiFilter = "all" | "clean" | "flagged" | "error" | "pending";
+type AiFilter = "all" | "analyzed" | "clean" | "flagged" | "error" | "pending";
 
 export function MessagesPanel({
   guildName,
@@ -44,7 +44,7 @@ export function MessagesPanel({
   const [searchResults, setSearchResults] = useState<MessageRecord[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [aiFilter, setAiFilter] = useState<AiFilter>("all");
+  const [aiFilter, setAiFilter] = useState<AiFilter>("analyzed");
   const [viewTab, setViewTab] = useState<"all" | "images">("all");
   const [retryingAll, setRetryingAll] = useState(false);
   const [retriedCount, setRetriedCount] = useState<number | null>(null);
@@ -89,6 +89,8 @@ export function MessagesPanel({
     if (aiFilter === "all") return base;
     return base.filter((m) => {
       const status = m.ai_status ?? "pending";
+      if (aiFilter === "analyzed")
+        return status !== "pending" && status !== null && status !== undefined;
       if (aiFilter === "pending")
         return status === "pending" || status === null || status === undefined;
       return status === aiFilter;
@@ -240,7 +242,7 @@ export function MessagesPanel({
         )}
         <div className="ml-auto flex items-center gap-1.5">
           <Filter className="h-4 w-4 text-primary" />
-          {(["all", "clean", "flagged", "error", "pending"] as AiFilter[]).map(
+          {(["all", "analyzed", "clean", "flagged", "error", "pending"] as AiFilter[]).map(
             (f) => (
               <button
                 key={f}
