@@ -19,6 +19,9 @@ export class DiscordPlayer {
   private owner: DiscordPlayerOwner = "none";
   private resource: AudioResource | null = null;
   private musicVolume = 1;
+  private idleCallback: (() => void) | null = null;
+  /** Set before manual stop() calls to distinguish from natural track end. */
+  private manualStop = false;
 
   constructor() {
     this.player = createAudioPlayer();
@@ -27,11 +30,29 @@ export class DiscordPlayer {
       logger.info("Audio player is now playing!");
     });
 
+    this.player.on(AudioPlayerStatus.Idle, () => {
+      // manualStop guards against both sync & async idle emission from stop()
+      if (this.manualStop || this.owner === "none") {
+        this.manualStop = false;
+        return;
+      }
+      // Natural track end — queue auto-advance
+      logger.info("Audio player finished — advancing queue");
+      this.owner = "none";
+      this.resource = null;
+      this.idleCallback?.();
+    });
+
     this.player.on("error", (error) => {
       logger.error({ error: error.message }, "Audio player error");
       this.owner = "none";
       this.resource = null;
     });
+  }
+
+  /** Register a callback fired when the player goes idle after a natural track end. */
+  public onIdle(cb: () => void): void {
+    this.idleCallback = cb;
   }
 
   public setConnection(connection: VoiceConnection) {
@@ -64,6 +85,7 @@ export class DiscordPlayer {
     });
 
     if (this.owner === owner) {
+      this.manualStop = true;
       this.player.stop();
     }
     this.resource = resource;
@@ -97,6 +119,7 @@ export class DiscordPlayer {
 
   public stop(owner?: DiscordPlayerOwner) {
     if (!this.canControl(owner)) return;
+    this.manualStop = true;
     this.player.stop();
     this.owner = "none";
     this.resource = null;
