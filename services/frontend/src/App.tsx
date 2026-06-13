@@ -19,6 +19,7 @@ import {
 import { useAudioPlayback } from "./shared/hooks/useAudioPlayback";
 import { useAudioTransmit } from "./shared/hooks/useAudioTransmit";
 import { useUIState } from "./shared/hooks/useUIState";
+import { createLogger } from "./shared/lib/logger.js";
 import { MobileTabBar } from "./shared/ui/MobileTabBar";
 import { useDashboardSocket } from "./shared/ws/socket";
 import { DashboardLayout } from "./widgets/DashboardLayout";
@@ -28,7 +29,10 @@ export default function App() {
   const voice = useVoiceControl();
   const media = useMediaControl();
   const messages = useMessages();
-  const [activeSpeakers, setActiveSpeakers] = useState<ActiveSpeaker[]>([]);
+  const [activeSpeakers, setActiveSpeakers] = useState<
+    (ActiveSpeaker & { heardAt?: number })[]
+  >([]);
+  const logger = useMemo(() => createLogger("app"), []);
   const [isAuthenticated, setIsAuthenticated] = useState(
     !!localStorage.getItem("admin-password"),
   );
@@ -50,26 +54,33 @@ export default function App() {
 
   // Update speaker list from incremental voice_active_user events
   const updateSpeakerList = (
-    prev: ActiveSpeaker[],
+    prev: (ActiveSpeaker & { heardAt?: number })[],
     data: Partial<ActiveSpeaker> & { userId?: string; id?: string; speaking: boolean },
-  ): ActiveSpeaker[] => {
+  ): (ActiveSpeaker & { heardAt?: number })[] => {
     const key = data.userId ?? data.id;
     if (!key) return prev;
+    const now = Date.now();
     const idx = prev.findIndex(
       (s) => (s.userId ?? s.id) === key,
     );
     if (idx >= 0) {
       const next = [...prev];
-      next[idx] = { ...next[idx], ...data };
+      next[idx] = { ...next[idx], ...data, heardAt: now };
       return next;
     }
-    return [...prev, data as ActiveSpeaker];
+    return [...prev, { ...data, heardAt: now } as ActiveSpeaker & { heardAt?: number }];
   };
 
   const socket = useDashboardSocket({
     onVoicePcmData: (d) =>
       audio.handleIncomingPcm(d as { userId: string; pcm: string }),
-    onUserState: (users) => setActiveSpeakers(users as ActiveSpeaker[]),
+    onUserState: (users) =>
+      setActiveSpeakers(
+        (users as (ActiveSpeaker & { heardAt?: number })[]).map((u) => ({
+          ...u,
+          heardAt: Date.now(),
+        })),
+      ),
     onVoiceActiveUser: (data) =>
       setActiveSpeakers((prev) =>
         updateSpeakerList(
@@ -166,6 +177,20 @@ export default function App() {
     }, 15_000);
     return () => clearInterval(interval);
   }, [monitorGuildId, messages.fetchMessages]);
+
+  // Stale speaker pruning — remove speakers not heard from in 30s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveSpeakers((prev) => {
+        const now = Date.now();
+        const pruned = prev.filter(
+          (s) => s.speaking || (s.heardAt && now - s.heardAt < 30_000),
+        );
+        return pruned.length < prev.length ? pruned : prev;
+      });
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <DashboardLayout
