@@ -185,5 +185,20 @@ export function stopRecording(guildId: string): void {
     logger.warn("No active connection to stop");
   }
 
+  const session = activeSessions.get(guildId);
   finalizeActiveRecordingSession(guildId);
+
+  // Broadcast voice_recording_stopped event
+  if (session && _eventBroadcaster) {
+    const snapshot = session.snapshot(Date.now());
+    _eventBroadcaster.voiceRecordingStopped({
+      guild_id: guildId,
+      session_id: session.sessionId,
+      duration_ms: snapshot.durationMs,
+      participants: snapshot.participants.length,
+      segment_count: snapshot.segments.length,
+      status: snapshot.status,
+      stopped_at: Date.now(),
+    }).catch(() => {});
+  }
 }
