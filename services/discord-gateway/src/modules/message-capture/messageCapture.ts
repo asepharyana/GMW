@@ -81,6 +81,27 @@ function getTextCaptureTarget(): TextCaptureTarget {
   };
 }
 
+function getTextCaptureTargets(): TextCaptureTarget[] {
+  const { EFFECTIVE_MONITOR_GUILD_IDS, TEXT_CHANNEL_ID } = config as any;
+  if (EFFECTIVE_MONITOR_GUILD_IDS?.length) {
+    if (TEXT_CHANNEL_ID) {
+      return EFFECTIVE_MONITOR_GUILD_IDS.map((guildId: string) => ({ guildId, channelId: TEXT_CHANNEL_ID }));
+    }
+    return EFFECTIVE_MONITOR_GUILD_IDS.map((guildId: string) => ({ guildId }));
+  }
+  // Fallback
+  const target = getTextCaptureTarget();
+  return target.guildId ? [target] : [];
+}
+
+function shouldCaptureForAnyTarget(
+  message: MessageLocationInput,
+  targets: TextCaptureTarget[],
+): boolean {
+  if (targets.length === 0) return false;
+  return targets.some((target) => shouldCaptureMessageLocation(message, target));
+}
+
 function requireMessageGuildId(message: Message): string {
   if (!message.guildId) {
     throw new Error(`Message ${message.id} is missing guildId`);
@@ -250,8 +271,10 @@ export async function captureMessage(
 }
 
 export function registerMessageCapture(client: Client): void {
+  const targets = getTextCaptureTargets();
+
   client.on("messageCreate", async (message) => {
-    if (!shouldCaptureMessageLocation(message, getTextCaptureTarget())) return;
+    if (!shouldCaptureForAnyTarget(message, targets)) return;
     if (message.author?.bot) return;
     if (isAgeRestrictedMessage(message)) return;
 
@@ -269,7 +292,7 @@ export function registerMessageCapture(client: Client): void {
   });
 
   client.on("messageUpdate", async (_oldMessage, newMessage) => {
-    if (!shouldCaptureMessageLocation(newMessage, getTextCaptureTarget()))
+    if (!shouldCaptureForAnyTarget(newMessage, targets))
       return;
     if (newMessage.author?.bot) return;
     if (isAgeRestrictedMessage(newMessage as Message)) return;
@@ -332,7 +355,7 @@ export function registerMessageCapture(client: Client): void {
   });
 
   client.on("messageDelete", async (message) => {
-    if (!shouldCaptureMessageLocation(message, getTextCaptureTarget())) return;
+    if (!shouldCaptureForAnyTarget(message, targets)) return;
     if (!message.author) return;
 
     try {
