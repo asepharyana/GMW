@@ -28,7 +28,9 @@ import {
   stopMuxerWorker,
 } from "../modules/voice-recording/muxer.js";
 import { setEventBroadcaster as setRecorderEventBroadcaster } from "../modules/voice-recording/recorder.js";
+import { setPcmWsClient } from "../modules/voice-recording/recorder.js";
 import { VoiceController } from "../modules/voice-recording/voiceController.js";
+import { VoicePcmWsClient } from "../modules/voice-pcm-ws/index.js";
 import { config } from "../shared/config/config.js";
 import {
   closeDatabase,
@@ -218,6 +220,27 @@ export async function initializeDiscordGateway() {
   // Initialize Redis command handler for backend→gateway commands
   const commandHandler = new CommandHandler();
 
+  // Initialize Voice PCM WebSocket client (bypasses Redis for real-time audio)
+  let pcmWsClient: VoicePcmWsClient | undefined;
+  if (config.VOICE_PCM_WS_ENABLED && config.BACKEND_WS_TOKEN) {
+    pcmWsClient = new VoicePcmWsClient(
+      config.BACKEND_WS_URL,
+      config.BACKEND_WS_TOKEN,
+    );
+    pcmWsClient.connect();
+    setPcmWsClient(pcmWsClient);
+    logger.info(
+      { url: config.BACKEND_WS_URL },
+      "Voice PCM WS client enabled",
+    );
+  } else if (config.VOICE_PCM_WS_ENABLED && !config.BACKEND_WS_TOKEN) {
+    logger.warn(
+      "VOICE_PCM_WS_ENABLED=true but BACKEND_WS_TOKEN is empty — falling back to Redis for PCM",
+    );
+  } else {
+    logger.info("Voice PCM WS disabled — using Redis for PCM");
+  }
+
   const gracefulShutdown = createGracefulShutdown({
     logger,
     closeDatabase,
@@ -226,6 +249,7 @@ export async function initializeDiscordGateway() {
     eventBroadcaster,
     commandHandler,
     stopMetricsServer,
+    pcmWsClient,
   });
 
   try {

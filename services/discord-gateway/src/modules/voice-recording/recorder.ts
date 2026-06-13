@@ -12,6 +12,7 @@ import {
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
 import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";
+import type { VoicePcmWsClient } from "../voice-pcm-ws/index.js";
 import {
   createRecordingSession,
   type RecordingSession,
@@ -28,6 +29,12 @@ export { _eventBroadcaster };
 
 export function setEventBroadcaster(broadcaster: EventBroadcaster | undefined) {
   _eventBroadcaster = broadcaster;
+}
+
+let _pcmWsClient: VoicePcmWsClient | undefined;
+
+export function setPcmWsClient(client: VoicePcmWsClient | undefined) {
+  _pcmWsClient = client;
 }
 
 const recordingsDir = config.RECORDINGS_DIR;
@@ -133,6 +140,9 @@ export async function startRecording(
     eventBroadcaster: _eventBroadcaster,
     activeSessions,
     recordingsDir,
+    pcmSender: _pcmWsClient
+      ? (pcm, userId) => _pcmWsClient.sendPcm(userId, pcm)
+      : undefined,
   });
 
   receiver.speaking.on("start", speakingHandler);

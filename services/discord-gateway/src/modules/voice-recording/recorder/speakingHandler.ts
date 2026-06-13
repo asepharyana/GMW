@@ -17,6 +17,8 @@ export interface SpeakingHandlerContext {
   eventBroadcaster: EventBroadcaster | undefined;
   activeSessions: Map<string, RecordingSession>;
   recordingsDir: string;
+  /** Direct WS sender for real-time PCM — takes priority over Redis if set. */
+  pcmSender?: (pcm: Buffer, userId: string) => void;
 }
 
 /**
@@ -40,6 +42,7 @@ export function createSpeakingHandler(
     eventBroadcaster,
     activeSessions,
     recordingsDir,
+    pcmSender,
   } = ctx;
 
   return async (userId: string) => {
@@ -81,7 +84,11 @@ export function createSpeakingHandler(
           receiver,
           userDir,
           onPcmData: (pcm) => {
-            eventBroadcaster?.voicePcmData(pcm, userId);
+            if (pcmSender) {
+              pcmSender(pcm, userId);
+            } else {
+              eventBroadcaster?.voicePcmData(pcm, userId);
+            }
           },
         });
 
