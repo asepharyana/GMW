@@ -4,7 +4,6 @@ import {
   COMMAND_VOICE_CHANNELS,
   COMMAND_VOICE_CONNECT,
   COMMAND_VOICE_DISCONNECT,
-  COMMAND_VOICE_DISCONNECT_GUILD,
   CommandReply,
   VOICE_STATUS_KEY,
 } from "@bete/shared";
@@ -168,17 +167,3 @@ export async function disconnectVoice(): Promise<VoiceStatus> {
   );
 }
 
-/**
- * Disconnect from a specific guild's voice channel.
- */
-export async function disconnectVoiceGuild(
-  guildId: string,
-): Promise<VoiceStatus> {
-  logger.info({ guildId }, "disconnectVoiceGuild called");
-  return withFallback(
-    () =>
-      publishCommand<VoiceStatus>(COMMAND_VOICE_DISCONNECT_GUILD, { guildId }),
-    () => readVoiceStatusFallback(),
-    "disconnectVoiceGuild",
-  );
-}
