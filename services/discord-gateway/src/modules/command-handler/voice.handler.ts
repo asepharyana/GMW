@@ -1,7 +1,7 @@
 import { type CommandMessage, type CommandReply } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import type { Client } from "discord.js-selfbot-v13";
-import Redis from "ioredis";
+import type Redis from "ioredis";
 import { config } from "../../shared/config/config.js";
 import { discordPlayer } from "../voice-recording/player.js";
 import { voiceTransmitter } from "../voice-recording/transmitter.js";
@@ -17,6 +17,7 @@ export class VoiceHandler {
   constructor(
     private client: Client | null,
     private voiceController: VoiceController | null,
+    private sharedRedis: Redis | null = null,
   ) {}
 
   setClient(client: Client): void {
@@ -124,8 +125,8 @@ export class VoiceHandler {
     }
 
     try {
-      // Create a new Redis connection for the transmitter
-      const transmitRedis = new Redis(config.REDIS_URL);
+      // Reuse shared Redis connection from CommandHandler
+      const transmitRedis = this.sharedRedis ?? new (await import("ioredis")).default(config.REDIS_URL);
       await voiceTransmitter.start(transmitRedis);
 
       const status = voiceTransmitter.getStatus();
