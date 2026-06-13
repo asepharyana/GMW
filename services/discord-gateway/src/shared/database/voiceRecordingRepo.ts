@@ -40,11 +40,21 @@ export async function insertVoiceRecording(
       .values(recording)
       .onConflictDoNothing();
   } catch (error) {
+    const detail =
+      error instanceof Error
+        ? {
+            message: error.message,
+            name: error.name,
+            ...((error as Record<string, unknown>).code !== undefined
+              ? { code: (error as Record<string, unknown>).code }
+              : {}),
+            ...((error as Record<string, unknown>).detail !== undefined
+              ? { detail: (error as Record<string, unknown>).detail }
+              : {}),
+          }
+        : String(error);
     logger.error(
-      {
-        id: recording.id,
-        error: error instanceof Error ? error.message : String(error),
-      },
+      { id: recording.id, error: detail },
       "Failed to insert voice recording",
     );
     throw error;
