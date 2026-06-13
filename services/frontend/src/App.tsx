@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { AuthOverlay } from "./features/auth";
 import { DashboardPanel } from "./features/dashboard";
 import { LivePanel } from "./features/live";
 import { useMediaControl } from "./features/live/hooks/useMediaControl";
@@ -19,7 +18,6 @@ import {
 import { useAudioPlayback } from "./shared/hooks/useAudioPlayback";
 import { useAudioTransmit } from "./shared/hooks/useAudioTransmit";
 import { useUIState } from "./shared/hooks/useUIState";
-import { createLogger } from "./shared/lib/logger.js";
 import { MobileTabBar } from "./shared/ui/MobileTabBar";
 import { useDashboardSocket } from "./shared/ws/socket";
 import { DashboardLayout } from "./widgets/DashboardLayout";
@@ -32,10 +30,6 @@ export default function App() {
   const [activeSpeakers, setActiveSpeakers] = useState<
     (ActiveSpeaker & { heardAt?: number })[]
   >([]);
-  const logger = useMemo(() => createLogger("app"), []);
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    !!localStorage.getItem("admin-password"),
-  );
   const [monitorGuildId, setMonitorGuildId] = useState("");
 
   const audio = useAudioPlayback();
@@ -229,49 +223,40 @@ export default function App() {
       }
     >
       {activeTab === "live" ? (
-        !isAuthenticated ? (
-          <AuthOverlay onAuthenticated={() => setIsAuthenticated(true)} />
-        ) : (
-          <LivePanel
-            guilds={voice.guilds}
-            voiceChannels={voice.voiceChannels}
-            selectedGuild={selectedVoiceGuild}
-            selectedChannel={uiState.selectedVoiceChannel || ""}
-            status={voice.voiceStatus}
-            voiceLoading={voice.loading}
-            activeSpeakers={activeSpeakers}
-            levels={audio.levels}
-            isListening={audio.isListening}
-            isStreaming={transmit.isStreaming}
-            micLevel={transmit.micLevel}
-            mediaState={media.mediaState}
-            mediaLoading={media.loading}
-            onGuildChange={(id) =>
-              patchUIState({ selectedVoiceGuild: id, selectedVoiceChannel: "" })
-            }
-            onChannelChange={(id) => patchUIState({ selectedVoiceChannel: id })}
-            onJoin={() =>
-              voice.joinVoice(
-                selectedVoiceGuild,
-                uiState.selectedVoiceChannel || "",
-              )
-            }
-            onDisconnect={() => voice.leaveVoice()}
-            onListenToggle={audio.toggleListening}
-            onStreamingToggle={transmit.toggle}
-            onQueueMusic={(s) => media.enqueue(s, "music")}
-            onStartScreen={(s) => media.enqueue(s, "screen")}
-            onSkip={media.skip}
-            onStop={media.stop}
-            onVolumeChange={media.setVolume}
-          />
-        )
+        <LivePanel
+          guilds={voice.guilds}
+          voiceChannels={voice.voiceChannels}
+          selectedGuild={selectedVoiceGuild}
+          selectedChannel={uiState.selectedVoiceChannel || ""}
+          status={voice.voiceStatus}
+          voiceLoading={voice.loading}
+          activeSpeakers={activeSpeakers}
+          levels={audio.levels}
+          isListening={audio.isListening}
+          isStreaming={transmit.isStreaming}
+          mediaState={media.mediaState}
+          mediaLoading={media.loading}
+          onGuildChange={(id) =>
+            patchUIState({ selectedVoiceGuild: id, selectedVoiceChannel: "" })
+          }
+          onChannelChange={(id) => patchUIState({ selectedVoiceChannel: id })}
+          onJoin={() =>
+            voice.joinVoice(
+              selectedVoiceGuild,
+              uiState.selectedVoiceChannel || "",
+            )
+          }
+          onDisconnect={() => voice.leaveVoice()}
+          onListenToggle={audio.toggleListening}
+          onStreamingToggle={transmit.toggle}
+          onQueueMusic={(s) => media.enqueue(s, "music")}
+          onStartScreen={(s) => media.enqueue(s, "screen")}
+          onSkip={media.skip}
+          onStop={media.stop}
+          onVolumeChange={media.setVolume}
+        />
       ) : activeTab === "dashboard" ? (
-        !isAuthenticated ? (
-          <AuthOverlay onAuthenticated={() => setIsAuthenticated(true)} />
-        ) : (
-          <DashboardPanel />
-        )
+        <DashboardPanel />
       ) : (
         <MessagesPanel
           guildName={monitorGuildName}
