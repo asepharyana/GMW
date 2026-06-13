@@ -15,6 +15,7 @@ import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js"
 import {
   createRecordingSession,
   type RecordingSession,
+  type SessionRecordingMetadata,
 } from "./recorder/sessionRecording.js";
 import { createSpeakingHandler } from "./recorder/speakingHandler.js";
 
@@ -188,9 +189,11 @@ export function stopRecording(guildId: string): void {
   const session = activeSessions.get(guildId);
   finalizeActiveRecordingSession(guildId);
 
-  // Broadcast voice_recording_stopped event
+  // Broadcast voice_recording_stopped + finalize session
   if (session && _eventBroadcaster) {
     const snapshot = session.snapshot(Date.now());
+    const stoppedAt = Date.now();
+
     _eventBroadcaster.voiceRecordingStopped({
       guild_id: guildId,
       session_id: session.sessionId,
@@ -198,7 +201,22 @@ export function stopRecording(guildId: string): void {
       participants: snapshot.participants.length,
       segment_count: snapshot.segments.length,
       status: snapshot.status,
-      stopped_at: Date.now(),
+      stopped_at: stoppedAt,
     }).catch(() => {});
+
+    // Auto-enqueue muxer job if there are multiple segments
+    const segments = snapshot.segments;
+    if (segments.length >= 2) {
+      const outputFile = `${config.RECORDINGS_DIR}/merged/${session.sessionId}.ogg`;
+      import("./muxer.js").then(({ enqueueMuxerJob }) => {
+        enqueueMuxerJob({
+          inputs: segments.map((s) => s.oggPath),
+          output: outputFile,
+          guildId,
+          channelId: snapshot.channelId,
+          sessionId: session.sessionId,
+        }).catch(() => {});
+      }).catch(() => {});
+    }
   }
 }
