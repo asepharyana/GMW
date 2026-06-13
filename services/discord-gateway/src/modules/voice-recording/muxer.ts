@@ -9,7 +9,7 @@ import { buildMuxFfmpegArgs, runFfmpeg } from "./ffmpegProcess.js";
 
 const logger = createChildLogger("muxer");
 
-// ─── Types ───────────────────────────────────────────────────────────────
+// ─── Types ─────────────────────────────────────────────────────────────────────────────
 
 export interface MuxerJobData {
   inputs: string[];
