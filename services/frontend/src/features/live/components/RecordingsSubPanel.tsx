@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import type { VoiceRecording } from "../../../shared/api/client";
 import { listRecordings } from "../../../shared/api/client";
 import { formatBytes, formatDate } from "../../../shared/lib/utils";
-import { Badge, Button, EmptyStateMascot, Skeleton } from "../../../shared/ui";
+import { Badge, Button, Skeleton } from "../../../shared/ui";
+import { EmptyStateMascot } from "../../../widgets/mascot/MascotImage";
 
 export function RecordingsSubPanel() {
   const [recordings, setRecordings] = useState<VoiceRecording[]>([]);

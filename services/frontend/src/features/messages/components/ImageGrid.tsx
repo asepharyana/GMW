@@ -1,6 +1,6 @@
 import { parseMetadata } from "../../../entities/message/types";
 import type { MessageRecord } from "../../../shared/api/client";
-import { EmptyStateMascot } from "../../../shared/ui";
+import { EmptyStateMascot } from "../../../widgets/mascot/MascotImage";
 
 interface ImageItem {
   url: string;
@@ -75,7 +75,7 @@ export function ImageGrid({ messages }: { messages: MessageRecord[] }) {
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {images.map((image, index) => {
         // Stable key using message.id + url
-        const stableKey = `${image.message.id}-${image.kind}-${index}`;
+        const stableKey = `${image.message.id}-${image.kind}-${image.url}`;
         return (
           <a
             key={stableKey}

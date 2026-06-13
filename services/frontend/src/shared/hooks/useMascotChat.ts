@@ -1,9 +1,9 @@
 import { useCallback, useState } from "react";
 import type { ChatResponse } from "../api/client";
 import { request } from "../api/client";
-import { createChildLogger } from "../logger";
+import { createLogger } from "../lib/logger";
 
-const logger = createChildLogger("useMascotChat");
+const logger = createLogger("useMascotChat");
 
 export interface ChatContext {
   messageCount: number;

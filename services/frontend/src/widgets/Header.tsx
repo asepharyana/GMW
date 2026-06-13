@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Wifi, WifiOff } from "lucide-react";
-import type { DashboardTab } from "../entities/ui/types";
+import type { DashboardTab } from "../shared/api/client";
 import type { VoiceStatus } from "../shared/api/client";
 import { fadeSlideUp } from "../shared/hooks/useFramerStagger";
 import { cn } from "../shared/lib/utils";

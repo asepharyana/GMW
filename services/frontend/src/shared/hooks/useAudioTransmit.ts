@@ -1,10 +1,10 @@
 // ─── Audio transmit hook — captures mic, encodes to PCM, sends via WebSocket ──
 import { useCallback, useRef, useState } from "react";
 import { getAPIURL } from "../api/client.js";
-import { createChildLogger } from "../logger.js";
+import { createLogger } from "../lib/logger";
 
 const SAMPLE_RATE = 24000;
-const logger = createChildLogger("useAudioTransmit");
+const logger = createLogger("useAudioTransmit");
 
 async function sendTransmitCommand(command: string): Promise<void> {
   // Send via HTTP API (kept as exported function for backward compatibility)

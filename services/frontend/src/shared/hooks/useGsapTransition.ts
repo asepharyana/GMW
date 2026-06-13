@@ -99,7 +99,7 @@ export function useGsapTransition(tabKey: string) {
   return { pageRef, animateIn, animateOut };
 }
 
-export function gsapCardHover() {
+function gsapCardHover() {
   return {
     onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
       gsap.to(e.currentTarget, {

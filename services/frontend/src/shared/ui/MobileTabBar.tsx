@@ -1,5 +1,5 @@
 import { LayoutDashboard, MessageSquare, Radio } from "lucide-react";
-import type { DashboardTab } from "../../entities/ui/types";
+import type { DashboardTab } from "../api/client";
 import { cn } from "../lib/utils";
 
 const tabs: Array<{ id: DashboardTab; label: string; Icon: typeof Radio }> = [

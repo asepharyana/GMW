@@ -1,5 +1,6 @@
 import type { ActiveSpeaker } from "../../../shared/api/client";
-import { EmptyStateMascot, Skeleton } from "../../../shared/ui";
+import { Skeleton } from "../../../shared/ui";
+import { EmptyStateMascot } from "../../../widgets/mascot/MascotImage";
 
 interface ActiveSpeakersProps {
   speakers: ActiveSpeaker[];
@@ -38,7 +39,7 @@ export function ActiveSpeakers({ speakers }: ActiveSpeakersProps) {
   );
 }
 
-export function ActiveSpeakersSkeleton() {
+function ActiveSpeakersSkeleton() {
   return (
     <div className="space-y-2">
       {[1, 2, 3].map((i) => (

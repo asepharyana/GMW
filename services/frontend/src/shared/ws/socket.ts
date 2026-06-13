@@ -209,4 +209,3 @@ export function useDashboardSocket(handlers: WsHandlers) {
 }
 
 // Alias for backward compatibility
-export { useDashboardSocket as useWsSocket };

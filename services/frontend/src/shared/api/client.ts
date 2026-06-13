@@ -6,7 +6,6 @@ import { createLogger } from "../lib/logger.js";
 const logger = createLogger("api");
 
 const BE_API_URL = import.meta.env.VITE_BE_API_URL || "http://localhost:3001";
-const BE_WS_URL = import.meta.env.VITE_BE_WS_URL || "ws://localhost:3001";
 
 class ApiError extends Error {
   code: string;
@@ -50,10 +49,6 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const result = (await res.json()) as T;
   logger.debug("Response", { url, status: res.status });
   return result;
-}
-
-export function getWebSocketURL(): string {
-  return BE_WS_URL;
 }
 
 export function getAPIURL(): string {

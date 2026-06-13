@@ -2,7 +2,8 @@ import { motion } from "framer-motion";
 import { useEffect, useMemo, useRef } from "react";
 import type { MessageRecord } from "../../../shared/api/client";
 import { cardItem, cardStagger } from "../../../shared/hooks/useFramerStagger";
-import { EmptyStateMascot, ScrollArea } from "../../../shared/ui";
+import { ScrollArea } from "../../../shared/ui";
+import { EmptyStateMascot } from "../../../widgets/mascot/MascotImage";
 import { MessageCard, MessageCardSkeleton } from "./MessageCard";
 
 export interface MessageFeedProps {
