@@ -54,15 +54,16 @@ export function createSpeakingHandler(
       "Voice activity detected",
     );
 
+    // Skip if user already has an active stream subscription
+    // (check BEFORE broadcast to avoid false positive events)
+    if (receiver.subscriptions.has(userId)) return;
+
     // Notify webserver / WebSocket clients
     eventBroadcaster?.voiceActiveUser(userId, {
       username: userMetadata.username,
       avatar: userMetadata.avatarUrl,
       speaking: true,
     });
-
-    // Skip if user already has an active stream subscription
-    if (receiver.subscriptions.has(userId)) return;
 
     // Ensure per-user recording directory
     const userDir = path.join(recordingsDir, userId);

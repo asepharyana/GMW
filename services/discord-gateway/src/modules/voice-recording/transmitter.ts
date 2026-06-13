@@ -21,6 +21,9 @@ export class VoiceTransmitter {
   private ffmpegProcess: ReturnType<typeof spawn> | null = null;
   private isActive = false;
   private readonly TRANSMIT_CHANNEL = BACKEND_VOICE_TRANSMIT;
+  /** Queue for PCM chunks when backpressure is active */
+  private backpressureQueue: Buffer[] = [];
+  private draining = false;
 
   /**
    * Start listening for PCM audio data from Redis and stream to Discord
@@ -130,8 +133,19 @@ export class VoiceTransmitter {
         const data = JSON.parse(message);
         if (data.type === "pcm" && data.buffer) {
           const pcmBuffer = Buffer.from(data.buffer, "base64");
-          logger.debug({ bytes: pcmBuffer.length }, "Received PCM chunk");
-          this.pcmStream.write(pcmBuffer);
+          const canContinue = this.pcmStream.write(pcmBuffer);
+          // Backpressure: queue until drain
+          if (!canContinue) {
+            this.draining = true;
+            this.pcmStream.once("drain", () => {
+              this.draining = false;
+              // Flush queued chunks
+              while (this.backpressureQueue.length > 0) {
+                const queued = this.backpressureQueue.shift()!;
+                if (!this.pcmStream.write(queued)) break;
+              }
+            });
+          }
         }
       } catch (err) {
         logger.error({ error: err }, "Failed to process PCM data");
@@ -149,6 +163,9 @@ export class VoiceTransmitter {
     if (!this.isActive) return;
 
     this.isActive = false;
+
+    this.backpressureQueue = [];
+    this.draining = false;
 
     if (this.pcmStream) {
       this.pcmStream.end();

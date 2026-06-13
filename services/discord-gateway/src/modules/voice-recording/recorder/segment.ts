@@ -13,10 +13,14 @@ import type { RecordingSession } from "./sessionRecording.js";
 import { uploadRecordingSegment } from "./uploader.js";
 
 // ---------------------------------------------------------------------------
-// Logger
+// Logger & metadata cache
 // ---------------------------------------------------------------------------
 
 const logger = createChildLogger("voice-segment");
+
+/** LRU-ish cache: userId -> UserMetadata. Avoids Discord API calls in hotpath. */
+const metadataCache = new Map<string, UserMetadata>();
+const METADATA_CACHE_MAX = 200;
 
 // ---------------------------------------------------------------------------
 // collectUserMetadata (was metadata.ts)
@@ -27,7 +31,8 @@ export async function collectUserMetadata(
   userId: string,
   channel: VoiceChannel,
 ): Promise<UserMetadata> {
-  logger.debug({ userId }, "Collecting user metadata");
+  const cached = metadataCache.get(userId);
+  if (cached) return cached;
 
   const user =
     client.users.cache.get(userId) ||
@@ -52,7 +57,7 @@ export async function collectUserMetadata(
         position: role.position,
       })) ?? [];
 
-  return {
+  const result: UserMetadata = {
     userId,
     username,
     tag: user?.tag ?? "Unknown#0000",
@@ -76,7 +81,9 @@ export async function collectUserMetadata(
     highestRole: roles[0] ?? null,
     joinedTimestamp: member?.joinedTimestamp ?? null,
   };
-}
+
+  cacheMetadata(userId, result);
+  return result;
 
 // ---------------------------------------------------------------------------
 // Path helpers (was segment.ts)
