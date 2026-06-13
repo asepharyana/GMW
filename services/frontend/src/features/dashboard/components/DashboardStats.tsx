@@ -161,8 +161,8 @@ export function DashboardStatsContent() {
                     key={ch.channel_id}
                     className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm"
                   >
-                    <span className="truncate font-mono text-xs text-muted-foreground">
-                      #{ch.channel_id}
+                    <span className="truncate text-xs text-muted-foreground">
+                      #{ch.channel_name ?? ch.channel_id}
                     </span>
                     <span className="ml-2 shrink-0 font-medium">
                       {ch.message_count.toLocaleString()}

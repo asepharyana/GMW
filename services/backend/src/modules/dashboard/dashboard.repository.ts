@@ -42,9 +42,11 @@ export class DashboardRepository {
 
     // Top channels by message count
     const topChannels = await pool.query(`
-      SELECT channel_id, COUNT(*)::int AS message_count
+      SELECT channel_id,
+             (metadata::jsonb -> 'channel' ->> 'channelName') AS channel_name,
+             COUNT(*)::int AS message_count
       FROM messages
-      GROUP BY channel_id
+      GROUP BY channel_id, (metadata::jsonb -> 'channel' ->> 'channelName')
       ORDER BY COUNT(*) DESC
       LIMIT 10
     `);
@@ -63,6 +65,7 @@ export class DashboardRepository {
       active_users_24h: msgRow?.active_users_24h ?? 0,
       top_channels: topChannels.rows.map((r: Record<string, unknown>) => ({
         channel_id: String(r.channel_id),
+        channel_name: r.channel_name ? String(r.channel_name) : null,
         message_count: Number(r.message_count),
       })),
       moderation_overview: {
