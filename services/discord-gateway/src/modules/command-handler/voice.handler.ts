@@ -156,10 +156,12 @@ export class VoiceHandler {
     }
 
     try {
-      // Reuse shared Redis connection from CommandHandler
-      const transmitRedis =
-        this.sharedRedis ??
-        new (await import("ioredis")).default(config.REDIS_URL);
+      // IMPORTANT: transmitter needs its OWN Redis client because it calls
+      // .subscribe() which converts the connection to subscriber mode.  Reusing
+      // the publish connection from CommandHandler would corrupt it and break
+      // every command reply + status update.
+      const { default: IORedis } = await import("ioredis");
+      const transmitRedis = new IORedis(config.REDIS_URL);
       await voiceTransmitter.start(transmitRedis);
 
       const status = voiceTransmitter.getStatus();

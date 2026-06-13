@@ -24,22 +24,37 @@ export class VoiceTransmitter {
   /** Queue for PCM chunks when backpressure is active */
   private backpressureQueue: Buffer[] = [];
   private draining = false;
+  /** Serialise start/stop to prevent races between rapid toggle commands */
+  private gate = Promise.resolve();
+  /** Set true before sending SIGTERM so exit handler knows it's intentional */
+  private _expectedExit = false;
 
   /**
    * Start listening for PCM audio data from Redis and stream to Discord
    */
   async start(redis: Redis): Promise<void> {
     logger.info("Transmitter start requested");
-    if (this.isActive) {
-      logger.warn("Voice transmitter already active");
-      return;
-    }
 
-    this.redisSub = redis;
-    this.isActive = true;
+    // Serialise with stop() so concurrent start+stop don't tear each other down
+    const prev = this.gate;
+    let release: () => void;
+    this.gate = new Promise<void>((r) => {
+      release = r;
+    });
+    await prev;
+
+    try {
+      if (this.isActive) {
+        logger.warn("Voice transmitter already active");
+        return;
+      }
+
+      this.redisSub = redis;
+      this.isActive = true;
 
     // Create PCM input stream
     this.pcmStream = new PassThrough();
+    this.pcmStream.setMaxListeners(32); // drain listeners accumulate during backpressure
 
     // Spawn FFmpeg to encode 24kHz mono PCM → OggOpus
     // Input: 24kHz mono s16le (raw PCM)
@@ -98,12 +113,15 @@ export class VoiceTransmitter {
     });
 
     this.ffmpegProcess.on("exit", (code) => {
-      if (code !== 0) {
+      // SIGTERM from stop() is expected — don't log as error
+      if (code !== 0 && !this._expectedExit) {
         const stderr = Buffer.concat(stderrChunks).toString();
         logger.error(
           { code, stderr: stderr.slice(-500) },
           "FFmpeg exited with error",
         );
+      } else {
+        logger.debug({ code }, "FFmpeg process exited");
       }
     });
 
@@ -157,6 +175,9 @@ export class VoiceTransmitter {
     });
 
     logger.info("Voice transmitter started");
+    } finally {
+      release!();
+    }
   }
 
   /**
@@ -164,30 +185,50 @@ export class VoiceTransmitter {
    */
   async stop(): Promise<void> {
     logger.info("Transmitter stop requested");
-    if (!this.isActive) return;
 
-    this.isActive = false;
+    // Serialise with start() so concurrent start+stop don't tear each other down
+    const prev = this.gate;
+    let release: () => void;
+    this.gate = new Promise<void>((r) => {
+      release = r;
+    });
+    await prev;
 
-    this.backpressureQueue = [];
-    this.draining = false;
+    try {
+      if (!this.isActive) {
+        logger.debug("Voice transmitter already stopped");
+        return;
+      }
 
-    if (this.pcmStream) {
-      this.pcmStream.end();
-      this.pcmStream = null;
+      this.isActive = false;
+
+      this.backpressureQueue = [];
+      this.draining = false;
+
+      if (this.pcmStream) {
+        this.pcmStream.removeAllListeners("drain");
+        this.pcmStream.end();
+        this.pcmStream = null;
+      }
+
+      // Flag FFmpeg exit as expected so the exit handler doesn't log it as error
+      this._expectedExit = true;
+      if (this.ffmpegProcess) {
+        this.ffmpegProcess.kill("SIGTERM");
+        this.ffmpegProcess = null;
+      }
+
+      if (this.redisSub) {
+        await this.redisSub.unsubscribe(this.TRANSMIT_CHANNEL);
+        this.redisSub.quit().catch(() => {});
+        this.redisSub = null;
+      }
+
+      discordPlayer.stop("browser-bridge");
+      logger.info("Voice transmitter stopped");
+    } finally {
+      release!();
     }
-
-    if (this.ffmpegProcess) {
-      this.ffmpegProcess.kill("SIGTERM");
-      this.ffmpegProcess = null;
-    }
-
-    if (this.redisSub) {
-      await this.redisSub.unsubscribe(this.TRANSMIT_CHANNEL);
-      this.redisSub = null;
-    }
-
-    discordPlayer.stop("browser-bridge");
-    logger.info("Voice transmitter stopped");
   }
 
   /**
