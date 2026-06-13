@@ -8,14 +8,14 @@ import { Badge } from "../shared/ui";
 import type { WsStatus } from "../shared/ws/socket";
 
 const titles: Record<DashboardTab, string> = {
-  live: "Voice & Media",
   messages: "Messages & Moderation",
+  live: "Voice & Media",
   dashboard: "Dashboard",
 };
 
 const subtitles: Record<DashboardTab, string> = {
-  live: "Join voice channels, play media, stream audio, and browse recordings.",
   messages: "Capture, analyse, and moderate Discord messages.",
+  live: "Join voice channels, play media, stream audio, and browse recordings.",
   dashboard: "Server statistics, user profiles, and AI moderation overview.",
 };
 

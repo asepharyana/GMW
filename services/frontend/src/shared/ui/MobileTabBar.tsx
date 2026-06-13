@@ -3,8 +3,8 @@ import type { DashboardTab } from "../api/client";
 import { cn } from "../lib/utils";
 
 const tabs: Array<{ id: DashboardTab; label: string; Icon: typeof Radio }> = [
-  { id: "live", label: "Live", Icon: Radio },
   { id: "messages", label: "Messages", Icon: MessageSquare },
+  { id: "live", label: "Voice & Media", Icon: Radio },
   { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
 ];
 

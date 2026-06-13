@@ -9,8 +9,8 @@ import { MascotImage } from "./mascot/MascotImage";
 
 const navItems: Array<{ id: DashboardTab; label: string; icon: typeof Radio }> =
   [
-    { id: "live", label: "Live", icon: Radio },
-    { id: "messages", label: "Messages", icon: MessageSquare },
+    { id: "messages", label: "Messages & Moderation", icon: MessageSquare },
+    { id: "live", label: "Voice & Media", icon: Radio },
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   ];
 
