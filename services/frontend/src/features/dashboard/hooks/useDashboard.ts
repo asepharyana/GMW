@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  type DashboardChannel,
+  type DashboardChannelDetail,
   type DashboardStats,
   type DashboardUser,
   type DashboardUserDetail,
+  getDashboardChannelDetail,
   getDashboardStats,
   getDashboardUserDetail,
+  listDashboardChannels,
   listDashboardUsers,
 } from "../../../shared/api/client";
 
@@ -126,6 +130,100 @@ export function useDashboardUserDetail(userId: string | null) {
       setLoading(false);
     }
   }, [userId]);
+
+  useEffect(() => {
+    fetch().catch(() => undefined);
+  }, [fetch]);
+
+  return { detail, loading, error, refetch: fetch };
+}
+
+/**
+ * Fetch paginated channel list with optional search.
+ */
+export function useDashboardChannels() {
+  const [channels, setChannels] = useState<DashboardChannel[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  const fetchChannels = useCallback(
+    async (cursor?: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await listDashboardChannels({
+          limit: 20,
+          search: search || undefined,
+        });
+        if (cursor) {
+          setChannels((prev) => [...prev, ...result.data]);
+        } else {
+          setChannels(result.data);
+        }
+        setNextCursor(result.nextCursor);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to load channels";
+        setError(msg);
+        logger.error("[useDashboardChannels]", msg);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [search],
+  );
+
+  useEffect(() => {
+    fetchChannels().catch(() => undefined);
+  }, [fetchChannels]);
+
+  const loadMore = useCallback(() => {
+    if (nextCursor && !loading) {
+      fetchChannels(nextCursor).catch(() => undefined);
+    }
+  }, [nextCursor, loading, fetchChannels]);
+
+  return {
+    channels,
+    loading,
+    error,
+    search,
+    setSearch,
+    loadMore,
+    hasMore: !!nextCursor,
+    refetch: () => fetchChannels().catch(() => undefined),
+  };
+}
+
+/**
+ * Fetch a single channel detail by channelId.
+ */
+export function useDashboardChannelDetail(channelId: string | null) {
+  const [detail, setDetail] = useState<DashboardChannelDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetch = useCallback(async () => {
+    if (!channelId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getDashboardChannelDetail(channelId);
+      if (!data) {
+        setError("Channel not found");
+        return;
+      }
+      setDetail(data);
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Failed to load channel detail";
+      setError(msg);
+      logger.error("[useDashboardChannelDetail]", msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [channelId]);
 
   useEffect(() => {
     fetch().catch(() => undefined);

@@ -156,6 +156,149 @@ export class DashboardRepository {
     return { data, nextCursor };
   }
 
+  async listChannels(query: ListUsersQuery & { guildId?: string }) {
+    const pool = getPool();
+    const limit = query.limit ?? 20;
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+
+    if (query.search) {
+      conditions.push(
+        `(m.channel_id ILIKE $${paramIdx} OR m.channel_name ILIKE $${paramIdx})`,
+      );
+      params.push(`%${query.search}%`);
+      paramIdx++;
+    }
+
+    if (query.guildId) {
+      conditions.push(`m.guild_id = $${paramIdx}`);
+      params.push(query.guildId);
+      paramIdx++;
+    }
+
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const { rows } = await pool.query(
+      `
+      SELECT
+        m.channel_id,
+        m.channel_name,
+        m.guild_id,
+        m.total_messages,
+        m.flagged_count,
+        m.last_message_at,
+        c.culture_summary,
+        c.last_analyzed_at
+      FROM (
+        SELECT
+          channel_id,
+          guild_id,
+          COALESCE(NULLIF((metadata::jsonb -> 'channel' ->> 'channelName'), ''), channel_id) AS channel_name,
+          COUNT(*)::int AS total_messages,
+          COUNT(*) FILTER (WHERE ai_status = 'flagged')::int AS flagged_count,
+          MAX(created_at) AS last_message_at
+        FROM messages
+        GROUP BY channel_id, guild_id, (metadata::jsonb -> 'channel' ->> 'channelName')
+      ) m
+      LEFT JOIN channel_cultures c ON c.channel_id = m.channel_id
+      ${whereClause}
+      ORDER BY m.total_messages DESC
+      LIMIT $${paramIdx}
+      `,
+      [...params, limit + 1],
+    );
+
+    const data = ((rows as Record<string, unknown>[]) || []).slice(0, limit).map((r) => ({
+      channel_id: String(r.channel_id),
+      channel_name: r.channel_name as string | null,
+      guild_id: r.guild_id as string | null,
+      total_messages: Number(r.total_messages),
+      flagged_count: Number(r.flagged_count),
+      last_message_at: r.last_message_at ? Number(r.last_message_at) : null,
+      culture_summary: r.culture_summary as string | null,
+      last_analyzed_at: r.last_analyzed_at
+        ? Number(r.last_analyzed_at)
+        : null,
+    }));
+
+    const lastRow = rows[limit - 1] as Record<string, unknown> | undefined;
+    const nextCursor =
+      rows.length > limit
+        ? String(lastRow?.total_messages ?? "")
+        : null;
+
+    return { data, nextCursor };
+  }
+
+  async getChannelDetail(channelId: string) {
+    const pool = getPool();
+
+    const channelResult = await pool.query(
+      `
+      SELECT
+        m.channel_id,
+        m.channel_name,
+        m.guild_id,
+        m.total_messages,
+        m.flagged_count,
+        m.clean_count,
+        c.culture_summary,
+        c.last_analyzed_at
+      FROM (
+        SELECT
+          channel_id,
+          guild_id,
+          COALESCE(NULLIF((metadata::jsonb -> 'channel' ->> 'channelName'), ''), channel_id) AS channel_name,
+          COUNT(*)::int AS total_messages,
+          COUNT(*) FILTER (WHERE ai_status = 'flagged')::int AS flagged_count,
+          COUNT(*) FILTER (WHERE ai_status = 'clean')::int AS clean_count
+        FROM messages
+        WHERE channel_id = $1
+        GROUP BY channel_id, guild_id, (metadata::jsonb -> 'channel' ->> 'channelName')
+      ) m
+      LEFT JOIN channel_cultures c ON c.channel_id = m.channel_id
+      `,
+      [channelId],
+    );
+
+    const row = channelResult.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+
+    const recent = await pool.query(
+      `
+      SELECT id, content, channel_id, created_at, ai_status, username
+      FROM messages
+      WHERE channel_id = $1
+      ORDER BY created_at DESC
+      LIMIT 20
+      `,
+      [channelId],
+    );
+
+    return {
+      channel_id: String(row.channel_id),
+      channel_name: row.channel_name as string | null,
+      guild_id: row.guild_id as string | null,
+      total_messages: Number(row.total_messages),
+      flagged_count: Number(row.flagged_count),
+      clean_count: Number(row.clean_count),
+      culture_summary: row.culture_summary as string | null,
+      last_analyzed_at: row.last_analyzed_at
+        ? Number(row.last_analyzed_at)
+        : null,
+      recent_messages: (recent.rows as Record<string, unknown>[]).map((r) => ({
+        id: String(r.id),
+        content: String(r.content),
+        channel_id: String(r.channel_id),
+        created_at: Number(r.created_at),
+        ai_status: r.ai_status as string | null,
+        username: r.username as string | null,
+      })),
+    };
+  }
+
   async getUserDetail(userId: string) {
     const pool = getPool();
 

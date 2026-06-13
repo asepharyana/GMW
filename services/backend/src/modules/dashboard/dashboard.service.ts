@@ -24,6 +24,16 @@ export class DashboardService {
     logger.debug({ userId }, "Fetching user detail");
     return dashboardRepository.getUserDetail(userId);
   }
+
+  async listChannels(query: { limit: number; search?: string; guildId?: string }) {
+    logger.debug({ query }, "Listing dashboard channels");
+    return dashboardRepository.listChannels(query);
+  }
+
+  async getChannelDetail(channelId: string) {
+    logger.debug({ channelId }, "Fetching channel detail");
+    return dashboardRepository.getChannelDetail(channelId);
+  }
 }
 
 export const dashboardService = new DashboardService();

@@ -336,6 +336,51 @@ export function getDashboardUserDetail(
   return request<DashboardUserDetail>(`/api/dashboard/users/${userId}`);
 }
 
+// ─── Dashboard Channels ─────────────────────────────────────────────────────────
+
+export interface DashboardChannel {
+  channel_id: string;
+  channel_name: string | null;
+  guild_id: string | null;
+  total_messages: number;
+  flagged_count: number;
+  last_message_at: number | null;
+  culture_summary: string | null;
+  last_analyzed_at: number | null;
+}
+
+export interface DashboardChannelDetail extends DashboardChannel {
+  clean_count: number;
+  recent_messages: Array<{
+    id: string;
+    content: string;
+    channel_id: string;
+    created_at: number;
+    ai_status: string | null;
+    username: string | null;
+  }>;
+}
+
+export function listDashboardChannels(
+  params: { limit?: number; search?: string; guild_id?: string } = {},
+): Promise<{ data: DashboardChannel[]; nextCursor: string | null }> {
+  const sp = new URLSearchParams();
+  if (params.limit) sp.set("limit", String(params.limit));
+  if (params.search) sp.set("search", params.search);
+  if (params.guild_id) sp.set("guild_id", params.guild_id);
+  return request<{ data: DashboardChannel[]; nextCursor: string | null }>(
+    `/api/dashboard/channels?${sp}`,
+  );
+}
+
+export function getDashboardChannelDetail(
+  channelId: string,
+): Promise<DashboardChannelDetail> {
+  return request<DashboardChannelDetail>(
+    `/api/dashboard/channels/${channelId}`,
+  );
+}
+
 // ─── UI State ────────────────────────────────────────────────────────────────
 
 export function getUIState(): Promise<UIState> {

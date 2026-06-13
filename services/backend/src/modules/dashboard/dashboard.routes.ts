@@ -48,5 +48,36 @@ export function createDashboardRouter(): Router {
     }),
   );
 
+  // GET /api/dashboard/channels — paginated channel list with culture summaries
+  router.get(
+    "/dashboard/channels",
+    asyncHandler(async (req: Request, res: Response) => {
+      const limit = Number(req.query.limit) || 20;
+      const search =
+        typeof req.query.search === "string" ? req.query.search : undefined;
+      const guildId =
+        typeof req.query.guild_id === "string"
+          ? req.query.guild_id
+          : undefined;
+
+      const result = await dashboardService.listChannels({
+        limit,
+        search,
+        guildId,
+      });
+      res.json(result);
+    }),
+  );
+
+  // GET /api/dashboard/channels/:channelId — single channel detail
+  router.get(
+    "/dashboard/channels/:channelId",
+    asyncHandler(async (req: Request, res: Response) => {
+      const channelId = String(req.params.channelId);
+      const detail = await dashboardService.getChannelDetail(channelId);
+      res.json(detail);
+    }),
+  );
+
   return router;
 }
