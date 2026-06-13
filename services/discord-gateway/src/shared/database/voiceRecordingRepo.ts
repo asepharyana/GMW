@@ -40,13 +40,35 @@ export async function insertVoiceRecording(
       .values(recording)
       .onConflictDoNothing();
   } catch (error) {
-    const err = error as Record<string, unknown>;
+    // Drizzle wraps PG errors — dig into cause + enumerable props for the real PG error
+    const err = error as Error & Record<string, unknown>;
     const detail: Record<string, unknown> = {
-      message: error instanceof Error ? error.message : String(error),
-      name: error instanceof Error ? error.name : undefined,
+      message: err.message,
+      name: err.name,
     };
-    if (err.code !== undefined) detail.code = err.code;
-    if (err.detail !== undefined) detail.detail = err.detail;
+    // node-postgres native error props
+    for (const k of [
+      "code",
+      "detail",
+      "schema",
+      "table",
+      "constraint",
+      "severity",
+    ]) {
+      if (err[k] !== undefined) detail[k] = err[k];
+    }
+    // drizzle may stash the original in .cause
+    const cause = err.cause;
+    if (cause instanceof Error) {
+      const causeErr = cause as Error & Record<string, unknown>;
+      detail.cause = {
+        message: causeErr.message,
+        name: causeErr.name,
+        code: causeErr.code,
+        detail: causeErr.detail,
+        constraint: causeErr.constraint,
+      };
+    }
     logger.error(
       { id: recording.id, error: detail },
       "Failed to insert voice recording",
