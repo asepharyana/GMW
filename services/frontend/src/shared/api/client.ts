@@ -187,21 +187,21 @@ export function getTextChannels(guildId: string): Promise<Channel[]> {
 }
 
 export function getVoiceStatus(): Promise<VoiceStatus> {
-  return request<VoiceStatus>("/api/status");
+  return request<VoiceStatus>("/api/voice/status");
 }
 
 export function connectVoice(
   guildId: string,
   channelId: string,
 ): Promise<VoiceStatus> {
-  return request<VoiceStatus>("/api/connect", {
+  return request<VoiceStatus>("/api/voice/connect", {
     method: "POST",
     body: JSON.stringify({ guildId, channelId }),
   });
 }
 
 export function disconnectVoice(): Promise<VoiceStatus> {
-  return request<VoiceStatus>("/api/disconnect", { method: "POST" });
+  return request<VoiceStatus>("/api/voice/disconnect", { method: "POST" });
 }
 
 // ─── Media ───────────────────────────────────────────────────────────────────

@@ -18,7 +18,14 @@ import { createRecordingsRouter } from "../modules/recordings/recordings.routes.
 import { createUiStateRouter } from "../modules/ui-state/ui-state.routes.js";
 import { createGuildsRouter } from "../modules/voice/guilds.routes.js";
 import { createVoiceRouter } from "../modules/voice/voice.routes.js";
-import { errorHandler } from "../shared/middlewares/index.js";
+import {
+  adminAuth,
+  errorHandler,
+} from "../shared/middlewares/index.js";
+import { config } from "../shared/config/index.js";
+
+const ADMIN_PASSWORD = config.ADMIN_PASSWORD || "admin";
+const requireAuth = adminAuth(ADMIN_PASSWORD);
 
 const logger = createChildLogger("http.app");
 
@@ -61,20 +68,24 @@ export function createHttpApp(): Express {
   // Health check (no auth required)
   app.use("/api", createHealthRouter());
 
-  // API routes
+  // Auth (no auth required)
   app.use("/api", createAuthRouter());
+
+  // Public read-only endpoints
   app.use("/api", createConfigRouter());
   app.use("/api", createDashboardRouter());
-  app.use("/api", createMessagesRouter());
-  app.use("/api", createAnalysisRouter());
-  app.use("/api", createMascotChatRouter());
-  app.use("/api", createMediaRouter());
-  app.use("/api", createVoiceRouter());
-  app.use("/api", createRecordingsRouter());
-  app.use("/api", createUiStateRouter());
+
+  // Protected routes — require auth (routers define full /api/… paths internally)
+  app.use("/api", requireAuth, createMessagesRouter());
+  app.use("/api", requireAuth, createAnalysisRouter());
+  app.use("/api", requireAuth, createMascotChatRouter());
+  app.use("/api", requireAuth, createMediaRouter());
+  app.use("/api", requireAuth, createVoiceRouter());
+  app.use("/api", requireAuth, createRecordingsRouter());
+  app.use("/api", requireAuth, createUiStateRouter());
 
   // Guilds routes (must be before catch-all, after other /api routes)
-  app.use("/api/guilds", createGuildsRouter());
+  app.use("/api/guilds", requireAuth, createGuildsRouter());
 
   // 404 handler
   app.use((_req: Request, res: Response) => {

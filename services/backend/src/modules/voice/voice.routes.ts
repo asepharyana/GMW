@@ -10,14 +10,14 @@ import {
 export function createVoiceRouter(): Router {
   const router = express.Router();
 
-  // GET /api/status
-  router.get("/status", handleGetVoiceStatus);
+  // GET /api/voice/status
+  router.get("/voice/status", handleGetVoiceStatus);
 
-  // POST /api/connect
-  router.post("/connect", handleConnectVoice);
+  // POST /api/voice/connect
+  router.post("/voice/connect", handleConnectVoice);
 
-  // POST /api/disconnect
-  router.post("/disconnect", handleDisconnectVoice);
+  // POST /api/voice/disconnect
+  router.post("/voice/disconnect", handleDisconnectVoice);
 
   // POST /api/voice/command — send arbitrary voice command (transmit start/stop)
   router.post("/voice/command", handleVoiceCommand);

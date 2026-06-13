@@ -2,12 +2,7 @@ import { createChildLogger } from "@bete/shared/logger";
 import type { Request, Response } from "express";
 import { asyncHandler } from "../../shared/middlewares/index.js";
 import { publishCommandNoReply } from "../../shared/redis/index.js";
-import {
-  connectVoice,
-  disconnectVoice,
-  getVoiceChannels,
-  getVoiceStatus,
-} from "./voice.service.js";
+import { connectVoice, disconnectVoice, getVoiceStatus } from "./voice.service.js";
 
 const logger = createChildLogger("voice.controller");
 
@@ -45,15 +40,6 @@ export const handleDisconnectVoice = asyncHandler(
     logger.debug("Disconnecting from voice");
     const status = await disconnectVoice();
     res.json(status);
-  },
-);
-
-export const handleGetVoiceChannels = asyncHandler(
-  async (req: Request, res: Response) => {
-    const guildId = asString(req.params.guildId);
-    logger.debug({ guildId }, "Fetching voice channels");
-    const channels = await getVoiceChannels(guildId);
-    res.json(channels);
   },
 );
 
