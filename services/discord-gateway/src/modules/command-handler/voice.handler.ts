@@ -5,7 +5,6 @@ import {
 } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import type { Client } from "discord.js-selfbot-v13";
-import type Redis from "ioredis";
 import { config } from "../../shared/config/config.js";
 import { discordPlayer } from "../voice-recording/player.js";
 import { voiceTransmitter } from "../voice-recording/transmitter.js";
@@ -21,7 +20,6 @@ export class VoiceHandler {
   constructor(
     private client: Client | null,
     private voiceController: VoiceController | null,
-    private sharedRedis: Redis | null = null,
   ) {}
 
   setClient(client: Client): void {

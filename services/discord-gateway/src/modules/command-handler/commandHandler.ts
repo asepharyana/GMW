@@ -81,7 +81,6 @@ export class CommandHandler {
     this.voiceHandler = new VoiceHandler(
       client,
       voiceController,
-      this.redisPub,
     );
     this.mediaHandler = new MediaHandler();
     this.guildHandler = new GuildHandler(client);

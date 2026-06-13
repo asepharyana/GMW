@@ -52,129 +52,129 @@ export class VoiceTransmitter {
       this.redisSub = redis;
       this.isActive = true;
 
-    // Create PCM input stream
-    this.pcmStream = new PassThrough();
-    this.pcmStream.setMaxListeners(32); // drain listeners accumulate during backpressure
+      // Create PCM input stream
+      this.pcmStream = new PassThrough();
+      this.pcmStream.setMaxListeners(32); // drain listeners accumulate during backpressure
 
-    // Spawn FFmpeg to encode 24kHz mono PCM → OggOpus
-    // Input: 24kHz mono s16le (raw PCM)
-    // Output: OGG container with Opus audio
-    this.ffmpegProcess = spawn(
-      "ffmpeg",
-      [
-        "-f",
-        "s16le", // Input format: signed 16-bit little-endian
-        "-ar",
-        "24000", // Input sample rate: 24kHz
-        "-ac",
-        "1", // Input channels: mono
-        "-i",
-        "pipe:0", // Read from stdin
-        "-f",
-        "ogg", // Output format: OGG
-        "-c:a",
-        "libopus", // Codec: Opus
-        "-b:a",
-        "96k", // Bitrate: 96kbps
-        "-ar",
-        "48000", // Output sample rate: 48kHz
-        "-ac",
-        "2", // Output channels: stereo
-        "-application",
-        "lowdelay", // Low delay mode for real-time
-        "-frame_duration",
-        "20", // 20ms frames
-        "-packet_loss",
-        "0", // No packet loss expected
-        "pipe:1", // Write to stdout
-      ],
-      {
-        stdio: ["pipe", "pipe", "pipe"],
-      },
-    );
+      // Spawn FFmpeg to encode 24kHz mono PCM → OggOpus
+      // Input: 24kHz mono s16le (raw PCM)
+      // Output: OGG container with Opus audio
+      this.ffmpegProcess = spawn(
+        "ffmpeg",
+        [
+          "-f",
+          "s16le", // Input format: signed 16-bit little-endian
+          "-ar",
+          "24000", // Input sample rate: 24kHz
+          "-ac",
+          "1", // Input channels: mono
+          "-i",
+          "pipe:0", // Read from stdin
+          "-f",
+          "ogg", // Output format: OGG
+          "-c:a",
+          "libopus", // Codec: Opus
+          "-b:a",
+          "96k", // Bitrate: 96kbps
+          "-ar",
+          "48000", // Output sample rate: 48kHz
+          "-ac",
+          "2", // Output channels: stereo
+          "-application",
+          "lowdelay", // Low delay mode for real-time
+          "-frame_duration",
+          "20", // 20ms frames
+          "-packet_loss",
+          "0", // No packet loss expected
+          "pipe:1", // Write to stdout
+        ],
+        {
+          stdio: ["pipe", "pipe", "pipe"],
+        },
+      );
 
-    // Pipe PCM data to FFmpeg stdin
-    if (this.ffmpegProcess.stdin) {
-      this.pcmStream.pipe(this.ffmpegProcess.stdin);
-    }
-
-    // Log FFmpeg stderr for debugging
-    const stderrChunks: Buffer[] = [];
-    this.ffmpegProcess.stderr?.on("data", (chunk: Buffer) => {
-      stderrChunks.push(chunk);
-    });
-
-    this.ffmpegProcess.on("error", (err) => {
-      const msg =
-        err.message === "spawn ffmpeg ENOENT"
-          ? "FFmpeg/avconv not found! Install ffmpeg in the container."
-          : err.message;
-      logger.error({ error: msg }, "FFmpeg process error");
-    });
-
-    this.ffmpegProcess.on("exit", (code) => {
-      // SIGTERM from stop() is expected — don't log as error
-      if (code !== 0 && !this._expectedExit) {
-        const stderr = Buffer.concat(stderrChunks).toString();
-        logger.error(
-          { code, stderr: stderr.slice(-500) },
-          "FFmpeg exited with error",
-        );
-      } else {
-        logger.debug({ code }, "FFmpeg process exited");
+      // Pipe PCM data to FFmpeg stdin
+      if (this.ffmpegProcess.stdin) {
+        this.pcmStream.pipe(this.ffmpegProcess.stdin);
       }
-    });
 
-    // Play FFmpeg stdout (OggOpus) to Discord
-    if (this.ffmpegProcess.stdout) {
-      discordPlayer.playStream(this.ffmpegProcess.stdout, "browser-bridge", {
-        inputType: StreamType.OggOpus,
-        inlineVolume: true,
+      // Log FFmpeg stderr for debugging
+      const stderrChunks: Buffer[] = [];
+      this.ffmpegProcess.stderr?.on("data", (chunk: Buffer) => {
+        stderrChunks.push(chunk);
       });
-    }
 
-    logger.info(
-      "Voice transmitter pipeline ready (PCM → FFmpeg → OggOpus → Discord)",
-    );
+      this.ffmpegProcess.on("error", (err) => {
+        const msg =
+          err.message === "spawn ffmpeg ENOENT"
+            ? "FFmpeg/avconv not found! Install ffmpeg in the container."
+            : err.message;
+        logger.error({ error: msg }, "FFmpeg process error");
+      });
 
-    // Subscribe to Redis channel for PCM data
-    await this.redisSub.subscribe(this.TRANSMIT_CHANNEL);
-    logger.info(
-      { channel: this.TRANSMIT_CHANNEL },
-      "Subscribed to transmit channel",
-    );
-
-    this.redisSub.on("message", (channel, message) => {
-      if (channel !== this.TRANSMIT_CHANNEL || !this.pcmStream) return;
-
-      try {
-        const data = JSON.parse(message);
-        if (data.type === "pcm" && data.buffer) {
-          const pcmBuffer = Buffer.from(data.buffer, "base64");
-          const stream = this.pcmStream;
-          const canContinue = stream.write(pcmBuffer);
-          // Backpressure: queue until drain
-          if (!canContinue) {
-            this.draining = true;
-            stream.once("drain", () => {
-              this.draining = false;
-              // Re-acquire stream reference (could have been replaced by restart)
-              const currentStream = this.pcmStream;
-              if (!currentStream) return;
-              // Flush queued chunks
-              while (this.backpressureQueue.length > 0) {
-                const queued = this.backpressureQueue.shift()!;
-                if (!currentStream.write(queued)) break;
-              }
-            });
-          }
+      this.ffmpegProcess.on("exit", (code) => {
+        // SIGTERM from stop() is expected — don't log as error
+        if (code !== 0 && !this._expectedExit) {
+          const stderr = Buffer.concat(stderrChunks).toString();
+          logger.error(
+            { code, stderr: stderr.slice(-500) },
+            "FFmpeg exited with error",
+          );
+        } else {
+          logger.debug({ code }, "FFmpeg process exited");
         }
-      } catch (err) {
-        logger.error({ error: err }, "Failed to process PCM data");
-      }
-    });
+      });
 
-    logger.info("Voice transmitter started");
+      // Play FFmpeg stdout (OggOpus) to Discord
+      if (this.ffmpegProcess.stdout) {
+        discordPlayer.playStream(this.ffmpegProcess.stdout, "browser-bridge", {
+          inputType: StreamType.OggOpus,
+          inlineVolume: true,
+        });
+      }
+
+      logger.info(
+        "Voice transmitter pipeline ready (PCM → FFmpeg → OggOpus → Discord)",
+      );
+
+      // Subscribe to Redis channel for PCM data
+      await this.redisSub.subscribe(this.TRANSMIT_CHANNEL);
+      logger.info(
+        { channel: this.TRANSMIT_CHANNEL },
+        "Subscribed to transmit channel",
+      );
+
+      this.redisSub.on("message", (channel, message) => {
+        if (channel !== this.TRANSMIT_CHANNEL || !this.pcmStream) return;
+
+        try {
+          const data = JSON.parse(message);
+          if (data.type === "pcm" && data.buffer) {
+            const pcmBuffer = Buffer.from(data.buffer, "base64");
+            const stream = this.pcmStream;
+            const canContinue = stream.write(pcmBuffer);
+            // Backpressure: queue until drain
+            if (!canContinue) {
+              this.draining = true;
+              stream.once("drain", () => {
+                this.draining = false;
+                // Re-acquire stream reference (could have been replaced by restart)
+                const currentStream = this.pcmStream;
+                if (!currentStream) return;
+                // Flush queued chunks
+                while (this.backpressureQueue.length > 0) {
+                  const queued = this.backpressureQueue.shift()!;
+                  if (!currentStream.write(queued)) break;
+                }
+              });
+            }
+          }
+        } catch (err) {
+          logger.error({ error: err }, "Failed to process PCM data");
+        }
+      });
+
+      logger.info("Voice transmitter started");
     } finally {
       release!();
     }
