@@ -192,6 +192,28 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Push-to-Talk — hold Space to transmit
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (e.code === "Space" && !transmit.isStreaming && e.repeat === false) {
+        e.preventDefault();
+        transmit.startTransmit().catch(() => undefined);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space" && transmit.isStreaming) {
+        transmit.stopTransmit();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [transmit]);
+
   return (
     <DashboardLayout
       activeTab={activeTab}

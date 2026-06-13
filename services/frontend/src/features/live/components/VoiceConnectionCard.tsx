@@ -104,7 +104,10 @@ export function VoiceConnectionCard({
             {isStreaming ? "Stop Transmit" : "Transmit"}
           </Button>
           {isStreaming && (
-            <div className="flex items-center pl-1">
+            <div className="flex items-center gap-2 pl-1">
+              <span className="animate-pulse rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-medium text-white">
+                Hold Space
+              </span>
               <MicLevelMeter level={micLevel} />
             </div>
           )}
