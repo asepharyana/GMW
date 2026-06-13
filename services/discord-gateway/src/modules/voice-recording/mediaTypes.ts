@@ -22,6 +22,8 @@ export interface MediaQueueItem extends ResolvedMediaSource {
   requestedBy: string;
   addedAt: number;
   status: MediaQueueItemStatus;
+  /** Duration in seconds, if known. */
+  duration?: number;
 }
 
 export interface MediaState {
