@@ -51,6 +51,12 @@ export class MessageStore {
     this.retention = new RetentionDb(db, logger);
   }
 
+  // ── Edit History ────────────────────────────────────────────────────────
+
+  insertMessageEdit(messageId: string, oldContent: string, editedAt: number): Promise<void> {
+    return this.messages.insertMessageEdit(messageId, oldContent, editedAt);
+  }
+
   // ── Messages ───────────────────────────────────────────────────────────
 
   insertMessage(message: MessageRecord): Promise<void> {
@@ -302,6 +308,12 @@ export class MessageStore {
 // ─── Backward-compatible function exports ──────────────────────────────────
 // These delegate to a lazy singleton MessageStore instance so existing
 // code that imports individual functions continues to work unchanged.
+
+export const insertMessageEdit = (
+  messageId: string,
+  oldContent: string,
+  editedAt: number,
+): Promise<void> => getInstance().insertMessageEdit(messageId, oldContent, editedAt);
 
 // Messages
 export const insertMessage = (message: MessageRecord): Promise<void> =>

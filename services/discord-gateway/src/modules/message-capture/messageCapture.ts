@@ -13,6 +13,7 @@ import {
 import {
   getMessageById,
   insertAttachment,
+  insertMessageEdit,
   updateMessageAsDeleted,
   updateMessageAsEdited,
   upsertMessageForCapture,
@@ -293,6 +294,15 @@ export function registerMessageCapture(client: Client): void {
         }
 
         const editedAt = Date.now();
+        const oldContent = existing.edited_content ?? existing.content ?? "";
+
+        // Save edit history snapshot before overwriting
+        if (oldContent) {
+          insertMessageEdit(newMessage.id, oldContent, editedAt).catch((err: unknown) => {
+            logger.error({ messageId: newMessage.id, error: err }, "Failed to save edit history");
+          });
+        }
+
         await updateMessageAsEdited(
           newMessage.id,
           getDisplayContent(newMessage as Message),

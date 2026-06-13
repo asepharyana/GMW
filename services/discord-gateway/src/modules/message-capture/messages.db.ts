@@ -126,6 +126,12 @@ export class MessagesDb {
     );
   }
 
+  // ── Edit History ─────────────────────────────────────────────────────────
+
+  insertMessageEdit(messageId: string, oldContent: string, editedAt: number): Promise<void> {
+    return this.crud.insertMessageEdit(messageId, oldContent, editedAt);
+  }
+
   // ── Search ──────────────────────────────────────────────────────────────
 
   searchMessages(input: {
