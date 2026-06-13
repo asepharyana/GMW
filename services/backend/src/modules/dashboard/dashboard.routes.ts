@@ -56,9 +56,7 @@ export function createDashboardRouter(): Router {
       const search =
         typeof req.query.search === "string" ? req.query.search : undefined;
       const guildId =
-        typeof req.query.guild_id === "string"
-          ? req.query.guild_id
-          : undefined;
+        typeof req.query.guild_id === "string" ? req.query.guild_id : undefined;
 
       const result = await dashboardService.listChannels({
         limit,

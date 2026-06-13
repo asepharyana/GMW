@@ -1,10 +1,7 @@
 import { motion } from "framer-motion";
 import { AlertCircle, ArrowLeft, Hash, RefreshCw } from "lucide-react";
 import type { DashboardChannelDetail } from "../../../shared/api/client";
-import {
-  cardItem,
-  cardStagger,
-} from "../../../shared/hooks/useFramerStagger";
+import { cardItem, cardStagger } from "../../../shared/hooks/useFramerStagger";
 import { cn } from "../../../shared/lib/utils";
 import {
   Badge,

@@ -4,6 +4,7 @@ import {
   COMMAND_VOICE_CHANNELS,
   COMMAND_VOICE_CONNECT,
   COMMAND_VOICE_DISCONNECT,
+  COMMAND_VOICE_DISCONNECT_GUILD,
   CommandReply,
   VOICE_STATUS_KEY,
 } from "@bete/shared";
@@ -28,11 +29,19 @@ export interface Channel {
   type: "voice" | "text";
 }
 
+export interface GuildVoiceEntry {
+  guildId: string;
+  channelId: string;
+  channelName: string;
+  connectedAt: number;
+}
+
 export interface VoiceStatus {
   connected: boolean;
   activeGuildId: string | null;
   activeChannelId: string | null;
   activeChannelName: string | null;
+  connections: GuildVoiceEntry[];
 }
 
 export const DEFAULT_VOICE_STATUS: VoiceStatus = {
@@ -40,6 +49,7 @@ export const DEFAULT_VOICE_STATUS: VoiceStatus = {
   activeGuildId: null,
   activeChannelId: null,
   activeChannelName: null,
+  connections: [],
 };
 
 /**
@@ -155,5 +165,20 @@ export async function disconnectVoice(): Promise<VoiceStatus> {
     () => publishCommand<VoiceStatus>(COMMAND_VOICE_DISCONNECT, {}),
     () => readVoiceStatusFallback(),
     "disconnectVoice",
+  );
+}
+
+/**
+ * Disconnect from a specific guild's voice channel.
+ */
+export async function disconnectVoiceGuild(
+  guildId: string,
+): Promise<VoiceStatus> {
+  logger.info({ guildId }, "disconnectVoiceGuild called");
+  return withFallback(
+    () =>
+      publishCommand<VoiceStatus>(COMMAND_VOICE_DISCONNECT_GUILD, { guildId }),
+    () => readVoiceStatusFallback(),
+    "disconnectVoiceGuild",
   );
 }

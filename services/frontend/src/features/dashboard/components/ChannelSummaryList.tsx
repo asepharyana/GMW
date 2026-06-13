@@ -1,20 +1,9 @@
 import { motion } from "framer-motion";
-import {
-  AlertCircle,
-  Hash,
-  Loader2,
-  RefreshCw,
-  Search,
-} from "lucide-react";
+import { AlertCircle, Hash, Loader2, RefreshCw, Search } from "lucide-react";
 import type { DashboardChannel } from "../../../shared/api/client";
 import { cardItem, cardStagger } from "../../../shared/hooks/useFramerStagger";
 import { cn } from "../../../shared/lib/utils";
-import {
-  Card,
-  CardContent,
-  Input,
-  Skeleton,
-} from "../../../shared/ui";
+import { Card, CardContent, Input, Skeleton } from "../../../shared/ui";
 
 interface ChannelSummaryListProps {
   channels: DashboardChannel[];

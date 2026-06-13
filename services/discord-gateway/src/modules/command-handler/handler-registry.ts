@@ -9,6 +9,7 @@ import {
   COMMAND_VOICE_CHANNELS,
   COMMAND_VOICE_CONNECT,
   COMMAND_VOICE_DISCONNECT,
+  COMMAND_VOICE_DISCONNECT_GUILD,
   COMMAND_VOICE_TRANSMIT_START,
   COMMAND_VOICE_TRANSMIT_STOP,
   type CommandMessage,
@@ -45,6 +46,9 @@ export function createHandlerRegistry(
   );
   registry.set(COMMAND_VOICE_DISCONNECT, (cmd) =>
     voiceHandler.handleVoiceDisconnect(cmd),
+  );
+  registry.set(COMMAND_VOICE_DISCONNECT_GUILD, (cmd) =>
+    voiceHandler.handleVoiceDisconnectGuild(cmd),
   );
   registry.set(COMMAND_VOICE_CHANNELS, (cmd) =>
     voiceHandler.handleVoiceChannels(cmd),

@@ -307,7 +307,9 @@ export async function extractMediaInfo(url: string): Promise<MediaInfo> {
     if (proc.stderr) {
       proc.stderr.on("data", (chunk: Buffer) => {
         if (stderrBuf.length < MAX_STDERR) {
-          stderrBuf += chunk.toString("utf8").slice(0, MAX_STDERR - stderrBuf.length);
+          stderrBuf += chunk
+            .toString("utf8")
+            .slice(0, MAX_STDERR - stderrBuf.length);
         }
       });
     }

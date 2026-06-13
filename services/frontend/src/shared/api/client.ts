@@ -281,7 +281,11 @@ export interface DashboardStats {
   today_messages: number;
   today_flagged: number;
   active_users_24h: number;
-  top_channels: Array<{ channel_id: string; channel_name: string | null; message_count: number }>;
+  top_channels: Array<{
+    channel_id: string;
+    channel_name: string | null;
+    message_count: number;
+  }>;
   moderation_overview: {
     pending: number;
     processing: number;

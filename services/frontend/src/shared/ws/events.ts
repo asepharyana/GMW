@@ -16,6 +16,15 @@ export interface WsEventMap {
   voice_active_user: { data: unknown };
   attachment_created: { data: unknown };
   analysis_queue_status: { data: unknown };
+  reaction_added: { data: unknown };
+  reaction_removed: { data: unknown };
+  thread_created: { data: unknown };
+  thread_deleted: { data: unknown };
+  thread_updated: { data: unknown };
+  channel_topic_updated: { data: unknown };
+  presence_updated: { data: unknown };
+  guild_member_added: { data: unknown };
+  guild_member_removed: { data: unknown };
 }
 
 export type WsEventType = keyof WsEventMap;

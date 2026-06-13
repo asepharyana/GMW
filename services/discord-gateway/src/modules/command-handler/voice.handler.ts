@@ -1,4 +1,8 @@
-import { type CommandMessage, type CommandReply } from "@bete/shared";
+import {
+  COMMAND_VOICE_DISCONNECT_GUILD,
+  type CommandMessage,
+  type CommandReply,
+} from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import type { Client } from "discord.js-selfbot-v13";
 import type Redis from "ioredis";
@@ -72,6 +76,33 @@ export class VoiceHandler {
     return { id: cmd.id, success: true, data: status };
   }
 
+  async handleVoiceDisconnectGuild(
+    cmd: CommandMessage,
+  ): Promise<CommandReply<unknown>> {
+    if (!this.voiceController) {
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "Gateway not initialized",
+      };
+    }
+
+    const guildId = String(cmd.payload.guildId ?? "");
+    if (!guildId) {
+      return {
+        id: cmd.id,
+        success: false,
+        data: null,
+        error: "guildId is required",
+      };
+    }
+
+    await this.voiceController.disconnectGuild(guildId);
+    const status = this.voiceController.getStatus();
+    return { id: cmd.id, success: true, data: status };
+  }
+
   async handleVoiceChannels(
     cmd: CommandMessage,
   ): Promise<CommandReply<unknown>> {
@@ -126,7 +157,9 @@ export class VoiceHandler {
 
     try {
       // Reuse shared Redis connection from CommandHandler
-      const transmitRedis = this.sharedRedis ?? new (await import("ioredis")).default(config.REDIS_URL);
+      const transmitRedis =
+        this.sharedRedis ??
+        new (await import("ioredis")).default(config.REDIS_URL);
       await voiceTransmitter.start(transmitRedis);
 
       const status = voiceTransmitter.getStatus();

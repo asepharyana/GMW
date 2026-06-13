@@ -194,29 +194,33 @@ export function stopRecording(guildId: string): void {
     const snapshot = session.snapshot(Date.now());
     const stoppedAt = Date.now();
 
-    _eventBroadcaster.voiceRecordingStopped({
-      guild_id: guildId,
-      session_id: session.sessionId,
-      duration_ms: snapshot.durationMs,
-      participants: snapshot.participants.length,
-      segment_count: snapshot.segments.length,
-      status: snapshot.status,
-      stopped_at: stoppedAt,
-    }).catch(() => {});
+    _eventBroadcaster
+      .voiceRecordingStopped({
+        guild_id: guildId,
+        session_id: session.sessionId,
+        duration_ms: snapshot.durationMs,
+        participants: snapshot.participants.length,
+        segment_count: snapshot.segments.length,
+        status: snapshot.status,
+        stopped_at: stoppedAt,
+      })
+      .catch(() => {});
 
     // Auto-enqueue muxer job if there are multiple segments
     const segments = snapshot.segments;
     if (segments.length >= 2) {
       const outputFile = `${config.RECORDINGS_DIR}/merged/${session.sessionId}.ogg`;
-      import("./muxer.js").then(({ enqueueMuxerJob }) => {
-        enqueueMuxerJob({
-          inputs: segments.map((s) => s.oggPath),
-          output: outputFile,
-          guildId,
-          channelId: snapshot.channelId,
-          sessionId: session.sessionId,
-        }).catch(() => {});
-      }).catch(() => {});
+      import("./muxer.js")
+        .then(({ enqueueMuxerJob }) => {
+          enqueueMuxerJob({
+            inputs: segments.map((s) => s.oggPath),
+            output: outputFile,
+            guildId,
+            channelId: snapshot.channelId,
+            sessionId: session.sessionId,
+          }).catch(() => {});
+        })
+        .catch(() => {});
     }
   }
 }

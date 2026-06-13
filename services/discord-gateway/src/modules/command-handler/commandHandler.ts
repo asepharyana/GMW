@@ -9,7 +9,10 @@ import { createChildLogger } from "@bete/shared/logger";
 import type { Client } from "discord.js-selfbot-v13";
 import Redis from "ioredis";
 import { config } from "../../shared/config/config.js";
-import type { VoiceController } from "../voice-recording/voiceController.js";
+import type {
+  VoiceController,
+  VoiceStatus,
+} from "../voice-recording/voiceController.js";
 import { GuildHandler } from "./guild.handler.js";
 import {
   type CommandHandlerFn,
@@ -30,6 +33,12 @@ interface VoiceStatusPayload {
   activeGuildId: string | null;
   activeChannelId: string | null;
   activeChannelName: string | null;
+  connections: Array<{
+    guildId: string;
+    channelId: string;
+    channelName: string;
+    connectedAt: number;
+  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +78,11 @@ export class CommandHandler {
     this.voiceController = voiceController;
 
     // Create domain-specific handlers with their dependencies
-    this.voiceHandler = new VoiceHandler(client, voiceController, this.redisPub);
+    this.voiceHandler = new VoiceHandler(
+      client,
+      voiceController,
+      this.redisPub,
+    );
     this.mediaHandler = new MediaHandler();
     this.guildHandler = new GuildHandler(client);
     this.moderationHandler = new ModerationHandler(client);
@@ -164,14 +177,23 @@ export class CommandHandler {
   // ---- Status publishing ----
 
   private publishVoiceStatus(): void {
-    const status: VoiceStatusPayload = this.voiceController
+    const raw = this.voiceController
       ? this.voiceController.getStatus()
       : {
+          ready: false,
           connected: false,
           activeGuildId: null,
           activeChannelId: null,
           activeChannelName: null,
+          connections: [],
         };
+    const status: VoiceStatusPayload = {
+      connected: raw.connected,
+      activeGuildId: raw.activeGuildId,
+      activeChannelId: raw.activeChannelId,
+      activeChannelName: raw.activeChannelName,
+      connections: raw.connections ?? [],
+    };
 
     this.setKey(VOICE_STATUS_KEY, JSON.stringify(status));
   }

@@ -25,7 +25,11 @@ export class DashboardService {
     return dashboardRepository.getUserDetail(userId);
   }
 
-  async listChannels(query: { limit: number; search?: string; guildId?: string }) {
+  async listChannels(query: {
+    limit: number;
+    search?: string;
+    guildId?: string;
+  }) {
     logger.debug({ query }, "Listing dashboard channels");
     return dashboardRepository.listChannels(query);
   }

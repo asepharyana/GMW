@@ -210,24 +210,24 @@ export class DashboardRepository {
       [...params, limit + 1],
     );
 
-    const data = ((rows as Record<string, unknown>[]) || []).slice(0, limit).map((r) => ({
-      channel_id: String(r.channel_id),
-      channel_name: r.channel_name as string | null,
-      guild_id: r.guild_id as string | null,
-      total_messages: Number(r.total_messages),
-      flagged_count: Number(r.flagged_count),
-      last_message_at: r.last_message_at ? Number(r.last_message_at) : null,
-      culture_summary: r.culture_summary as string | null,
-      last_analyzed_at: r.last_analyzed_at
-        ? Number(r.last_analyzed_at)
-        : null,
-    }));
+    const data = ((rows as Record<string, unknown>[]) || [])
+      .slice(0, limit)
+      .map((r) => ({
+        channel_id: String(r.channel_id),
+        channel_name: r.channel_name as string | null,
+        guild_id: r.guild_id as string | null,
+        total_messages: Number(r.total_messages),
+        flagged_count: Number(r.flagged_count),
+        last_message_at: r.last_message_at ? Number(r.last_message_at) : null,
+        culture_summary: r.culture_summary as string | null,
+        last_analyzed_at: r.last_analyzed_at
+          ? Number(r.last_analyzed_at)
+          : null,
+      }));
 
     const lastRow = rows[limit - 1] as Record<string, unknown> | undefined;
     const nextCursor =
-      rows.length > limit
-        ? String(lastRow?.total_messages ?? "")
-        : null;
+      rows.length > limit ? String(lastRow?.total_messages ?? "") : null;
 
     return { data, nextCursor };
   }
