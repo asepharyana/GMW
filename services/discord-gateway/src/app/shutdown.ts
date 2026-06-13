@@ -4,6 +4,7 @@ import type { CommandHandler } from "../modules/command-handler/commandHandler.j
 import type { EventBroadcaster } from "../modules/event-broadcaster/index.js";
 import { stopMetricsServer } from "../modules/gateway-metrics/index.js";
 import { stopMuxerWorker } from "../modules/voice-recording/muxer.js";
+import type { VoicePcmWsClient } from "../modules/voice-pcm-ws/index.js";
 import type { VoiceController } from "../modules/voice-recording/voiceController.js";
 import type { closeDatabase } from "../shared/database/drizzle.js";
 
@@ -19,6 +20,7 @@ export interface GracefulShutdownOptions {
   eventBroadcaster: EventBroadcaster;
   commandHandler: CommandHandler;
   stopMetricsServer?: StopMetricsServer;
+  pcmWsClient?: VoicePcmWsClient;
 }
 
 export function createGracefulShutdown(options: GracefulShutdownOptions) {
@@ -40,6 +42,12 @@ export function createGracefulShutdown(options: GracefulShutdownOptions) {
       // 1. Voice disconnect (may write final DB records)
       options.logger.info("Stopping voice connection...");
       await options.voiceController.disconnect();
+
+      // 1b. Close PCM WebSocket client (after voice, before Redis)
+      if (options.pcmWsClient) {
+        options.logger.info("Closing voice PCM WS client...");
+        await options.pcmWsClient.close();
+      }
 
       // 2. Close Redis/pubsub after voice is done
       options.logger.info("Closing event broadcaster...");
