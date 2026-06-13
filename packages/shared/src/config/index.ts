@@ -15,6 +15,10 @@ export const configSchema = z
       .string()
       .min(1, "DISCORD_TOKEN is required")
       .transform((value) => value.replace(/^("|')|(?:("|'))$/g, "")),
+    MONITOR_GUILD_IDS: z
+      .string()
+      .default("")
+      .transform((v) => v.split(",").filter(Boolean)),
     MONITOR_GUILD_ID: z.string().min(1).optional(),
     TEXT_GUILD_ID: z.string().min(1).optional(),
     TEXT_CHANNEL_ID: z.string().min(1).optional(),
@@ -56,6 +60,15 @@ export const configSchema = z
       .transform((v) => v === "true")
       .default(false),
     ADMIN_PASSWORD: z.string().default("admin123"),
+    WEBHOOK_URLS: z
+      .string()
+      .default("")
+      .transform((v) => v.split(",").filter(Boolean)),
+    WEBHOOK_EVENTS: z
+      .string()
+      .default("message_flagged,auto_deleted,high_severity")
+      .transform((v) => v.split(",").filter(Boolean)),
+    METRICS_PORT: z.coerce.number().positive().default(9090),
 
     // ── Database (PostgreSQL) ────────────────────────────────────────────
     DATABASE_URL: z.string().optional(),
@@ -226,6 +239,7 @@ export const configSchema = z
 export type AppConfig = z.infer<typeof configSchema> & {
   EFFECTIVE_TEXT_GUILD_ID?: string;
   EFFECTIVE_VOICE_GUILD_ID?: string;
+  EFFECTIVE_MONITOR_GUILD_IDS: string[];
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -235,6 +249,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       ...parsed,
       EFFECTIVE_TEXT_GUILD_ID: parsed.TEXT_GUILD_ID ?? parsed.MONITOR_GUILD_ID,
       EFFECTIVE_VOICE_GUILD_ID: parsed.VOICE_GUILD_ID,
+      EFFECTIVE_MONITOR_GUILD_IDS:
+        parsed.MONITOR_GUILD_IDS.length > 0
+          ? parsed.MONITOR_GUILD_IDS
+          : parsed.MONITOR_GUILD_ID
+            ? [parsed.MONITOR_GUILD_ID]
+            : [],
     };
   } catch (error) {
     if (error instanceof z.ZodError) {

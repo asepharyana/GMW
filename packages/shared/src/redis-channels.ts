@@ -21,6 +21,15 @@ export const DISCORD_VOICE_UPLOADED = "discord:voice:uploaded";
 export const DISCORD_VOICE_ACTIVE_USER = "discord:voice:active_user";
 export const DISCORD_VOICE_PCM = "discord:voice:pcm";
 export const DISCORD_ANALYSIS_QUEUE_STATUS = "discord:analysis:queue_status";
+export const DISCORD_REACTION_ADDED = "discord:reaction:added";
+export const DISCORD_REACTION_REMOVED = "discord:reaction:removed";
+export const DISCORD_THREAD_CREATED = "discord:thread:created";
+export const DISCORD_THREAD_DELETED = "discord:thread:deleted";
+export const DISCORD_THREAD_UPDATED = "discord:thread:updated";
+export const DISCORD_CHANNEL_TOPIC_UPDATED = "discord:channel:topic_updated";
+export const DISCORD_PRESENCE_UPDATED = "discord:presence:updated";
+export const DISCORD_GUILD_MEMBER_ADDED = "discord:guild_member:added";
+export const DISCORD_GUILD_MEMBER_REMOVED = "discord:guild_member:removed";
 
 // ---------------------------------------------------------------------------
 // Command channels (backend -> discord-gateway)
@@ -43,6 +52,7 @@ export const MEDIA_STATUS_KEY = "media:status";
 
 export const COMMAND_VOICE_CONNECT = "voice:connect";
 export const COMMAND_VOICE_DISCONNECT = "voice:disconnect";
+export const COMMAND_VOICE_DISCONNECT_GUILD = "voice:disconnect:guild";
 export const COMMAND_VOICE_CHANNELS = "voice:channels";
 export const COMMAND_VOICE_TRANSMIT_START = "voice:transmit:start";
 export const COMMAND_VOICE_TRANSMIT_STOP = "voice:transmit:stop";
@@ -53,6 +63,7 @@ export const COMMAND_MEDIA_SKIP = "media:skip";
 export const COMMAND_MEDIA_STOP = "media:stop";
 export const COMMAND_MEDIA_VOLUME = "media:volume";
 export const COMMAND_MODERATION_ACTION = "moderation:action";
+export const DISCORD_VOICE_ANALYZED = "discord:voice:analyzed";
 
 // ---------------------------------------------------------------------------
 // Event envelope — used by discord-gateway when publishing to Redis
