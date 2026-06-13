@@ -31,7 +31,7 @@ export function createRecordingsRouter(): Router {
   router.delete(
     "/recordings/:id",
     asyncHandler(async (req: Request, res: Response) => {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await recordingsService.deleteById(id);
       res.json({ ok: true });
     }),

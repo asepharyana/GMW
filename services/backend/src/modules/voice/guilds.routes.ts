@@ -27,7 +27,7 @@ export function createGuildsRouter(): Router {
   router.get(
     "/:guildId/channels",
     asyncHandler(async (req: Request, res: Response) => {
-      const guildId = req.params.guildId;
+      const guildId = req.params.guildId as string;
       logger.debug({ guildId }, "Fetching text channels");
       const channels = await getTextChannels(guildId);
       res.json(channels);
@@ -38,7 +38,7 @@ export function createGuildsRouter(): Router {
   router.get(
     "/:guildId/voice-channels",
     asyncHandler(async (req: Request, res: Response) => {
-      const guildId = req.params.guildId;
+      const guildId = req.params.guildId as string;
       logger.debug({ guildId }, "Fetching voice channels");
       const channels = await getVoiceChannels(guildId);
       res.json(channels);

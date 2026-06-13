@@ -133,16 +133,20 @@ export class VoiceTransmitter {
         const data = JSON.parse(message);
         if (data.type === "pcm" && data.buffer) {
           const pcmBuffer = Buffer.from(data.buffer, "base64");
-          const canContinue = this.pcmStream.write(pcmBuffer);
+          const stream = this.pcmStream;
+          const canContinue = stream.write(pcmBuffer);
           // Backpressure: queue until drain
           if (!canContinue) {
             this.draining = true;
-            this.pcmStream.once("drain", () => {
+            stream.once("drain", () => {
               this.draining = false;
+              // Re-acquire stream reference (could have been replaced by restart)
+              const currentStream = this.pcmStream;
+              if (!currentStream) return;
               // Flush queued chunks
               while (this.backpressureQueue.length > 0) {
                 const queued = this.backpressureQueue.shift()!;
-                if (!this.pcmStream.write(queued)) break;
+                if (!currentStream.write(queued)) break;
               }
             });
           }
