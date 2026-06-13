@@ -8,3 +8,4 @@ export { RecordingsSubPanel } from "./RecordingsSubPanel";
 export { ScreenSubPanel } from "./ScreenSubPanel";
 export { MicLevelMeter } from "./MicLevelMeter";
 export { VoiceConnectionCard } from "./VoiceConnectionCard";
+export { WaveformPlayer } from "./WaveformPlayer";

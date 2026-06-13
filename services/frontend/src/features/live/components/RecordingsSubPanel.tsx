@@ -1,12 +1,13 @@
 // ─── Recordings Sub-Panel ──
 
-import { Download, Mic, Pause, Play, Trash2 } from "lucide-react";
+import { Download, Mic, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { VoiceRecording } from "../../../shared/api/client";
 import { deleteRecording, listRecordings } from "../../../shared/api/client";
 import { formatBytes, formatDate } from "../../../shared/lib/utils";
 import { Badge, Button, Skeleton } from "../../../shared/ui";
 import { EmptyStateMascot } from "../../../widgets/mascot/MascotImage";
+import { WaveformPlayer } from "./WaveformPlayer";
 
 export function RecordingsSubPanel() {
   const [recordings, setRecordings] = useState<VoiceRecording[]>([]);
@@ -16,8 +17,6 @@ export function RecordingsSubPanel() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-  const [activePlayingId, setActivePlayingId] = useState<string | null>(null);
-  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
 
   const loadRecordings = useCallback(async (
     opts?: { signal?: AbortSignal },
@@ -80,22 +79,6 @@ export function RecordingsSubPanel() {
         return next;
       });
     }
-  }, []);
-
-  const handleTogglePlay = useCallback((id: string) => {
-    setActivePlayingId((prev) => {
-      if (prev === id) {
-        // Pause current
-        audioRefs.current.get(id)?.pause();
-        return null;
-      }
-      // Pause any previously playing
-      if (prev) audioRefs.current.get(prev)?.pause();
-      // Play new
-      const audio = audioRefs.current.get(id);
-      if (audio) audio.play().catch(() => {});
-      return id;
-    });
   }, []);
 
   if (loading) {
@@ -188,25 +171,6 @@ export function RecordingsSubPanel() {
             </Badge>
             {rec.download_url && (
               <>
-                <Button
-                  size="sm"
-                  variant={activePlayingId === rec.id ? "default" : "outline"}
-                  onClick={() => handleTogglePlay(rec.id)}
-                >
-                  {activePlayingId === rec.id
-                    ? <Pause className="h-4 w-4" />
-                    : <Play className="h-4 w-4" />}
-                </Button>
-                <audio
-                  ref={(el) => {
-                    if (el) audioRefs.current.set(rec.id, el);
-                    else audioRefs.current.delete(rec.id);
-                  }}
-                  src={rec.download_url}
-                  preload="none"
-                  onEnded={() => setActivePlayingId((p) => p === rec.id ? null : p)}
-                  className="hidden"
-                />
                 <a
                   href={rec.download_url}
                   download={rec.filename}
@@ -218,6 +182,11 @@ export function RecordingsSubPanel() {
             )}
           </div>
         </div>
+        {rec.download_url && (
+          <div className="-mt-2 px-4 pb-4">
+            <WaveformPlayer downloadUrl={rec.download_url} filename={rec.filename} />
+          </div>
+        )}
       ))}
         {hasMore && (
           <div className="flex justify-center pt-2">
