@@ -24,6 +24,8 @@ export interface MediaQueueItem extends ResolvedMediaSource {
   status: MediaQueueItemStatus;
   /** Duration in seconds, if known. */
   duration?: number;
+  /** Thumbnail/preview URL, if available. */
+  thumbnailUrl?: string;
 }
 
 export interface MediaState {
