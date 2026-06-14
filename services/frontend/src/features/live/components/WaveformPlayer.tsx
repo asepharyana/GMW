@@ -126,8 +126,9 @@ export function WaveformPlayer({ downloadUrl, filename }: WaveformPlayerProps) {
     if (!playing || !decodedRef.current) return;
 
     const tick = () => {
+      if (!audioContextRef.current) return;
       const elapsed =
-        audioContextRef.current!.currentTime - startTimeRef.current;
+        audioContextRef.current.currentTime - startTimeRef.current;
       const progress = (elapsed + startOffsetRef.current) / durationRef.current;
       drawWaveform(Math.min(1, Math.max(0, progress)));
 
@@ -214,9 +215,7 @@ export function WaveformPlayer({ downloadUrl, filename }: WaveformPlayerProps) {
   );
 
   if (loading) {
-    return (
-      <div className="h-16 w-full animate-pulse rounded-md bg-muted" />
-    );
+    return <div className="h-16 w-full animate-pulse rounded-md bg-muted" />;
   }
 
   if (error) {
@@ -236,7 +235,11 @@ export function WaveformPlayer({ downloadUrl, filename }: WaveformPlayerProps) {
         onClick={handleTogglePlay}
         className="shrink-0 rounded-full bg-primary p-1.5 text-primary-foreground hover:bg-primary/90"
       >
-        {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+        {playing ? (
+          <Pause className="h-3.5 w-3.5" />
+        ) : (
+          <Play className="h-3.5 w-3.5" />
+        )}
       </button>
       <div
         ref={containerRef}

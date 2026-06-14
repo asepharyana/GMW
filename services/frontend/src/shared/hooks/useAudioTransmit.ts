@@ -41,11 +41,9 @@ function sendWsCommand(
   return false;
 }
 
-export function useAudioTransmit(
-  socketRef: {
-    readonly current: WebSocket | null;
-  },
-): {
+export function useAudioTransmit(socketRef: {
+  readonly current: WebSocket | null;
+}): {
   isStreaming: boolean;
   micError: string | null;
   micLevel: number;
@@ -195,5 +193,14 @@ export function useAudioTransmit(
     }
   }, [isStreaming, startTransmit, stopTransmit, start]);
 
-  return { isStreaming, micError, micLevel, toggle, stopTransmit, startTransmit, stop, start };
+  return {
+    isStreaming,
+    micError,
+    micLevel,
+    toggle,
+    stopTransmit,
+    startTransmit,
+    stop,
+    start,
+  };
 }

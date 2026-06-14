@@ -1,7 +1,6 @@
 import { motion } from "framer-motion";
 import { LayoutDashboard, MessageSquare, Radio } from "lucide-react";
-import type { DashboardTab } from "../shared/api/client";
-import type { MessageRecord } from "../shared/api/client";
+import type { DashboardTab, MessageRecord } from "../shared/api/client";
 import { useMascotChat } from "../shared/hooks/useMascotChat";
 import { cn } from "../shared/lib/utils";
 import { MascotChatbot } from "./mascot/MascotChatbot";

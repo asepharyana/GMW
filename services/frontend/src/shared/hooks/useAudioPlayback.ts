@@ -1,5 +1,11 @@
 // ─── Audio playback hook — receives PCM from WebSocket and plays through Web Audio API ──
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { createLogger } from "../lib/logger.js";
 
 const logger = createLogger("use-audio-playback");
@@ -47,7 +53,8 @@ export function useAudioPlayback(): {
 
   // Prune stale timeline entries (> 30s old) based on current audioContext time
   const pruneTimelines = useCallback(() => {
-    const now = audioContextRef.current?.currentTime ?? performance.now() / 1000;
+    const now =
+      audioContextRef.current?.currentTime ?? performance.now() / 1000;
     for (const [userId, endTime] of userTimelinesRef.current) {
       if (endTime + 30 < now) userTimelinesRef.current.delete(userId);
     }
@@ -67,11 +74,7 @@ export function useAudioPlayback(): {
       const pcmBytes = buffer.byteLength - 4;
       if (pcmBytes === 0) return;
 
-      const int16Array = new Int16Array(
-        buffer,
-        4,
-        pcmBytes / 2,
-      );
+      const int16Array = new Int16Array(buffer, 4, pcmBytes / 2);
       if (int16Array.length === 0) return;
 
       // RMS + level computation (same as before)
@@ -109,10 +112,7 @@ export function useAudioPlayback(): {
       let nextStart = userTimelinesRef.current.get(userId) || 0;
       if (nextStart < currentTime) nextStart = currentTime + 0.05;
       source.start(nextStart);
-      userTimelinesRef.current.set(
-        userId,
-        nextStart + audioBuffer.duration,
-      );
+      userTimelinesRef.current.set(userId, nextStart + audioBuffer.duration);
       pruneTimelines();
     },
     [isListening, pruneTimelines],
@@ -233,4 +233,3 @@ function fnv1a32(str: string): number {
   }
   return hash >>> 0;
 }
-

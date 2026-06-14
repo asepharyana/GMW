@@ -78,7 +78,11 @@ export function MusicSubPanel({
           onClick={handleMute}
           className="shrink-0 text-muted-foreground hover:text-foreground"
         >
-          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          {muted ? (
+            <VolumeX className="h-4 w-4" />
+          ) : (
+            <Volume2 className="h-4 w-4" />
+          )}
         </button>
         <input
           type="range"

@@ -242,21 +242,28 @@ export function MessagesPanel({
         )}
         <div className="ml-auto flex items-center gap-1.5">
           <Filter className="h-4 w-4 text-primary" />
-          {(["all", "analyzed", "clean", "flagged", "error", "pending"] as AiFilter[]).map(
-            (f) => (
-              <button
-                key={f}
-                onClick={() => setAiFilter(f)}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                  aiFilter === f
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                }`}
-              >
-                {f}
-              </button>
-            ),
-          )}
+          {(
+            [
+              "all",
+              "analyzed",
+              "clean",
+              "flagged",
+              "error",
+              "pending",
+            ] as AiFilter[]
+          ).map((f) => (
+            <button
+              key={f}
+              onClick={() => setAiFilter(f)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                aiFilter === f
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
+              }`}
+            >
+              {f}
+            </button>
+          ))}
         </div>
       </motion.div>
 

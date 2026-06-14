@@ -49,20 +49,25 @@ export default function App() {
   // Update speaker list from incremental voice_active_user events
   const updateSpeakerList = (
     prev: (ActiveSpeaker & { heardAt?: number })[],
-    data: Partial<ActiveSpeaker> & { userId?: string; id?: string; speaking: boolean },
+    data: Partial<ActiveSpeaker> & {
+      userId?: string;
+      id?: string;
+      speaking: boolean;
+    },
   ): (ActiveSpeaker & { heardAt?: number })[] => {
     const key = data.userId ?? data.id;
     if (!key) return prev;
     const now = Date.now();
-    const idx = prev.findIndex(
-      (s) => (s.userId ?? s.id) === key,
-    );
+    const idx = prev.findIndex((s) => (s.userId ?? s.id) === key);
     if (idx >= 0) {
       const next = [...prev];
       next[idx] = { ...next[idx], ...data, heardAt: now };
       return next;
     }
-    return [...prev, { ...data, heardAt: now } as ActiveSpeaker & { heardAt?: number }];
+    return [
+      ...prev,
+      { ...data, heardAt: now } as ActiveSpeaker & { heardAt?: number },
+    ];
   };
 
   const socket = useDashboardSocket({
@@ -75,7 +80,13 @@ export default function App() {
         })),
       ),
     onVoiceActiveUser: (data) => {
-      const d = data as { userId?: string; id?: string; username: string; avatar: string; speaking: boolean };
+      const d = data as {
+        userId?: string;
+        id?: string;
+        username: string;
+        avatar: string;
+        speaking: boolean;
+      };
       if (d.userId) audio.registerUserId(d.userId);
       setActiveSpeakers((prev) =>
         updateSpeakerList(
@@ -191,7 +202,12 @@ export default function App() {
   // Push-to-Talk — hold Space to transmit
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      )
+        return;
       if (e.code === "Space" && !transmit.isStreaming && e.repeat === false) {
         e.preventDefault();
         transmit.startTransmit().catch(() => undefined);

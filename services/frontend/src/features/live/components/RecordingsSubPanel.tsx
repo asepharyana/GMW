@@ -18,25 +18,26 @@ export function RecordingsSubPanel() {
   const [error, setError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
-  const loadRecordings = useCallback(async (
-    opts?: { signal?: AbortSignal },
-  ) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await listRecordings({ limit: 50 });
-      if (!opts?.signal?.aborted) {
-        setRecordings(data.items);
-        setNextCursor(data.nextCursor);
-        setHasMore(data.hasMore);
+  const loadRecordings = useCallback(
+    async (opts?: { signal?: AbortSignal }) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await listRecordings({ limit: 50 });
+        if (!opts?.signal?.aborted) {
+          setRecordings(data.items);
+          setNextCursor(data.nextCursor);
+          setHasMore(data.hasMore);
+        }
+      } catch (err) {
+        if (!opts?.signal?.aborted)
+          setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!opts?.signal?.aborted) setLoading(false);
       }
-    } catch (err) {
-      if (!opts?.signal?.aborted)
-        setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      if (!opts?.signal?.aborted) setLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
@@ -105,11 +106,7 @@ export function RecordingsSubPanel() {
       <div className="rounded-xl border border-dashed border-destructive p-6 text-center text-sm text-destructive">
         {error}
         <div className="mt-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => loadRecordings()}
-          >
+          <Button size="sm" variant="outline" onClick={() => loadRecordings()}>
             Retry
           </Button>
         </div>
@@ -185,23 +182,26 @@ export function RecordingsSubPanel() {
           </div>
           {rec.download_url && (
             <div className="-mt-2 px-4 pb-4">
-              <WaveformPlayer downloadUrl={rec.download_url} filename={rec.filename} />
+              <WaveformPlayer
+                downloadUrl={rec.download_url}
+                filename={rec.filename}
+              />
             </div>
           )}
         </div>
       ))}
-        {hasMore && (
-          <div className="flex justify-center pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={loadingMore}
-              onClick={loadMore}
-            >
-              {loadingMore ? "Loading..." : "Load More"}
-            </Button>
-          </div>
-        )}
+      {hasMore && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loadingMore}
+            onClick={loadMore}
+          >
+            {loadingMore ? "Loading..." : "Load More"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

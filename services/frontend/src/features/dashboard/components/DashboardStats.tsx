@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { cardItem, cardStagger } from "../../../shared/hooks/useFramerStagger";
+import { useUIState } from "../../../shared/hooks/useUIState";
 import { cn } from "../../../shared/lib/utils";
 import {
   Card,
@@ -20,7 +21,6 @@ import {
   StatusBadge,
 } from "../../../shared/ui";
 import { useDashboardStats } from "../hooks/useDashboard";
-import { useUIState } from "../../../shared/hooks/useUIState";
 
 export function DashboardStatsContent() {
   const { stats, loading, error, refetch } = useDashboardStats();
@@ -129,7 +129,11 @@ export function DashboardStatsContent() {
         {cards.map((card) => (
           <Card
             key={card.title}
-            className={cn("overflow-hidden", card.onClick && "cursor-pointer transition-colors hover:bg-accent/50")}
+            className={cn(
+              "overflow-hidden",
+              card.onClick &&
+                "cursor-pointer transition-colors hover:bg-accent/50",
+            )}
             onClick={card.onClick}
           >
             <CardContent className="p-4">

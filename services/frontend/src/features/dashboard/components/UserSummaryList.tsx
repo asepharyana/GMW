@@ -1,7 +1,7 @@
 import { User } from "lucide-react";
 import type { DashboardUser } from "../../../shared/api/client";
-import { SummaryList } from "../../../shared/ui";
 import type { SummaryItem } from "../../../shared/ui";
+import { SummaryList } from "../../../shared/ui";
 
 interface UserSummaryListProps {
   users: DashboardUser[];
