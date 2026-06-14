@@ -11,6 +11,8 @@ import {
   listDashboardChannels,
   listDashboardUsers,
 } from "../../../shared/api/client";
+import { useItemDetail } from "../../../shared/hooks/useItemDetail";
+import { usePaginatedList } from "../../../shared/hooks/usePaginatedList";
 
 const logger = console;
 
@@ -48,58 +50,25 @@ export function useDashboardStats() {
  * Fetch paginated user list with optional search.
  */
 export function useDashboardUsers() {
-  const [users, setUsers] = useState<DashboardUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-
-  const fetchUsers = useCallback(
-    async (cursor?: string) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await listDashboardUsers({
-          limit: 20,
-          cursor,
-          search: search || undefined,
-        });
-        if (cursor) {
-          setUsers((prev) => [...prev, ...result.data]);
-        } else {
-          setUsers(result.data);
-        }
-        setNextCursor(result.nextCursor);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to load users";
-        setError(msg);
-        logger.error("[useDashboardUsers]", msg);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [search],
+  const paginated = usePaginatedList(
+    (params) =>
+      listDashboardUsers({
+        limit: params.limit,
+        search: params.search,
+        cursor: params.cursor,
+      }).then((r) => ({ data: r.data, nextCursor: r.nextCursor })),
+    "",
   );
 
-  useEffect(() => {
-    fetchUsers().catch(() => undefined);
-  }, [fetchUsers]);
-
-  const loadMore = useCallback(() => {
-    if (nextCursor && !loading) {
-      fetchUsers(nextCursor).catch(() => undefined);
-    }
-  }, [nextCursor, loading, fetchUsers]);
-
   return {
-    users,
-    loading,
-    error,
-    search,
-    setSearch,
-    loadMore,
-    hasMore: !!nextCursor,
-    refetch: () => fetchUsers().catch(() => undefined),
+    users: paginated.data,
+    loading: paginated.loading,
+    error: paginated.error,
+    search: paginated.search,
+    setSearch: paginated.setSearch,
+    loadMore: paginated.loadMore,
+    hasMore: paginated.hasMore,
+    refetch: paginated.refetch,
   };
 }
 
@@ -107,92 +76,40 @@ export function useDashboardUsers() {
  * Fetch a single user detail by userId.
  */
 export function useDashboardUserDetail(userId: string | null) {
-  const [detail, setDetail] = useState<DashboardUserDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error, refetch } = useItemDetail(
+    (_guildId, entityId) => getDashboardUserDetail(entityId),
+    "",
+    userId,
+    "user",
+  );
 
-  const fetch = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getDashboardUserDetail(userId);
-      if (!data) {
-        setError("User not found");
-        return;
-      }
-      setDetail(data);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to load user detail";
-      setError(msg);
-      logger.error("[useDashboardUserDetail]", msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    fetch().catch(() => undefined);
-  }, [fetch]);
-
-  return { detail, loading, error, refetch: fetch };
+  return { detail: data, loading, error, refetch };
 }
 
 /**
  * Fetch paginated channel list with optional search.
  */
 export function useDashboardChannels() {
-  const [channels, setChannels] = useState<DashboardChannel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-
-  const fetchChannels = useCallback(
-    async (cursor?: string) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await listDashboardChannels({
-          limit: 20,
-          search: search || undefined,
-        });
-        if (cursor) {
-          setChannels((prev) => [...prev, ...result.data]);
-        } else {
-          setChannels(result.data);
-        }
-        setNextCursor(result.nextCursor);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to load channels";
-        setError(msg);
-        logger.error("[useDashboardChannels]", msg);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [search],
+  const paginated = usePaginatedList(
+    (params) =>
+      listDashboardChannels({
+        limit: params.limit,
+        search: params.search,
+        guild_id: params.guildId,
+        cursor: params.cursor,
+      }).then((r) => ({ data: r.data, nextCursor: r.nextCursor })),
+    "",
   );
 
-  useEffect(() => {
-    fetchChannels().catch(() => undefined);
-  }, [fetchChannels]);
-
-  const loadMore = useCallback(() => {
-    if (nextCursor && !loading) {
-      fetchChannels(nextCursor).catch(() => undefined);
-    }
-  }, [nextCursor, loading, fetchChannels]);
-
   return {
-    channels,
-    loading,
-    error,
-    search,
-    setSearch,
-    loadMore,
-    hasMore: !!nextCursor,
-    refetch: () => fetchChannels().catch(() => undefined),
+    channels: paginated.data,
+    loading: paginated.loading,
+    error: paginated.error,
+    search: paginated.search,
+    setSearch: paginated.setSearch,
+    loadMore: paginated.loadMore,
+    hasMore: paginated.hasMore,
+    refetch: paginated.refetch,
   };
 }
 
@@ -200,34 +117,12 @@ export function useDashboardChannels() {
  * Fetch a single channel detail by channelId.
  */
 export function useDashboardChannelDetail(channelId: string | null) {
-  const [detail, setDetail] = useState<DashboardChannelDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error, refetch } = useItemDetail(
+    (_guildId, entityId) => getDashboardChannelDetail(entityId),
+    "",
+    channelId,
+    "channel",
+  );
 
-  const fetch = useCallback(async () => {
-    if (!channelId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getDashboardChannelDetail(channelId);
-      if (!data) {
-        setError("Channel not found");
-        return;
-      }
-      setDetail(data);
-    } catch (e) {
-      const msg =
-        e instanceof Error ? e.message : "Failed to load channel detail";
-      setError(msg);
-      logger.error("[useDashboardChannelDetail]", msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [channelId]);
-
-  useEffect(() => {
-    fetch().catch(() => undefined);
-  }, [fetch]);
-
-  return { detail, loading, error, refetch: fetch };
+  return { detail: data, loading, error, refetch };
 }

@@ -7,6 +7,8 @@ export function Skeleton({
 }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
+      aria-hidden="true"
+      role="presentation"
       className={cn("rounded-lg bg-muted animate-shimmer", className)}
       {...props}
     />

@@ -8,6 +8,19 @@ export type WsStatus = "connecting" | "connected" | "disconnected" | "error";
 
 export type BinaryHandler = (data: ArrayBuffer) => void;
 
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 30000;
+const MAX_RECONNECT_ATTEMPTS = 20;
+
+function computeBackoff(attempt: number): number {
+  const delay = Math.min(
+    RECONNECT_BASE_MS * Math.pow(2, attempt),
+    RECONNECT_MAX_MS,
+  );
+  // Full jitter: random between 50% and 100% of delay
+  return delay * (0.5 + Math.random() * 0.5);
+}
+
 export interface WsHandlers {
   onBinary?: BinaryHandler;
   onMessageCreated?: (data: unknown) => void;
@@ -24,6 +37,16 @@ export interface WsHandlers {
   onVoiceRecordingUploaded?: (data: unknown) => void;
   onVoicePcmData?: (data: unknown) => void;
   onVoiceActiveUser?: (data: unknown) => void;
+  onReactionAdded?: (data: unknown) => void;
+  onReactionRemoved?: (data: unknown) => void;
+  onThreadCreated?: (data: unknown) => void;
+  onThreadDeleted?: (data: unknown) => void;
+  onThreadUpdated?: (data: unknown) => void;
+  onChannelTopicUpdated?: (data: unknown) => void;
+  onPresenceUpdated?: (data: unknown) => void;
+  onGuildMemberAdded?: (data: unknown) => void;
+  onGuildMemberRemoved?: (data: unknown) => void;
+  onVoiceAnalyzed?: (data: unknown) => void;
 }
 
 let _wsInstance: WebSocket | null = null;
@@ -61,8 +84,19 @@ function doConnect(): WebSocket {
     logger.info("Disconnected", { code: event.code, reason: event.reason });
     if (!_closed && _listeners.size > 0) {
       _reconnectAttempts++;
-      logger.warn("Reconnecting", { attempt: _reconnectAttempts });
-      _reconnectTimer = setTimeout(() => doReconnect(), 2500);
+      if (_reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+        logger.error("Max reconnect attempts reached, giving up", {
+          attempts: _reconnectAttempts,
+        });
+        dispatchStatus("disconnected");
+        return;
+      }
+      const delay = computeBackoff(_reconnectAttempts);
+      logger.warn("Reconnecting", {
+        attempt: _reconnectAttempts,
+        delayMs: Math.round(delay),
+      });
+      _reconnectTimer = setTimeout(() => doReconnect(), delay);
     }
   });
   ws.addEventListener("message", (event) => {
@@ -76,19 +110,22 @@ function doConnect(): WebSocket {
       for (const h of _listeners) {
         switch (msg.type) {
           case "message_created":
-            h.onMessageCreated?.(msg.data);
+            if (msg.data !== undefined) h.onMessageCreated?.(msg.data);
             break;
           case "message_updated":
-            h.onMessageUpdated?.(msg.data);
+            if (msg.data !== undefined) h.onMessageUpdated?.(msg.data);
             break;
           case "message_deleted":
-            h.onMessageDeleted?.(msg.data);
+            if (msg.data !== undefined) h.onMessageDeleted?.(msg.data);
             break;
           case "message_analyzed":
-            h.onMessageAnalyzed?.(msg.data);
+            if (msg.data !== undefined) h.onMessageAnalyzed?.(msg.data);
+            break;
+          case "attachment_created":
+            if (msg.data !== undefined) h.onAttachmentCreated?.(msg.data);
             break;
           case "attachment_uploaded":
-            h.onAttachmentUploaded?.(msg.data);
+            if (msg.data !== undefined) h.onAttachmentUploaded?.(msg.data);
             break;
           case "user_state":
             h.onUserState?.((msg.users as unknown[]) || []);
@@ -99,26 +136,53 @@ function doConnect(): WebSocket {
           case "media_state":
             h.onMediaState?.(msg.state);
             break;
-          case "voice_recording_uploaded":
-            h.onVoiceRecordingUploaded?.(msg.data);
-            break;
           case "voice_recording_started":
-            h.onVoiceRecordingStarted?.(msg.data);
+            if (msg.data !== undefined) h.onVoiceRecordingStarted?.(msg.data);
             break;
           case "voice_recording_stopped":
-            h.onVoiceRecordingStopped?.(msg.data);
+            if (msg.data !== undefined) h.onVoiceRecordingStopped?.(msg.data);
+            break;
+          case "voice_recording_uploaded":
+            if (msg.data !== undefined) h.onVoiceRecordingUploaded?.(msg.data);
             break;
           case "voice_pcm_data":
-            h.onVoicePcmData?.(msg.data);
+            if (msg.data !== undefined) h.onVoicePcmData?.(msg.data);
             break;
           case "voice_active_user":
-            h.onVoiceActiveUser?.(msg.data);
+            if (msg.data !== undefined) h.onVoiceActiveUser?.(msg.data);
             break;
-          case "attachment_created":
-            h.onAttachmentCreated?.(msg.data);
+          case "voice_analyzed":
+            if (msg.data !== undefined) h.onVoiceAnalyzed?.(msg.data);
+            break;
+          case "reaction_added":
+            if (msg.data !== undefined) h.onReactionAdded?.(msg.data);
+            break;
+          case "reaction_removed":
+            if (msg.data !== undefined) h.onReactionRemoved?.(msg.data);
+            break;
+          case "thread_created":
+            if (msg.data !== undefined) h.onThreadCreated?.(msg.data);
+            break;
+          case "thread_deleted":
+            if (msg.data !== undefined) h.onThreadDeleted?.(msg.data);
+            break;
+          case "thread_updated":
+            if (msg.data !== undefined) h.onThreadUpdated?.(msg.data);
+            break;
+          case "channel_topic_updated":
+            if (msg.data !== undefined) h.onChannelTopicUpdated?.(msg.data);
+            break;
+          case "presence_updated":
+            if (msg.data !== undefined) h.onPresenceUpdated?.(msg.data);
+            break;
+          case "guild_member_added":
+            if (msg.data !== undefined) h.onGuildMemberAdded?.(msg.data);
+            break;
+          case "guild_member_removed":
+            if (msg.data !== undefined) h.onGuildMemberRemoved?.(msg.data);
             break;
           case "analysis_queue_status":
-            // analysis_queue_status is monitoring-only — no UI action needed
+            // monitoring-only — no UI action needed
             break;
         }
       }
@@ -178,6 +242,18 @@ export function useDashboardSocket(handlers: WsHandlers) {
         handlersRef.current.onVoiceRecordingUploaded?.(d),
       onVoicePcmData: (d) => handlersRef.current.onVoicePcmData?.(d),
       onVoiceActiveUser: (d) => handlersRef.current.onVoiceActiveUser?.(d),
+      onReactionAdded: (d) => handlersRef.current.onReactionAdded?.(d),
+      onReactionRemoved: (d) => handlersRef.current.onReactionRemoved?.(d),
+      onThreadCreated: (d) => handlersRef.current.onThreadCreated?.(d),
+      onThreadDeleted: (d) => handlersRef.current.onThreadDeleted?.(d),
+      onThreadUpdated: (d) => handlersRef.current.onThreadUpdated?.(d),
+      onChannelTopicUpdated: (d) =>
+        handlersRef.current.onChannelTopicUpdated?.(d),
+      onPresenceUpdated: (d) => handlersRef.current.onPresenceUpdated?.(d),
+      onGuildMemberAdded: (d) => handlersRef.current.onGuildMemberAdded?.(d),
+      onGuildMemberRemoved: (d) =>
+        handlersRef.current.onGuildMemberRemoved?.(d),
+      onVoiceAnalyzed: (d) => handlersRef.current.onVoiceAnalyzed?.(d),
     };
 
     _listeners.add(wrapper);
@@ -207,5 +283,3 @@ export function useDashboardSocket(handlers: WsHandlers) {
 
   return { status, send, socketRef: { current: _wsInstance } };
 }
-
-// Alias for backward compatibility

@@ -7,6 +7,7 @@ export function Card({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
+      role="region"
       className={cn(
         "rounded-xl border border-border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow",
         className,

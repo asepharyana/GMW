@@ -7,6 +7,8 @@ const logger = createLogger("api");
 
 const BE_API_URL = import.meta.env.VITE_BE_API_URL || "http://localhost:3001";
 
+const DEFAULT_TIMEOUT_MS = 15000;
+
 class ApiError extends Error {
   code: string;
   statusCode: number;
@@ -19,9 +21,36 @@ class ApiError extends Error {
   }
 }
 
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const password = localStorage.getItem("admin-password");
+// Cache admin password in memory — read from localStorage once on first call
+let _cachedPassword: string | null = null;
+
+function getAdminPassword(): string | null {
+  if (_cachedPassword === null) {
+    _cachedPassword = localStorage.getItem("admin-password");
+  }
+  return _cachedPassword;
+}
+
+function buildSearchParams(
+  params: Record<string, string | number | undefined | null>,
+): URLSearchParams {
+  const sp = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value != null && value !== "") {
+      sp.set(key, String(value));
+    }
+  }
+  return sp;
+}
+
+export async function request<T>(
+  path: string,
+  init?: RequestInit,
+  timeoutMs?: number,
+): Promise<T> {
+  const password = getAdminPassword();
   const url = path.startsWith("http") ? path : `${BE_API_URL}${path}`;
+  const signal = AbortSignal.timeout(timeoutMs ?? DEFAULT_TIMEOUT_MS);
   logger.debug("Request", { method: init?.method ?? "GET", url });
 
   const res = await fetch(url, {
@@ -29,6 +58,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
       "Content-Type": "application/json",
       ...(password ? { "X-Admin-Password": password } : {}),
     },
+    signal,
     ...init,
   });
 
@@ -144,11 +174,11 @@ export function listMessages(params: {
   limit?: number;
   cursor?: string;
 }): Promise<PageResult<MessageRecord>> {
-  const sp = new URLSearchParams({
+  const sp = buildSearchParams({
     guildId: params.guildId,
-    limit: String(params.limit ?? 100),
-    ...(params.channelId && { channelId: params.channelId }),
-    ...(params.cursor && { cursor: params.cursor }),
+    limit: params.limit ?? 100,
+    channelId: params.channelId,
+    cursor: params.cursor,
   });
   return request<PageResult<MessageRecord>>(`/api/messages?${sp}`);
 }
@@ -263,16 +293,21 @@ export interface VoiceRecording {
   uploaded_at: number | null;
 }
 
+export interface VoiceRecordingListResponse {
+  items: VoiceRecording[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 export function listRecordings(params?: {
   limit?: number;
   cursor?: string;
-}): Promise<{ items: VoiceRecording[]; nextCursor: string | null; hasMore: boolean }> {
-  const sp = new URLSearchParams();
-  sp.set("limit", String(params?.limit ?? 50));
-  if (params?.cursor) sp.set("cursor", params.cursor);
-  return request<{ items: VoiceRecording[]; nextCursor: string | null; hasMore: boolean }>(
-    `/api/recordings?${sp}`,
-  );
+}): Promise<VoiceRecordingListResponse> {
+  const sp = buildSearchParams({
+    limit: params?.limit ?? 50,
+    cursor: params?.cursor,
+  });
+  return request<VoiceRecordingListResponse>(`/api/recordings?${sp}`);
 }
 
 export function deleteRecording(id: string): Promise<void> {
@@ -346,10 +381,11 @@ export function getDashboardStats(): Promise<DashboardStats> {
 export function listDashboardUsers(
   params: { limit?: number; cursor?: string; search?: string } = {},
 ): Promise<{ data: DashboardUser[]; nextCursor: string | null }> {
-  const sp = new URLSearchParams();
-  if (params.limit) sp.set("limit", String(params.limit));
-  if (params.cursor) sp.set("cursor", params.cursor);
-  if (params.search) sp.set("search", params.search);
+  const sp = buildSearchParams({
+    limit: params.limit,
+    cursor: params.cursor,
+    search: params.search,
+  });
   return request<{ data: DashboardUser[]; nextCursor: string | null }>(
     `/api/dashboard/users?${sp}`,
   );
@@ -387,12 +423,19 @@ export interface DashboardChannelDetail extends DashboardChannel {
 }
 
 export function listDashboardChannels(
-  params: { limit?: number; search?: string; guild_id?: string } = {},
+  params: {
+    limit?: number;
+    search?: string;
+    guild_id?: string;
+    cursor?: string;
+  } = {},
 ): Promise<{ data: DashboardChannel[]; nextCursor: string | null }> {
-  const sp = new URLSearchParams();
-  if (params.limit) sp.set("limit", String(params.limit));
-  if (params.search) sp.set("search", params.search);
-  if (params.guild_id) sp.set("guild_id", params.guild_id);
+  const sp = buildSearchParams({
+    limit: params.limit,
+    search: params.search,
+    guild_id: params.guild_id,
+    cursor: params.cursor,
+  });
   return request<{ data: DashboardChannel[]; nextCursor: string | null }>(
     `/api/dashboard/channels?${sp}`,
   );

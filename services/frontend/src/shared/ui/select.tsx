@@ -22,11 +22,17 @@ export function Select({
     <select
       className={cn(
         "flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+        props["aria-invalid"] === "true" &&
+          "border-destructive ring-destructive/30",
         className,
       )}
       {...props}
     >
-      {placeholder && <option value="">{placeholder}</option>}
+      {placeholder && (
+        <option value="" disabled hidden>
+          {placeholder}
+        </option>
+      )}
       {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}

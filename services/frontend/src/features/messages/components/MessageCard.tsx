@@ -11,7 +11,7 @@ import {
 import { Fragment, useMemo, useState } from "react";
 import { parseMetadata } from "../../../entities/message/types";
 import type { MessageRecord } from "../../../shared/api/client";
-import { Badge, Button, Skeleton } from "../../../shared/ui";
+import { Badge, Button, Skeleton, StatusBadge } from "../../../shared/ui";
 
 const CUSTOM_EMOJI_REGEX = /<(a)?:([a-zA-Z0-9_]+):(\d+)>/g;
 
@@ -194,15 +194,11 @@ function MessageRow({
           </span>
         )}
         <div className="ml-auto flex items-center gap-1">
-          <Badge
-            variant={aiVariant(aiStatus)}
-            className="flex items-center gap-1 text-[10px] px-1.5 py-0"
-          >
+          <StatusBadge status={aiStatus} className="text-[10px] px-1.5 py-0">
             {aiStatus === "clean" && <CheckCircle2 className="h-3 w-3" />}
             {aiStatus === "flagged" && <AlertCircle className="h-3 w-3" />}
             {aiStatus === "error" && <AlertCircle className="h-3 w-3" />}
-            {aiStatus}
-          </Badge>
+          </StatusBadge>
           {message.ai_severity && message.ai_severity !== "none" && (
             <Badge
               className={`text-[10px] px-1.5 py-0 ${severityColor(message.ai_severity)}`}

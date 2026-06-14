@@ -17,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
   Skeleton,
+  StatusBadge,
 } from "../../../shared/ui";
 import { useDashboardStats } from "../hooks/useDashboard";
 import { useUIState } from "../../../shared/hooks/useUIState";
@@ -189,7 +190,12 @@ export function DashboardStatsContent() {
             <CardTitle className="text-primary">Moderation Queue</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="flex flex-wrap gap-3">
+              <StatusBadge status="pending" />
+              <StatusBadge status="processing" />
+              <StatusBadge status="error" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3 mt-4">
               <div className="rounded-xl border border-border bg-card p-4 text-center">
                 <p className="text-2xl font-bold text-muted-foreground">
                   {stats.moderation_overview.pending}

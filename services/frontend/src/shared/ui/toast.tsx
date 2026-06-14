@@ -11,6 +11,8 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 import { cn } from "../lib/utils";
@@ -35,21 +37,40 @@ const ToastContext = createContext<ToastContextType>({
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+    const timer = timersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timersRef.current.delete(id);
+    }
+  }, []);
 
   const addToast = useCallback(
     (message: string, type: Toast["type"] = "info") => {
       const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       setToasts((prev) => [...prev, { id, message, type }]);
-      setTimeout(
-        () => setToasts((prev) => prev.filter((t) => t.id !== id)),
-        4000,
-      );
+      const timer = setTimeout(() => {
+        removeToast(id);
+      }, 4000);
+      timersRef.current.set(id, timer);
     },
-    [],
+    [removeToast],
   );
 
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+  // Cleanup all timers on unmount
+  useEffect(() => {
+    const current = timersRef.current;
+    return () => {
+      for (const timer of current.values()) {
+        clearTimeout(timer);
+      }
+      current.clear();
+    };
   }, []);
 
   return (
@@ -84,19 +105,33 @@ function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    <div
+      role="alert"
+      aria-live="polite"
+      className="fixed bottom-4 right-4 z-50 flex flex-col gap-2"
+    >
       {toasts.map((toast) => (
         <div
           key={toast.id}
+          role="button"
+          tabIndex={0}
           className={cn(
-            "group flex items-center gap-2.5 rounded-lg border border-border px-4 py-3 text-sm shadow-md cursor-pointer transition-all hover:scale-[1.02] border-l-4",
+            "group flex items-center gap-2.5 rounded-lg border border-border px-4 py-3 text-sm shadow-md cursor-pointer transition-all hover:scale-[1.02] border-l-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             typeStyles[toast.type],
           )}
           onClick={() => removeToast(toast.id)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === "Escape") {
+              removeToast(toast.id);
+            }
+          }}
         >
           <span className="flex-shrink-0">{typeIcons[toast.type]}</span>
           <span className="flex-1">{toast.message}</span>
-          <X className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          <X
+            aria-label="Close notification"
+            className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+          />
         </div>
       ))}
     </div>

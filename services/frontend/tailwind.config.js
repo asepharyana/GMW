@@ -28,17 +28,12 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       animation: {
-        shimmer: "shimmer 2s linear infinite",
         "bar-pulse": "bar-pulse 0.4s ease-in-out infinite",
         "fade-in-up": "fadeInUp 0.5s ease-out",
         "fade-in": "fadeIn 0.3s ease-out",
         "glow-pulse": "glowPulse 3s ease-in-out infinite",
       },
       keyframes: {
-        shimmer: {
-          "0%": { backgroundPosition: "-200% 0" },
-          "100%": { backgroundPosition: "200% 0" },
-        },
         "bar-pulse": {
           "0%, 100%": { transform: "scaleY(0.8)" },
           "50%": { transform: "scaleY(1.2)" },
