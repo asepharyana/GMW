@@ -9,8 +9,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
-import { parseMetadata } from "../../../entities/message/types";
-import type { MessageRecord } from "../../../shared/api/client";
+import type { MessageRecord } from "../../../entities/message/types.js";
+import { parseMetadata } from "../../../shared/lib/utils.js";
 import { Badge, Button, Skeleton, StatusBadge } from "../../../shared/ui";
 
 const CUSTOM_EMOJI_REGEX = /<(a)?:([a-zA-Z0-9_]+):(\d+)>/g;
@@ -70,12 +70,6 @@ function parseStringList(value?: string | null): string[] {
       .map((item) => item.trim())
       .filter(Boolean);
   }
-}
-
-function aiVariant(status: string) {
-  if (status === "clean") return "success";
-  if (status === "flagged" || status === "error") return "destructive";
-  return "secondary";
 }
 
 function severityColor(severity: string) {

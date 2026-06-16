@@ -1,5 +1,5 @@
 import { Hash } from "lucide-react";
-import type { DashboardChannel } from "../../../shared/api/client";
+import type { DashboardChannel } from "../../../entities/dashboard/types.js";
 import type { SummaryItem } from "../../../shared/ui";
 import { SummaryList } from "../../../shared/ui";
 

@@ -1,20 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
+import type { DashboardStats } from "../../../entities/dashboard/types.js";
 import {
-  type DashboardChannel,
-  type DashboardChannelDetail,
-  type DashboardStats,
-  type DashboardUser,
-  type DashboardUserDetail,
   getDashboardChannelDetail,
   getDashboardStats,
   getDashboardUserDetail,
   listDashboardChannels,
   listDashboardUsers,
-} from "../../../shared/api/client";
+} from "../../../shared/api/client.js";
 import { useItemDetail } from "../../../shared/hooks/useItemDetail";
 import { usePaginatedList } from "../../../shared/hooks/usePaginatedList";
 
-const logger = console;
+import { createLogger } from "../../../shared/lib/logger.js";
+
+const logger = createLogger("use-dashboard");
 
 /**
  * Fetch dashboard aggregate stats.
@@ -33,7 +31,7 @@ export function useDashboardStats() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to load stats";
       setError(msg);
-      logger.error("[useDashboardStats]", msg);
+      logger.error("[useDashboardStats]", { error: msg });
     } finally {
       setLoading(false);
     }

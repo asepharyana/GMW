@@ -1,10 +1,8 @@
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
-import type {
-  DashboardTab,
-  MessageRecord,
-  VoiceStatus,
-} from "../shared/api/client";
+import type { MessageRecord } from "../entities/message/types.js";
+import type { DashboardTab } from "../entities/ui/types.js";
+import type { VoiceStatus } from "../entities/voice/types.js";
 import { fadeSlideUp } from "../shared/hooks/useFramerStagger";
 import type { WsStatus } from "../shared/ws/socket";
 import { Header } from "./Header";

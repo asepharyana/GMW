@@ -1,4 +1,4 @@
-import type { ActiveSpeaker } from "../../../shared/api/client";
+import type { ActiveSpeaker } from "../../../entities/voice/types.js";
 import { EmptyStateMascot } from "../../../widgets/mascot/MascotImage";
 
 interface ActiveSpeakersProps {

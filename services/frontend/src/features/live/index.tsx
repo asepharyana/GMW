@@ -2,13 +2,9 @@
 
 import { motion } from "framer-motion";
 import { Mic, MonitorUp, Music2 } from "lucide-react";
-import type {
-  ActiveSpeaker,
-  Channel,
-  Guild,
-  MediaState,
-  VoiceStatus,
-} from "../../shared/api/client";
+import type { Channel, Guild } from "../../entities/guild/types.js";
+import type { MediaState } from "../../entities/media/types.js";
+import type { ActiveSpeaker, VoiceStatus } from "../../entities/voice/types.js";
 import { cardItem, cardStagger } from "../../shared/hooks/useFramerStagger";
 import {
   Card,

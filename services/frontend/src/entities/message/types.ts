@@ -17,13 +17,3 @@ export interface MessageMetadata {
     threadName?: string;
   };
 }
-
-export function parseMetadata(value: string | null): MessageMetadata {
-  if (!value) return {};
-  try {
-    const parsed = JSON.parse(value) as MessageMetadata;
-    return parsed;
-  } catch {
-    return {};
-  }
-}

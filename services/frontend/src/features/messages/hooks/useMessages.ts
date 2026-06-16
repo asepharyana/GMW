@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { MessageRecord } from "../../../shared/api/client";
+import type { MessageRecord } from "../../../entities/message/types.js";
 import {
   listMessages,
   reanalyzeErrorBatch,

@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { ChatResponse } from "../api/client";
+import type { ChatResponse } from "../../entities/dashboard/types.js";
 import { request } from "../api/client";
 import { createLogger } from "../lib/logger";
 

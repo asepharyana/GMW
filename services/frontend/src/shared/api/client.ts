@@ -1,6 +1,34 @@
 // ─── Shared HTTP client — all API endpoints in one file ──────────────────────
 
 import type { MessageRecord, PageResult } from "@bete/shared";
+import type {
+  ChatResponse,
+  DashboardChannel,
+  DashboardChannelDetail,
+  DashboardStats,
+  DashboardUser,
+  DashboardUserDetail,
+} from "../../entities/dashboard/types.js";
+import type {
+  Channel,
+  Guild,
+  GuildVoiceEntry,
+} from "../../entities/guild/types.js";
+import type {
+  MediaItem,
+  MediaMode,
+  MediaState,
+} from "../../entities/media/types.js";
+import type {
+  VoiceRecording,
+  VoiceRecordingListResponse,
+} from "../../entities/recording/types.js";
+import type {
+  AppConfig,
+  DashboardTab,
+  UIState,
+} from "../../entities/ui/types.js";
+import type { ActiveSpeaker, VoiceStatus } from "../../entities/voice/types.js";
 import { createLogger } from "../lib/logger.js";
 
 const logger = createLogger("api");
@@ -85,86 +113,31 @@ export function getAPIURL(): string {
   return BE_API_URL;
 }
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Re-exports ──────────────────────────────────────────────────────────────
 
-export type { MessageRecord, PageResult };
-
-export interface Guild {
-  id: string;
-  name: string;
-  icon: string | null;
-}
-
-export interface Channel {
-  id: string;
-  name: string;
-  type?: string;
-  parentId?: string | null;
-}
-
-export interface GuildVoiceEntry {
-  guildId: string;
-  channelId: string;
-  channelName: string;
-  connectedAt: number;
-}
-
-export interface VoiceStatus {
-  connected: boolean;
-  activeGuildId: string | null;
-  activeChannelId: string | null;
-  activeChannelName: string | null;
-  connections: GuildVoiceEntry[];
-}
-
-export interface ActiveSpeaker {
-  id?: string;
-  userId?: string;
-  username: string;
-  avatar: string;
-  speaking: boolean;
-}
-
-export type MediaMode = "music" | "screen";
-
-export interface MediaItem {
-  id?: string;
-  source: string;
-  title: string;
-  mode?: "music" | "screen";
-  durationMs?: number | null;
-  thumbnailUrl?: string | null;
-}
-
-export interface MediaState {
-  playing: boolean;
-  musicVolume: number;
-  current: MediaItem | null;
-  queue: MediaItem[];
-}
-
-export interface UIState {
-  selectedGuild?: string;
-  selectedVoiceGuild?: string;
-  selectedVoiceChannel?: string;
-  selectedTextGuild?: string;
-  selectedTextChannel?: string;
-  selectedAnalyticsGuild?: string;
-  selectedAnalyticsChannel?: string;
-  activeTab?: "live" | "messages" | "dashboard";
-  isListening?: boolean;
-  isStreaming?: boolean;
-}
-
-export interface AppConfig {
-  monitorGuildId: string | null;
-}
-
-export interface ChatResponse {
-  response?: string;
-}
-
-export type DashboardTab = "live" | "messages" | "dashboard";
+export type {
+  ActiveSpeaker,
+  AppConfig,
+  Channel,
+  ChatResponse,
+  DashboardChannel,
+  DashboardChannelDetail,
+  DashboardStats,
+  DashboardTab,
+  DashboardUser,
+  DashboardUserDetail,
+  Guild,
+  GuildVoiceEntry,
+  MediaItem,
+  MediaMode,
+  MediaState,
+  MessageRecord,
+  PageResult,
+  UIState,
+  VoiceRecording,
+  VoiceRecordingListResponse,
+  VoiceStatus,
+};
 
 // ─── Messages ────────────────────────────────────────────────────────────────
 
@@ -275,30 +248,6 @@ export function setMediaVolume(volume: number): Promise<MediaState> {
 
 // ─── Recordings ──────────────────────────────────────────────────────────────
 
-export interface VoiceRecording {
-  id: string;
-  user_id: string;
-  username: string;
-  avatar_url: string | null;
-  guild_id: string | null;
-  channel_id: string | null;
-  channel_name: string | null;
-  filename: string;
-  size_bytes: number;
-  download_url: string | null;
-  upload_status: "pending" | "uploaded" | "failed";
-  upload_error: string | null;
-  transcription?: string | null;
-  created_at: number;
-  uploaded_at: number | null;
-}
-
-export interface VoiceRecordingListResponse {
-  items: VoiceRecording[];
-  nextCursor: string | null;
-  hasMore: boolean;
-}
-
 export function listRecordings(params?: {
   limit?: number;
   cursor?: string;
@@ -325,55 +274,6 @@ export function login(password: string): Promise<{ ok: boolean }> {
 
 // ─── Dashboard ─────────────────────────────────────────────────────────────────
 
-export interface DashboardStats {
-  total_messages: number;
-  total_users: number;
-  total_flagged: number;
-  total_clean: number;
-  total_warned: number;
-  total_error: number;
-  total_voice_recordings: number;
-  total_profiles: number;
-  today_messages: number;
-  today_flagged: number;
-  active_users_24h: number;
-  top_channels: Array<{
-    channel_id: string;
-    channel_name: string | null;
-    message_count: number;
-  }>;
-  moderation_overview: {
-    pending: number;
-    processing: number;
-    error: number;
-  };
-}
-
-export interface DashboardUser {
-  user_id: string;
-  username: string | null;
-  avatar_url: string | null;
-  profile_summary: string | null;
-  total_messages: number;
-  flagged_count: number;
-  last_message_at: number | null;
-  trust_score: number | null;
-}
-
-export interface DashboardUserDetail extends DashboardUser {
-  last_analyzed_at: number | null;
-  clean_message_streak: number | null;
-  total_infractions: number | null;
-  clean_count: number;
-  recent_messages: Array<{
-    id: string;
-    content: string;
-    channel_id: string;
-    created_at: number;
-    ai_status: string | null;
-  }>;
-}
-
 export function getDashboardStats(): Promise<DashboardStats> {
   return request<DashboardStats>("/api/dashboard/stats");
 }
@@ -398,29 +298,6 @@ export function getDashboardUserDetail(
 }
 
 // ─── Dashboard Channels ─────────────────────────────────────────────────────────
-
-export interface DashboardChannel {
-  channel_id: string;
-  channel_name: string | null;
-  guild_id: string | null;
-  total_messages: number;
-  flagged_count: number;
-  last_message_at: number | null;
-  culture_summary: string | null;
-  last_analyzed_at: number | null;
-}
-
-export interface DashboardChannelDetail extends DashboardChannel {
-  clean_count: number;
-  recent_messages: Array<{
-    id: string;
-    content: string;
-    channel_id: string;
-    created_at: number;
-    ai_status: string | null;
-    username: string | null;
-  }>;
-}
 
 export function listDashboardChannels(
   params: {

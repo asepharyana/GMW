@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ActiveSpeaker } from "./entities/voice/types.js";
 import { DashboardPanel } from "./features/dashboard";
 import { LivePanel } from "./features/live";
 import { useMediaControl } from "./features/live/hooks/useMediaControl";
@@ -9,12 +10,7 @@ import {
   mergeMessages,
   useMessages,
 } from "./features/messages/hooks/useMessages";
-import {
-  type ActiveSpeaker,
-  getAppConfig,
-  type MediaState,
-  type MessageRecord,
-} from "./shared/api/client";
+import { getAppConfig } from "./shared/api/client";
 import { useAudioPlayback } from "./shared/hooks/useAudioPlayback";
 import { useAudioTransmit } from "./shared/hooks/useAudioTransmit";
 import { useUIState } from "./shared/hooks/useUIState";
@@ -74,29 +70,20 @@ export default function App() {
     onBinary: (d) => audio.handleIncomingBinary(d),
     onUserState: (users) =>
       setActiveSpeakers(
-        (users as (ActiveSpeaker & { heardAt?: number })[]).map((u) => ({
+        users.map((u) => ({
           ...u,
           heardAt: Date.now(),
         })),
       ),
     onVoiceActiveUser: (data) => {
-      const d = data as {
-        userId?: string;
-        id?: string;
-        username: string;
-        avatar: string;
-        speaking: boolean;
-      };
-      if (d.userId) audio.registerUserId(d.userId);
+      if (data.userId) audio.registerUserId(data.userId);
       setActiveSpeakers((prev) =>
-        updateSpeakerList(
-          prev,
-          d as Partial<ActiveSpeaker> & {
-            userId?: string;
-            id?: string;
-            speaking: boolean;
-          },
-        ),
+        updateSpeakerList(prev, {
+          userId: data.userId,
+          username: data.username,
+          avatar: data.avatar,
+          speaking: data.speaking,
+        }),
       );
     },
     onVoiceRecordingStarted: () =>
@@ -104,25 +91,19 @@ export default function App() {
     onVoiceRecordingStopped: () =>
       window.dispatchEvent(new CustomEvent("voice_recording_uploaded")),
     onMessageCreated: (m) =>
-      messages.setMessages((prev) => mergeMessages(prev, [m as MessageRecord])),
-    onMessageUpdated: (m) => {
-      const d = m as Partial<MessageRecord> & { id: string };
+      messages.setMessages((prev) => mergeMessages(prev, [m])),
+    onMessageUpdated: (m) =>
       messages.setMessages((prev) =>
-        prev.map((i) => (i.id === d.id ? { ...i, ...d } : i)),
-      );
-    },
-    onMessageDeleted: (m) => {
-      const d = m as { id: string };
+        prev.map((i) => (i.id === m.id ? { ...i, ...m } : i)),
+      ),
+    onMessageDeleted: (m) =>
       messages.setMessages((prev) =>
         prev.map((i) =>
-          i.id === d.id ? { ...i, type: "deleted" as const } : i,
+          i.id === m.id ? { ...i, type: "deleted" as const } : i,
         ),
-      );
-    },
-    onMessageAnalyzed: (m) => {
-      const msg = m as MessageRecord;
+      ),
+    onMessageAnalyzed: (msg) => {
       messages.setMessages((prev) => mergeMessages(prev, [msg]));
-      // Show toast for moderation alerts (flagged)
       const status = msg.ai_status;
       if (status === "flagged") {
         const username = msg.username || msg.user_id || "unknown";
@@ -144,7 +125,7 @@ export default function App() {
       messages
         .fetchMessages(monitorGuildId || undefined)
         .catch(() => undefined),
-    onMediaState: (state) => media.setMediaState(state as MediaState),
+    onMediaState: (state) => media.setMediaState(state),
     onVoiceRecordingUploaded: (d) =>
       window.dispatchEvent(
         new CustomEvent("voice_recording_uploaded", { detail: d }),

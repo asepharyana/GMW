@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { Filter, RotateCw, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import { type MessageRecord, request } from "../../shared/api/client";
+import type { MessageRecord } from "../../shared/api/client";
+import { request } from "../../shared/api/client";
 import { cardItem, cardStagger } from "../../shared/hooks/useFramerStagger";
 import {
   Badge,

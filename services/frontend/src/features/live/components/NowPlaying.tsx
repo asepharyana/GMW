@@ -1,5 +1,5 @@
 import { MonitorUp, Music2 } from "lucide-react";
-import type { MediaItem } from "../../../shared/api/client";
+import type { MediaItem } from "../../../entities/media/types.js";
 import { Badge } from "../../../shared/ui";
 
 interface NowPlayingProps {

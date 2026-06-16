@@ -1,5 +1,5 @@
 import { User } from "lucide-react";
-import type { DashboardUser } from "../../../shared/api/client";
+import type { DashboardUser } from "../../../entities/dashboard/types.js";
 import type { SummaryItem } from "../../../shared/ui";
 import { SummaryList } from "../../../shared/ui";
 

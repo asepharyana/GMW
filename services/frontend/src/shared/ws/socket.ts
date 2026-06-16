@@ -1,6 +1,14 @@
 // ─── WebSocket singleton with reconnect, typed events, and observable status ─
+
+import type {
+  AttachmentRecord,
+  MessageRecord,
+  VoiceRecordingUploadData,
+} from "@bete/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { MediaState } from "../../entities/media/types.js";
 import { createLogger } from "../lib/logger.js";
+import type { ActiveSpeakerData } from "./events.js";
 
 const logger = createLogger("socket");
 
@@ -23,30 +31,48 @@ function computeBackoff(attempt: number): number {
 
 export interface WsHandlers {
   onBinary?: BinaryHandler;
-  onMessageCreated?: (data: unknown) => void;
-  onMessageUpdated?: (data: unknown) => void;
-  onMessageDeleted?: (data: unknown) => void;
-  onMessageAnalyzed?: (data: unknown) => void;
-  onAttachmentCreated?: (data: unknown) => void;
-  onAttachmentUploaded?: (data: unknown) => void;
-  onUserState?: (users: unknown[]) => void;
-  onUiState?: (state: unknown) => void;
-  onMediaState?: (state: unknown) => void;
-  onVoiceRecordingStarted?: (data: unknown) => void;
-  onVoiceRecordingStopped?: (data: unknown) => void;
-  onVoiceRecordingUploaded?: (data: unknown) => void;
-  onVoicePcmData?: (data: unknown) => void;
-  onVoiceActiveUser?: (data: unknown) => void;
-  onReactionAdded?: (data: unknown) => void;
-  onReactionRemoved?: (data: unknown) => void;
-  onThreadCreated?: (data: unknown) => void;
-  onThreadDeleted?: (data: unknown) => void;
-  onThreadUpdated?: (data: unknown) => void;
-  onChannelTopicUpdated?: (data: unknown) => void;
-  onPresenceUpdated?: (data: unknown) => void;
-  onGuildMemberAdded?: (data: unknown) => void;
-  onGuildMemberRemoved?: (data: unknown) => void;
-  onVoiceAnalyzed?: (data: unknown) => void;
+  onMessageCreated?: (data: MessageRecord) => void;
+  onMessageUpdated?: (
+    data: MessageRecord & { edited_content?: string | null },
+  ) => void;
+  onMessageDeleted?: (data: {
+    id: string;
+    channel_id?: string;
+    deleted_at: number;
+  }) => void;
+  onMessageAnalyzed?: (data: MessageRecord) => void;
+  onAttachmentCreated?: (data: AttachmentRecord) => void;
+  onAttachmentUploaded?: (data: AttachmentRecord) => void;
+  onUserState?: (users: ActiveSpeakerData[]) => void;
+  onUiState?: (state: Record<string, unknown>) => void;
+  onMediaState?: (state: MediaState) => void;
+  onVoiceRecordingStarted?: (data: Record<string, unknown>) => void;
+  onVoiceRecordingStopped?: (data: {
+    guild_id: string;
+    session_id: string;
+    duration_ms: number;
+    participants: number;
+    segment_count: number;
+    status: string;
+    stopped_at: number;
+  }) => void;
+  onVoiceRecordingUploaded?: (data: VoiceRecordingUploadData) => void;
+  onVoicePcmData?: (data: {
+    userId: string;
+    pcm: string;
+    metadata?: Record<string, unknown>;
+  }) => void;
+  onVoiceActiveUser?: (data: ActiveSpeakerData) => void;
+  onReactionAdded?: (data: Record<string, unknown>) => void;
+  onReactionRemoved?: (data: Record<string, unknown>) => void;
+  onThreadCreated?: (data: Record<string, unknown>) => void;
+  onThreadDeleted?: (data: Record<string, unknown>) => void;
+  onThreadUpdated?: (data: Record<string, unknown>) => void;
+  onChannelTopicUpdated?: (data: Record<string, unknown>) => void;
+  onPresenceUpdated?: (data: Record<string, unknown>) => void;
+  onGuildMemberAdded?: (data: Record<string, unknown>) => void;
+  onGuildMemberRemoved?: (data: Record<string, unknown>) => void;
+  onVoiceAnalyzed?: (data: Record<string, unknown>) => void;
 }
 
 let _wsInstance: WebSocket | null = null;
@@ -110,76 +136,125 @@ function doConnect(): WebSocket {
       for (const h of _listeners) {
         switch (msg.type) {
           case "message_created":
-            if (msg.data !== undefined) h.onMessageCreated?.(msg.data);
+            if (msg.data !== undefined)
+              h.onMessageCreated?.(msg.data as MessageRecord);
             break;
           case "message_updated":
-            if (msg.data !== undefined) h.onMessageUpdated?.(msg.data);
+            if (msg.data !== undefined)
+              h.onMessageUpdated?.(
+                msg.data as MessageRecord & { edited_content?: string | null },
+              );
             break;
           case "message_deleted":
-            if (msg.data !== undefined) h.onMessageDeleted?.(msg.data);
+            if (msg.data !== undefined)
+              h.onMessageDeleted?.(
+                msg.data as {
+                  id: string;
+                  channel_id?: string;
+                  deleted_at: number;
+                },
+              );
             break;
           case "message_analyzed":
-            if (msg.data !== undefined) h.onMessageAnalyzed?.(msg.data);
+            if (msg.data !== undefined)
+              h.onMessageAnalyzed?.(msg.data as MessageRecord);
             break;
           case "attachment_created":
-            if (msg.data !== undefined) h.onAttachmentCreated?.(msg.data);
+            if (msg.data !== undefined)
+              h.onAttachmentCreated?.(msg.data as AttachmentRecord);
             break;
           case "attachment_uploaded":
-            if (msg.data !== undefined) h.onAttachmentUploaded?.(msg.data);
+            if (msg.data !== undefined)
+              h.onAttachmentUploaded?.(msg.data as AttachmentRecord);
             break;
           case "user_state":
-            h.onUserState?.((msg.users as unknown[]) || []);
+            h.onUserState?.(
+              (msg.users as unknown as ActiveSpeakerData[]) || [],
+            );
             break;
           case "ui_state":
-            h.onUiState?.(msg.state);
+            h.onUiState?.(msg.state as Record<string, unknown>);
             break;
           case "media_state":
-            h.onMediaState?.(msg.state);
+            h.onMediaState?.(msg.state as MediaState);
             break;
           case "voice_recording_started":
-            if (msg.data !== undefined) h.onVoiceRecordingStarted?.(msg.data);
+            if (msg.data !== undefined)
+              h.onVoiceRecordingStarted?.(msg.data as Record<string, unknown>);
             break;
           case "voice_recording_stopped":
-            if (msg.data !== undefined) h.onVoiceRecordingStopped?.(msg.data);
+            if (msg.data !== undefined)
+              h.onVoiceRecordingStopped?.(
+                msg.data as {
+                  guild_id: string;
+                  session_id: string;
+                  duration_ms: number;
+                  participants: number;
+                  segment_count: number;
+                  status: string;
+                  stopped_at: number;
+                },
+              );
             break;
           case "voice_recording_uploaded":
-            if (msg.data !== undefined) h.onVoiceRecordingUploaded?.(msg.data);
+            if (msg.data !== undefined)
+              h.onVoiceRecordingUploaded?.(
+                msg.data as VoiceRecordingUploadData,
+              );
             break;
           case "voice_pcm_data":
-            if (msg.data !== undefined) h.onVoicePcmData?.(msg.data);
+            if (msg.data !== undefined)
+              h.onVoicePcmData?.(
+                msg.data as {
+                  userId: string;
+                  pcm: string;
+                  metadata?: Record<string, unknown>;
+                },
+              );
             break;
           case "voice_active_user":
-            if (msg.data !== undefined) h.onVoiceActiveUser?.(msg.data);
+            if (msg.data !== undefined)
+              h.onVoiceActiveUser?.(msg.data as ActiveSpeakerData);
             break;
           case "voice_analyzed":
-            if (msg.data !== undefined) h.onVoiceAnalyzed?.(msg.data);
+            if (msg.data !== undefined)
+              h.onVoiceAnalyzed?.(msg.data as Record<string, unknown>);
             break;
           case "reaction_added":
-            if (msg.data !== undefined) h.onReactionAdded?.(msg.data);
+            if (msg.data !== undefined)
+              h.onReactionAdded?.(msg.data as Record<string, unknown>);
             break;
           case "reaction_removed":
-            if (msg.data !== undefined) h.onReactionRemoved?.(msg.data);
+            if (msg.data !== undefined)
+              h.onReactionRemoved?.(msg.data as Record<string, unknown>);
             break;
           case "thread_created":
-            if (msg.data !== undefined) h.onThreadCreated?.(msg.data);
+            if (msg.data !== undefined)
+              h.onThreadCreated?.(msg.data as Record<string, unknown>);
             break;
           case "thread_deleted":
-            if (msg.data !== undefined) h.onThreadDeleted?.(msg.data);
+            if (msg.data !== undefined)
+              h.onThreadDeleted?.(msg.data as Record<string, unknown>);
             break;
           case "thread_updated":
-            if (msg.data !== undefined) h.onThreadUpdated?.(msg.data);
+            if (msg.data !== undefined)
+              h.onThreadUpdated?.(msg.data as Record<string, unknown>);
             break;
           case "channel_topic_updated":
-            if (msg.data !== undefined) h.onChannelTopicUpdated?.(msg.data);
+            if (msg.data !== undefined)
+              h.onChannelTopicUpdated?.(msg.data as Record<string, unknown>);
             break;
           case "presence_updated":
-            if (msg.data !== undefined) h.onPresenceUpdated?.(msg.data);
+            if (msg.data !== undefined)
+              h.onPresenceUpdated?.(msg.data as Record<string, unknown>);
             break;
           case "guild_member_added":
-            if (msg.data !== undefined) h.onGuildMemberAdded?.(msg.data);
+            if (msg.data !== undefined)
+              h.onGuildMemberAdded?.(msg.data as Record<string, unknown>);
             break;
           case "guild_member_removed":
-            if (msg.data !== undefined) h.onGuildMemberRemoved?.(msg.data);
+            if (msg.data !== undefined)
+              h.onGuildMemberRemoved?.(msg.data as Record<string, unknown>);
             break;
           case "analysis_queue_status":
             // monitoring-only — no UI action needed

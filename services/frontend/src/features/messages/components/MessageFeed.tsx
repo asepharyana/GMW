@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useRef } from "react";
-import type { MessageRecord } from "../../../shared/api/client";
+import type { MessageRecord } from "../../../entities/message/types.js";
 import { cardItem, cardStagger } from "../../../shared/hooks/useFramerStagger";
 import { ScrollArea } from "../../../shared/ui";
 import { EmptyStateMascot } from "../../../widgets/mascot/MascotImage";

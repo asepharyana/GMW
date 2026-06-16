@@ -1,5 +1,5 @@
 import { Hash } from "lucide-react";
-import type { DashboardChannelDetail } from "../../../shared/api/client";
+import type { DashboardChannelDetail } from "../../../entities/dashboard/types.js";
 import { ProfileDetail } from "../../../shared/ui";
 
 interface ChannelProfileDetailProps {

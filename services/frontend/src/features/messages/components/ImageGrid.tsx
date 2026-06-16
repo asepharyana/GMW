@@ -1,5 +1,5 @@
-import { parseMetadata } from "../../../entities/message/types";
-import type { MessageRecord } from "../../../shared/api/client";
+import type { MessageRecord } from "../../../entities/message/types.js";
+import { parseMetadata } from "../../../shared/lib/utils.js";
 import { EmptyStateMascot } from "../../../widgets/mascot/MascotImage";
 
 interface ImageItem {
@@ -73,7 +73,7 @@ export function ImageGrid({ messages }: { messages: MessageRecord[] }) {
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-      {images.map((image, index) => {
+      {images.map((image) => {
         // Stable key using message.id + url
         const stableKey = `${image.message.id}-${image.kind}-${image.url}`;
         return (

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { MediaState } from "../../../shared/api/client";
+import type { MediaState } from "../../../entities/media/types.js";
 import {
   getMediaStatus,
   queueMedia,

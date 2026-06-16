@@ -1,4 +1,5 @@
 // ─── Toast notification system ──────────────────────────────────────────────
+// (no entity type imports needed — only uses string/ReactNode)
 import {
   AlertCircle,
   AlertTriangle,

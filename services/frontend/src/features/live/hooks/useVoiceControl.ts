@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Channel, Guild, VoiceStatus } from "../../../shared/api/client";
+import type { Channel, Guild } from "../../../entities/guild/types.js";
+import type { VoiceStatus } from "../../../entities/voice/types.js";
 import {
   connectVoice,
   disconnectVoice,

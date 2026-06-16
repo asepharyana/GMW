@@ -10,7 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { cardItem, cardStagger } from "../../../shared/hooks/useFramerStagger";
-import { useUIState } from "../../../shared/hooks/useUIState";
+import { useUIState } from "../../../shared/hooks/useUIState.js";
 import { cn } from "../../../shared/lib/utils";
 import {
   Card,
@@ -168,7 +168,7 @@ export function DashboardStatsContent() {
               </p>
             ) : (
               <div className="space-y-2">
-                {stats.top_channels.map((ch, i) => (
+                {stats.top_channels.map((ch) => (
                   <div
                     key={ch.channel_id}
                     className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm"

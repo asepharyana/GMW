@@ -1,5 +1,5 @@
 import { User } from "lucide-react";
-import type { DashboardUserDetail } from "../../../shared/api/client";
+import type { DashboardUserDetail } from "../../../entities/dashboard/types.js";
 import { ProfileDetail } from "../../../shared/ui";
 
 interface UserProfileDetailProps {

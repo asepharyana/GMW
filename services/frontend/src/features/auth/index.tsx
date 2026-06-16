@@ -1,7 +1,7 @@
+import { motion } from "framer-motion";
 import { Lock } from "lucide-react";
-import { useEffect, useState } from "react";
-import { login } from "../../shared/api/client";
-import { useGsapTransition } from "../../shared/hooks/useGsapTransition";
+import { useState } from "react";
+import { login } from "../../shared/api/client.js";
 import {
   Button,
   Card,
@@ -20,11 +20,6 @@ export function AuthOverlay({ onAuthenticated }: AuthOverlayProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { pageRef, animateIn } = useGsapTransition("auth");
-
-  useEffect(() => {
-    animateIn();
-  }, [animateIn]);
 
   const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
@@ -42,7 +37,12 @@ export function AuthOverlay({ onAuthenticated }: AuthOverlayProps) {
   };
 
   return (
-    <div ref={pageRef} className="flex items-center justify-center p-4">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="flex items-center justify-center p-4"
+    >
       <Card className="w-full max-w-md border-primary/30 shadow-lg shadow-primary/10">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex items-center justify-center">
@@ -77,6 +77,6 @@ export function AuthOverlay({ onAuthenticated }: AuthOverlayProps) {
           </form>
         </CardContent>
       </Card>
-    </div>
+    </motion.div>
   );
 }

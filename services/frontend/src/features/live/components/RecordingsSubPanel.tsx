@@ -2,7 +2,7 @@
 
 import { Download, Mic, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import type { VoiceRecording } from "../../../shared/api/client";
+import type { VoiceRecording } from "../../../entities/recording/types.js";
 import { deleteRecording, listRecordings } from "../../../shared/api/client";
 import { formatBytes, formatDate } from "../../../shared/lib/utils";
 import { Badge, Button, Skeleton } from "../../../shared/ui";

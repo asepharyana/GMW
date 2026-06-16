@@ -1,7 +1,10 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Maximize2, MessageCircle, Minimize2, Send, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createLogger } from "../../shared/lib/logger.js";
 import { cn } from "../../shared/lib/utils";
+
+const logger = createLogger("mascot-chat");
 
 export interface ChatMessage {
   id: string;
@@ -84,7 +87,9 @@ export function MascotChatbot({
 
       setMessages((prev) => [...prev, mascotMessage]);
     } catch (error) {
-      console.error("Error sending message:", error);
+      logger.error("Error sending message", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       const errorMessage: ChatMessage = {
         id: `mascot-error-${Date.now()}`,
         role: "mascot",
