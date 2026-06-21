@@ -43,25 +43,49 @@ async function learnUserProfile(
     .map((m) => m.content)
     .join("\n");
 
-  const prompt = `Anda adalah AI ahli psikologi dan analisis perilaku online.
-Tugas Anda adalah merangkum profil kepribadian seorang pengguna berdasarkan
-riwayat pesan-pesan mereka di server Discord.
+  const prompt = `Anda adalah AI ahli psikologi, analisis perilaku online, dan pembaca karakter.
+Tugas Anda adalah merangkum profil kepribadian SEORANG PRIBADI — bukan sekadar statistik
+gaya bicara — berdasarkan riwayat pesan-pesan mereka di server Discord.
+Buatlah ringkasan yang KAYA AKAN PERSONALITAS sehingga pembaca merasa "mengenal" orang ini.
 
 Pesan-pesan terakhir dari user "${userId}":
 <messages>
 ${messagesText}
 </messages>
 
-Berdasarkan pesan-pesan di atas, buatlah ringkasan singkat (maksimal 3 paragraf)
+Berdasarkan pesan-pesan di atas, buatlah ringkasan singkat (maksimal 4 paragraf)
 mengenai:
-1. Gaya komunikasi (formal/casual/teknis/bercanda/serius)
-2. Topik-topik yang sering dibahas
-3. Kepribadian dan karakter yang terpancar
-4. Cara berinteraksi dengan orang lain
 
-Ringkasan ini akan digunakan oleh sistem AI moderasi untuk memahami konteks
-dan kebiasaan pengguna saat memoderasi pesan mereka.
-Jangan menambahkan teks basa-basi, langsung berikan ringkasannya.`;
+1. **Gaya komunikasi & ciri khas bicara** — formal/casual/teknis/bercanda/sarkastik/enteng.
+   Apakah orang ini suka pake singkatan, emot, reaksi berlebihan ("WKWKWK"), atau nada datar?
+   Bagaimana mereka memulai dan mengakhiri pembicaraan?
+
+2. **Topik-topik yang sering dibahas** — apa PASSION mereka? Coding, gaming, musik, debat?
+   Apakah mereka inisiator topik atau lebih suka merespon?
+
+3. **Kepribadian dan karakter yang terpancar** — Apakah mereka ramah dan hangat? Kritis dan analitis?
+   Easy going? Gampang marah? Humoris? Supportif? Suka memprovokasi? Suka membantu?
+   Apa "vibe" yang mereka pancarkan secara keseluruhan?
+
+4. **Cara berinteraksi dengan orang lain** — Apakah mereka sering memulai percakapan?
+   Lebih suka 1-on-1 atau grup? Suka nge-tag orang? Gampang akrab atau menjaga jarak?
+   Apakah mereka populer di komunitas? Sering dibalas orang lain?
+
+5. **Kebiasaan unik / signature** — Apakah ada pola bicara khas, kata favorit, atau inside joke
+   yang sering mereka gunakan? Apa yang membedakan mereka dari anggota lain?
+
+**GAYA RINGKASAN**: Tulislah seperti seorang pengamat yang cerdas dan hangat sedang mendeskripsikan
+seorang teman. Gunakan bahasa Indonesia alami. Berikan "rasa" dari orang ini — bukan hanya fakta kering.
+JANGAN gunakan format bullet point dalam output. Tulis dalam bentuk prosa paragraf.
+Jangan menambahkan teks basa-basi seperti "berikut ringkasannya". Langsung berikan ringkasannya.
+
+Contoh gaya yang baik: "Pengirim adalah developer yang sangat teknis dan antusias. Gaya bicaranya santai
+dan penuh dengan inside joke tentang coding. Ia sering membantu anggota lain dengan error programming
+dan punya selera humor yang kering — suka melontarkan sarkasme ringan yang mudah dikenali. Topik
+favoritnya adalah React, Rust, dan game indie. Dalam percakapan, ia cenderung proaktif membahas
+solusi dan jarang terlibat drama. Secara keseluruhan, ia adalah anggota yang konstruktif dan aset
+komunitas, meskipun kadang blak-blakan saat kesal. Bila ia tiba-tiba melontarkan makian personal
+atau konten SARA, itu akan SANGAT tidak sesuai dengan karakternya dan patut dicurigai."`;
 
   try {
     const completion = await llmChat({
