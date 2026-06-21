@@ -142,6 +142,5 @@ export function buildGeneralImageVisionPrompt(
     ``,
     `Format jawaban: Deskripsi singkat 2-3 kalimat dalam Bahasa Indonesia.`,
     `Mulai dengan menyebutkan JENIS gambar (screenshot/foto/kartun/dokumen).`,
-    `Akhiri dengan "Deskripsi selesai."`,
   ].join("\n");
 }

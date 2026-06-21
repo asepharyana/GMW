@@ -13,7 +13,7 @@ import type {
 } from "../message-capture/types.js";
 import { getChannelCulture } from "./channelCultureStore.js";
 import { llmChat, llmVision } from "./llmClient.js";
-import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
+import { buildSystemPrompt as buildSystemPromptModular, sanitizeAiContent } from "./moderationPrompt.js";
 import { logModerationAnalysis, logModerationError } from "./responseLogger.js";
 import {
   getStickerFromCache,
@@ -830,7 +830,7 @@ async function runTextOnlyBatch(
         userProfiles.set(
           msg.user_id,
           profile
-            ? `<user_profile>${profile.profile_summary}</user_profile>`
+            ? `<user_profile>${sanitizeAiContent(profile.profile_summary)}</user_profile>`
             : "",
         );
       }
@@ -1521,7 +1521,7 @@ export async function runSimpleTextFallback(
   try {
     const profile = await getUserProfile(message.user_id);
     if (profile?.profile_summary) {
-      userProfileCtx = `\n\nProfil pengirim pesan:\n${profile.profile_summary}\n`;
+      userProfileCtx = `\n\nProfil pengirim pesan:\n${sanitizeAiContent(profile.profile_summary, 2000, false)}\n`;
     }
   } catch {
     // Profile fetch failure is non-fatal — proceed without context
