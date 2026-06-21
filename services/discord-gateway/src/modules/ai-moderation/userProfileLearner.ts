@@ -18,29 +18,48 @@ async function learnUserProfile(
 ): Promise<void> {
   const db = getDatabase();
 
-  // Get recent messages for this user
+  // Get recent CLEAN messages for this user (avoid profiling from flagged content)
   const recentMessages = await db
     .select({
       content: messagesTable.content,
+      channelId: messagesTable.channel_id,
     })
     .from(messagesTable)
     .where(
       and(
         eq(messagesTable.user_id, userId),
         eq(messagesTable.guild_id, guildId),
+        eq(messagesTable.ai_status, "clean"),
       ),
     )
     .orderBy(desc(messagesTable.created_at))
     .limit(100);
 
   if (recentMessages.length < 10) {
-    log.debug({ userId }, "Not enough messages to learn user profile");
+    log.debug({ userId }, "Not enough clean messages to learn user profile");
     return;
   }
 
+  // Group messages by channel for channel-aware profiling
+  const channelGroups = new Map<string, { content: string; channelId: string }[]>();
+  for (const msg of recentMessages) {
+    const ch = msg.channelId ?? "unknown";
+    if (!channelGroups.has(ch)) channelGroups.set(ch, []);
+    channelGroups.get(ch)!.push(msg);
+  }
+
+  // Build messages text with channel context
   const messagesText = recentMessages
     .reverse()
-    .map((m) => m.content)
+    .map((m) => {
+      const chLabel = m.channelId ? `[#channel:${m.channelId}]` : "";
+      return `${chLabel} ${m.content}`;
+    })
+    .join("\n");
+
+  // Build channel activity summary
+  const channelSummary = [...channelGroups.entries()]
+    .map(([ch, msgs]) => `  - #channel ${ch}: ${msgs.length} pesan`)
     .join("\n");
 
   const prompt = `Anda adalah AI ahli psikologi, analisis perilaku online, dan pembaca karakter.
@@ -48,10 +67,13 @@ Tugas Anda adalah merangkum profil kepribadian SEORANG PRIBADI — bukan sekadar
 gaya bicara — berdasarkan riwayat pesan-pesan mereka di server Discord.
 Buatlah ringkasan yang KAYA AKAN PERSONALITAS sehingga pembaca merasa "mengenal" orang ini.
 
-Pesan-pesan terakhir dari user "${userId}":
+Pesan-pesan terakhir dari user "${userId}" (hanya pesan bersih/clean):
 <messages>
 ${messagesText}
 </messages>
+
+Distribusi aktivitas user per channel:
+${channelSummary}
 
 Berdasarkan pesan-pesan di atas, buatlah ringkasan singkat (maksimal 4 paragraf)
 mengenai:
@@ -60,8 +82,9 @@ mengenai:
    Apakah orang ini suka pake singkatan, emot, reaksi berlebihan ("WKWKWK"), atau nada datar?
    Bagaimana mereka memulai dan mengakhiri pembicaraan?
 
-2. **Topik-topik yang sering dibahas** — apa PASSION mereka? Coding, gaming, musik, debat?
-   Apakah mereka inisiator topik atau lebih suka merespon?
+2. **Topik-topik yang sering dibahas & channel favorit** — apa PASSION mereka? Coding, gaming, musik, debat?
+   Apakah mereka inisiator topik atau lebih suka merespon? Di channel mana mereka paling aktif?
+   Apakah perilaku mereka berbeda tergantung channel (misal: profesional di #coding vs santai di #general)?
 
 3. **Kepribadian dan karakter yang terpancar** — Apakah mereka ramah dan hangat? Kritis dan analitis?
    Easy going? Gampang marah? Humoris? Supportif? Suka memprovokasi? Suka membantu?

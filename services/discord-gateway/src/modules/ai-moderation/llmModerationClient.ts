@@ -1516,6 +1516,17 @@ export async function runSimpleTextFallback(
       ? content.slice(0, MAX_CONTENT_CHARS) + "..."
       : content;
 
+  // ── Inject user profile for personality-aware fallback ──
+  let userProfileCtx = "";
+  try {
+    const profile = await getUserProfile(message.user_id);
+    if (profile?.profile_summary) {
+      userProfileCtx = `\n\nProfil pengirim pesan:\n${profile.profile_summary}\n`;
+    }
+  } catch {
+    // Profile fetch failure is non-fatal — proceed without context
+  }
+
   // ── Step 1: Single-word classification ──
   const classifyPrompt = `Pesan berikut perlu diklasifikasikan sebagai: clean, warn, atau flagged.
 
@@ -1529,7 +1540,7 @@ PENTING (False Positive Prevention):
 - Konten coding/programming (kode, log error, SQL, command line, error message, stack trace, nama library) = clean. JANGAN flag hanya karena ada kata "error" atau "crash" dalam konteks teknis.
 - Nama proyek, tools, framework (IMPHNEN, Bete, Cursor, Claude, React, Discord) = clean.
 - Percakapan multilingual (campuran Indonesia-Inggris) = clean.
-
+${userProfileCtx}
 Pesan: "${truncatedContent}"
 
 Jawab HANYA dengan satu kata: clean, warn, atau flagged`;
@@ -1582,7 +1593,7 @@ Jawab HANYA dengan satu kata: clean, warn, atau flagged`;
     const categoryOptions =
       status === "flagged" ? "harassment, gambling, atau sara" : "spam";
     const reasonPrompt = `Pesan berikut telah diklasifikasikan sebagai "${status}".
-
+${userProfileCtx}
 Pesan: "${truncatedContent}"
 
 Jelaskan dalam 1-2 kalimat Bahasa Indonesia: APA yang melanggar dan KENAPA. Jangan gunakan kata "mungkin" atau "sepertinya". Jangan tulis ulang pesan. Langsung ke alasan.
