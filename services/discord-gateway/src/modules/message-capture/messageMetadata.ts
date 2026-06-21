@@ -82,6 +82,9 @@ export interface RichMessageMetadata {
     channelId: string | null;
     guildId: string | null;
     type: string | null;
+    content: string | null;
+    repliedUsername: string | null;
+    repliedUserId: string | null;
   } | null;
   isCrosspost: boolean;
 }
@@ -207,8 +210,39 @@ export function getEmbedMetadata(
   }));
 }
 
+/**
+ * Try to get referenced message content from the channel cache.
+ * For replies, Discord sends `referenced_message` in the API, which
+ * discord.js-selfbot-v13 caches in the channel's message manager.
+ * Returns null if the message isn't cached (e.g. forwards without
+ * referenced_message payload).
+ */
+function getReferencedMessageContent(
+  message: Message,
+): { content: string; username: string; userId: string } | null {
+  const ref = message.reference;
+  if (!ref?.messageId) return null;
+  try {
+    const cached = (message.channel as any)?.messages?.cache?.get(
+      ref.messageId,
+    );
+    if (cached?.content) {
+      return {
+        content: cached.content,
+        username: cached.author?.username ?? "Unknown",
+        userId: cached.author?.id ?? "",
+      };
+    }
+  } catch {
+    // Cache may not be available or message not in it
+  }
+  return null;
+}
+
 export function getMessageMetadata(message: Message): RichMessageMetadata {
   const member = message.member;
+  const referenceContent = getReferencedMessageContent(message);
+  const ref = message.reference;
   return {
     stickers: getStickerMetadata(message),
     embeds: getEmbedMetadata(message),
@@ -232,13 +266,16 @@ export function getMessageMetadata(message: Message): RichMessageMetadata {
         }
       : null,
     channel: getMessageLocation(message),
-    reference: message.reference
+    reference: ref
       ? {
-          messageId: message.reference.messageId ?? null,
-          channelId: message.reference.channelId ?? null,
-          guildId: message.reference.guildId ?? null,
+          messageId: ref.messageId ?? null,
+          channelId: ref.channelId ?? null,
+          guildId: ref.guildId ?? null,
           type:
-            (message.reference.type as unknown as string | undefined) ?? null,
+            (ref.type as unknown as string | undefined) ?? null,
+          content: referenceContent?.content ?? null,
+          repliedUsername: referenceContent?.username ?? null,
+          repliedUserId: referenceContent?.userId ?? null,
         }
       : null,
     isCrosspost: message.flags?.has(1 << 1) ?? false,

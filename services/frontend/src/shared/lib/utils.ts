@@ -27,6 +27,16 @@ export interface MessageMetadata {
     threadId?: string;
     threadName?: string;
   };
+  reference?: {
+    messageId: string | null;
+    channelId: string | null;
+    guildId: string | null;
+    type: string | null;
+    content: string | null;
+    repliedUsername: string | null;
+    repliedUserId: string | null;
+  } | null;
+  isCrosspost?: boolean;
 }
 
 export function parseMetadata(value: string | null): MessageMetadata {

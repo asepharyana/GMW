@@ -166,6 +166,12 @@ export function reanalyzeMessage(id: string): Promise<void> {
   return request<void>(`/api/messages/${id}/reanalyze`, { method: "POST" });
 }
 
+export function getMessageById(
+  id: string,
+): Promise<MessageRecord | null> {
+  return request<MessageRecord | null>(`/api/messages/detail/${id}`);
+}
+
 export function reanalyzeErrorBatch(opts: {
   guildId?: string;
   channelId?: string;

@@ -1,16 +1,20 @@
 import {
   AlertCircle,
   CheckCircle2,
+  Forward,
   Hash,
   Image as ImageIcon,
+  MessageCircle,
   Pencil,
+  Reply,
   RotateCw,
   Smile,
   Trash2,
 } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { MessageRecord } from "../../../entities/message/types.js";
 import { parseMetadata } from "../../../shared/lib/utils.js";
+import { getMessageById } from "../../../shared/api/client.js";
 import { Badge, Button, Skeleton, StatusBadge } from "../../../shared/ui";
 
 const CUSTOM_EMOJI_REGEX = /<(a)?:([a-zA-Z0-9_]+):(\d+)>/g;
@@ -127,6 +131,35 @@ function MessageRow({
     message.ai_confidence ?? message.ai_moderation_score ?? null;
   const [isReanalyzing, setIsReanalyzing] = useState(false);
 
+  // ── Fetch referenced message content for replies if not in metadata ──
+  const referenceMeta = metadata.reference;
+  const [fetchedRefContent, setFetchedRefContent] = useState<{
+    username: string;
+    content: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (
+      message.is_reply &&
+      referenceMeta?.messageId &&
+      !referenceMeta?.content &&
+      !message.deleted_at
+    ) {
+      getMessageById(referenceMeta.messageId)
+        .then((refMsg) => {
+          if (refMsg) {
+            setFetchedRefContent({
+              username: refMsg.username,
+              content: refMsg.content,
+            });
+          }
+        })
+        .catch(() => {
+          // Referenced message might not exist in our DB
+        });
+    }
+  }, [message.is_reply, referenceMeta?.messageId, referenceMeta?.content, message.deleted_at]);
+
   const analysisSummary = useMemo(() => {
     const parts: string[] = [];
     if (categories.length > 0) {
@@ -166,6 +199,58 @@ function MessageRow({
       setIsReanalyzing(false);
     }
   };
+
+  // ── Reference context (reply / forward / crosspost) ─────────────────
+  const renderReferenceIndicator = () => {
+    // Use fetched content if metadata doesn't have it
+    const effectiveRepliedUsername =
+      referenceMeta?.repliedUsername ?? fetchedRefContent?.username ?? null;
+    const effectiveRepliedContent =
+      referenceMeta?.content ?? fetchedRefContent?.content ?? null;
+
+    if (message.is_reply) {
+      return (
+        <div className="flex items-start gap-1.5 mb-2 text-[12px] text-muted-foreground/70 border-l-2 border-muted-foreground/20 pl-2.5 py-1 hover:border-primary/40 transition-colors">
+          <Reply className="h-3 w-3 mt-0.5 shrink-0" />
+          <span className="min-w-0">
+            <span className="font-medium text-foreground/60">
+              Replying to{" "}
+              {effectiveRepliedUsername
+                ? `@${effectiveRepliedUsername}`
+                : "a message"}
+            </span>
+            {effectiveRepliedContent && (
+              <span className="block truncate max-w-[400px] text-ellipsis text-[11px] text-muted-foreground/50 mt-0.5">
+                {effectiveRepliedContent}
+              </span>
+            )}
+          </span>
+        </div>
+      );
+    }
+
+    if (message.is_forward) {
+      return (
+        <div className="flex items-center gap-1.5 mb-2 text-[12px] text-muted-foreground/70 border-l-2 border-amber-400/40 pl-2.5 py-1">
+          <Forward className="h-3 w-3 shrink-0 text-amber-500" />
+          <span className="font-medium text-amber-600/70">Forwarded</span>
+        </div>
+      );
+    }
+
+    if (message.is_crosspost) {
+      return (
+        <div className="flex items-center gap-1.5 mb-2 text-[12px] text-muted-foreground/70 border-l-2 border-sky-400/40 pl-2.5 py-1">
+          <MessageCircle className="h-3 w-3 shrink-0 text-sky-500" />
+          <span className="font-medium text-sky-600/70">Crossposted</span>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const referenceIndicator = renderReferenceIndicator();
 
   return (
     <div className="space-y-2">
@@ -210,6 +295,9 @@ function MessageRow({
           )}
         </div>
       </div>
+
+      {/* Reference context: reply / forward / crosspost */}
+      {referenceIndicator}
 
       {/* Content — hidden when it's just an "[Attachment: ...]" fallback and the image is shown below */}
       {shouldShowContent ? (
