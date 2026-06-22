@@ -10,6 +10,7 @@ import {
   RotateCw,
   Smile,
   Trash2,
+  Video,
 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { MessageRecord } from "../../../entities/message/types.js";
@@ -183,7 +184,13 @@ function MessageRow({
       a.contentType?.startsWith("image/") ||
       /\.(png|jpe?g|gif|webp)$/i.test(a.name),
   );
+  const videoAttachments = attachments.filter(
+    (a) =>
+      a.contentType?.startsWith("video/") ||
+      /\.(mp4|webm|mov|mkv|avi)$/i.test(a.name),
+  );
   const hasImages = imageAttachments.length > 0;
+  const hasVideos = videoAttachments.length > 0;
 
   /** Hide the fallback text ("[Attachment: ...]", "[Sticker: ...]", "[Embed]") when the actual media IS already shown visually. */
   const isFallbackText =
@@ -360,6 +367,27 @@ function MessageRow({
             <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-border bg-muted text-[11px] text-muted-foreground">
               +{imageAttachments.length - 4}
               <ImageIcon className="ml-0.5 h-3 w-3" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Attached videos */}
+      {hasVideos && (
+        <div className="flex gap-2 overflow-x-auto">
+          {videoAttachments.slice(0, 4).map((vid) => (
+            <video
+              key={vid.url}
+              src={vid.url}
+              controls
+              className="h-28 w-48 shrink-0 rounded-lg border border-border object-cover bg-black"
+              preload="metadata"
+            />
+          ))}
+          {videoAttachments.length > 4 && (
+            <div className="flex h-28 w-16 items-center justify-center rounded-lg border border-border bg-muted text-[11px] text-muted-foreground">
+              +{videoAttachments.length - 4}
+              <Video className="ml-0.5 h-3 w-3" />
             </div>
           )}
         </div>

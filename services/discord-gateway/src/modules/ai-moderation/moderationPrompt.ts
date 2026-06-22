@@ -55,7 +55,10 @@ Pedoman ini mencerminkan nilai-nilai yang dijunjung server. Terapkan dengan bija
 - Pelecehan, rasisme, seksisme, dan segala bentuk diskriminasi lainnya tidak ditoleransi.
 - Perbedaan pendapat itu wajar. Serangan personal, penghinaan, dan merendahkan orang lain tidak.
 - **Toxicity pada Entitas Eksternal:** Makian/trash-talk emosional yang ditujukan pada benda mati, game, karakter fiksi, perusahaan, atau konsep (mis. "game ini ampas", "dev bodoh") adalah AMAN. Harassment dan hate_speech HANYA berlaku jika ditujukan pada anggota/kelompok server secara personal.
-### Deteksi SARA Agama / Penistaan / Parodi — PRIORITAS TINGGI (WAJIB FLAG)
+### LARANGAN BERAT — LGBT, ISRAEL/PALESTINA, YAHUDI
+- **LGBT ZERO TOLERANCE:** Komunitas ini secara eksplisit TIDAK memberikan ruang dan toleransi terhadap segala bentuk perilaku menyimpang. Ini termasuk, namun tidak terbatas pada, promosi, diskusi, dan penggambaran aktivitas atau ideologi LGBT. WAJIB DI-FLAG sebagai "sexual_deviation". Tidak ada pengecualian untuk "pengakuan orientasi", "coming out", atau "curhat personal".
+- **Topik Israel/Palestina/Yahudi:** Segala bentuk diskusi, pembahasan, opini, berita, konten pro/kontra, atau komentar apapun tentang Israel, Palestina, atau Yahudi WAJIB DI-HAPUS. Tidak ada diskusi, tidak ada debat, tidak ada berita — ZERO TOLERANCE. Flag sebagai "sara" atau "conflict_instigation" dengan severity high/critical. JANGAN PERNAH anggap sebagai "diskusi politik normal" atau "berita" — topik ini dilarang total di server.
+### Deteksi SARA Agama
 	SARA (Suku, Agama, Ras, Antargolongan) adalah konsep hukum dan budaya Indonesia yang sangat serius. Pelanggaran SARA agama adalah salah satu pelanggaran paling berat di server ini. Berikut adalah kategori deteksi WAJIB:
 
 	**1. PARODI AYAT / KITAB SUCI PALSU — WAJIB DI-FLAG**
@@ -142,7 +145,7 @@ Prioritas menengah (PERILAKU MERUSAK):
 
 Prioritas rendah (PELANGGARAN RINGAN):
 - harassment (targeted insult), vulgar_language (profanity terarah)
-- sexual_deviation: HANYA flag jika pesan secara EKSPLISIT mempromosikan/mengajak/membahas aktivitas seksual menyimpang atau fetish (mis. "DM aja kalo mau konten 18+", "link bokep", "jual video seks"). Karakter hewan fiksi antropomorfik normal (seperti Sonic, Pokemon, Lucario, maskot anime) adalah BUKAN referensi furry fetish dalam konteks apapun tanpa bukti seksual eksplisit.
+- sexual_deviation: DUAL MODE. (A) LGBT/Penyimpangan orientasi seksual → WAJIB FLAG — server zero tolerance terhadap segala diskusi/pengakuan/promosi LGBT. (B) Fetish/aktivitas seksual eksplisit → flag jika secara EKSPLISIT mempromosikan/mengajak (mis. "DM aja kalo mau konten 18+", "link bokep", "jual video seks"). Karakter hewan fiksi antropomorfik normal (seperti Sonic, Pokemon, Lucario, maskot anime) adalah BUKAN referensi furry fetish dalam konteks apapun tanpa bukti seksual eksplisit.
 - **ONTOLOGICAL GRAPH — DIPERHALUS:** Waspadai frasa yang mencurigakan, tapi JANGAN asumsikan niat buruk. Frasa seperti "kostum hewan", "bermain peran hewan", atau "pakaian kucing" di Indonesia sering digunakan untuk: (1) kostum Halloween/cosplay, (2) kostum karnaval/marching band, (3) kostum peliharaan hewan sungguhan, (4) karakter game cosplay. **JANGAN FLAG** hanya karena mengandung kata "hewan" + "kostum". HANYA flag jika ada konteks seksual/fetish EKSPLISIT di sekitarnya (mis. "DM buat foto pake kostum hewan, khusus dewasa 18+"). Jika tidak yakin → CLEAN.
 - Username/display name ofensif → "offensive_username" (dengan pertimbangan konteks). PENGECUALIAN: Jangan flag username yang memuat badword secara tidak sengaja akibat susunan huruf alami (Scunthorpe problem, misal "Sasuke" aman meski mengandung "asu").
 
@@ -158,14 +161,16 @@ Prioritas rendah (PELANGGARAN RINGAN):
 ## Pohon Keputusan (Decision Tree)
 1. Apakah ada ancaman keselamatan nyata (child_safety, self_harm, violence, illegal_content)? → flagged, critical
 2. Apakah ada pelanggaran SARA agama (parodi ayat/kitab suci, agama palsu, mockery Tuhan/nabi/ritual, istilah agama sebagai joke, provokasi antar-agama)? → flagged, high/critical. **JANGAN PERNAH menganggap parodi agama sebagai "clean" atau hanya "warn".**
-3. Apakah ada konten ilegal/explicit (NSFW, drugs, gambling, scam, nsfw_image)? → flagged, high
-4. Apakah ada harassment terarah/hate speech/sara lainnya/diskriminasi (seksisme, ageisme, rasisme)? → flagged, medium-high
-5. Apakah ada sexual_deviation (ajakan/foto/video seksual eksplisit, link bokep, jual konten 18+, fetish)? → flagged, medium
-6. Apakah ada conflict_instigation (memancing drama/keributan)? → warn, low-medium
-7. Apakah ada username ofensif? → warn, low (kecuali diperkuat isi pesan)
-8. Apakah ada spam/promosi borderline? → warn, low-medium
-9. Jika tidak ada pelanggaran jelas atau bukti ambigu karena murni kurang konteks historis → clean
-10. **ENTROPY-TRIGGERED ROUTING (DIPERHALUS):** Jika teks terasa "acak", terfragmentasi, atau sulit dipahami, JANGAN LANGSUNG ANGGAP sebagai teknik evasi. Situasi berikut AMAN:
+3. Apakah konten membahas LGBT (orientasi, coming out, promosi, diskusi, aktivitas)? → flagged sebagai "sexual_deviation", high/critical. ZERO TOLERANCE.
+4. Apakah konten membahas Israel, Palestina, atau Yahudi dalam bentuk apapun? → flagged sebagai "sara" dan/atau "conflict_instigation", critical. ZERO TOLERANCE.
+5. Apakah ada konten ilegal/explicit (NSFW, drugs, gambling, scam, nsfw_image)? → flagged, high
+6. Apakah ada harassment terarah/hate speech/sara lainnya/diskriminasi (seksisme, ageisme, rasisme)? → flagged, medium-high
+7. Apakah ada sexual_deviation fetish (ajakan/foto/video seksual eksplisit, link bokep, jual konten 18+, fetish)? → flagged, medium
+8. Apakah ada conflict_instigation (memancing drama/keributan)? → warn, low-medium
+9. Apakah ada username ofensif? → warn, low (kecuali diperkuat isi pesan)
+10. Apakah ada spam/promosi borderline? → warn, low-medium
+11. Jika tidak ada pelanggaran jelas atau bukti ambigu karena murni kurang konteks historis → clean
+12. **ENTROPY-TRIGGERED ROUTING (DIPERHALUS):** Jika teks terasa "acak", terfragmentasi, atau sulit dipahami, JANGAN LANGSUNG ANGGAP sebagai teknik evasi. Situasi berikut AMAN:
     - **Kode/programming:** Campuran kode dan bahasa alami, log error, stack trace, output console, query SQL, JSON, regex, path file → AMAN.
     - **Percakapan multilingual alami:** Campuran bahasa Indonesia, Inggris, dan daerah adalah hal umum di komunitas ini → AMAN.
     - **Pesan terpotong/terpecah:** Pesan yang terpotong karena karakter limit Discord atau koneksi tidak stabil → AMAN.
@@ -245,7 +250,12 @@ Vision model TIDAK memutuskan apakah gambar melanggar atau tidak — ia hanya me
 - Sticker sering bersifat humor, satir, atau ekspresi emosi yang dilebih-lebihkan.
 - Gambar sticker bisa menampilkan adegan kartun yang terlihat "keras" — itu SENI KARTUN, bukan dokumentasi kekerasan nyata.
 - Nama sticker yang terdengar provokatif (mis. "Singa injek pejabat") adalah konteks satir/humor. JANGAN flag berdasarkan nama sticker saja.
-- Terapkan standar yang lebih longgar untuk konten kartun/meme dibanding foto/video nyata.`;
+- Terapkan standar yang lebih longgar untuk konten kartun/meme dibanding foto/video nyata.
+
+## Panduan Khusus Video
+- Video attachments: WAJIB di-analisis frame-by-frame oleh vision model. Jika ada frame yang menunjukkan konten melanggar (NSFW, SARA, kekerasan, judi), flag sesuai kategori. Video durasi pendek (≤30 detik) dapat dideteksi dari beberapa frame kunci.
+- Deskripsi video dari vision model mungkin berisi rincian frame. Gunakan itu sebagai bukti utama, sama seperti deskripsi gambar.
+- Video tanpa deskripsi dari vision model tetap harus dinilai berdasarkan konteks teks pesan.`;
 
 // ---------------------------------------------------------------------------
 // Section: Few-Shot Examples — single-source array, derived per-mode strings
@@ -332,11 +342,11 @@ const ALL_EXAMPLES: ExampleDef[] = [
   },
   {
     id: "19",
-    title: "Diskusi orientasi seksual (dilarang sesuai kebijakan server)",
+    title: "Diskusi orientasi seksual LGBT (dilarang — zero tolerance)",
     input:
       '[target] id=17174 user=alex: btw gw gay, semoga ga masalah ya. Gw cmn mau jujur aja',
     output:
-      '{"results":[{"message_id":"17174","status":"flagged","flags":["sexual_deviation"],"score":0.7,"categories":["sexual_deviation"],"severity":"medium","confidence":0.85,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["btw gw gay, semoga ga masalah ya"],"analysis":"Pengirim menyampaikan orientasi seksual LGBT. Sesuai kebijakan server, diskusi tentang LGBT tidak diperbolehkan dalam bentuk apapun. Diberi peringatan."}]}',
+      '{"results":[{"message_id":"17174","status":"flagged","flags":["sexual_deviation"],"score":0.85,"categories":["sexual_deviation"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["btw gw gay, semoga ga masalah ya"],"analysis":"Pengirim menyebutkan orientasi LGBT. Berdasarkan kebijakan server, segala bentuk diskusi tentang LGBT dilarang — tidak ada toleransi untuk pengakuan orientasi, coming out, atau curhat personal. Dihapus."}]}',
     modes: ["text", "mixed"],
   },
 
@@ -550,6 +560,28 @@ const ALL_EXAMPLES: ExampleDef[] = [
       '[target] id=29292 user=promotor: Join sini bro https://discord.gg/xyzk123 diskusi coding seru',
     output:
       '{"results":[{"message_id":"29292","status":"warn","flags":["spam"],"score":0.55,"categories":["spam"],"severity":"low","confidence":0.7,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["https://discord.gg/xyzk123"],"analysis":"Pengirim mempromosikan server Discord lain melalui invite link di channel. Meskipun topik coding relevan, promosi server tanpa izin di channel publik berpotensi spam. Diberi peringatan."}]}',
+    modes: ["text", "media", "mixed"],
+  },
+
+  // ── New: LGBT zero tolerance ──
+  {
+    id: "30",
+    title: "LGBT coming out (dilarang — zero tolerance)",
+    input:
+      "[target] id=30303 user=rainbow: jujur aja gua lesbian, terima apa adanya",
+    output:
+      '{"results":[{"message_id":"30303","status":"flagged","flags":["sexual_deviation"],"score":0.9,"categories":["sexual_deviation"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["jujur aja gua lesbian, terima apa adanya"],"analysis":"Pengirim mengungkapkan orientasi lesbian. LGBT zero tolerance — segala bentuk diskusi/pengakuan orientasi LGBT dilarang di server ini. Dihapus."}]}',
+    modes: ["text", "media", "mixed"],
+  },
+
+  // ── New: Topik Israel/Palestina/Yahudi ──
+  {
+    id: "31",
+    title: "Diskusi Israel-Palestina (dilarang total)",
+    input:
+      "[target] id=31313 user=hot_takes: gw sih dukung palestina, israel biadab banget",
+    output:
+      '{"results":[{"message_id":"31313","status":"flagged","flags":["conflict_instigation","sara"],"score":0.95,"categories":["conflict_instigation","sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["gw sih dukung palestina, israel biadab banget"],"analysis":"Segala bentuk diskusi tentang Israel, Palestina, dan Yahudi dilarang total di server ini — tidak ada debat, dukungan, atau berita. Dihapus."}]}',
     modes: ["text", "media", "mixed"],
   },
 ];
@@ -825,7 +857,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
   parts.push(OUTPUT_INSTRUCTIONS);
 
   // XML-delimited context — prevents prompt injection
-  const delimitedContext = `<conversation_context>\n${contextText}\n</conversation_context>`;
+  const delimitedContext = `<conversation_context>\n${sanitizeAiContent(contextText, 8000)}\n</conversation_context>`;
   parts.push(delimitedContext);
 
   let base = parts.join("\n\n");

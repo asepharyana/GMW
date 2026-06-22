@@ -1,4 +1,9 @@
+import { execFile } from "node:child_process";
 import { createChildLogger } from "@bete/shared/logger";
+import { readFile, writeFile, unlink, rm, mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 import { delay, retryWithBackoff } from "@bete/shared/utils";
 import { LRUCache } from "lru-cache";
 import type { ChatCompletion } from "openai/resources/chat/completions";
@@ -864,7 +869,7 @@ async function runTextOnlyBatch(
             .map((url) => {
               const fetchedText = urlFetchMap.get(url);
               if (!fetchedText) return null;
-              return `<web_content url="${url}">${fetchedText}</web_content>`;
+              return `<web_content url="${escapeXml(url)}">${escapeXml(fetchedText)}</web_content>`;
             })
             .filter(Boolean)
             .join("\n");
@@ -876,7 +881,7 @@ async function runTextOnlyBatch(
           const profileLine = userProfileCtx ? `\n  ${userProfileCtx}` : "";
           const refXml = await buildReferenceXml(msg);
           const refLine = refXml ? `\n  ${refXml}` : "";
-          return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}${profileLine}${refLine}\n  <content>${content}</content>${webContext}\n</message>`;
+          return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}${profileLine}${refLine}\n  <content>${escapeXml(content)}</content>${webContext}\n</message>`;
         }),
       ).then((blocks) => blocks.join("\n"));
 
@@ -1008,7 +1013,7 @@ async function prepareMediaMessage(
       (att) =>
         att.message_id === targetId &&
         (att.uploaded_url ?? att.discord_url ?? null) &&
-        att.type.startsWith("image/"),
+        (att.type.startsWith("image/") || att.type.startsWith("video/")),
     )
     .slice(0, 8);
 
@@ -1092,12 +1097,12 @@ async function prepareMediaMessage(
   const userCtx = `<user_reputation trust_score="${rep.trust_score}" />`;
   const profile = await getUserProfile(target.user_id);
   const userProfileCtx = profile
-    ? `\n  <user_profile>${profile.profile_summary}</user_profile>`
+    ? `\n  <user_profile>${sanitizeAiContent(profile.profile_summary)}</user_profile>`
     : "";
   const refXml = await buildReferenceXml(target);
   const refLine = refXml ? `\n  ${refXml}` : "";
 
-  const messageBlock = `<message id="${target.id}" user="${target.username}">\n  ${userCtx}${userProfileCtx}${refLine}\n  <content>${content}</content>${mediaContext ? ` ${mediaContext}` : ""}${webContext}${mediaAnalysisContext}\n</message>`;
+  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(target.username)}">\n  ${userCtx}${userProfileCtx}${refLine}\n  <content>${escapeXml(content)}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}\n</message>`;
 
   return { targetId, messageBlock };
 }
@@ -1745,6 +1750,68 @@ async function downloadSingleAttachment(
 
     const imageBytes = Buffer.concat(chunks);
     const sniffedMime = sniffImageMimeType(imageBytes);
+    if (!sniffedMime && att.type.startsWith("video/")) {
+      // ── Video frame extraction via ffmpeg ──
+      const execFileAsync = promisify(execFile);
+      const tmpDir = await mkdtemp(path.join(tmpdir(), "bete-video-"));
+      const inputPath = path.join(tmpDir, att.filename || "video.mp4");
+      const outputPattern = path.join(tmpDir, "frame-%03d.jpg");
+      try {
+        await writeFile(inputPath, imageBytes);
+        // Get video duration via ffprobe, then extract 4 evenly-spaced frames
+        const { stdout: durationStr } = await execFileAsync("/usr/bin/ffprobe", [
+          "-v", "error",
+          "-show_entries", "format=duration",
+          "-of", "csv=p=0",
+          inputPath,
+        ], { timeout: 10000 });
+        const duration = parseFloat(durationStr.trim()) || 1;
+        // fps = 3/duration gives exactly 4 frames at 0, dur/3, 2*dur/3, dur
+        const fps = (3 / duration).toFixed(6);
+        await execFileAsync("/usr/bin/ffmpeg", [
+          "-i", inputPath,
+          "-vf", `fps=${fps}`,
+          "-frames:v", "4",
+          "-vsync", "vfr",
+          "-q:v", "2",
+          outputPattern,
+        ], { timeout: 30000 });
+
+        // Read extracted frames and add to imageMap
+        for (let i = 1; i <= 4; i++) {
+          const framePath = path.join(tmpDir, `frame-${String(i).padStart(3, "0")}.jpg`);
+          try {
+            const frameBytes = await readFile(framePath);
+            const { data: resizedBuffer, mimeType: resizedMime } =
+              await resizeImageForVision(frameBytes, maxDimension);
+            const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
+            const part: MessageImagePart = {
+              type: "image_url",
+              image_url: { url: dataUrl },
+              sourceLabel: `[frame ${i}/4 dari video ${att.filename} (attachment), pesan id=${att.message_id}]`,
+            };
+            addImageToMap(imageMap, targetId, part);
+          } catch {
+            // Frame may not exist if video is short; skip silently
+          }
+        }
+        log.info({ attachmentId: att.id, frameCount: 4 }, "Extracted video frames for vision analysis");
+      } catch (ffmpegErr) {
+        log.warn(
+          { attachmentId: att.id, error: ffmpegErr instanceof Error ? ffmpegErr.message : String(ffmpegErr) },
+          "Failed to extract video frames with ffmpeg — skipping video",
+        );
+      } finally {
+        // Cleanup temp files
+        try { await unlink(inputPath); } catch { /* ignore */ }
+        for (let i = 1; i <= 4; i++) {
+          try { await unlink(path.join(tmpDir, `frame-${String(i).padStart(3, "0")}.jpg`)); } catch { /* ignore */ }
+        }
+        try { await rm(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
+      return;
+    }
+
     if (!sniffedMime) {
       log.warn(
         { attachmentId: att.id },
@@ -1752,7 +1819,6 @@ async function downloadSingleAttachment(
       );
       return;
     }
-
     const { data: resizedBuffer, mimeType: resizedMime } =
       await resizeImageForVision(imageBytes, maxDimension);
 

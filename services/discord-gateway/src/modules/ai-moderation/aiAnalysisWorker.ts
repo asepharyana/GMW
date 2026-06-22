@@ -10,6 +10,7 @@ import type {
   AnalysisResult,
   MessageRecord,
 } from "../message-capture/types.js";
+import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
 import { buildConversationContext } from "./conversationContext.js";
 import {
   runModerationAnalysis,
@@ -159,36 +160,92 @@ async function processBatch(job: {
   const allMessageIds = [...targetIds, ...contextIds];
   const attachments = await getAttachmentsForMessages(allMessageIds);
 
-  const result = await runModerationAnalysis({
-    targets: messages,
-    contextText: contextLines.join("\n"),
-    attachments,
-  });
+  // ── Split: text-only vs media ──────────────────────────────────────
+  // Text-only analysis runs fast (single LLM call, no vision).
+  // Media analysis is slow (download + vision → LLM).
+  // By splitting here, text results are saved to DB immediately
+  // instead of waiting for media downloads to finish.
+  // ────────────────────────────────────────────────────────────────────
+  const textOnly: MessageRecord[] = [];
+  const media: MessageRecord[] = [];
 
-  const updates = result.results.map((analysisResult) => ({
-    messageId: analysisResult.messageId,
-    result: {
-      status: analysisResult.status,
-      flags: JSON.stringify(analysisResult.flags),
-      score: analysisResult.score,
-      analysis: analysisResult.analysis,
-      categories: analysisResult.categories,
-      severity: analysisResult.severity,
-      confidence: analysisResult.confidence,
-      recommendedAction: analysisResult.recommendedAction,
-      analyzedAt: Date.now(),
-      error: null,
-    },
-  }));
-
-  try {
-    const rows = await updateMessagesAIAnalysisBulk(updates);
-    return { ok: true, conversationKey, rows };
-  } catch (dbErr) {
-    throw new Error(
-      `Failed to update DB: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`,
-    );
+  for (const msg of messages) {
+    const meta = msg.metadata ? extractMessageMediaEvidence(msg.metadata) : null;
+    if (meta && (meta.attachments.length > 0 || meta.stickers.length > 0 || meta.embeds.length > 0)) {
+      media.push(msg);
+    } else {
+      textOnly.push(msg);
+    }
   }
+
+  const allRows: MessageRecord[] = [];
+
+  // Phase 1: Text-only → save immediately (fast)
+  if (textOnly.length > 0) {
+    const textResult = await runModerationAnalysis({
+      targets: textOnly,
+      contextText: contextLines.join("\n"),
+      attachments,
+    });
+    const textUpdates = textResult.results.map((analysisResult) => ({
+      messageId: analysisResult.messageId,
+      result: {
+        status: analysisResult.status,
+        flags: JSON.stringify(analysisResult.flags),
+        score: analysisResult.score,
+        analysis: analysisResult.analysis,
+        categories: analysisResult.categories,
+        severity: analysisResult.severity,
+        confidence: analysisResult.confidence,
+        recommendedAction: analysisResult.recommendedAction,
+        analyzedAt: Date.now(),
+        error: null,
+      },
+    }));
+    if (textUpdates.length > 0) {
+      const rows = await updateMessagesAIAnalysisBulk(textUpdates);
+      allRows.push(...rows);
+      logger.info(
+        { count: textUpdates.length, conversationKey },
+        "Text-only batch saved — media analysis still in progress",
+      );
+    }
+  }
+
+  // Phase 2: Media → save when done (slow: download + vision)
+  if (media.length > 0) {
+    const mediaResult = await runModerationAnalysis({
+      targets: media,
+      contextText: contextLines.join("\n"),
+      attachments,
+    });
+    const mediaUpdates = mediaResult.results.map((analysisResult) => ({
+      messageId: analysisResult.messageId,
+      result: {
+        status: analysisResult.status,
+        flags: JSON.stringify(analysisResult.flags),
+        score: analysisResult.score,
+        analysis: analysisResult.analysis,
+        categories: analysisResult.categories,
+        severity: analysisResult.severity,
+        confidence: analysisResult.confidence,
+        recommendedAction: analysisResult.recommendedAction,
+        analyzedAt: Date.now(),
+        error: null,
+      },
+    }));
+    if (mediaUpdates.length > 0) {
+      const rows = await updateMessagesAIAnalysisBulk(mediaUpdates);
+      allRows.push(...rows);
+    }
+  }
+
+  logger.info(
+    { total: messages.length, textOnly: textOnly.length, media: media.length, saved: allRows.length },
+    "Batch analysis complete",
+  );
+
+  return { ok: true, conversationKey, rows: allRows };
 }
 
 // ---------------------------------------------------------------------------

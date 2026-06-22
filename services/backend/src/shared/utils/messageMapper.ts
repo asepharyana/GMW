@@ -25,6 +25,12 @@ export interface MappedMessage {
   ai_recommended_action: string | null;
   ai_analyzed_at: number | null;
   ai_error: string | null;
+  is_reply: boolean | null;
+  is_forward: boolean | null;
+  is_crosspost: boolean | null;
+  reference_message_id: string | null;
+  reference_channel_id: string | null;
+  reference_guild_id: string | null;
 }
 
 export function mapMessageRow(row: Record<string, unknown>): MappedMessage {
@@ -53,5 +59,11 @@ export function mapMessageRow(row: Record<string, unknown>): MappedMessage {
     ai_recommended_action: (row.ai_recommended_action as string | null) ?? null,
     ai_analyzed_at: (row.ai_analyzed_at as number | null) ?? null,
     ai_error: (row.ai_error as string | null) ?? null,
+    is_reply: row.is_reply === null ? null : Boolean(row.is_reply),
+    is_forward: row.is_forward === null ? null : Boolean(row.is_forward),
+    is_crosspost: row.is_crosspost === null ? null : Boolean(row.is_crosspost),
+    reference_message_id: (row.reference_message_id as string | null) ?? null,
+    reference_channel_id: (row.reference_channel_id as string | null) ?? null,
+    reference_guild_id: (row.reference_guild_id as string | null) ?? null,
   };
 }

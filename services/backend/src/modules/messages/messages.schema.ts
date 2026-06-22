@@ -19,6 +19,12 @@ export const messageCreateSchema = z.object({
   avatarUrl: z.string().optional(),
   content: z.string(),
   type: z.enum(["text", "edited", "deleted"]).default("text"),
+  isReply: z.boolean().optional(),
+  isForward: z.boolean().optional(),
+  isCrosspost: z.boolean().optional(),
+  referenceMessageId: z.string().optional(),
+  referenceChannelId: z.string().optional(),
+  referenceGuildId: z.string().optional(),
 });
 
 export const messageUpdateSchema = z.object({

@@ -134,6 +134,12 @@ export class MessagesRepository {
         type: data.type ?? "text",
         metadata: null,
         ai_status: "pending",
+        is_reply: data.isReply ?? false,
+        is_forward: data.isForward ?? false,
+        is_crosspost: data.isCrosspost ?? false,
+        reference_message_id: data.referenceMessageId ?? null,
+        reference_channel_id: data.referenceChannelId ?? null,
+        reference_guild_id: data.referenceGuildId ?? null,
       })
       .returning();
 
@@ -260,6 +266,12 @@ export class MessagesRepository {
         ai_severity: pgMessagesTable.ai_severity,
         ai_confidence: pgMessagesTable.ai_confidence,
         ai_analysis: pgMessagesTable.ai_analysis,
+        is_reply: pgMessagesTable.is_reply,
+        is_forward: pgMessagesTable.is_forward,
+        is_crosspost: pgMessagesTable.is_crosspost,
+        reference_message_id: pgMessagesTable.reference_message_id,
+        reference_channel_id: pgMessagesTable.reference_channel_id,
+        reference_guild_id: pgMessagesTable.reference_guild_id,
       })
       .from(pgMessagesTable)
       .where(and(...conditions))
