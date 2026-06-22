@@ -163,6 +163,9 @@ async function processBatch(job: {
   // ── Split: text-only vs media ──────────────────────────────────────
   // Text-only analysis runs fast (single LLM call, no vision).
   // Media analysis is slow (download + vision → LLM).
+  // Messages with BOTH text and media go into both arrays:
+  //   - text batch → analyzes the text content immediately
+  //   - media batch → analyzes images/video when ready
   // By splitting here, text results are saved to DB immediately
   // instead of waiting for media downloads to finish.
   // ────────────────────────────────────────────────────────────────────
@@ -173,6 +176,11 @@ async function processBatch(job: {
     const meta = msg.metadata ? extractMessageMediaEvidence(msg.metadata) : null;
     if (meta && (meta.attachments.length > 0 || meta.stickers.length > 0 || meta.embeds.length > 0)) {
       media.push(msg);
+      // If the message also has text content, analyze it in the text batch too
+      const rawContent = msg.edited_content ?? msg.content;
+      if (rawContent.trim().length > 0) {
+        textOnly.push(msg);
+      }
     } else {
       textOnly.push(msg);
     }
