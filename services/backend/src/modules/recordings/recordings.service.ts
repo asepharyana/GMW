@@ -17,7 +17,6 @@ export interface RecordingRow {
   download_url: string | null;
   upload_status: string;
   upload_error: string | null;
-  transcription: string | null;
   created_at: number;
   uploaded_at: number | null;
   duration_bytes: number;
@@ -58,7 +57,7 @@ export class RecordingsService {
       SELECT
         id, user_id, username, avatar_url, guild_id, channel_id,
         channel_name, filename, size_bytes, download_url,
-        upload_status, upload_error, transcription, created_at, uploaded_at,
+        upload_status, upload_error, created_at, uploaded_at,
         COALESCE(size_bytes, 0) AS duration_bytes
       FROM voice_recordings
       ${whereClause}
