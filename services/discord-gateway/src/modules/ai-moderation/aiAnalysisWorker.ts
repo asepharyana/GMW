@@ -180,65 +180,75 @@ async function processBatch(job: {
 
   const allRows: MessageRecord[] = [];
 
-  // Phase 1: Text-only → save immediately (fast)
-  if (textOnly.length > 0) {
-    const textResult = await runModerationAnalysis({
-      targets: textOnly,
-      contextText: contextLines.join("\n"),
-      attachments,
-    });
-    const textUpdates = textResult.results.map((analysisResult) => ({
-      messageId: analysisResult.messageId,
-      result: {
-        status: analysisResult.status,
-        flags: JSON.stringify(analysisResult.flags),
-        score: analysisResult.score,
-        analysis: analysisResult.analysis,
-        categories: analysisResult.categories,
-        severity: analysisResult.severity,
-        confidence: analysisResult.confidence,
-        recommendedAction: analysisResult.recommendedAction,
-        analyzedAt: Date.now(),
-        error: null,
-      },
-    }));
-    if (textUpdates.length > 0) {
-      const rows = await updateMessagesAIAnalysisBulk(textUpdates);
-      allRows.push(...rows);
-      logger.info(
-        { count: textUpdates.length, conversationKey },
-        "Text-only batch saved — media analysis still in progress",
-      );
-    }
-  }
+  // ── Parallel: text-only + media analysis run concurrently ──────────
+  // Text-only → fast LLM call. Media → download + vision + LLM.
+  // Running both in parallel means media downloads overlap with text LLM call.
+  // Each path saves to DB as soon as its own results are ready.
+  // ────────────────────────────────────────────────────────────────────
+  const textPromise = textOnly.length > 0
+    ? runModerationAnalysis({
+        targets: textOnly,
+        contextText: contextLines.join("\n"),
+        attachments,
+      }).then((result) => {
+        const updates = result.results.map((analysisResult) => ({
+          messageId: analysisResult.messageId,
+          result: {
+            status: analysisResult.status,
+            flags: JSON.stringify(analysisResult.flags),
+            score: analysisResult.score,
+            analysis: analysisResult.analysis,
+            categories: analysisResult.categories,
+            severity: analysisResult.severity,
+            confidence: analysisResult.confidence,
+            recommendedAction: analysisResult.recommendedAction,
+            analyzedAt: Date.now(),
+            error: null,
+          },
+        }));
+        if (updates.length > 0) {
+          return updateMessagesAIAnalysisBulk(updates).then((rows) => {
+            allRows.push(...rows);
+            logger.info(
+              { count: updates.length, conversationKey },
+              "Text-only batch saved — media analysis still in progress",
+            );
+          });
+        }
+      })
+    : Promise.resolve();
 
-  // Phase 2: Media → save when done (slow: download + vision)
-  if (media.length > 0) {
-    const mediaResult = await runModerationAnalysis({
-      targets: media,
-      contextText: contextLines.join("\n"),
-      attachments,
-    });
-    const mediaUpdates = mediaResult.results.map((analysisResult) => ({
-      messageId: analysisResult.messageId,
-      result: {
-        status: analysisResult.status,
-        flags: JSON.stringify(analysisResult.flags),
-        score: analysisResult.score,
-        analysis: analysisResult.analysis,
-        categories: analysisResult.categories,
-        severity: analysisResult.severity,
-        confidence: analysisResult.confidence,
-        recommendedAction: analysisResult.recommendedAction,
-        analyzedAt: Date.now(),
-        error: null,
-      },
-    }));
-    if (mediaUpdates.length > 0) {
-      const rows = await updateMessagesAIAnalysisBulk(mediaUpdates);
-      allRows.push(...rows);
-    }
-  }
+  const mediaPromise = media.length > 0
+    ? runModerationAnalysis({
+        targets: media,
+        contextText: contextLines.join("\n"),
+        attachments,
+      }).then((result) => {
+        const updates = result.results.map((analysisResult) => ({
+          messageId: analysisResult.messageId,
+          result: {
+            status: analysisResult.status,
+            flags: JSON.stringify(analysisResult.flags),
+            score: analysisResult.score,
+            analysis: analysisResult.analysis,
+            categories: analysisResult.categories,
+            severity: analysisResult.severity,
+            confidence: analysisResult.confidence,
+            recommendedAction: analysisResult.recommendedAction,
+            analyzedAt: Date.now(),
+            error: null,
+          },
+        }));
+        if (updates.length > 0) {
+          return updateMessagesAIAnalysisBulk(updates).then((rows) => {
+            allRows.push(...rows);
+          });
+        }
+      })
+    : Promise.resolve();
+
+  // Wait for both to complete
+  await Promise.all([textPromise, mediaPromise]);
 
   logger.info(
     { total: messages.length, textOnly: textOnly.length, media: media.length, saved: allRows.length },

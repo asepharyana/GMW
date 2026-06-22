@@ -707,12 +707,13 @@ async function runTextOnlyBatch(
   const maxBatchSize = config.AI_LLM_TEXT_BATCH_SIZE ?? 20;
   const timeoutMs = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
 
+  // ── Phase A: Prepare context in parallel ──────────────────
+  // URL fetching (web_content) and SearXNG (web_searches) are independent —
+  // both just enrich the LLM prompt. Run them concurrently so SearXNG
+  // doesn't block on slow URLs (or vice versa).
+  //
   // ── Fetch web content from URLs in text-only messages ──
-  // Prevents LLM from guessing based on domain name alone (e.g., false "scam" flags).
-  // The fetched text content is injected into the message XML so the LLM can
-  // analyze the actual page rather than pattern-match the URL string.
-  const urlFetchMap = new Map<string, string>(); // url → fetched text content
-  {
+  const urlFetchPromise = (async () => {
     const allUrls = new Set<string>();
     for (const msg of targets) {
       const content = msg.edited_content ?? msg.content;
@@ -720,7 +721,7 @@ async function runTextOnlyBatch(
         allUrls.add(url);
       }
     }
-    const urlArr = Array.from(allUrls).slice(0, 10); // cap to 10 fetches per batch
+    const urlArr = Array.from(allUrls).slice(0, 10);
     if (urlArr.length > 0) {
       log.debug(
         { urlCount: urlArr.length },
@@ -729,6 +730,7 @@ async function runTextOnlyBatch(
       const results = await Promise.allSettled(
         urlArr.map((url) => fetchUrlSafely(url)),
       );
+      const map = new Map<string, string>();
       for (let i = 0; i < urlArr.length; i++) {
         const r = results[i];
         if (
@@ -736,19 +738,16 @@ async function runTextOnlyBatch(
           r.value.type === "text" &&
           r.value.textContent
         ) {
-          urlFetchMap.set(urlArr[i], r.value.textContent);
+          map.set(urlArr[i], r.value.textContent);
         }
       }
+      return map;
     }
-  }
+    return new Map<string, string>();
+  })();
 
-  // ── SearXNG enrichment for suspicious/ambiguous content ──────────
-  // Uses SearXNG to look up references mentioned in messages (e.g. anime
-  // titles, drug names). Results are injected as <web_search> XML tags
-  // so the LLM can make informed decisions instead of guessing.
-  // All messages are searched — Redis cache prevents redundant lookups.
-  const searxngResults = new Map<string, string>(); // query → formatted XML
-  {
+  // ── SearXNG enrichment ──
+  const searxngPromise = (async () => {
     const queries = new Set<string>();
     for (const msg of targets) {
       const content = msg.edited_content ?? msg.content;
@@ -757,7 +756,7 @@ async function runTextOnlyBatch(
       }
     }
     if (queries.size > 0) {
-      const queryArr = Array.from(queries).slice(0, 3); // cap to 3 searches per batch
+      const queryArr = Array.from(queries).slice(0, 3);
       log.debug(
         { searchQueries: queryArr },
         "Running SearXNG enrichment for batch",
@@ -765,14 +764,23 @@ async function runTextOnlyBatch(
       const results = await Promise.allSettled(
         queryArr.map((q) => searchSearxng(q)),
       );
+      const map = new Map<string, string>();
       for (let i = 0; i < queryArr.length; i++) {
         const r = results[i];
         if (r.status === "fulfilled" && r.value.length > 0) {
-          searxngResults.set(queryArr[i], formatSearchResults(r.value));
+          map.set(queryArr[i], formatSearchResults(r.value));
         }
       }
+      return map;
     }
-  }
+    return new Map<string, string>();
+  })();
+
+  // Wait for BOTH concurrently
+  const [urlFetchMap, searxngResults] = await Promise.all([
+    urlFetchPromise,
+    searxngPromise,
+  ]);
 
   // ── Group identical short messages (< 20 chars) to reduce redundant analysis ──
   // Messages with identical normalized content share a single representative.
