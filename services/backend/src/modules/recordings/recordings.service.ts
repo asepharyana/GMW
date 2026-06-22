@@ -37,24 +37,22 @@ export class RecordingsService {
     logger.info({ limit }, "getRecent called");
     const db = getDatabase();
 
-    const conditions: string[] = [];
-    const params: unknown[] = [];
+    const conditions: ReturnType<typeof sql>[] = [];
 
     if (filters?.cursor) {
-      params.push(filters.cursor);
-      conditions.push(`created_at < $${params.length}::numeric`);
+      conditions.push(sql`created_at < ${filters.cursor}::numeric`);
     }
     if (filters?.channelId) {
-      params.push(filters.channelId);
-      conditions.push(`channel_id = $${params.length}`);
+      conditions.push(sql`channel_id = ${filters.channelId}`);
     }
     if (filters?.userId) {
-      params.push(filters.userId);
-      conditions.push(`user_id = $${params.length}`);
+      conditions.push(sql`user_id = ${filters.userId}`);
     }
 
     const whereClause =
-      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      conditions.length > 0
+        ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
+        : sql``;
 
     const { rows } = await db.execute(sql`
       SELECT
@@ -63,7 +61,7 @@ export class RecordingsService {
         upload_status, upload_error, transcription, created_at, uploaded_at,
         COALESCE(size_bytes, 0) AS duration_bytes
       FROM voice_recordings
-      ${sql.raw(whereClause)}
+      ${whereClause}
       ORDER BY created_at DESC
       LIMIT ${limit + 1}
     `);
