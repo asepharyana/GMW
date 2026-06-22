@@ -21,6 +21,12 @@ import { llmChat, llmVision } from "./llmClient.js";
 import { buildSystemPrompt as buildSystemPromptModular, sanitizeAiContent } from "./moderationPrompt.js";
 import { logModerationAnalysis, logModerationError } from "./responseLogger.js";
 import {
+  searchSearxng,
+  shouldSearchContent,
+  extractSearchQueries,
+  formatSearchResults,
+} from "./searxngSearch.js";
+import {
   getStickerFromCache,
   initStickerCache,
   isStickerCacheReady,
@@ -736,6 +742,41 @@ async function runTextOnlyBatch(
     }
   }
 
+  // ── SearXNG enrichment for suspicious/ambiguous content ──────────
+  // Uses SearXNG to look up references mentioned in messages (e.g. anime
+  // titles, drug names). Results are injected as <web_search> XML tags
+  // so the LLM can make informed decisions instead of guessing.
+  const searxngResults = new Map<string, string>(); // query → formatted XML
+  {
+    const queries = new Set<string>();
+    for (const msg of targets) {
+      const content = msg.edited_content ?? msg.content;
+      if (shouldSearchContent(content)) {
+        // Extract specific search terms from triggers (e.g. "boku no pico")
+        // instead of sending the entire message as a query
+        for (const q of extractSearchQueries(content)) {
+          queries.add(q);
+        }
+      }
+    }
+    if (queries.size > 0) {
+      const queryArr = Array.from(queries).slice(0, 3); // cap to 3 searches per batch
+      log.debug(
+        { searchQueries: queryArr },
+        "Running SearXNG enrichment for batch",
+      );
+      const results = await Promise.allSettled(
+        queryArr.map((q) => searchSearxng(q)),
+      );
+      for (let i = 0; i < queryArr.length; i++) {
+        const r = results[i];
+        if (r.status === "fulfilled" && r.value.length > 0) {
+          searxngResults.set(queryArr[i], formatSearchResults(r.value));
+        }
+      }
+    }
+  }
+
   // ── Group identical short messages (< 20 chars) to reduce redundant analysis ──
   // Messages with identical normalized content share a single representative.
   // Results are fanned out to all group members after the LLM call.
@@ -886,7 +927,11 @@ async function runTextOnlyBatch(
       ).then((blocks) => blocks.join("\n"));
 
       // XML delimiter wraps the entire messages block (R1)
-      return `${systemText}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
+      // Append SearXNG results if any were fetched for this batch
+      const searxngBlock = searxngResults.size > 0
+        ? `\n\n<web_searches>\n${Array.from(searxngResults.entries()).map(([q, xml]) => `  <search_query query="${escapeXml(q)}">\n${xml}  </search_query>`).join("\n")}\n</web_searches>`
+        : "";
+      return `${systemText}${searxngBlock}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
     };
 
     const abortController = new AbortController();
@@ -1067,7 +1112,28 @@ async function prepareMediaMessage(
     ),
   );
 
-  // ── 5. Build single-message XML block (R1) ──
+  // ── 5. SearXNG search for suspicious content ──
+  let searxngXml = "";
+  if (shouldSearchContent(content)) {
+    const queries = extractSearchQueries(content);
+    if (queries.length > 0) {
+      const results = await Promise.allSettled(
+        queries.map((q) => searchSearxng(q)),
+      );
+      const parts: string[] = [];
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        if (r.status === "fulfilled" && r.value.length > 0) {
+          parts.push(formatSearchResults(r.value));
+        }
+      }
+      if (parts.length > 0) {
+        searxngXml = `\n<web_searches>\n${parts.join("\n")}\n</web_searches>`;
+      }
+    }
+  }
+
+  // ── 6. Build single-message XML block (R1) ──
   const webTexts = webTextMap.get(targetId) ?? [];
   const mediaAnalyses = mediaAnalysisMap.get(targetId) ?? [];
   const webContext = webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
@@ -1102,7 +1168,7 @@ async function prepareMediaMessage(
   const refXml = await buildReferenceXml(target);
   const refLine = refXml ? `\n  ${refXml}` : "";
 
-  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(target.username)}">\n  ${userCtx}${userProfileCtx}${refLine}\n  <content>${escapeXml(content)}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}\n</message>`;
+  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(target.username)}">\n  ${userCtx}${userProfileCtx}${refLine}\n  <content>${escapeXml(content)}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${searxngXml}\n</message>`;
 
   return { targetId, messageBlock };
 }
