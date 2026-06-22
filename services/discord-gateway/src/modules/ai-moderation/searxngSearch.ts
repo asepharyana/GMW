@@ -65,20 +65,25 @@ export async function searchSearxng(
  * Use capturing groups to isolate the specific term to search.
  */
 const SEARXNG_TRIGGERS: RegExp[] = [
-  // Anime hentai references (capture the title name)
-  /\b(boku\s*no\s*pico|euphoria|bible\s*black|la\s*blue\s*girl|kuroinu|oni\s*chichi|tsuma\s*netori|starless|discipline|immoral\s*sisters|night\s*shift\s*nurses|resonant)\b/i,
-  // Narutoverse hentai specific
-  /\b(naruto\s*hentai|boruto\s*hentai|sakura\s*hentai|hinata\s*hentai)\b/i,
-  // General hentai/porn triggers
-  /\b(hentai|nonton\s*.*\b(anime|kartun|film).*\b(18\+|dewasa|bokep)|l[o0]l[i1]|sh[o0]t[o0])\b/i,
-  // Suspicious anime title mentions — extract the title after "nonton"
-  /\bnonton\s+(\w+(?:\s+\w+){0,3})\s+(anime|kartun)\b/i,
-  // Drug references
-  /\b(jenis?\s+?narkoba|jenis?\s+?narkotika|ngefly|fly\s*.*\bdrug|rc\b.*\blegal|research\s*chemical)\b/i,
-  // Scam/phishing indicators that could use verification
+  // Anime rujukan/konten mencurigakan — cari judul yang disebut
+  /\b(nonton\s+\w+(?:\s+\w+){0,4}\s+(anime|kartun|film))\b/i,
+  /\b(tonton\s+\w+(?:\s+\w+){0,4}\s+(anime|kartun|film))\b/i,
+  /\b(rekomendasi\s+(anime|kartun|film)\s+\w+)\b/i,
+  // Istilah konten dewasa/seksual dalam konteks anime/media
+  /\b(anime\s*(18\+|dewasa|bokep|hentai))\b/i,
+  /\b(kartun\s*(18\+|dewasa|bokep))\b/i,
+  /\b(l[o0]l[i1]|sh[o0]t[o0]|lolicon|shotacon)\b/i,
+  /\bhentai\b/i,
+  // Kata "nonton" + sesuatu yang mungkin judul konten
+  /\bnonton\s+(bokep|porno|dewasa|18)\b/i,
+  // Narkoba
+  /\b(jenis?\s+?narkoba|jenis?\s+?narkotika|ngefly|fly\s*high|research\s*chemical|rc\s+drugs)\b/i,
+  // Scam/phishing
   /\b(phishing|penipuan|scam|skimming)\b/i,
-  // Known hentai studio/series references
-  /\b(pink\s*pineapple|maryjane|softhouse\s*chara|milky\s*studio|anime\s*lilith|mooon\s*phase|queen\s*bees)\b/i,
+  // Judi online
+  /\b(situs\s+judi|jud\s*online|slot\s+gacor|deposit\s+jud|bandar\s+(togel|slot))\b/i,
+  // SARA/penistaan — istilah agama yang mungkin diparodikan
+  /\b(kitab\s+(suc|palsu)|nabi\s+palsu|agama\s+palsu|membuat\s+agama)\b/i,
 ];
 
 /**

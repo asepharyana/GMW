@@ -145,26 +145,28 @@ Prioritas menengah (PERILAKU MERUSAK):
 
 Prioritas rendah (PELANGGARAN RINGAN):
 - harassment (targeted insult), vulgar_language (profanity terarah)
-- sexual_deviation: DUAL MODE. (A) LGBT/Penyimpangan orientasi seksual → WAJIB FLAG — server zero tolerance terhadap segala diskusi/pengakuan/promosi LGBT. (B) Fetish/aktivitas seksual eksplisit → flag jika secara EKSPLISIT mempromosikan/mengajak (mis. "DM aja kalo mau konten 18+", "link bokep", "jual video seks"). **HENTAI REFERENCE:** Menyebut judul anime hentai (Boku no Pico, Boku no Pico, Euphoria, Bible Black, La Blue Girl, Kuroinu, Oni Chichi, Tsuma Netori, Starless, Discipline, Immoral Sisters, Night Shift Nurses, Resonant, etc.) atau istilah terkait (loli, shota, shotacon, lolicon) → flag sebagai "sexual_deviation" dengan severity high, recommended_action delete, karena konten yang direferensikan adalah pornografi anak (shotacon). Karakter hewan fiksi antropomorfik normal (seperti Sonic, Pokemon, Lucario, maskot anime) adalah BUKAN referensi furry fetish dalam konteks apapun tanpa bukti seksual eksplisit.
+- sexual_deviation: DUAL MODE. (A) LGBT/Penyimpangan orientasi seksual → WAJIB FLAG — server zero tolerance terhadap segala diskusi/pengakuan/promosi LGBT. (B) Fetish/aktivitas seksual eksplisit → flag jika secara EKSPLISIT mempromosikan/mengajak (mis. "DM aja kalo mau konten 18+", "link bokep", "jual video seks"). **HENTAI/NSFW REFERENCE:** Jika pesan menyebut judul anime/serial/film apapun yang MUNGKIN konten dewasa → **WAJIB CEK \`<web_searches>\`**. Jangan menebak dari ingatan. Search results sudah disediakan oleh sistem. Jika results mengonfirmasi konten dewasa/hentai → flag "sexual_deviation" severity high, recommended_action delete. Kata kunci langsung flag: loli, shota, shotacon, lolicon, incest, exhibition. Karakter hewan fiksi antropomorfik normal (seperti Sonic, Pokemon, Lucario, maskot anime) adalah BUKAN referensi furry fetish dalam konteks apapun tanpa bukti seksual eksplisit.
 - **ONTOLOGICAL GRAPH — DIPERHALUS:** Waspadai frasa yang mencurigakan, tapi JANGAN asumsikan niat buruk. Frasa seperti "kostum hewan", "bermain peran hewan", atau "pakaian kucing" di Indonesia sering digunakan untuk: (1) kostum Halloween/cosplay, (2) kostum karnaval/marching band, (3) kostum peliharaan hewan sungguhan, (4) karakter game cosplay. **JANGAN FLAG** hanya karena mengandung kata "hewan" + "kostum". HANYA flag jika ada konteks seksual/fetish EKSPLISIT di sekitarnya (mis. "DM buat foto pake kostum hewan, khusus dewasa 18+"). Jika tidak yakin → CLEAN.
 - Username/display name ofensif → "offensive_username" (dengan pertimbangan konteks). PENGECUALIAN: Jangan flag username yang memuat badword secara tidak sengaja akibat susunan huruf alami (Scunthorpe problem, misal "Sasuke" aman meski mengandung "asu").
 
-## Aturan Analisis URL — JANGAN GUESS BERDASARKAN DOMAIN
-- Jika pesan berisi URL, PERIKSA apakah ada tag [web_content] di pesan tersebut.
-- [web_content] berisi teks halaman yang sudah di-fetch oleh sistem — GUNAKAN ITU sebagai bukti utama.
-- **TANPA [web_content]**: Berarti halaman tidak bisa di-fetch (timeout, error, atau bukan teks). JANGAN flag sebagai scam/phishing hanya berdasarkan nama domain atau struktur URL. URL tidak dikenal bukan berarti scam.
-- **HANYA flag scam jika [web_content] secara eksplisit menunjukkan indikasi scam**: halaman phising, minta login/password, transfer uang mencurigakan, atau konten penipuan.
-- Domain cloudflare, my.id, vercel.app, github.io, netlify.app, dan subdomain pada umumnya ADALAH domain hosting biasa. BUKAN indikasi scam.
-- Link ke dashboard/webapp Discord, GitHub, atau tools programming adalah AMAN.
-- Jika ragu antara "scam" dan "clean", pilih clean (innocent until proven guilty).
+## Aturan Analisis — GUNAKAN WEB SEBAGAI BUKTI UTAMA
 
-## Web Search Context — GUNAKAN UNTUK VERIFIKASI
-<web_searches> berisi hasil pencarian otomatis dari SearXNG untuk referensi mencurigakan yang disebut di pesan (misalnya judul anime yang mungkin hentai, nama narkoba, atau istilah scam). Ini DICARI OTOMATIS oleh sistem berdasarkan trigger tertentu.
+<web_searches> berisi hasil pencarian otomatis (SearXNG) untuk konten yang disebut di pesan. Sistem meng-search otomatis jika mendeteksi referensi mencurigakan (judul anime/serial, istilah narkoba, domain scam, dll). Hasilnya ada di tag \`<web_searches>\`.
 
-- **GUNAKAN hasil <web_searches> sebagai bukti** untuk memutuskan apakah konten melanggar kebijakan. Contoh: jika user nyebut "bokuno pico" dan hasil search menunjukkan itu adalah hentai shotacon, maka itu pelanggaran sexual_deviation.
-- **JANGAN abaikan <web_searches>** — data ini sengaja dicari untuk membantu keputusan yang lebih akurat.
-- Jika <web_searches> kosong (tidak ada di prompt), berarti tidak ada trigger pencarian — jangan buat asumsi.
-- Prioritas: <web_searches> > <web_content> > pengetahuan internal model. Gunakan data konkret dari search/web content sebagai bukti utama.
+**ATURAN KRITIS:**
+- **<web_searches> ADALAH BUKTI UTAMA.** Jika ada tag \`<web_searches>\` di prompt, WAJIB gunakan hasil search sebagai dasar keputusan.
+- Jika search results menunjukkan konten melanggar (hentai, scam, narkoba, dll) → FLAG sesuai kategori.
+- Jika search results menunjukkan konten AMAN → CLEAN.
+- **JANGAN abaikan <web_searches>** — sistem sudah melakukan pencarian untuk membantumu.
+- Jika tidak ada \`<web_searches>\`, berarti tidak ada referensi yang perlu di-search → gunakan pengetahuan internal.
+- Prioritas bukti: \`<web_searches>\` (otomatis) > \`<web_content>\` (URL fetch) > \`<media_analysis>\` (vision) > pengetahuan internal.
+
+<web_content> berisi teks halaman yang di-fetch dari URL di pesan. GUNAKAN sebagai bukti — jangan flag hanya berdasarkan domain name.
+
+## Referensi Konten — DETEKSI VIA SEARCH
+Jika pesan menyebut judul anime/serial/film/lagu/apapun yang MUNGKIN konten dewasa/hentai/scam → CEK \`<web_searches>\` hasil pencarian. Jangan menebak atau mengandalkan ingatan — gunakan data search yang sudah disediakan.
+- Contoh: user nyebut "X" → lihat \`<web_searches>\` → jika search results menunjukkan "X = hentai/shotacon" → flag sebagai "sexual_deviation" severity high, recommended_action delete.
+- Contoh: user nyebut "Y" → lihat \`<web_searches>\` → jika tidak ada hasil atau hasil aman → CLEAN.
 
 ## Pohon Keputusan (Decision Tree)
 1. Apakah ada ancaman keselamatan nyata (child_safety, self_harm, violence, illegal_content)? → flagged, critical
@@ -426,7 +428,7 @@ const ALL_EXAMPLES: ExampleDef[] = [
     id: "13",
     title: "Obfuscation / Zalgo Text (Evasion)",
     input:
-      '[target] id=14141 user=hater: ++++++K1[[ your $€/F" "~\\`| \\\\0ve $ 1F ¥°U |}iE ®©',
+      '[target] id=14141 user=hater: ++++++K1[[ your $€/F" "~\`| \\\\0ve $ 1F ¥°U |}iE ®©',
     output:
       '{"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"categories":["harassment","hate_speech"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["++++++K1[[ your $€/F","\\\\\\\\0ve $ 1F ¥°U |}iE"],"analysis":"Pesan menggunakan teknik obfuscation/simbol untuk menyembunyikan frasa \'Kill yourself I love if you die\'. Ini adalah ancaman dan pelecehan berat yang disamarkan."}]}',
     modes: ["text", "media", "mixed"],
