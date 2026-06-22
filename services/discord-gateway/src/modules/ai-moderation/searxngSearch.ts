@@ -1,3 +1,4 @@
+import Redis from "ioredis";
 import { createChildLogger } from "@bete/shared/logger";
 
 const log = createChildLogger("searxng-search");
@@ -5,6 +6,35 @@ const log = createChildLogger("searxng-search");
 const SEARXNG_BASE_URL = "https://searxng.imrnes.team";
 const MAX_RESULTS = 3;
 const TIMEOUT_MS = 8000;
+const CACHE_TTL = 86400; // 24 hours
+const CACHE_PREFIX = "searxng:";
+
+let redis: Redis | null = null;
+
+/**
+ * Initialize Redis connection for SearXNG cache.
+ * Safe to call multiple times — only creates one connection.
+ */
+export function initSearxngCache(redisUrl: string): void {
+  if (redis) return;
+  redis = new Redis(redisUrl, {
+    maxRetriesPerRequest: 3,
+    retryStrategy(times) {
+      const delay = Math.min(times * 200, 2000);
+      return delay;
+    },
+    lazyConnect: true,
+    enableReadyCheck: false,
+  });
+  redis.on("error", (err) => {
+    log.warn({ err: err.message }, "SearXNG Redis cache error");
+  });
+  redis.connect().catch(() => {
+    log.warn("SearXNG Redis cache unavailable — falling back to no-cache");
+    redis = null;
+  });
+  log.info("SearXNG Redis cache initialized");
+}
 
 export interface SearxngResult {
   title: string;
@@ -14,12 +44,28 @@ export interface SearxngResult {
 
 /**
  * Search SearXNG for a query and return structured results.
- * Safe-guarded: only text results, no images fetched.
+ * Uses Redis cache when available — same query within 24h returns cached results.
  */
 export async function searchSearxng(
   query: string,
   category: "general" | "news" | "science" = "general",
 ): Promise<SearxngResult[]> {
+  const cacheKey = `${CACHE_PREFIX}${category}:${query.toLowerCase().trim()}`;
+
+  // Try cache first
+  if (redis) {
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        log.debug({ query, category }, "SearXNG cache HIT");
+        return JSON.parse(cached) as SearxngResult[];
+      }
+    } catch {
+      // Cache read failed, continue to API
+    }
+  }
+
+  // Cache miss — hit SearXNG API
   try {
     const url = `${SEARXNG_BASE_URL}/search?q=${encodeURIComponent(query)}&format=json&language=id&categories=${category}`;
     const controller = new AbortController();
@@ -44,12 +90,21 @@ export async function searchSearxng(
       results?: Array<{ title?: string; url?: string; content?: string }>;
     };
     const results = data.results ?? [];
-
-    return results.slice(0, MAX_RESULTS).map((r) => ({
+    const mapped = results.slice(0, MAX_RESULTS).map((r) => ({
       title: r.title ?? "",
       url: r.url ?? "",
       snippet: (r.content ?? "").slice(0, 500),
     }));
+
+    // Store in cache (fire and forget — don't block on write)
+    if (redis) {
+      redis.setex(cacheKey, CACHE_TTL, JSON.stringify(mapped)).catch(() => {
+        // Cache write failed silently
+      });
+    }
+
+    log.debug({ query, category, resultCount: mapped.length }, "SearXNG search OK");
+    return mapped;
   } catch (err) {
     log.warn(
       { error: err instanceof Error ? err.message : String(err), query },
@@ -60,66 +115,65 @@ export async function searchSearxng(
 }
 
 /**
- * Trigger rules — each entry is a regex pattern.
- * The matched text is extracted as the search query.
- * Use capturing groups to isolate the specific term to search.
- */
-const SEARXNG_TRIGGERS: RegExp[] = [
-  // Anime rujukan/konten mencurigakan — cari judul yang disebut
-  /\b(nonton\s+\w+(?:\s+\w+){0,4}\s+(anime|kartun|film))\b/i,
-  /\b(tonton\s+\w+(?:\s+\w+){0,4}\s+(anime|kartun|film))\b/i,
-  /\b(rekomendasi\s+(anime|kartun|film)\s+\w+)\b/i,
-  // Istilah konten dewasa/seksual dalam konteks anime/media
-  /\b(anime\s*(18\+|dewasa|bokep|hentai))\b/i,
-  /\b(kartun\s*(18\+|dewasa|bokep))\b/i,
-  /\b(l[o0]l[i1]|sh[o0]t[o0]|lolicon|shotacon)\b/i,
-  /\bhentai\b/i,
-  // Kata "nonton" + sesuatu yang mungkin judul konten
-  /\bnonton\s+(bokep|porno|dewasa|18)\b/i,
-  // Narkoba
-  /\b(jenis?\s+?narkoba|jenis?\s+?narkotika|ngefly|fly\s*high|research\s*chemical|rc\s+drugs)\b/i,
-  // Scam/phishing
-  /\b(phishing|penipuan|scam|skimming)\b/i,
-  // Judi online
-  /\b(situs\s+judi|jud\s*online|slot\s+gacor|deposit\s+jud|bandar\s+(togel|slot))\b/i,
-  // SARA/penistaan — istilah agama yang mungkin diparodikan
-  /\b(kitab\s+(suc|palsu)|nabi\s+palsu|agama\s+palsu|membuat\s+agama)\b/i,
-];
-
-/**
- * Determine if content should trigger a SearXNG lookup.
- * Only search for suspicious/ambiguous content to avoid unnecessary cost.
- */
-export function shouldSearchContent(content: string): boolean {
-  return SEARXNG_TRIGGERS.some((re) => re.test(content));
-}
-
-/**
- * Extract specific search terms from content based on trigger matches.
- * Returns up to 3 clean queries (e.g. ["boku no pico", "sexual_deviation"])
- * instead of the entire message text.
+ * Extract meaningful search queries from message content.
+ * Uses multiple strategies to find terms worth searching.
+ * Returns up to 3 clean queries.
  */
 export function extractSearchQueries(content: string): string[] {
   const queries = new Set<string>();
 
-  // Also check for quoted phrases (they're explicit intent)
+  // 1. Quoted phrases (explicit user intent)
   const quotedPhrases = content.match(/"([^"]+)"|'([^']+)'/g);
   if (quotedPhrases) {
     for (const phrase of quotedPhrases) {
-      const clean = phrase.replace(/["']/g, "").trim().toLowerCase();
+      const clean = phrase.replace(/["']/g, "").trim();
       if (clean.length >= 3) queries.add(clean);
     }
   }
 
-  // Extract matched groups from trigger patterns
-  for (const re of SEARXNG_TRIGGERS) {
-    const match = content.match(re);
-    if (match) {
-      // Use the first capture group (the specific term) if available
-      const term = match[1] ?? match[2] ?? match[0];
-      const clean = term.replace(/\s+/g, " ").trim().toLowerCase();
-      if (clean.length >= 3) queries.add(clean);
+  // 2. "nonton X" pattern — extract the title
+  const nontonMatch = content.match(
+    /\b(nonton|tonton|rekomen|cari|search|google)\s+(.+?)(?:\s+(?:anime|kartun|film|movie|series|serial))?\s*[!?.]*$/i,
+  );
+  if (nontonMatch) {
+    const title = nontonMatch[2].trim();
+    if (title.length >= 2 && title.length <= 80) {
+      queries.add(title);
     }
+  }
+
+  // 3. "X anime/film" pattern — title before category
+  const titleBeforeCategory = content.match(
+    /\b(\w[\w\s]{2,40})\s+(?:anime|kartun|film|movie|series|serial)\b/i,
+  );
+  if (titleBeforeCategory) {
+    const title = titleBeforeCategory[1].trim();
+    if (title.length >= 3 && !/^(yang|yang|sama|dari|untuk|ini|itu|ada)$/i.test(title)) {
+      queries.add(title);
+    }
+  }
+
+  // 4. Standalone proper nouns (2+ words, capitalized) that look like titles
+  const properNouns = content.match(
+    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,4})\b/g,
+  );
+  if (properNouns) {
+    for (const noun of properNouns) {
+      // Skip common non-title proper nouns
+      const skip = /^(Discord|YouTube|Google|Facebook|Instagram|Twitter|Github|ChatGPT|OpenAI|Claude|Telegram|WhatsApp|TikTok|Netflix|Spotify|Steam|Instagram)$/i;
+      if (!skip.test(noun) && noun.length >= 5) {
+        queries.add(noun);
+      }
+    }
+  }
+
+  // 5. Terms that suggest research intent
+  const researchTerms = content.match(
+    /\b(apa\s+(?:itu|sih)|what\s+is|siapa\s+itu|who\s+is|arti|meaning|definisi|definition)\s+(.{3,60})/i,
+  );
+  if (researchTerms) {
+    const term = researchTerms[2].trim().replace(/[?!.]+$/, "");
+    if (term.length >= 3) queries.add(term);
   }
 
   return Array.from(queries).slice(0, 3);

@@ -22,9 +22,9 @@ import { buildSystemPrompt as buildSystemPromptModular, sanitizeAiContent } from
 import { logModerationAnalysis, logModerationError } from "./responseLogger.js";
 import {
   searchSearxng,
-  shouldSearchContent,
   extractSearchQueries,
   formatSearchResults,
+  initSearxngCache,
 } from "./searxngSearch.js";
 import {
   getStickerFromCache,
@@ -746,17 +746,14 @@ async function runTextOnlyBatch(
   // Uses SearXNG to look up references mentioned in messages (e.g. anime
   // titles, drug names). Results are injected as <web_search> XML tags
   // so the LLM can make informed decisions instead of guessing.
+  // All messages are searched — Redis cache prevents redundant lookups.
   const searxngResults = new Map<string, string>(); // query → formatted XML
   {
     const queries = new Set<string>();
     for (const msg of targets) {
       const content = msg.edited_content ?? msg.content;
-      if (shouldSearchContent(content)) {
-        // Extract specific search terms from triggers (e.g. "boku no pico")
-        // instead of sending the entire message as a query
-        for (const q of extractSearchQueries(content)) {
-          queries.add(q);
-        }
+      for (const q of extractSearchQueries(content)) {
+        queries.add(q);
       }
     }
     if (queries.size > 0) {
@@ -1114,7 +1111,7 @@ async function prepareMediaMessage(
 
   // ── 5. SearXNG search for suspicious content ──
   let searxngXml = "";
-  if (shouldSearchContent(content)) {
+  {
     const queries = extractSearchQueries(content);
     if (queries.length > 0) {
       const results = await Promise.allSettled(
@@ -1317,6 +1314,9 @@ export async function runModerationAnalysis(
   input: ModerationInput,
 ): Promise<ModerationOutput> {
   const { targets, contextText, attachments } = input;
+
+  // Lazy init SearXNG Redis cache (once per process)
+  initSearxngCache(config.REDIS_URL);
 
   if (!targets.length) {
     throw new Error("No targets provided for analysis");
