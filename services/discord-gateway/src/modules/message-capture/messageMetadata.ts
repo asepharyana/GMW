@@ -211,17 +211,20 @@ export function getEmbedMetadata(
 }
 
 /**
- * Try to get referenced message content from the channel cache.
+ * Try to get referenced message content from the channel cache or message snapshots.
  * For replies, Discord sends `referenced_message` in the API, which
  * discord.js-selfbot-v13 caches in the channel's message manager.
- * Returns null if the message isn't cached (e.g. forwards without
- * referenced_message payload).
+ * For forwards, Discord sends `message_snapshots` which discord.js-selfbot-v13
+ * stores in `message.messageSnapshots` as a Collection of partial Message objects.
+ * Returns null if the message can't be resolved from either source.
  */
 function getReferencedMessageContent(
   message: Message,
 ): { content: string; username: string; userId: string } | null {
   const ref = message.reference;
   if (!ref?.messageId) return null;
+
+  // 1. Channel cache — works for same-channel replies/forwards
   try {
     const cached = (message.channel as any)?.messages?.cache?.get(
       ref.messageId,
@@ -236,6 +239,23 @@ function getReferencedMessageContent(
   } catch {
     // Cache may not be available or message not in it
   }
+
+  // 2. messageSnapshots — works for cross-channel/cross-server forwards
+  //    Discord API sends message_snapshots for FORWARD type messages,
+  //    and discord.js-selfbot-v13 stores them in message.messageSnapshots.
+  try {
+    const snapshot = message.messageSnapshots?.get(ref.messageId);
+    if (snapshot?.content) {
+      return {
+        content: snapshot.content,
+        username: (snapshot as any).author?.username ?? "Unknown",
+        userId: (snapshot as any).author?.id ?? "",
+      };
+    }
+  } catch {
+    // Snapshots may not be available
+  }
+
   return null;
 }
 

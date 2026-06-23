@@ -48,6 +48,7 @@ export async function buildReferenceXml(msg: MessageRecord): Promise<string> {
 
   let parentContent = "";
   if (msg.reference_message_id) {
+    // 1. Try DB first — works for messages captured in the same server
     try {
       const parent = await getMessageById(msg.reference_message_id);
       if (parent) {
@@ -55,7 +56,22 @@ export async function buildReferenceXml(msg: MessageRecord): Promise<string> {
         parentContent = parentText.slice(0, 500);
       }
     } catch {
-      // Parent fetch failed — still inject reference with available info
+      // Parent fetch failed — fall through to metadata
+    }
+
+    // 2. Fall back to metadata — works for forwards from other servers/channels
+    //    where the original message was never captured in this DB.
+    //    The capture phase stores the snapshot content in metadata.reference.content.
+    if (!parentContent && msg.metadata) {
+      try {
+        const meta = JSON.parse(msg.metadata);
+        const refContent = meta?.reference?.content;
+        if (refContent && typeof refContent === "string") {
+          parentContent = refContent.slice(0, 500);
+        }
+      } catch {
+        // Metadata parse failed — no fallback available
+      }
     }
   }
 
