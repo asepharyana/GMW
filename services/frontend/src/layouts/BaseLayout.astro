@@ -1,0 +1,84 @@
+---
+// ─── BaseLayout.astro — BETE's eternal shell ─────────────────────────────────
+// Handles: anti-FOUC theme, font loading, global CSS, meta tags.
+// All interactive content is delegated to React islands via <slot/>.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Font dari design system: Outfit (menggantikan Poppins)
+const FONT_HREF =
+  "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap";
+
+const FALLBACK_TITLE = "IMPHNEN — Discord Moderation";
+const FALLBACK_DESC =
+  "Real-time Discord AI Moderation & Voice Recording Dashboard";
+const FALLBACK_IMAGE =
+  "https://raw.githubusercontent.com/IMPHNEN/imphnen-frontend-service/develop/docs/logo.svg";
+---
+
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" id="meta-theme-color" content="#ffffff" />
+
+    <!-- Primary Meta Tags -->
+    <title>{FALLBACK_TITLE}</title>
+    <meta name="title" content={FALLBACK_TITLE} />
+    <meta name="description" content={FALLBACK_DESC} />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={FALLBACK_TITLE} />
+    <meta property="og:description" content={FALLBACK_DESC} />
+    <meta property="og:image" content={FALLBACK_IMAGE} />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content={FALLBACK_TITLE} />
+    <meta property="twitter:description" content={FALLBACK_DESC} />
+    <meta property="twitter:image" content={FALLBACK_IMAGE} />
+
+    <!-- Icon -->
+    <link rel="icon" type="image/svg+xml" href={FALLBACK_IMAGE} />
+
+    <!-- Font Preconnect -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href={FONT_HREF} rel="stylesheet" />
+
+    <!-- ── Anti-FOUC: apply saved theme BEFORE React renders ────────────── -->
+    <script is:inline>
+      (function () {
+        try {
+          var stored = localStorage.getItem("bete-dashboard-theme");
+          var theme = "light";
+          if (stored === "dark") {
+            theme = "dark";
+          } else if (stored === "system") {
+            theme = window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          }
+          var root = document.documentElement;
+          root.setAttribute("data-theme", theme);
+          if (theme === "dark") root.classList.add("dark");
+          // Sync meta theme-color
+          var meta = document.getElementById("meta-theme-color");
+          if (meta) {
+            meta.setAttribute(
+              "content",
+              theme === "dark" ? "#0f0f12" : "#ffffff",
+            );
+          }
+        } catch (e) {
+          // localStorage unavailable — safe to ignore
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <!-- React island: seluruh app di-render oleh React -->
+    <slot />
+  </body>
+</html>

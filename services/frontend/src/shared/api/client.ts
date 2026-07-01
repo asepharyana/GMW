@@ -24,6 +24,7 @@ import type {
   VoiceRecordingListResponse,
 } from "../../entities/recording/types.js";
 import type {
+  AdminSettings,
   AppConfig,
   DashboardTab,
   UIState,
@@ -49,14 +50,53 @@ class ApiError extends Error {
   }
 }
 
-// Cache admin password in memory — read from localStorage once on first call
-let _cachedPassword: string | null = null;
+// Cache admin session token in memory — read from sessionStorage once on first call
+// NOTE: _cachedToken is intentionally removed; we read directly from sessionStorage
+// to support multi-tab sync (L8 fix).
 
-function getAdminPassword(): string | null {
-  if (_cachedPassword === null) {
-    _cachedPassword = localStorage.getItem("admin-password");
-  }
-  return _cachedPassword;
+/**
+ * Get the current session token from sessionStorage.
+ * Always reads directly from sessionStorage to support multi-tab sync.
+ * Returns null if not authenticated.
+ */
+export function getSessionToken(): string | null {
+  return sessionStorage.getItem("admin-token");
+}
+
+/**
+ * Store a session token after successful login.
+ */
+export function setSessionToken(token: string): void {
+  sessionStorage.setItem("admin-token", token);
+}
+
+/**
+ * Clear the session token (logout).
+ */
+export function clearSessionToken(): void {
+  sessionStorage.removeItem("admin-token");
+}
+
+/**
+ * @deprecated Use getSessionToken() instead.
+ * Kept for backward compatibility during migration.
+ */
+export function getAdminPassword(): string | null {
+  return localStorage.getItem("admin-password");
+}
+
+/**
+ * @deprecated Use setSessionToken() instead.
+ */
+export function setAdminPassword(password: string): void {
+  localStorage.setItem("admin-password", password);
+}
+
+/**
+ * @deprecated Use clearSessionToken() instead.
+ */
+export function clearAdminPassword(): void {
+  localStorage.removeItem("admin-password");
 }
 
 function buildSearchParams(
@@ -76,16 +116,32 @@ export async function request<T>(
   init?: RequestInit,
   timeoutMs?: number,
 ): Promise<T> {
-  const password = getAdminPassword();
+  const token = getSessionToken();
   const url = path.startsWith("http") ? path : `${BE_API_URL}${path}`;
   const signal = AbortSignal.timeout(timeoutMs ?? DEFAULT_TIMEOUT_MS);
   logger.debug("Request", { method: init?.method ?? "GET", url });
 
+  const headers: Record<string, string> = {};
+
+  // Only set Content-Type for non-FormData bodies
+  // FormData sets its own Content-Type (multipart/form-data with boundary)
+  if (!(init?.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  // Prefer Bearer token (new auth method)
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else {
+    // Fallback: X-Admin-Password (for backward compatibility)
+    const password = getAdminPassword();
+    if (password) {
+      headers["X-Admin-Password"] = password;
+    }
+  }
+
   const res = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(password ? { "X-Admin-Password": password } : {}),
-    },
+    headers,
     signal,
     ...init,
   });
@@ -101,6 +157,13 @@ export async function request<T>(
       // ignore parse errors
     }
     logger.error("Request failed", { url, status: res.status, code, message });
+
+    // Auto-logout on 401: token expired / invalidated
+    if (res.status === 401) {
+      clearSessionToken();
+      window.location.reload();
+    }
+
     throw new ApiError(code, message, res.status);
   }
 
@@ -117,6 +180,7 @@ export function getAPIURL(): string {
 
 export type {
   ActiveSpeaker,
+  AdminSettings,
   AppConfig,
   Channel,
   ChatResponse,
@@ -271,10 +335,32 @@ export function deleteRecording(id: string): Promise<void> {
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
-export function login(password: string): Promise<{ ok: boolean }> {
-  return request<{ ok: boolean }>("/api/auth/login", {
+export function login(password: string): Promise<{ ok: boolean; token?: string }> {
+  return request<{ ok: boolean; token?: string }>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ password }),
+  });
+}
+
+/**
+ * Server-side logout: increments token version, invalidating all sessions.
+ * Call this before clearing local state so the token is properly revoked.
+ */
+export function logout(): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>("/api/auth/logout", { method: "POST" });
+}
+// ─── Admin Settings ──────────────────────────────────────────────────────────
+
+export function getAdminSettings(): Promise<AdminSettings> {
+  return request<AdminSettings>("/api/admin/settings");
+}
+
+export function updateAdminSettings(
+  patch: Partial<{ dashboardIsPublic: boolean }>,
+): Promise<AdminSettings> {
+  return request<AdminSettings>("/api/admin/settings", {
+    method: "PATCH",
+    body: JSON.stringify(patch),
   });
 }
 

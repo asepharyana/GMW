@@ -29,6 +29,7 @@ export class DashboardService {
     limit: number;
     search?: string;
     guildId?: string;
+    cursor?: string;
   }) {
     logger.debug({ query }, "Listing dashboard channels");
     return dashboardRepository.listChannels(query);

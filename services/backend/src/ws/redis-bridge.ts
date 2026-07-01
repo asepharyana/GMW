@@ -66,9 +66,91 @@ const SUBSCRIPTIONS: ChannelMapping[] = [
 ];
 
 let subscriber: Redis | null = null;
+let _redisHealthy = false;
+
+function isRedisAvailable(): boolean {
+  return _redisHealthy;
+}
+
+let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let _reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+function scheduleReconnect(): void {
+  if (_reconnectTimer) return; // already scheduled
+  _reconnectAttempts++;
+  if (_reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+    logger.error("Redis subscriber max reconnect attempts reached");
+    _reconnectAttempts = 0;
+    return;
+  }
+  const delay = Math.min(1000 * Math.pow(2, _reconnectAttempts), 30_000);
+  logger.warn(
+    { attempt: _reconnectAttempts, delayMs: delay },
+    "Redis subscriber reconnection scheduled",
+  );
+  _reconnectTimer = setTimeout(() => {
+    _reconnectTimer = null;
+    if (subscriber) {
+      subscriber
+        .connect()
+        .then(() => {
+          _redisHealthy = true;
+          _reconnectAttempts = 0;
+          logger.info("Redis subscriber reconnected");
+          // Re-subscribe after reconnect
+          const channels = SUBSCRIPTIONS.map((m) => m.channel);
+          return subscriber?.subscribe(...channels);
+        })
+        .catch((err: Error) => {
+          logger.error({ err }, "Redis subscriber reconnect failed");
+          scheduleReconnect();
+        });
+    }
+  }, delay);
+}
 
 function createSubscriber(): Redis {
-  return new Redis(config.REDIS_URL, { keyPrefix: "" });
+  const redis = new Redis(config.REDIS_URL, {
+    keyPrefix: "",
+    lazyConnect: true,
+    retryStrategy: (times) => {
+      // We handle reconnection ourselves
+      if (times > 3) return null;
+      return Math.min(times * 500, 2000);
+    },
+  });
+
+  redis.on("error", (err: Error) => {
+    const wasHealthy = _redisHealthy;
+    _redisHealthy = false;
+    if (wasHealthy) {
+      logger.warn({ err }, "Redis subscriber: connection lost");
+    } else {
+      logger.debug({ err }, "Redis subscriber error (not yet connected)");
+    }
+  });
+
+  redis.on("connect", () => {
+    _redisHealthy = true;
+    _reconnectAttempts = 0;
+    logger.info("Redis subscriber connected");
+  });
+
+  redis.on("close", () => {
+    _redisHealthy = false;
+    logger.warn("Redis subscriber connection closed");
+    // Schedule reconnection for lazy-connect mode
+    if (!_reconnectTimer) scheduleReconnect();
+  });
+
+  redis.on("reconnecting", () => {
+    logger.warn("Redis subscriber reconnecting…");
+  });
+
+  redis.on("message", handleSubscriptionMessage);
+
+  return redis;
 }
 
 function handleSubscriptionMessage(channel: string, message: string): void {
@@ -140,24 +222,6 @@ export async function startRedisBridge(): Promise<void> {
 
   try {
     subscriber = createSubscriber();
-
-    subscriber.on("error", (err: Error) => {
-      logger.error({ err }, "Redis subscriber error");
-    });
-
-    subscriber.on("connect", () => {
-      logger.info("Redis subscriber connected");
-    });
-
-    subscriber.on("reconnecting", () => {
-      logger.warn("Redis subscriber reconnecting…");
-    });
-
-    subscriber.on("close", () => {
-      logger.warn("Redis subscriber connection closed");
-    });
-
-    subscriber.on("message", handleSubscriptionMessage);
 
     await subscriber.ping();
     logger.info("Redis ping OK");

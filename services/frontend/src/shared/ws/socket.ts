@@ -8,6 +8,7 @@ import type {
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MediaState } from "../../entities/media/types.js";
 import { createLogger } from "../lib/logger.js";
+import { getSessionToken } from "../api/client.js";
 import type { ActiveSpeakerData } from "./events.js";
 
 const logger = createLogger("socket");
@@ -79,6 +80,7 @@ let _wsInstance: WebSocket | null = null;
 let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let _closed = false;
 let _reconnectAttempts = 0;
+let _heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 const _listeners = new Set<WsHandlers>();
 const _statusCallbacks = new Set<(s: WsStatus) => void>();
 
@@ -90,7 +92,13 @@ function doConnect(): WebSocket {
   const BE_WS_URL =
     import.meta.env.VITE_BE_WS_URL ||
     `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`;
-  const url = BE_WS_URL.endsWith("/ws") ? BE_WS_URL : `${BE_WS_URL}/ws`;
+  let url = BE_WS_URL.endsWith("/ws") ? BE_WS_URL : `${BE_WS_URL}/ws`;
+
+  // ⚠️ Token is NOT appended to the URL — sending it in the query string
+  // would leak it into Nginx/Traefik access logs, browser history, and
+  // Referer headers. Instead, the frontend sends an auth message as the
+  // first WebSocket frame after connection.
+
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";
   dispatchStatus("connecting");
@@ -100,12 +108,32 @@ function doConnect(): WebSocket {
     _reconnectAttempts = 0;
     dispatchStatus("connected");
     logger.info("Connected");
+
+    // Send auth message — token is sent as the first WebSocket frame,
+    // NOT in the URL query string, to avoid exposure in access logs.
+    const sessionToken = getSessionToken();
+    if (sessionToken) {
+      ws.send(JSON.stringify({ type: "auth", token: sessionToken }));
+    }
+
+    // Heartbeat — send a ping every 25s to keep the connection alive
+    if (_heartbeatInterval) clearInterval(_heartbeatInterval);
+    _heartbeatInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "ping" }));
+      }
+    }, 25_000);
   });
   ws.addEventListener("error", () => {
     dispatchStatus("error");
     logger.error("WebSocket error");
   });
   ws.addEventListener("close", (event) => {
+    // Clean up heartbeat on disconnect
+    if (_heartbeatInterval) {
+      clearInterval(_heartbeatInterval);
+      _heartbeatInterval = null;
+    }
     dispatchStatus("disconnected");
     logger.info("Disconnected", { code: event.code, reason: event.reason });
     if (!_closed && _listeners.size > 0) {
@@ -338,15 +366,20 @@ export function useDashboardSocket(handlers: WsHandlers) {
       ensureConnected();
     }
 
-    return () => {
+    return (): void => {
       _listeners.delete(wrapper);
       _statusCallbacks.delete(setStatus);
-      if (_listeners.size === 0) {
-        _closed = true;
-        if (_reconnectTimer) clearTimeout(_reconnectTimer);
-        _wsInstance?.close();
-        _wsInstance = null;
-      }
+      // Defer the close so that React Strict Mode double-invoke in dev
+      // doesn't kill the socket that the remount immediately re-creates.
+      const delayClose = setTimeout(() => {
+        if (_listeners.size === 0) {
+          _closed = true;
+          if (_reconnectTimer) clearTimeout(_reconnectTimer);
+          _wsInstance?.close();
+          _wsInstance = null;
+        }
+      }, 100);
+      delayClose.unref?.();
     };
   }, []);
 

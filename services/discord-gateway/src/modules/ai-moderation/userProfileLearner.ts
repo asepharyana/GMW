@@ -63,11 +63,10 @@ async function learnUserProfile(
     .join("\n");
 
   const prompt = `Anda adalah AI ahli psikologi, analisis perilaku online, dan pembaca karakter.
-Tugas Anda adalah merangkum profil kepribadian SEORANG PRIBADI — bukan sekadar statistik
-gaya bicara — berdasarkan riwayat pesan-pesan mereka di server Discord.
+Tugas Anda adalah merangkum profil kepribadian SEORANG PRIBADI berdasarkan riwayat pesan-pesan mereka di server Discord.
 Buatlah ringkasan yang KAYA AKAN PERSONALITAS sehingga pembaca merasa "mengenal" orang ini.
 
-Pesan-pesan terakhir dari user "${userId}" (hanya pesan bersih/clean):
+Pesan-pesan terakhir dari user (hanya pesan bersih/clean):
 <messages>
 ${messagesText}
 </messages>
@@ -122,7 +121,18 @@ atau konten SARA, itu akan SANGAT tidak sesuai dengan karakternya dan patut dicu
     const text = completion.choices[0]?.message?.content?.trim();
     if (!text) throw new Error("Empty response from LLM");
 
-    await updateUserProfile(userId, guildId, text);
+    // Sanitize the AI-generated profile before saving to prevent
+    // prompt injection when the profile is later injected into prompts.
+    // Strip markdown code fences and XML special chars.
+    const sanitized = text
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/[<>&"']/g, (ch) => {
+        const entities: Record<string, string> = { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" };
+        return entities[ch] || ch;
+      })
+      .trim();
+
+    await updateUserProfile(userId, guildId, sanitized);
     log.info(
       { userId, guildId },
       "Successfully learned and updated user profile",

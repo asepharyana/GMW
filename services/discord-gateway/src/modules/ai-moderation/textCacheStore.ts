@@ -49,6 +49,11 @@ export async function getCachedText(
 
 /**
  * Insert or update a text analysis cache entry.
+ *
+ * NOTE: The INSERT ... ON CONFLICT pattern is intentional — for new cache
+ * keys we always INSERT rather than checking existence first, so there is
+ * no TOCTOU race. The ON CONFLICT DO UPDATE handles the case where another
+ * worker inserted the same key between our check and our insert.
  */
 export async function upsertCachedText(
   text: string,
@@ -291,12 +296,16 @@ export async function deleteCachedMediaAnalysis(
 /**
  * Generate a deterministic cache key for a per-user moderation result.
  *
- * Format: user_mod:<userId>:<sha256(content).slice(0,16)>
- * Two users sending the same text get separate cache entries so that
- * per-user action history (e.g. repeated spam) can be tracked later.
+ * Format: text_mod:<userId>:<sha256(content).slice(0,16)>
+ * By including userId, two users sending the same text get separate
+ * cache entries so per-user context (reputation, username flags, etc.)
+ * is respected.
  */
-export function makeTextModerationCacheKey(content: string): string {
+export function makeTextModerationCacheKey(content: string, userId?: string): string {
   const hash = createHash("sha256").update(content).digest("hex").slice(0, 16);
+  if (userId) {
+    return `text_mod:${userId}:${hash}`;
+  }
   return `text_mod:${hash}`;
 }
 

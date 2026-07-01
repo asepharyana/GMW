@@ -4,7 +4,15 @@
  */
 import { describe, it, expect } from "vitest";
 
-const BASE = process.env.API_BASE ?? "https://imphnen.asepharyana.my.id/api";
+// Safety: never default to a production URL — forces explicit opt-in
+// via: API_BASE=http://localhost:3001/api vitest run
+const RAW = process.env.API_BASE;
+if (!RAW) {
+  throw new Error(
+    "API_BASE is not set. Run with: API_BASE=http://localhost:3001/api vitest run",
+  );
+}
+const BASE = RAW;
 
 async function api(path: string, init?: RequestInit) {
   const res = await fetch(`${BASE}${path}`, {

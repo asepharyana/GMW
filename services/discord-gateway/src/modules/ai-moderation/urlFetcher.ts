@@ -1,6 +1,7 @@
 import { resolve } from "node:dns/promises";
 import { isIP } from "node:net";
 import { createChildLogger } from "@bete/shared/logger";
+import { createAbortTimeout } from "./abortHelper.js";
 
 const log = createChildLogger("urlFetcher");
 
@@ -15,52 +16,103 @@ export interface FetchedUrlContext {
 
 const MAX_FETCH_SIZE = 5 * 1024 * 1024; // 5 MB
 const FETCH_TIMEOUT_MS = 8000;
-const URL_REGEX = /https?:\/\/[^\s<]+[^<.,:;"')\]\s]/gi;
+const URL_REGEX = /https?:\/\/[^\s<]+[^<.,:;"')?\]\s]/gi;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SSRF Protection with DNS Rebinding Defense
+// ═══════════════════════════════════════════════════════════════════════════════
+// Strategy: Resolve the hostname to IP addresses BEFORE fetching, then fetch
+// directly from a pinned IP (using a Host header for virtual hosting).
+// This prevents DNS rebinding where a domain alternates between a public IP
+// and an internal IP (127.0.0.1, 10.x.x.x) between the check and the fetch.
+//
+// Edge cases handled:
+// - No DNS records → reject (cannot fetch)
+// - Multiple IPs (round-robin DNS) → pick first public one
+// - All IPs are internal → reject
+// - Direct IP literal → validate and pass through
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface PinnedAddress {
+  /** The original hostname from the URL (used in Host header) */
+  hostname: string;
+  /** The pinned, validated IP address to connect to (already vetted as safe) */
+  ip: string;
+  /** The port from the original URL */
+  port: string;
+  /** The protocol (http: or https:) */
+  protocol: string;
+  /** The pathname + search + hash (everything after host:port) */
+  path: string;
+}
+
+function isPrivateIP(ip: string): boolean {
+  return (
+    ip === "127.0.0.1" ||
+    ip === "::1" ||
+    ip === "0.0.0.0" ||
+    ip.startsWith("192.168.") ||
+    ip.startsWith("10.") ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip) ||
+    ip.startsWith("169.254.") || // link-local
+    ip.startsWith("fc") || // IPv6 unique local (fc00::/7)
+    ip.startsWith("fd")    // IPv6 unique local
+  );
+}
 
 /**
- * Basic SSRF protection.
- * Note: A sophisticated attacker could still use DNS rebinding.
+ * Resolve a hostname to a pinned IP address.
+ * Returns the first public IP found, or null if all resolved IPs are private.
+ * Also returns null if the host is a private IP literal.
+ *
+ * This function is the sole gate — once a safe IP is returned, the caller
+ * MUST use it directly without re-resolving the hostname.
  */
-async function isSafeUrl(urlStr: string): Promise<boolean> {
+async function resolveAndPinAddress(urlStr: string): Promise<PinnedAddress | null> {
   try {
     const parsed = new URL(urlStr);
     const host = parsed.hostname;
+    const protocol = parsed.protocol; // "http:" or "https:"
+    const port = parsed.port || (protocol === "https:" ? "443" : "80");
+    const path = parsed.pathname + parsed.search + parsed.hash;
 
-    // Block obvious local IPs/hostnames
+    // Block private IP literals immediately
+    if (isIP(host)) {
+      if (isPrivateIP(host)) return null;
+      // Direct public IP literal — can fetch directly
+      return { hostname: host, ip: host, port, protocol, path };
+    }
+
+    // Block obvious private hostnames
     if (
       host === "localhost" ||
-      host === "127.0.0.1" ||
-      host === "::1" ||
-      host.startsWith("192.168.") ||
-      host.startsWith("10.") ||
-      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+      host === "localhost.localdomain" ||
+      host.endsWith(".local") ||
+      host.endsWith(".internal")
     ) {
-      return false;
+      return null;
     }
 
-    // Try resolving to check if it resolves to a local IP
-    if (!isIP(host)) {
-      try {
-        const addresses = await resolve(host);
-        for (const ip of addresses) {
-          if (
-            ip === "127.0.0.1" ||
-            ip.startsWith("192.168.") ||
-            ip.startsWith("10.") ||
-            /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip)
-          ) {
-            return false;
-          }
-        }
-      } catch (err) {
-        // If DNS fails, we can't fetch it anyway
-        return false;
-      }
+    // Resolve hostname to IP addresses
+    let addresses: string[];
+    try {
+      addresses = await resolve(host);
+    } catch {
+      // DNS resolution failed — can't verify safety
+      return null;
     }
 
-    return true;
-  } catch (err) {
-    return false;
+    if (addresses.length === 0) return null;
+
+    // Pick the first non-private IP
+    const publicIp = addresses.find((ip) => !isPrivateIP(ip));
+    if (!publicIp) return null;
+
+    // We now have a pinned, verified safe IP.
+    // The caller MUST use this IP directly for the fetch.
+    return { hostname: host, ip: publicIp, port, protocol, path };
+  } catch {
+    return null;
   }
 }
 
@@ -108,20 +160,27 @@ export async function fetchUrlSafely(
     return { url, type: "error", error: "Max redirect/meta depth reached" };
   }
 
-  if (!(await isSafeUrl(url))) {
+  // Resolve + pin IP address FIRST (defence against DNS rebinding).
+  // The pinned IP is used directly — we never re-resolve the hostname.
+  const pinned = await resolveAndPinAddress(url);
+  if (!pinned) {
     return { url, type: "error", error: "Unsafe URL blocked" };
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  // Reconstruct the URL using the pinned IP directly, keeping original Host
+  const pinnedUrl = `${pinned.protocol}//${pinned.ip}:${pinned.port}${pinned.path}`;
+
+  const { signal, cleanup } = createAbortTimeout(FETCH_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
+    const response = await fetch(pinnedUrl, {
+      signal,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 DiscordBot/2.0",
         Accept: "image/webp,image/apng,image/*,*/*;q=0.8",
+        // Use original hostname so virtual hosting still works
+        Host: pinned.hostname,
       },
       // Do not follow more than a few redirects natively, fetch handles up to 20 by default
     });
@@ -190,7 +249,7 @@ export async function fetchUrlSafely(
       error: err instanceof Error ? err.message : String(err),
     };
   } finally {
-    clearTimeout(timeoutId);
+    cleanup();
   }
 }
 

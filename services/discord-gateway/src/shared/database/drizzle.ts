@@ -12,19 +12,25 @@ let rawPool: Pool | null = null;
 
 /**
  * Initialize the PostgreSQL database connection.
+ * When called from a Piscina worker thread, pool min/max are reduced to
+ * avoid exhausting PG connections across many worker processes.
  */
 export async function initializeDatabase() {
   if (db !== null) {
     return db;
   }
 
+  const isWorker = typeof process.env.PISCINA_WORKER !== "undefined";
+  const poolMin = isWorker ? 1 : config.POSTGRES_POOL_MIN;
+  const poolMax = isWorker ? 2 : config.POSTGRES_POOL_MAX;
+
   let pool: Pool;
 
   if (config.DATABASE_URL) {
     pool = new Pool({
       connectionString: config.DATABASE_URL,
-      min: config.POSTGRES_POOL_MIN,
-      max: config.POSTGRES_POOL_MAX,
+      min: poolMin,
+      max: poolMax,
     });
   } else {
     pool = new Pool({
@@ -33,8 +39,8 @@ export async function initializeDatabase() {
       user: config.POSTGRES_USER,
       password: config.POSTGRES_PASSWORD,
       database: config.POSTGRES_DB,
-      min: config.POSTGRES_POOL_MIN,
-      max: config.POSTGRES_POOL_MAX,
+      min: poolMin,
+      max: poolMax,
     });
   }
 

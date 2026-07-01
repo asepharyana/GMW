@@ -186,14 +186,14 @@ async function processBatch(job: {
     }
   }
 
-  const allRows: MessageRecord[] = [];
-
   // ── Parallel: text-only + media analysis run concurrently ──────────
   // Text-only → fast LLM call. Media → download + vision + LLM.
   // Running both in parallel means media downloads overlap with text LLM call.
   // Each path saves to DB as soon as its own results are ready.
+  // Each promise resolves to its own MessageRecord[] — combined via
+  // destructured Promise.all to avoid race conditions on a shared array.
   // ────────────────────────────────────────────────────────────────────
-  const textPromise = textOnly.length > 0
+  const textPromise: Promise<MessageRecord[]> = textOnly.length > 0
     ? runModerationAnalysis({
         targets: textOnly,
         contextText: contextLines.join("\n"),
@@ -216,17 +216,18 @@ async function processBatch(job: {
         }));
         if (updates.length > 0) {
           return updateMessagesAIAnalysisBulk(updates).then((rows) => {
-            allRows.push(...rows);
             logger.info(
               { count: updates.length, conversationKey },
               "Text-only batch saved — media analysis still in progress",
             );
+            return rows;
           });
         }
+        return [];
       })
-    : Promise.resolve();
+    : Promise.resolve([]);
 
-  const mediaPromise = media.length > 0
+  const mediaPromise: Promise<MessageRecord[]> = media.length > 0
     ? runModerationAnalysis({
         targets: media,
         contextText: contextLines.join("\n"),
@@ -248,15 +249,15 @@ async function processBatch(job: {
           },
         }));
         if (updates.length > 0) {
-          return updateMessagesAIAnalysisBulk(updates).then((rows) => {
-            allRows.push(...rows);
-          });
+          return updateMessagesAIAnalysisBulk(updates);
         }
+        return [];
       })
-    : Promise.resolve();
+    : Promise.resolve([]);
 
-  // Wait for both to complete
-  await Promise.all([textPromise, mediaPromise]);
+  // Wait for both to complete and destructure results — no shared mutable array
+  const [textRows, mediaRows] = await Promise.all([textPromise, mediaPromise]);
+  const allRows = [...textRows, ...mediaRows];
 
   logger.info(
     { total: messages.length, textOnly: textOnly.length, media: media.length, saved: allRows.length },

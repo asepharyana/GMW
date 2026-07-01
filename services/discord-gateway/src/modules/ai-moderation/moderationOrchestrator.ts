@@ -29,6 +29,7 @@ import {
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 import { getUserProfile } from "./userProfileStore.js";
 import { initializeUserReputation } from "./userReputationStore.js";
+import { createAbortTimeout, isAbortError } from "./abortHelper.js";
 
 const log = createChildLogger("moderationOrchestrator");
 
@@ -40,10 +41,8 @@ interface RetryState {
   lastInvalidContent: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Few-shot correction builder
-// ---------------------------------------------------------------------------
-async function buildCorrectedFewShotExamples(): Promise<string> {
+// ─── Few-shot correction builder ────────────────────────────────────────────
+const _buildCorrectedFewShotExamples = async (): Promise<string> => {
   try {
     const corrections = await getRecentCorrectedModerations(5);
     if (corrections.length === 0) return "";
@@ -62,6 +61,22 @@ async function buildCorrectedFewShotExamples(): Promise<string> {
   } catch {
     return "";
   }
+};
+
+// ─── In-memory cache untuk correctedFewShotExamples ──────────────────────
+// getCachedFewShotExamples() dipanggil di banyak tempat (setiap sub-batch
+// dan retry), padahal datanya jarang berubah. Cache sederhana TTL 60 detik
+// mengurangi redundant DB queries dari O(retries × subBatches) ke O(1).
+let _fewShotCache: { result: string; expiresAt: number } | null = null;
+const FEW_SHOT_CACHE_TTL = 60_000; // 60 detik
+
+async function getCachedFewShotExamples(): Promise<string> {
+  if (_fewShotCache && Date.now() < _fewShotCache.expiresAt) {
+    return _fewShotCache.result;
+  }
+  const result = await _buildCorrectedFewShotExamples();
+  _fewShotCache = { result, expiresAt: Date.now() + FEW_SHOT_CACHE_TTL };
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,7 +223,25 @@ async function runTextOnlyBatch(
     }
     const urlArr = Array.from(allUrls).slice(0, 10);
     if (urlArr.length === 0) return new Map<string, string>();
-    const results = await Promise.allSettled(urlArr.map((url) => fetchUrlSafely(url)));
+
+    // Per-host rate limiting: add a small delay between requests to the same
+    // domain to avoid overwhelming third-party servers with concurrent fetches.
+    const hostGroups = new Map<string, string[]>();
+    for (const url of urlArr) {
+      try {
+        const host = new URL(url).hostname;
+        const group = hostGroups.get(host) ?? [];
+        group.push(url);
+        hostGroups.set(host, group);
+      } catch { /* invalid URL, skip */ }
+    }
+    const results = await Promise.allSettled(
+      Array.from(hostGroups.values()).flatMap((group) =>
+        group.map((url, idx) => () =>
+          idx > 0 ? delay(200 * idx).then(() => fetchUrlSafely(url)) : fetchUrlSafely(url),
+        ),
+      ).map((fn) => fn()),
+    );
     const map = new Map<string, string>();
     for (let i = 0; i < urlArr.length; i++) {
       const r = results[i];
@@ -291,7 +324,7 @@ async function runTextOnlyBatch(
 
     const buildContent = async (state: RetryState): Promise<string> => {
       const correction = state.lastParseError ? { error: state.lastParseError, preview: state.lastInvalidContent?.slice(0, 800) ?? "<empty>" } : undefined;
-      const correctedExamples = await buildCorrectedFewShotExamples();
+      const correctedExamples = await getCachedFewShotExamples();
       const systemText = buildSystemPromptModular({ contextText, mode: "text", correction, correctedExamples, channelCulture });
 
       const messagesBlock = (await Promise.all(batch.map(async (msg) => {
@@ -314,20 +347,18 @@ async function runTextOnlyBatch(
       return `${systemText}${searxngBlock}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
     };
 
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
-    timeoutId.unref();
+    const { signal, cleanup } = createAbortTimeout(timeoutMs);
 
     let batchResult: { results: AnalysisResult[]; raw: unknown };
     try {
-      batchResult = await callModerationLLM(buildContent, targetIds, `text-batch-${i + 1}`, abortController.signal);
+      batchResult = await callModerationLLM(buildContent, targetIds, `text-batch-${i + 1}`, signal);
     } catch (err: any) {
-      if (err.name === "AbortError" || abortController.signal.aborted) {
+      if (isAbortError(err)) {
         throw new Error(`Text-only batch sub-batch ${i + 1} timed out for messages ${targetIds.join(", ")}`);
       }
       throw err;
     } finally {
-      clearTimeout(timeoutId);
+      cleanup();
     }
 
     // Fan-out results for deduplicated messages
@@ -372,7 +403,7 @@ async function runMediaBatch(
   const channelId = targets[0].channel_id;
   const channelCultureObj = channelId ? await getChannelCulture(channelId) : null;
   const channelCulture = channelCultureObj?.culture_summary;
-  const correctedExamples = await buildCorrectedFewShotExamples();
+  const correctedExamples = await getCachedFewShotExamples();
   const systemText = buildSystemPromptModular({ contextText, mode: "mixed", correctedExamples, channelCulture });
 
   const messagesBlock = prepared.map((p) => p.messageBlock).join("\n");
@@ -381,26 +412,24 @@ async function runMediaBatch(
   const perMsgTimeout = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
   const batchTimeout = Math.min(Math.max(perMsgTimeout, perMsgTimeout * targets.length), 300_000);
 
-  const abortController = new AbortController();
-  const timeoutId = setTimeout(() => abortController.abort(), batchTimeout);
-  timeoutId.unref();
+  const { signal, cleanup } = createAbortTimeout(batchTimeout);
 
   try {
     const result = await callModerationLLM(
       async (_state: RetryState) => userContent,
       targetIds,
       `media-batch:${targetIds.length}msgs`,
-      abortController.signal,
+      signal,
     );
     log.info({ mediaCount: targets.length, resultCount: result.results.length }, "Media batch analysis complete");
     return result;
   } catch (err: any) {
-    if (err.name === "AbortError" || abortController.signal.aborted) {
+    if (isAbortError(err)) {
       throw new Error(`Media batch analysis timed out after ${batchTimeout}ms for ${targets.length} messages`);
     }
     throw err;
   } finally {
-    clearTimeout(timeoutId);
+    cleanup();
   }
 }
 
@@ -446,7 +475,7 @@ export async function runModerationAnalysis(
     const rawContent = target.edited_content ?? target.content;
     if (!rawContent.trim()) { uncachedTargets.push(target); continue; }
 
-    const cacheKey = makeTextModerationCacheKey(rawContent);
+    const cacheKey = makeTextModerationCacheKey(rawContent, target.user_id);
     if (seenCacheKeys.has(cacheKey)) {
       const previousHit = cacheHits.find((h) => h.messageId !== target.id);
       if (previousHit) {
@@ -534,7 +563,7 @@ export async function runModerationAnalysis(
       if (evidence.attachments.length > 0 || evidence.stickers.length > 0 || evidence.embeds.length > 0) continue;
     }
 
-    const cacheKey = makeTextModerationCacheKey(rawContent);
+    const cacheKey = makeTextModerationCacheKey(rawContent, target.user_id);
     setCachedTextModeration(cacheKey, {
       flags: result.flags ?? [],
       score: result.score ?? 0,
@@ -544,7 +573,7 @@ export async function runModerationAnalysis(
       confidence: result.confidence ?? result.score ?? 0,
       recommendedAction: result.recommendedAction ?? "none",
       status: result.status,
-    }).catch(() => {});
+    }).catch((e) => log.error({ error: e instanceof Error ? e.message : String(e) }, "Failed to cache text moderation result"));
   }
 
   const allResults = [...cacheHits, ...textBatchResult.results, ...mediaBatchResult.results];

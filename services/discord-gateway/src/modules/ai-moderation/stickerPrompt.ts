@@ -68,6 +68,24 @@ export function buildStickerTextOnlyWarning(
 }
 
 /**
+ * Build a neutral fallback text when an image/video attachment cannot be
+ * downloaded or analyzed. Unlike the sticker warning, this is deliberately
+ * neutral — it only records *that* an attachment existed, without any
+ * instruction to the LLM about how to treat it. The absence of visual
+ * data already means the LLM must rely on message content alone.
+ *
+ * Returns a formatted string for inclusion in the media context block.
+ */
+export function buildAttachmentTextOnlyWarning(
+  filename: string,
+  messageId: string,
+): string {
+  const fallback = `[attachment: "${filename}" dari pesan id=${messageId} — tidak tersedia untuk analisis visual]`;
+  logger.debug({ filename, messageId }, "Built attachment text-only fallback");
+  return fallback;
+}
+
+/**
  * Prompt used when a custom emoji image was successfully downloaded
  * and is being sent to the vision LLM as a base64 image.
  *

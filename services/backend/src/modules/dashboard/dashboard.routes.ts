@@ -23,7 +23,7 @@ export function createDashboardRouter(): Router {
   router.get(
     "/dashboard/users",
     asyncHandler(async (req: Request, res: Response) => {
-      const limit = Number(req.query.limit) || 20;
+      const limit = Math.min(Number(req.query.limit) || 20, 100);
       const cursor =
         typeof req.query.cursor === "string" ? req.query.cursor : undefined;
       const search =
@@ -52,16 +52,19 @@ export function createDashboardRouter(): Router {
   router.get(
     "/dashboard/channels",
     asyncHandler(async (req: Request, res: Response) => {
-      const limit = Number(req.query.limit) || 20;
+      const limit = Math.min(Number(req.query.limit) || 20, 100);
       const search =
         typeof req.query.search === "string" ? req.query.search : undefined;
       const guildId =
         typeof req.query.guild_id === "string" ? req.query.guild_id : undefined;
+      const cursor =
+        typeof req.query.cursor === "string" ? req.query.cursor : undefined;
 
       const result = await dashboardService.listChannels({
         limit,
         search,
         guildId,
+        cursor,
       });
       res.json(result);
     }),

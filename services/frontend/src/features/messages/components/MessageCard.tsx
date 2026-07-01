@@ -42,6 +42,10 @@ function renderContentWithCustomEmojis(content: string): React.ReactNode {
         loading="lazy"
         draggable={false}
         title={`:${name}:`}
+        onError={(e) => {
+          const target = e.currentTarget;
+          target.style.display = "none";
+        }}
       />,
     );
     lastIndex = regex.lastIndex;
@@ -80,13 +84,13 @@ function parseStringList(value?: string | null): string[] {
 function severityColor(severity: string) {
   switch (severity) {
     case "critical":
-      return "bg-red-100 text-red-700 border-red-200";
+      return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800";
     case "high":
-      return "bg-orange-100 text-orange-700 border-orange-200";
+      return "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800";
     case "medium":
-      return "bg-yellow-100 text-yellow-700 border-yellow-200";
+      return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800";
     case "low":
-      return "bg-blue-100 text-blue-700 border-blue-200";
+      return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800";
     default:
       return "bg-muted text-muted-foreground border-border";
   }
@@ -333,6 +337,10 @@ function MessageRow({
                   alt={sticker.name || "sticker"}
                   className="h-12 w-12 rounded-lg border border-border object-contain bg-muted/50"
                   loading="lazy"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    target.style.display = "none";
+                  }}
                 />
               ) : (
                 <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-muted/50">
@@ -360,6 +368,10 @@ function MessageRow({
                 alt={img.name}
                 className="h-16 w-16 object-cover transition-transform hover:scale-105"
                 loading="lazy"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.style.display = "none";
+                }}
               />
             </a>
           ))}
@@ -380,7 +392,7 @@ function MessageRow({
               key={vid.url}
               src={vid.url}
               controls
-              className="h-28 w-48 shrink-0 rounded-lg border border-border object-cover bg-black"
+              className="h-28 w-48 shrink-0 rounded-lg border border-border object-cover bg-muted"
               preload="metadata"
             />
           ))}
@@ -409,8 +421,8 @@ function MessageRow({
         <div
           className={`rounded-lg border-l-[3px] px-3 py-2 ${
             aiStatus === "flagged"
-              ? "border-l-pink-400 bg-pink-50/40"
-              : "border-l-emerald-400 bg-emerald-50/40"
+              ? "border-l-pink-400 dark:border-l-pink-600 bg-pink-50/40 dark:bg-pink-950/30"
+              : "border-l-emerald-400 dark:border-l-emerald-600 bg-emerald-50/40 dark:bg-emerald-950/30"
           }`}
         >
           <div className="flex items-start gap-2 text-[11px]">
@@ -431,7 +443,7 @@ function MessageRow({
 
       {/* AI Error */}
       {message.ai_error ? (
-        <div className="rounded-lg bg-pink-50/40 px-3 py-2 text-[12px] text-pink-600">
+        <div className="rounded-lg bg-pink-50/40 dark:bg-pink-950/30 px-3 py-2 text-[12px] text-pink-600 dark:text-pink-400">
           AI error: {message.ai_error}
         </div>
       ) : null}
@@ -451,7 +463,7 @@ function MessageRow({
           {isReanalyzing ? "Reanalyzing..." : "Re-analyze"}
         </Button>
         {aiStatus === "error" && (
-          <span className="text-[11px] text-pink-600/70">
+          <span className="text-[11px] text-pink-600/70 dark:text-pink-400/70">
             Click to retry analysis
           </span>
         )}
@@ -483,7 +495,7 @@ export function MessageCard({ messages, onReanalyze }: MessageCardProps) {
   return (
     <article
       className={`group rounded-xl border bg-card shadow-sm transition-all hover:border-primary/30 hover:shadow-md ${
-        firstMsg.deleted_at ? "border-red-200 opacity-60" : "border-border"
+        firstMsg.deleted_at ? "border-red-200 dark:border-red-900/50 opacity-60" : "border-border"
       }`}
     >
       <div className="flex gap-3 p-4">
@@ -495,6 +507,10 @@ export function MessageCard({ messages, onReanalyze }: MessageCardProps) {
           }
           alt=""
           className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-primary/30"
+          onError={(e) => {
+            const target = e.currentTarget;
+            target.src = "https://cdn.discordapp.com/embed/avatars/0.png";
+          }}
         />
 
         <div className="min-w-0 flex-1">

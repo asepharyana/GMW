@@ -36,6 +36,10 @@ export const workerPool = new Piscina({
   filename: fileURLToPath(getAnalysisWorkerUrl()),
   execArgv: process.execArgv,
   maxThreads: config.PISCINA_MAX_THREADS ?? availableParallelism(),
+  // Each worker processes at most 1 task at a time so the pool itself
+  // acts as the concurrency governor. Combined with per-worker p-limit
+  // inside concurrencyLimiter.ts, this prevents LLM API overload.
+  concurrentTasksPerWorker: 1,
 });
 
 /**
@@ -228,7 +232,7 @@ export function scheduleAutoDelete(row: MessageRecord): void {
   };
 
   if (config.AUTO_DELETE_FLAGGED_DELAY_MS > 0) {
-    setTimeout(run, config.AUTO_DELETE_FLAGGED_DELAY_MS);
+    setTimeout(run, config.AUTO_DELETE_FLAGGED_DELAY_MS).unref();
     return;
   }
   setImmediate(run);

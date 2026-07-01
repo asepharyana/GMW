@@ -7,6 +7,11 @@ import { setBroadcastFunctions } from "./broadcast.js";
 
 const logger = createChildLogger("ws.server");
 
+// Per-client sliding window rate limiter: max 30 messages per 5-second window
+const RATE_LIMIT_WINDOW_MS = 5000;
+const RATE_LIMIT_MAX_MSGS = 30;
+const messageTimestamps = new WeakMap<WebSocket, number[]>();
+
 interface BroadcastEvent {
   type: string;
   data: unknown;
@@ -71,18 +76,29 @@ export function createWebSocketServer(server: Server): WebSocketServer {
   const wss = new WebSocketServer({ server, path: "/ws" });
   _wss = wss;
 
-  wss.on("connection", (ws: WebSocket, req) => {
-    // Parse auth token from query string
+  wss.on("connection", async (ws: WebSocket, req) => {
+    // Max connection limit — prevent resource exhaustion
+    const totalClients = frontendClients.size + gatewayClients.size;
+    const MAX_CONNECTIONS = 100;
+    if (totalClients >= MAX_CONNECTIONS) {
+      logger.warn({ totalClients }, "Max connections reached, rejecting new client");
+      ws.close(4003, "Server at capacity");
+      return;
+    }
+
+    // Gateway uses token in query string (internal-only connection, not in logs)
+    // Frontend uses auth message pattern to avoid token exposure in access logs
     const rawUrl = req.url ?? "/";
     let isGateway = false;
+    let queryToken: string | null = null;
 
     try {
       const url = new URL(rawUrl, "http://localhost");
-      const token = url.searchParams.get("token");
+      queryToken = url.searchParams.get("token");
       isGateway =
-        token !== null &&
+        queryToken !== null &&
         config.BACKEND_WS_TOKEN !== "" &&
-        token === config.BACKEND_WS_TOKEN;
+        queryToken === config.BACKEND_WS_TOKEN;
     } catch {
       // Malformed URL — treat as frontend
     }
@@ -90,25 +106,120 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     if (isGateway) {
       gatewayClients.add(ws);
       logger.info("Discord gateway WebSocket client authenticated");
-      // Gateway doesn't need initial states
-    } else {
-      frontendClients.add(ws);
-      logger.info(`Frontend client connected (${frontendClients.size} total)`);
-      // Send initial states (user, ui, media) — fire-and-forget
-      sendInitialStates(ws).catch((err) =>
-        logger.error({ err }, "sendInitialStates failed"),
-      );
+      // Gateway only sends binary PCM — forward to frontend clients
+      ws.on("message", (data: Buffer) => {
+        if (Buffer.isBuffer(data)) {
+          broadcastBinaryToFrontend(data);
+        }
+      });
+      ws.on("close", () => {
+        gatewayClients.delete(ws);
+        logger.info("Discord gateway WebSocket disconnected");
+      });
+      ws.on("error", (err: Error) => {
+        logger.error({ err }, "Gateway WebSocket error");
+        gatewayClients.delete(ws);
+      });
+      return;
     }
 
-    ws.on("message", (data: Buffer) => {
-      // Gateway PCM forward — broadcast raw binary to frontend clients only
-      if (isGateway && Buffer.isBuffer(data)) {
-        broadcastBinaryToFrontend(data);
+    // ── Frontend client: auth message pattern ──────────────────────────
+    // Token is NEVER accepted in query string for frontend connections.
+    // Frontend must send { type: "auth", token: "..." } as first message.
+    // ────────────────────────────────────────────────────────────────────
+
+    // Origin check for frontend WebSocket connections
+    const origin = req.headers.origin;
+    if (origin) {
+      const allowedWsOrigins = [
+        "http://localhost:5173",
+        "http://localhost:4173",
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://imphnen.asepharyana.my.id",
+        "https://imphnen.asepharyana.tech",
+        "https://imphnen.asepharyana.web.id",
+      ];
+      if (!allowedWsOrigins.includes(origin)) {
+        logger.warn({ origin }, "WebSocket connection rejected: origin not allowed");
+        ws.close(4002, "Origin not allowed");
         return;
       }
+    }
 
-      // Handle binary PCM from browser (FE→Discord transmit)
-      // Format: 4-byte magic "PCM\0" + raw PCM Int16 LE
+    let authenticated = false;
+    let authTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const { isDashboardPublic } = await import("../shared/config/runtime.js");
+    const isPublic = isDashboardPublic();
+
+    if (!isPublic) {
+      authTimer = setTimeout(() => {
+        if (!authenticated) {
+          ws.close(4001, "Authentication timeout");
+          logger.warn("Frontend WS connection timed out waiting for auth");
+        }
+      }, 5000);
+    } else {
+      authenticated = true;
+      frontendClients.add(ws);
+    }
+
+    function processFrontendMessage(data: Buffer): void {
+      // Validate auth before processing messages
+      if (!authenticated) {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (
+            msg.type !== "auth" ||
+            typeof msg.token !== "string"
+          ) {
+            return; // wait for valid auth
+          }
+
+          if (!isPublic) {
+            const { verifySessionToken } = require("../shared/middlewares/index.js");
+            verifySessionToken(msg.token, config.ADMIN_PASSWORD);
+          }
+
+          authenticated = true;
+          if (authTimer) {
+            clearTimeout(authTimer);
+            authTimer = null;
+          }
+          frontendClients.add(ws);
+          logger.info(`Frontend client authenticated (${frontendClients.size} total)`);
+          sendInitialStates(ws).catch((err) =>
+            logger.error({ err }, "sendInitialStates failed"),
+          );
+          return;
+        } catch {
+          return; // invalid auth, wait for next message
+        }
+      }
+
+      // Per-client rate limiting — authenticated-only, max 30 msg / 5s sliding window
+      if (authenticated) {
+        const now = Date.now();
+        let timestamps = messageTimestamps.get(ws);
+        if (!timestamps) {
+          timestamps = [];
+          messageTimestamps.set(ws, timestamps);
+        }
+        // Prune timestamps outside the window
+        const cutoff = now - RATE_LIMIT_WINDOW_MS;
+        while (timestamps.length > 0 && timestamps[0]! < cutoff) {
+          timestamps.shift();
+        }
+        if (timestamps.length >= RATE_LIMIT_MAX_MSGS) {
+          logger.warn("Frontend client rate-limited (closing)");
+          ws.close(4006, "Rate limit exceeded");
+          return;
+        }
+        timestamps.push(now);
+      }
+
+      // Handle voice transmit binary
       if (
         Buffer.isBuffer(data) &&
         data.length > 4 &&
@@ -148,78 +259,74 @@ export function createWebSocketServer(server: Server): WebSocketServer {
       ) {
         try {
           const message = JSON.parse(data.toString());
-
-          if (message.type === "voice_transmit" && message.buffer) {
-            // Legacy: Forward PCM data to Redis for discord-gateway
-            import("../shared/redis/index.js").then(
-              ({ getCommandPublisher }) => {
-                const publisher = getCommandPublisher();
-                publisher
-                  .publish(
-                    BACKEND_VOICE_TRANSMIT,
-                    JSON.stringify({
-                      type: "pcm",
-                      buffer: message.buffer,
-                    }),
-                  )
-                  .catch((err: Error) => {
-                    logger.error(
-                      { err },
-                      "Failed to publish voice transmit to Redis",
-                    );
-                  });
-              },
-            );
-          } else if (message.type === "voice_command" && message.command) {
-            // Forward voice commands to discord-gateway with payload
-            import("../shared/redis/index.js").then(
-              ({ getCommandPublisher }) => {
-                const publisher = getCommandPublisher();
-                const commandId = `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-                publisher
-                  .publish(
-                    BACKEND_COMMAND,
-                    JSON.stringify({
-                      id: commandId,
-                      type: message.command,
-                      payload: message.payload ?? {},
-                      replyChannel: `reply:${commandId}`,
-                    }),
-                  )
-                  .catch((err: Error) => {
-                    logger.error(
-                      { err },
-                      "Failed to publish voice command to Redis",
-                    );
-                  });
-              },
-            );
-          }
+          handleFrontendJsonMessage(message);
         } catch (err) {
           logger.debug({ err }, "Failed to parse WebSocket message as JSON");
         }
       }
-    });
+    }
 
-    ws.on("close", () => {
-      if (isGateway) {
-        gatewayClients.delete(ws);
-        logger.info("Discord gateway WebSocket disconnected");
-      } else {
-        frontendClients.delete(ws);
-        logger.info(
-          `Frontend client disconnected (${frontendClients.size} total)`,
+    function handleFrontendJsonMessage(message: Record<string, unknown>): void {
+      if (message.type === "voice_transmit" && message.buffer) {
+        import("../shared/redis/index.js").then(
+          ({ getCommandPublisher }) => {
+            const publisher = getCommandPublisher();
+            publisher
+              .publish(
+                BACKEND_VOICE_TRANSMIT,
+                JSON.stringify({
+                  type: "pcm",
+                  buffer: message.buffer,
+                }),
+              )
+              .catch((err: Error) => {
+                logger.error(
+                  { err },
+                  "Failed to publish voice transmit to Redis",
+                );
+              });
+          },
+        );
+      } else if (message.type === "voice_command" && message.command) {
+        import("../shared/redis/index.js").then(
+          ({ getCommandPublisher }) => {
+            const publisher = getCommandPublisher();
+            const commandId = `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+            publisher
+              .publish(
+                BACKEND_COMMAND,
+                JSON.stringify({
+                  id: commandId,
+                  type: message.command,
+                  payload: message.payload ?? {},
+                  replyChannel: `reply:${commandId}`,
+                }),
+              )
+              .catch((err: Error) => {
+                logger.error(
+                  { err },
+                  "Failed to publish voice command to Redis",
+                );
+              });
+          },
         );
       }
+    }
+
+    ws.on("message", (data: Buffer) => processFrontendMessage(data));
+
+    ws.on("close", () => {
+      if (authTimer) clearTimeout(authTimer);
+      frontendClients.delete(ws);
+      logger.info(
+        `Frontend client disconnected (${frontendClients.size} total)`,
+      );
     });
 
     ws.on("error", (err: Error) => {
-      logger.error({ err }, "WebSocket client error");
-      if (isGateway) {
-        gatewayClients.delete(ws);
-      } else {
-        frontendClients.delete(ws);
-      }
+      logger.error({ err }, "Frontend WebSocket error");
+      if (authTimer) clearTimeout(authTimer);
+      frontendClients.delete(ws);
     });
   });
 
@@ -240,6 +347,8 @@ export function createWebSocketServer(server: Server): WebSocketServer {
   function broadcastBinaryToFrontend(data: Buffer) {
     for (const client of frontendClients) {
       if (client.readyState === WebSocket.OPEN) {
+        // Backpressure check: skip slow clients to prevent OOM
+        if (client.bufferedAmount > 64 * 1024) continue;
         try {
           client.send(data);
         } catch (err) {
@@ -260,6 +369,8 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     });
     for (const client of frontendClients) {
       if (client.readyState === WebSocket.OPEN) {
+        // Backpressure check: skip slow clients to prevent OOM
+        if (client.bufferedAmount > 64 * 1024) continue;
         try {
           client.send(payload);
         } catch (err) {
@@ -272,6 +383,8 @@ export function createWebSocketServer(server: Server): WebSocketServer {
   function broadcastBinary(data: Buffer) {
     for (const client of frontendClients) {
       if (client.readyState === WebSocket.OPEN) {
+        // Backpressure check: skip slow clients to prevent OOM
+        if (client.bufferedAmount > 64 * 1024) continue;
         try {
           client.send(data);
         } catch (err) {

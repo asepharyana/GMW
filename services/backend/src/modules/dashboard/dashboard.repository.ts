@@ -8,7 +8,12 @@ export class DashboardRepository {
   async getStats() {
     const pool = getPool();
 
-    // Total messages and breakdown by ai_status
+    // Time-bounded aggregates — prevent full-table scan on large datasets
+    // Queries scope to last 90 days for performance, which covers the
+    // typical retention window anyway.
+    const BOUNDARY_DAYS = 90;
+
+    // Total messages and breakdown by ai_status (last 90 days)
     const msgResult = await pool.query(
       `
       SELECT
@@ -24,32 +29,36 @@ export class DashboardRepository {
         COUNT(*) FILTER (WHERE ai_status = 'flagged' AND created_at >= $1)::int AS today_flagged,
         COUNT(DISTINCT user_id) FILTER (WHERE created_at >= $2)::int AS active_users_24h
       FROM messages
+      WHERE created_at >= $3
     `,
-      [Date.now() - 86400000, Date.now() - 86400000],
+      [Date.now() - 86400000, Date.now() - 86400000, Date.now() - BOUNDARY_DAYS * 86400000],
     );
 
     const msgRow = msgResult.rows[0];
 
-    // Total voice recordings
-    const voiceResult = await pool.query(`
-      SELECT COUNT(*)::int AS count FROM voice_recordings
-    `);
+    // Total voice recordings (last 90 days — bounded by retention window)
+    const voiceResult = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM voice_recordings
+       WHERE created_at >= $1`,
+      [Date.now() - BOUNDARY_DAYS * 86400000],
+    );
 
     // Total AI user profiles
     const profileResult = await pool.query(`
       SELECT COUNT(*)::int AS count FROM user_profiles
     `);
 
-    // Top channels by message count
+    // Top channels by message count (last 90 days)
     const topChannels = await pool.query(`
       SELECT channel_id,
              (metadata::jsonb -> 'channel' ->> 'channelName') AS channel_name,
              COUNT(*)::int AS message_count
       FROM messages
+      WHERE created_at >= $1
       GROUP BY channel_id, (metadata::jsonb -> 'channel' ->> 'channelName')
       ORDER BY COUNT(*) DESC
       LIMIT 10
-    `);
+    `, [Date.now() - BOUNDARY_DAYS * 86400000]);
 
     return {
       total_messages: msgRow?.total_messages ?? 0,
