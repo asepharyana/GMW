@@ -73,19 +73,18 @@ export function createHttpApp(): Express {
   // Public read-only endpoints
   app.use("/api", createConfigRouter());
   app.use("/api", createDashboardRouter());
+  app.use("/api", createMessagesRouter());
+  app.use("/api", createAnalysisRouter());
+  app.use("/api", createMascotChatRouter());
+  app.use("/api", createRecordingsRouter());
+  app.use("/api", createUiStateRouter());
+  app.use("/api/guilds", createGuildsRouter());
 
   // Protected routes — require admin authentication (X-Admin-Password header)
+  // Only voice and media control endpoints need auth
   const adminAuthMiddleware = adminAuth(ADMIN_PASSWORD);
-  app.use("/api", adminAuthMiddleware, createMessagesRouter());
-  app.use("/api", adminAuthMiddleware, createAnalysisRouter());
-  app.use("/api", adminAuthMiddleware, createMascotChatRouter());
   app.use("/api", adminAuthMiddleware, createMediaRouter());
   app.use("/api", adminAuthMiddleware, createVoiceRouter());
-  app.use("/api", adminAuthMiddleware, createRecordingsRouter());
-  app.use("/api", adminAuthMiddleware, createUiStateRouter());
-
-  // Guilds routes
-  app.use("/api/guilds", adminAuthMiddleware, createGuildsRouter());
 
   // 404 handler
   app.use((_req: Request, res: Response) => {
