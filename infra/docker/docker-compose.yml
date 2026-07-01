@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # Nginx Reverse Proxy — handles /api and /ws routing behind Traefik
   proxy:
-    image: ghcr.io/${OWNER:-mytheclipse}/bete-proxy:latest
+    image: registry.gitlab.com/mytheclipse-group/gmw/bete-proxy:latest
     container_name: imphenbot-proxy
     restart: unless-stopped
     labels:
@@ -28,7 +28,7 @@ services:
 
   # Backend Service (REST API + WebSocket)
   backend:
-    image: ghcr.io/${OWNER:-mytheclipse}/bete-backend:latest
+    image: registry.gitlab.com/mytheclipse-group/gmw/bete-backend:latest
     container_name: imphenbot-backend
     restart: unless-stopped
     env_file:
@@ -52,7 +52,7 @@ services:
 
   # Discord Gateway Service (Event capture and processing — no HTTP)
   discord-gateway:
-    image: ghcr.io/${OWNER:-mytheclipse}/bete-discord-gateway:latest
+    image: registry.gitlab.com/mytheclipse-group/gmw/bete-discord-gateway:latest
     container_name: imphenbot-discord-gateway
     restart: unless-stopped
     env_file:
@@ -77,7 +77,7 @@ services:
 
   # Frontend Service (React Dashboard) — Nginx serving static files
   frontend:
-    image: ghcr.io/${OWNER:-mytheclipse}/bete-frontend:latest
+    image: registry.gitlab.com/mytheclipse-group/gmw/bete-frontend:latest
     container_name: imphenbot-frontend
     restart: unless-stopped
     # Use 127.0.0.1 instead of localhost — Alpine's BusyBox wget tries IPv6 first
