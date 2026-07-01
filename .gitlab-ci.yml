@@ -17,9 +17,6 @@ stages:
   - deploy
 
 variables:
-  # Submodules — discord.js-selfbot-v13 and discord-video-stream
-  GIT_SUBMODULE_STRATEGY: recursive
-
   REGISTRY: $CI_REGISTRY
   REGISTRY_PROJECT: $CI_REGISTRY/$CI_PROJECT_PATH
   IMAGE_TAG_COMMIT: $CI_COMMIT_SHA
