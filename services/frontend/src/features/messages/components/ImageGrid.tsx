@@ -82,7 +82,7 @@ export function ImageGrid({ messages }: { messages: MessageRecord[] }) {
             href={image.url}
             target="_blank"
             rel="noreferrer"
-            className="group overflow-hidden rounded-xl border border-primary/20 bg-card shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
+            className="group overflow-hidden rounded-xl border border-primary/20 bg-white shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
           >
             <div className="relative aspect-video overflow-hidden">
               {image.kind === "sticker" ? (

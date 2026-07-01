@@ -38,7 +38,6 @@ export function MascotImage({
   const sizeClass = sizeMap[size];
   const chatSizeClass = chatSizeMap[size];
   const [isVisible, setIsVisible] = useState(false);
-  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     if (showChat && chatMessage) {
@@ -52,20 +51,13 @@ export function MascotImage({
 
   return (
     <div className="relative inline-block">
-      {imgError ? (
-        <div className={`flex items-center justify-center ${sizeClass} bg-muted/30 rounded-xl`}>
-          <MessageCircle className="h-6 w-6 text-muted-foreground/50" />
-        </div>
-      ) : (
-        <motion.img
-          src="https://raw.githubusercontent.com/IMPHNEN/imphnen-frontend-service/develop/apps/dimentorin/public/image/mascot-1.png"
-          alt="Mascot"
-          className={`object-contain drop-shadow-md ${sizeClass} ${className}`}
-          whileHover={{ scale: 1.05 }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          onError={() => setImgError(true)}
-        />
-      )}
+      <motion.img
+        src="https://raw.githubusercontent.com/IMPHNEN/imphnen-frontend-service/develop/apps/dimentorin/public/image/mascot-1.png"
+        alt="Mascot"
+        className={`object-contain drop-shadow-md ${sizeClass} ${className}`}
+        whileHover={{ scale: 1.05 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      />
 
       {/* Floating Chat Bubble */}
       {isVisible && chatMessage && (
@@ -80,7 +72,7 @@ export function MascotImage({
             {/* Chat bubble */}
             <div className="bg-primary/90 text-primary-foreground rounded-xl px-4 py-2.5 shadow-lg backdrop-blur-sm border border-primary/30">
               <div className="flex items-start gap-2">
-                <MessageCircle className="h-4 w-4 shrink-0 mt-0.5 text-primary-foreground/80" />
+                <MessageCircle className="h-4 w-4 shrink-0 mt-0.5 text-white/80" />
                 <p className="text-xs leading-relaxed font-medium line-clamp-3">
                   {chatMessage}
                 </p>

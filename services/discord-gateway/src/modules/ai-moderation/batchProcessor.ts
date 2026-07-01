@@ -178,6 +178,22 @@ export async function processBatch(
       messages,
     })) as AnalysisWorkerResponse;
 
+    // Do not broadcast or auto-delete if it's an API failure that will be reverted.
+    for (const row of result.rows) {
+      let isApiFailure = false;
+      if (row.ai_status === "error") {
+        try {
+          const flags = JSON.parse(row.ai_moderation_flags ?? "[]") as string[];
+          isApiFailure = flags.includes("analysis_api_failed");
+        } catch {}
+      }
+
+      if (!isApiFailure) {
+        broadcastAnalysisCompleted(row);
+        scheduleAutoDelete(row);
+      }
+    }
+
     // Post-batch reputation updates (fire-and-forget)
     postBatchReputationUpdate(
       result.rows.filter((r) => {

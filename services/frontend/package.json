@@ -4,20 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro dev --host 0.0.0.0",
-    "build": "astro build",
-    "preview": "astro preview --host 0.0.0.0 --port 3000",
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && NODE_NO_WARNINGS=1 vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 3000",
     "typecheck": "tsc --noEmit",
     "lint": "biome check --diagnostic-level=error src/",
     "format": "biome format --write src/"
   },
   "dependencies": {
-    "@astrojs/react": "^6.0.0",
     "@bete/shared": "workspace:*",
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
-    "astro": "^7.0.4",
     "clsx": "^2.1.1",
     "framer-motion": "^12.4.0",
     "lucide-react": "^1.16.0",
@@ -30,9 +28,11 @@
     "@tailwindcss/postcss": "^4.3.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
     "autoprefixer": "^10.5.0",
     "postcss": "^8.5.14",
     "tailwindcss": "^4.3.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite": "^8.0.13"
   }
 }

@@ -1,7 +1,6 @@
 import { createChildLogger } from "@bete/shared/logger";
 import type { Request, Response } from "express";
 import { asyncHandler } from "../../shared/middlewares/index.js";
-import { chatRequestSchema } from "./mascot-chat.schema.js";
 import { mascotChatService } from "./mascot-chat.service.js";
 
 const logger = createChildLogger("mascot-chat.controller");
@@ -12,17 +11,14 @@ interface AuthenticatedRequest extends Request {
 
 export const handleMascotChat = asyncHandler(
   async (req: Request, res: Response) => {
-    // Validate request body against schema
-    const parsed = chatRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
+    const { message, context } = req.body;
+
+    if (!message || typeof message !== "string") {
       return res.status(400).json({
         error: "INVALID_INPUT",
-        message: "Invalid request body",
-        details: parsed.error.flatten().fieldErrors,
+        message: "Message is required and must be a string",
       });
     }
-
-    const { message, context } = parsed.data;
 
     // Get user ID from auth middleware (if available)
     const userId = (req as AuthenticatedRequest).userId || "anonymous";

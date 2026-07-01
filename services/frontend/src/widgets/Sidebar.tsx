@@ -1,11 +1,5 @@
 import { motion } from "framer-motion";
-import {
-  Bell,
-  LayoutDashboard,
-  MessageSquare,
-  Radio,
-  Settings,
-} from "lucide-react";
+import { LayoutDashboard, MessageSquare, Radio } from "lucide-react";
 import type { MessageRecord } from "../entities/message/types.js";
 import type { DashboardTab } from "../entities/ui/types.js";
 import { useMascotChat } from "../shared/hooks/useMascotChat";
@@ -13,16 +7,12 @@ import { cn } from "../shared/lib/utils";
 import { MascotChatbot } from "./mascot/MascotChatbot";
 import { MascotImage } from "./mascot/MascotImage";
 
-const navItems: Array<{
-  id: DashboardTab;
-  label: string;
-  icon: typeof Radio;
-}> = [
-  { id: "messages", label: "Messages & Moderation", icon: MessageSquare },
-  { id: "live", label: "Voice & Media", icon: Radio },
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "settings" as const, label: "Admin", icon: Settings },
-];
+const navItems: Array<{ id: DashboardTab; label: string; icon: typeof Radio }> =
+  [
+    { id: "messages", label: "Messages & Moderation", icon: MessageSquare },
+    { id: "live", label: "Voice & Media", icon: Radio },
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  ];
 
 interface SidebarProps {
   activeTab: DashboardTab;
@@ -31,7 +21,6 @@ interface SidebarProps {
   recentMessages?: MessageRecord[];
   guildId?: string;
   channelId?: string;
-  notificationCount?: number;
 }
 
 export function Sidebar({
@@ -41,7 +30,6 @@ export function Sidebar({
   recentMessages = [],
   guildId,
   channelId,
-  notificationCount = 0,
 }: SidebarProps) {
   const mascotChat = useMascotChat({
     messageCount: recentMessages.length,
@@ -58,7 +46,7 @@ export function Sidebar({
       <motion.nav
         className={cn(
           "relative hidden shrink-0 flex-col overflow-visible border-r border-border/50 bg-background/70 backdrop-blur-sm transition-all duration-300 md:flex",
-          collapsed ? "w-16" : "w-56 lg:w-64",
+          collapsed ? "w-16" : "w-64",
         )}
         layout
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -74,10 +62,6 @@ export function Sidebar({
             src="https://raw.githubusercontent.com/IMPHNEN/imphnen-frontend-service/develop/docs/logo.svg"
             alt="IMPHNEN"
             className="h-8 w-8 rounded-xl"
-            onError={(e) => {
-              const target = e.currentTarget;
-              target.style.display = "none";
-            }}
           />
 
           {/* Mascot image — only when expanded */}
@@ -86,10 +70,6 @@ export function Sidebar({
               src="https://raw.githubusercontent.com/IMPHNEN/imphnen-frontend-service/develop/apps/dimentorin/public/image/mascot-1.png"
               alt="Mascot"
               className="mt-4 h-auto w-[140px] object-contain drop-shadow-md"
-              onError={(e) => {
-                const target = e.currentTarget;
-                target.style.display = "none";
-              }}
             />
           )}
         </div>
@@ -115,21 +95,6 @@ export function Sidebar({
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   {!collapsed && <span>{item.label}</span>}
-                  {!collapsed && item.id === "messages" &&
-                    notificationCount !== undefined &&
-                    notificationCount > 0 && (
-                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                        {notificationCount > 99 ? "99+" : notificationCount}
-                      </span>
-                    )}
-                  {/* Collapsed badge — top-right dot */}
-                  {collapsed && item.id === "messages" &&
-                    notificationCount !== undefined &&
-                    notificationCount > 0 && (
-                      <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-destructive text-[7px] font-bold text-destructive-foreground">
-                        {notificationCount > 9 ? "N" : notificationCount}
-                      </span>
-                    )}
                 </button>
               );
             })}
@@ -153,7 +118,7 @@ export function Sidebar({
         onClose={() => mascotChat.setIsOpen(false)}
         onSendMessage={mascotChat.handleSendMessage}
         mascotName="IMPHNEN Mascot"
-        className="fixed bottom-[170px] left-[80px] z-[9999] md:bottom-4 md:left-4 md:right-auto"
+        className="fixed bottom-[170px] left-[80px] z-[9999]"
       />
     </>
   );

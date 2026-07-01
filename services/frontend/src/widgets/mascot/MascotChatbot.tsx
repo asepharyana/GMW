@@ -117,14 +117,14 @@ export function MascotChatbot({
         )}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground p-4 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-primary to-primary/80 text-white p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary-foreground/20 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
               <MessageCircle className="h-5 w-5" />
             </div>
             <div>
               <h3 className="font-semibold text-sm">{mascotName}</h3>
-              <p className="text-xs text-primary-foreground/80">
+              <p className="text-xs text-white/80">
                 {loading ? "Mengetik..." : "Online"}
               </p>
             </div>
@@ -134,7 +134,7 @@ export function MascotChatbot({
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsMinimized(!isMinimized)}
-              className="p-1.5 hover:bg-primary-foreground/20 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
               title={isMinimized ? "Maximize" : "Minimize"}
             >
               {isMinimized ? (
@@ -149,7 +149,7 @@ export function MascotChatbot({
               onClick={() => {
                 onClose?.();
               }}
-              className="p-1.5 hover:bg-primary-foreground/20 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
               title="Close"
             >
               <X className="h-4 w-4" />
@@ -176,10 +176,6 @@ export function MascotChatbot({
                       src={mascotAvatar}
                       alt={mascotName}
                       className="w-6 h-6 rounded-full object-cover"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        target.style.display = "none";
-                      }}
                     />
                   )}
                   <div
@@ -204,10 +200,6 @@ export function MascotChatbot({
                     src={mascotAvatar}
                     alt={mascotName}
                     className="w-6 h-6 rounded-full object-cover"
-                    onError={(e) => {
-                      const target = e.currentTarget;
-                      target.style.display = "none";
-                    }}
                   />
                   <div className="bg-muted rounded-xl rounded-bl-none px-3 py-2">
                     <div className="flex gap-1">

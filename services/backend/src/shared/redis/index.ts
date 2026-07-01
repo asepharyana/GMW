@@ -77,7 +77,6 @@ export async function publishCommand<T = unknown>(
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      sub.removeListener("message", onMessage);
       sub.unsubscribe(replyChannel).catch(() => {
         /* ignore */
       });
@@ -91,7 +90,6 @@ export async function publishCommand<T = unknown>(
       if (channel !== replyChannel || settled) return;
       settled = true;
       clearTimeout(timer);
-      sub.removeListener("message", onMessage);
       sub.unsubscribe(replyChannel).catch(() => {
         /* ignore */
       });
@@ -123,7 +121,6 @@ export async function publishCommand<T = unknown>(
             if (!settled) {
               settled = true;
               clearTimeout(timer);
-              sub.removeListener("message", onMessage);
               sub.unsubscribe(replyChannel).catch(() => {
                 /* ignore */
               });
@@ -136,7 +133,6 @@ export async function publishCommand<T = unknown>(
         if (!settled) {
           settled = true;
           clearTimeout(timer);
-          sub.removeListener("message", onMessage);
           logger.error({ err }, "Failed to subscribe to reply channel");
           resolve(null);
         }

@@ -6,15 +6,11 @@
     "strict": true,
     "jsx": "react-jsx",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "types": ["astro/client"],
+    "types": ["vite/client"],
     "noEmit": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "baseUrl": ".",
-    "paths": {
-      "~/*": ["src/*"]
-    }
+    "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*", "astro.config.mjs"]
+  "include": ["src/**/*", "vite.config.ts"]
 }

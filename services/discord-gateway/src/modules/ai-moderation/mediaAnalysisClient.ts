@@ -23,7 +23,6 @@ import type {
 import { llmVision } from "./llmClient.js";
 import { sanitizeAiContent } from "./moderationPrompt.js";
 import {
-  buildAttachmentTextOnlyWarning,
   buildCustomEmojiVisionPrompt,
   buildGeneralImageVisionPrompt,
   buildStickerTextOnlyWarning,
@@ -52,7 +51,6 @@ import { searchSearxng, extractSearchQueries, formatSearchResults } from "./sear
 import { getUserProfile } from "./userProfileStore.js";
 import { initializeUserReputation } from "./userReputationStore.js";
 import { escapeXml, getAnalysisContent, buildReferenceXml } from "./moderationBuilders.js";
-import { createAbortTimeout, isAbortError } from "./abortHelper.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -294,97 +292,50 @@ async function downloadSingleAttachment(
   targetId: string,
   maxDimension: number,
   imageMap: Map<string, MessageImagePart[]>,
-  mediaAnalysisMap?: Map<string, string[]>,
 ): Promise<void> {
   const log = createChildLogger("mediaAnalysis");
+  const urlToUse = att.uploaded_url ?? att.discord_url ?? null;
+  if (!urlToUse) return;
 
-  // Collect all available URLs — uploaded_url first (Telegram CDN, faster),
-  // then discord_url as fallback (may have expired CDN signature)
-  const urlsToTry = [
-    att.uploaded_url,
-    att.discord_url,
-  ].filter((url): url is string => url !== null && url !== undefined);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(urlToUse, { signal: controller.signal });
+    if (!res.ok || !res.body) return;
 
-  // No URL at all — record a neutral fallback so downstream knows the
-  // attachment existed but was unreachable
-  if (urlsToTry.length === 0) {
-    if (mediaAnalysisMap) {
-      const existing = mediaAnalysisMap.get(targetId) ?? [];
-      existing.push(`[attachment: "${att.filename}" dari pesan id=${targetId} — tidak ada URL untuk diunduh]`);
-      mediaAnalysisMap.set(targetId, existing);
-    }
-    return;
-  }
-
-  let lastError: Error | null = null;
-
-  // Try each URL, with 3 retries per URL (exponential backoff: 1s, 2s)
-  for (const url of urlsToTry) {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const { signal, cleanup } = createAbortTimeout(15000);
-        const res = await fetch(url, { signal });
-        if (!res.ok || !res.body) {
-          cleanup();
-          throw new Error(`HTTP ${res.status}`);
-        }
-
-        let totalBytes = 0;
-        const chunks: Uint8Array[] = [];
-        const reader = res.body.getReader();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            totalBytes += value.length;
-            if (totalBytes > 10 * 1024 * 1024) {
-              reader.cancel().catch(() => {});
-              res.body?.cancel().catch(() => {});
-              return;
-            }
-            chunks.push(value);
-          }
-        }
-        const imageBytes = Buffer.concat(chunks);
-        const sniffedMime = sniffImageMimeType(imageBytes);
-
-        if (!sniffedMime && att.type.startsWith("video/")) {
-          await extractVideoFrames(att, imageBytes, targetId, maxDimension, imageMap, signal);
-          return;
-        }
-        if (!sniffedMime) return;
-
-        const { data: resizedBuffer, mimeType: resizedMime } = await resizeImageForVision(imageBytes, maxDimension);
-        const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
-        addImageToMap(imageMap, targetId, {
-          type: "image_url",
-          image_url: { url: dataUrl },
-          sourceLabel: `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`,
-        });
-
-        cleanup();
-        return; // success!
-      } catch (err) {
-        lastError = err instanceof Error ? err : new Error(String(err));
-        log.warn(
-          { attachmentId: att.id, url: url.slice(0, 80), attempt, error: lastError.message },
-          `Download attempt ${attempt + 1}/3 failed`,
-        );
-        if (attempt < 2) await delay(1000 * (attempt + 1)); // backoff: 1s, 2s
+    let totalBytes = 0;
+    const chunks: Uint8Array[] = [];
+    const reader = res.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        totalBytes += value.length;
+        if (totalBytes > 10 * 1024 * 1024) { reader.cancel(); return; }
+        chunks.push(value);
       }
     }
-  }
+    const imageBytes = Buffer.concat(chunks);
+    const sniffedMime = sniffImageMimeType(imageBytes);
 
-  // All URLs + all retries exhausted — record a neutral fallback
-  if (mediaAnalysisMap) {
-    const existing = mediaAnalysisMap.get(targetId) ?? [];
-    existing.push(buildAttachmentTextOnlyWarning(att.filename, targetId));
-    mediaAnalysisMap.set(targetId, existing);
+    if (!sniffedMime && att.type.startsWith("video/")) {
+      await extractVideoFrames(att, imageBytes, targetId, maxDimension, imageMap);
+      return;
+    }
+    if (!sniffedMime) return;
+
+    const { data: resizedBuffer, mimeType: resizedMime } = await resizeImageForVision(imageBytes, maxDimension);
+    const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
+    addImageToMap(imageMap, targetId, {
+      type: "image_url",
+      image_url: { url: dataUrl },
+      sourceLabel: `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`,
+    });
+  } catch (err) {
+    log.warn({ attachmentId: att.id, error: err instanceof Error ? err.message : String(err) }, "Download failed");
+  } finally {
+    clearTimeout(timeoutId);
   }
-  log.warn(
-    { attachmentId: att.id, filename: att.filename, error: lastError?.message },
-    "All download attempts exhausted for attachment",
-  );
 }
 
 async function extractVideoFrames(
@@ -393,7 +344,6 @@ async function extractVideoFrames(
   targetId: string,
   maxDimension: number,
   imageMap: Map<string, MessageImagePart[]>,
-  signal?: AbortSignal,
 ): Promise<void> {
   const log = createChildLogger("mediaAnalysis");
   const execFileAsync = promisify(execFile);
@@ -401,19 +351,15 @@ async function extractVideoFrames(
   const inputPath = path.join(tmpDir, att.filename || "video.mp4");
   const outputPattern = path.join(tmpDir, "frame-%03d.jpg");
   try {
-    if (signal?.aborted) return;
     await writeFile(inputPath, videoBytes);
-    if (signal?.aborted) return;
     const { stdout: durationStr } = await execFileAsync("/usr/bin/ffprobe", [
       "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", inputPath,
-    ], { timeout: 10000, signal });
-    if (signal?.aborted) return;
+    ], { timeout: 10000 });
     const duration = parseFloat(durationStr.trim()) || 1;
     const fps = (3 / duration).toFixed(6);
-    if (signal?.aborted) return;
     await execFileAsync("/usr/bin/ffmpeg", [
       "-i", inputPath, "-vf", `fps=${fps}`, "-frames:v", "4", "-vsync", "vfr", "-q:v", "2", outputPattern,
-    ], { timeout: 30000, signal });
+    ], { timeout: 30000 });
     for (let i = 1; i <= 4; i++) {
       try {
         const framePath = path.join(tmpDir, `frame-${String(i).padStart(3, "0")}.jpg`);
@@ -431,8 +377,10 @@ async function extractVideoFrames(
   } catch (ffmpegErr) {
     log.warn({ attachmentId: att.id, error: ffmpegErr instanceof Error ? ffmpegErr.message : String(ffmpegErr) }, "ffmpeg failed");
   } finally {
-    // rm(tmpDir, { recursive: true }) already removes all files inside,
-    // so individual unlink calls are redundant. Just clean up the whole dir.
+    try { await unlink(inputPath); } catch { /* ignore */ }
+    for (let i = 1; i <= 4; i++) {
+      try { await unlink(path.join(tmpDir, `frame-${String(i).padStart(3, "0")}.jpg`)); } catch { /* ignore */ }
+    }
     try { await rm(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
   }
 }
@@ -538,7 +486,7 @@ export async function prepareMediaMessage(
     .filter((a) => a.message_id === targetId && (a.uploaded_url ?? a.discord_url ?? null) && (a.type.startsWith("image/") || a.type.startsWith("video/")))
     .slice(0, 8);
   for (const att of msgAttachments) {
-    downloadPromises.push(downloadSingleAttachment(att, targetId, maxDimension, imageMap, mediaAnalysisMap));
+    downloadPromises.push(downloadSingleAttachment(att, targetId, maxDimension, imageMap));
   }
 
   // URLs
@@ -557,8 +505,8 @@ export async function prepareMediaMessage(
   await Promise.all(downloadPromises);
   if (urlWebTexts.length > 0) webTextMap.set(targetId, urlWebTexts);
 
-  // Vision analysis — use allSettled so one failure doesn't cascade
-  const visionResults = await Promise.allSettled(
+  // Vision analysis
+  await Promise.all(
     Array.from(imageMap.entries()).flatMap(([msgId, images]) =>
       images.map(async (image) => {
         const summary = await analyzeSingleMediaImage(msgId, image);
@@ -568,12 +516,6 @@ export async function prepareMediaMessage(
       }),
     ),
   );
-  // Log any vision failures without aborting the batch
-  for (const r of visionResults) {
-    if (r.status === "rejected") {
-      log.warn({ error: r.reason instanceof Error ? r.reason.message : String(r.reason) }, "Individual vision analysis failed (batched)");
-    }
-  }
 
   // SearXNG
   let searxngXml = "";

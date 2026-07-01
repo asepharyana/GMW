@@ -22,6 +22,7 @@ function updateCounts(): void {
 }
 
 export async function withLlmConcurrency<T>(fn: () => Promise<T>): Promise<T> {
+  const queuedAt = activeCount + pendingCount;
   pendingCount++;
   logger.debug(
     { activeCount, pendingCount, maxConcurrent: config.AI_LLM_MAX_CONCURRENT },
@@ -29,17 +30,17 @@ export async function withLlmConcurrency<T>(fn: () => Promise<T>): Promise<T> {
   );
 
   return llmSemaphore(async () => {
+    pendingCount--;
+    activeCount++;
+
+    if (activeCount >= (config.AI_LLM_MAX_CONCURRENT ?? 5)) {
+      logger.warn(
+        { activeCount, maxConcurrent: config.AI_LLM_MAX_CONCURRENT },
+        "LLM concurrency limit reached",
+      );
+    }
+
     try {
-      pendingCount--;
-      activeCount++;
-
-      if (activeCount >= (config.AI_LLM_MAX_CONCURRENT ?? 5)) {
-        logger.warn(
-          { activeCount, maxConcurrent: config.AI_LLM_MAX_CONCURRENT },
-          "LLM concurrency limit reached",
-        );
-      }
-
       return await fn();
     } finally {
       activeCount--;

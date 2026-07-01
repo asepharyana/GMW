@@ -1,6 +1,5 @@
 import Redis from "ioredis";
 import { createChildLogger } from "@bete/shared/logger";
-import { createAbortTimeout } from "./abortHelper.js";
 
 const log = createChildLogger("searxng-search");
 
@@ -9,97 +8,15 @@ const MAX_RESULTS = 3;
 const TIMEOUT_MS = 8000;
 const CACHE_TTL = 86400; // 24 hours
 const CACHE_PREFIX = "searxng:";
-/** How often to attempt reconnection when Redis is down (ms). */
-const RECONNECT_INTERVAL_MS = 60_000;
 
 let redis: Redis | null = null;
-let _initialized = false;
-let _redisUrl = "";
-/** Tracks whether Redis is currently healthy (connected + responding). */
-let _redisHealthy = false;
-let _lastLogAt = 0; // throttle repeated warn logs to once per 60s
-
-// ---------------------------------------------------------------------------
-// Health tracking
-// ---------------------------------------------------------------------------
-
-/**
- * Returns true if the SearXNG Redis cache is connected and healthy.
- * Use this for health-check endpoints or status dashboards.
- */
-export function isSearxngCacheAvailable(): boolean {
-  return _redisHealthy;
-}
-
-/**
- * Returns a human-readable status string for logging / health endpoints.
- */
-export function getSearxngCacheStatus(): string {
-  if (!_initialized) return "not-initialized";
-  if (!redis) return "no-url";
-  return _redisHealthy ? "healthy" : "disconnected";
-}
-
-// ---------------------------------------------------------------------------
-// Reconnection helper
-// ---------------------------------------------------------------------------
-
-/**
- * Schedule a one-shot reconnection attempt after RECONNECT_INTERVAL_MS.
- * Only one reconnection timer runs at a time.
- */
-let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
-function scheduleReconnect(): void {
-  if (_reconnectTimer) return; // already scheduled
-  _reconnectTimer = setTimeout(async () => {
-    _reconnectTimer = null;
-    if (!redis || _redisHealthy) return; // nothing to do
-
-    log.info("SearXNG Redis: attempting reconnection...");
-    try {
-      // ioredis reconnects automatically if `lazyConnect` is false,
-      // but we set it to true, so we need to manually call connect().
-      await redis.connect();
-      // If we get here, connection succeeded
-      _redisHealthy = true;
-      log.info("SearXNG Redis: reconnected successfully ✅");
-    } catch {
-      _redisHealthy = false;
-      const now = Date.now();
-      if (now - _lastLogAt > 60_000) {
-        log.warn(
-          { nextRetryMs: RECONNECT_INTERVAL_MS },
-          "SearXNG Redis: reconnection failed — will retry",
-        );
-        _lastLogAt = now;
-      }
-      // Schedule another attempt
-      scheduleReconnect();
-    }
-  }, RECONNECT_INTERVAL_MS);
-  _reconnectTimer.unref?.();
-}
-
-// ---------------------------------------------------------------------------
-// Initialization
-// ---------------------------------------------------------------------------
 
 /**
  * Initialize Redis connection for SearXNG cache.
  * Safe to call multiple times — only creates one connection.
- * Returns true if Redis cache is available, false if falling back to no-cache.
  */
-export function initSearxngCache(redisUrl: string): boolean {
-  if (_initialized) return _redisHealthy;
-  _initialized = true;
-  _redisUrl = redisUrl;
-
-  if (!redisUrl) {
-    log.warn("No REDIS_URL provided — SearXNG cache disabled");
-    return false;
-  }
-
+export function initSearxngCache(redisUrl: string): void {
+  if (redis) return;
   redis = new Redis(redisUrl, {
     maxRetriesPerRequest: 3,
     retryStrategy(times) {
@@ -109,91 +26,15 @@ export function initSearxngCache(redisUrl: string): boolean {
     lazyConnect: true,
     enableReadyCheck: false,
   });
-
   redis.on("error", (err) => {
-    const wasHealthy = _redisHealthy;
-    _redisHealthy = false;
-    if (wasHealthy) {
-      // State transition: healthy → unhealthy — always log
-      log.warn(
-        { error: err.message },
-        "SearXNG Redis: connection lost — falling back to no-cache",
-      );
-    } else {
-      // Already unhealthy — throttle repeated error logs
-      const now = Date.now();
-      if (now - _lastLogAt > 60_000) {
-        log.warn(
-          { error: err.message },
-          "SearXNG Redis: still disconnected",
-        );
-        _lastLogAt = now;
-      }
-    }
-    scheduleReconnect();
+    log.warn({ err: err.message }, "SearXNG Redis cache error");
   });
-
-  redis.on("ready", () => {
-    if (!_redisHealthy) {
-      _redisHealthy = true;
-      log.info("SearXNG Redis: connected and healthy ✅");
-    }
-  });
-
   redis.connect().catch(() => {
-    _redisHealthy = false;
-    log.warn("SearXNG Redis: initial connection failed — running without cache");
-    scheduleReconnect();
+    log.warn("SearXNG Redis cache unavailable — falling back to no-cache");
+    redis = null;
   });
-
   log.info("SearXNG Redis cache initialized");
-  return true;
 }
-
-// ---------------------------------------------------------------------------
-// Cache operations with visible failure logging
-// ---------------------------------------------------------------------------
-
-async function cacheGet(key: string): Promise<string | null> {
-  if (!redis || !_redisHealthy) return null;
-  try {
-    const result = await redis.get(key);
-    return result;
-  } catch (err) {
-    // Log once per minute to avoid log spam
-    const now = Date.now();
-    if (now - _lastLogAt > 60_000) {
-      log.warn(
-        { error: err instanceof Error ? err.message : String(err) },
-        "SearXNG Redis: cache read failed",
-      );
-      _lastLogAt = now;
-    }
-    _redisHealthy = false;
-    scheduleReconnect();
-    return null;
-  }
-}
-
-function cacheSet(key: string, value: string, ttlSeconds: number): void {
-  if (!redis || !_redisHealthy) return;
-  redis.setex(key, ttlSeconds, value).catch((err) => {
-    const now = Date.now();
-    if (now - _lastLogAt > 60_000) {
-      log.warn(
-        { error: err instanceof Error ? err.message : String(err) },
-        "SearXNG Redis: cache write failed",
-      );
-      _lastLogAt = now;
-    }
-    _redisHealthy = false;
-    scheduleReconnect();
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Search
-// ---------------------------------------------------------------------------
 
 export interface SearxngResult {
   title: string;
@@ -212,30 +53,33 @@ export async function searchSearxng(
   const cacheKey = `${CACHE_PREFIX}${category}:${query.toLowerCase().trim()}`;
 
   // Try cache first
-  const cached = await cacheGet(cacheKey);
-  if (cached) {
-    log.debug({ query, category }, "SearXNG cache HIT");
+  if (redis) {
     try {
-      return JSON.parse(cached) as SearxngResult[];
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        log.debug({ query, category }, "SearXNG cache HIT");
+        return JSON.parse(cached) as SearxngResult[];
+      }
     } catch {
-      // Corrupted cache entry — continue to API
+      // Cache read failed, continue to API
     }
   }
 
   // Cache miss — hit SearXNG API
   try {
     const url = `${SEARXNG_BASE_URL}/search?q=${encodeURIComponent(query)}&format=json&language=id&categories=${category}`;
-    const { signal, cleanup } = createAbortTimeout(TIMEOUT_MS);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     const response = await fetch(url, {
-      signal,
+      signal: controller.signal,
       headers: {
         Accept: "application/json",
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       },
     });
-    cleanup();
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       log.warn({ status: response.status, query }, "SearXNG search failed");
@@ -253,7 +97,11 @@ export async function searchSearxng(
     }));
 
     // Store in cache (fire and forget — don't block on write)
-    cacheSet(cacheKey, JSON.stringify(mapped), CACHE_TTL);
+    if (redis) {
+      redis.setex(cacheKey, CACHE_TTL, JSON.stringify(mapped)).catch(() => {
+        // Cache write failed silently
+      });
+    }
 
     log.debug({ query, category, resultCount: mapped.length }, "SearXNG search OK");
     return mapped;
@@ -265,10 +113,6 @@ export async function searchSearxng(
     return [];
   }
 }
-
-// ---------------------------------------------------------------------------
-// Query extraction
-// ---------------------------------------------------------------------------
 
 /**
  * Extract meaningful search queries from message content.
@@ -334,10 +178,6 @@ export function extractSearchQueries(content: string): string[] {
 
   return Array.from(queries).slice(0, 3);
 }
-
-// ---------------------------------------------------------------------------
-// Formatting
-// ---------------------------------------------------------------------------
 
 /**
  * Format SearXNG results as XML for LLM context.

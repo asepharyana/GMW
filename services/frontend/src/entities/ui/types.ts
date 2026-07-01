@@ -6,20 +6,13 @@ export interface UIState {
   selectedTextChannel?: string;
   selectedAnalyticsGuild?: string;
   selectedAnalyticsChannel?: string;
-  activeTab?: DashboardTab;
+  activeTab?: "live" | "messages" | "dashboard";
   isListening?: boolean;
   isStreaming?: boolean;
 }
 
-export type DashboardTab = "live" | "messages" | "dashboard" | "settings";
+export type DashboardTab = "live" | "messages" | "dashboard";
 
 export interface AppConfig {
   monitorGuildId: string | null;
-  dashboardIsPublic: boolean;
-}
-
-/** Response from GET /api/admin/settings */
-export interface AdminSettings {
-  dashboardIsPublic: boolean;
-  envDashboardIsPublic: boolean;
 }

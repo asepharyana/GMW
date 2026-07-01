@@ -1,7 +1,7 @@
 @import "tailwindcss";
+@config "../tailwind.config.js";
 
 @layer base {
-  /* ── Light theme (default) ───────────────────────────────────────────── */
   :root {
     --background: 1 0 0;
     --foreground: 0.141 0.005 285.823;
@@ -25,49 +25,10 @@
     --primary-glow: 0.623 0.214 259.815 / 0.15;
     --accent-glow: 0.552 0.016 285.938 / 0.15;
     --card-shadow: 0.92 0.004 286.32 / 0.3;
-    --particle-primary: 0.623 0.214 259.815 / 0.1;
-    --particle-secondary: 0.552 0.016 285.938 / 0.1;
-    --brand-gradient-from: var(--primary);
-    --brand-gradient-to: 0.623 0.2 200;
-    --scrollbar-track: 0.967 0.001 286.375;
-    --scrollbar-thumb: 0.92 0.004 286.32;
   }
 
-  /* ── Dark theme ──────────────────────────────────────────────────────── */
-  [data-theme="dark"] {
-    --background: 0.147 0.004 285.823;
-    --foreground: 0.92 0.004 286.32;
-    --card: 0.162 0.008 286.034;
-    --card-foreground: 0.92 0.004 286.32;
-    --primary: 0.623 0.214 259.815;
-    --primary-soft: 0.3 0.04 259.815;
-    --primary-foreground: 0.97 0.014 254.604;
-    --secondary: 0.2 0.008 286.034;
-    --secondary-foreground: 0.85 0.008 286.034;
-    --muted: 0.2 0.008 286.034;
-    --muted-foreground: 0.6 0.016 285.938;
-    --accent: 0.2 0.008 286.034;
-    --accent-foreground: 0.85 0.008 286.034;
-    --destructive: 0.577 0.245 27.325;
-    --destructive-foreground: 0.97 0.014 254.604;
-    --border: 0.25 0.008 286.034;
-    --input: 0.25 0.008 286.034;
-    --ring: 0.623 0.214 259.815;
-    --primary-glow: 0.623 0.214 259.815 / 0.08;
-    --accent-glow: 0.552 0.016 285.938 / 0.08;
-    --card-shadow: 0 0 0 / 0.5;
-    --particle-primary: 0.623 0.214 259.815 / 0.06;
-    --particle-secondary: 0.552 0.016 285.938 / 0.06;
-    --brand-gradient-from: var(--primary);
-    --brand-gradient-to: 0.7 0.2 220;
-    --scrollbar-track: 0.147 0.004 285.823;
-    --scrollbar-thumb: 0.3 0.008 286.034;
-  }
-
-  /* ── Base styles ─────────────────────────────────────────────────────── */
-  [data-theme] {
+  * {
     border-color: oklch(var(--border));
-    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
 
   body {
@@ -75,7 +36,7 @@
     color: oklch(var(--foreground));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-family: Outfit, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: Poppins, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
   html,
@@ -83,47 +44,22 @@
   #root {
     min-height: 100%;
   }
-
-  /* ── Scrollbar styling ───────────────────────────────────────────────── */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: oklch(var(--scrollbar-track));
-  }
-  ::-webkit-scrollbar-thumb {
-    background: oklch(var(--scrollbar-thumb));
-    border-radius: 999px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: oklch(var(--muted-foreground) / 0.5);
-  }
-
-  /* ── Focus ring consistency ──────────────────────────────────────────── */
-  :focus-visible {
-    outline: 2px solid oklch(var(--ring));
-    outline-offset: 2px;
-  }
 }
 
 @layer utilities {
   .glass-card {
-    @apply backdrop-blur-sm rounded-xl;
-    background-color: oklch(var(--card) / 0.7);
-    border: 1px solid oklch(var(--border));
+    @apply bg-white/70 backdrop-blur-sm border border-[oklch(0.92_0.004_286.32)] rounded-xl;
   }
 
   .grid-pattern {
     background-image:
-      linear-gradient(oklch(var(--border) / 0.3) 1px, transparent 1px),
-      linear-gradient(90deg, oklch(var(--border) / 0.3) 1px, transparent 1px);
+      linear-gradient(oklch(0.92 0.004 286.32 / 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(0.92 0.004 286.32 / 0.3) 1px, transparent 1px);
     background-size: 40px 40px;
   }
 
   .gradient-text {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(to right, oklch(var(--brand-gradient-from)), oklch(var(--brand-gradient-to)));
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-400;
   }
 
   .animate-fade-in-up {
@@ -163,32 +99,23 @@
   to { opacity: 1; }
 }
 
-@keyframes glow-pulse {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(1.05); }
-}
-
 .animate-bar-pulse {
   animation: bar-pulse 0.4s ease-in-out infinite;
   transform-origin: bottom;
 }
 
 .animate-shimmer {
+  background: linear-gradient(
     90deg,
-    oklch(var(--border) / 0.5) 0%,
-    oklch(var(--muted)) 40%,
-    oklch(var(--border) / 0.5) 80%,
-    oklch(var(--border) / 0.7) 100%
+    oklch(0.92 0.004 286.32 / 0.5) 0%,
+    oklch(0.967 0.001 286.375) 40%,
+    oklch(0.92 0.004 286.32 / 0.5) 80%,
+    oklch(0.92 0.004 286.32 / 0.7) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
-.animate-glow-pulse {
-  animation: glow-pulse 4s ease-in-out infinite;
-}
-
-/* ── Reduced motion ──────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

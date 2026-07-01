@@ -95,9 +95,6 @@ export const pgMessagesTable = pgTable(
     threadAiStatusCreatedIdx: pgIndex(
       "idx_messages_thread_ai_status_created",
     ).on(table.thread_id, table.ai_status, table.created_at, table.id),
-    guildAiStatusAnalyzedIdx: pgIndex(
-      "idx_messages_guild_ai_status_analyzed",
-    ).on(table.guild_id, table.ai_status, table.ai_analyzed_at, table.id),
   }),
 );
 

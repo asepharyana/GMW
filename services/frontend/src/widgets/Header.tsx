@@ -1,8 +1,7 @@
 import { motion } from "framer-motion";
-import { Moon, Sun, Wifi, WifiOff } from "lucide-react";
+import { Wifi, WifiOff } from "lucide-react";
 import type { DashboardTab } from "../entities/ui/types.js";
 import type { VoiceStatus } from "../entities/voice/types.js";
-import type { ThemeMode } from "../hooks/useTheme";
 import { fadeSlideUp } from "../shared/hooks/useFramerStagger";
 import { cn } from "../shared/lib/utils";
 import { Badge } from "../shared/ui";
@@ -12,23 +11,18 @@ const titles: Record<DashboardTab, string> = {
   messages: "Messages & Moderation",
   live: "Voice & Media",
   dashboard: "Dashboard",
-  settings: "Admin Settings",
 };
 
 const subtitles: Record<DashboardTab, string> = {
   messages: "Capture, analyse, and moderate Discord messages.",
   live: "Join voice channels, play media, stream audio, and browse recordings.",
   dashboard: "Server statistics, user profiles, and AI moderation overview.",
-  settings: "Manage dashboard visibility, runtime configuration, and authentication.",
 };
 
 interface HeaderProps {
   activeTab: DashboardTab;
   wsStatus: WsStatus;
   voiceStatus: VoiceStatus;
-  themeMode: ThemeMode;
-  isDark: boolean;
-  onThemeToggle: () => void;
 }
 
 /** Dot indicator colour for WS badge */
@@ -69,7 +63,7 @@ function VoiceIndicator({ voiceStatus }: { voiceStatus: VoiceStatus }) {
   );
 }
 
-export function Header({ activeTab, wsStatus, voiceStatus, themeMode, isDark, onThemeToggle }: HeaderProps) {
+export function Header({ activeTab, wsStatus, voiceStatus }: HeaderProps) {
   return (
     <header className="sticky top-0 z-10 border-b border-border/50 bg-background/70 px-4 py-4 backdrop-blur-sm md:px-8">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -98,22 +92,8 @@ export function Header({ activeTab, wsStatus, voiceStatus, themeMode, isDark, on
           </p>
         </motion.div>
 
-        {/* Right: status badges + theme toggle */}
+        {/* Right: status badges */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Theme toggle */}
-          <button
-            onClick={onThemeToggle}
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-card/50 px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-            title={`Switch to ${isDark ? "light" : "dark"} mode`}
-          >
-            {isDark ? (
-              <Sun className="h-3.5 w-3.5 text-amber-400" />
-            ) : (
-              <Moon className="h-3.5 w-3.5 text-indigo-400" />
-            )}
-            <span className="hidden sm:inline">{isDark ? "Light" : "Dark"}</span>
-          </button>
-
           {/* WS Badge */}
           <Badge
             variant="outline"

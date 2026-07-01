@@ -59,13 +59,7 @@ export const configSchema = z
       .optional()
       .transform((v) => v === "true")
       .default(false),
-    ADMIN_PASSWORD: z.string().min(1, "ADMIN_PASSWORD is required — set it in your .env file"),
-    DASHBOARD_IS_PUBLIC: z
-      .string()
-      .optional()
-      .transform((v) => v === "true")
-      .default(false),
-
+    ADMIN_PASSWORD: z.string().default("admin123"),
     WEBHOOK_URLS: z
       .string()
       .default("")
@@ -128,7 +122,7 @@ export const configSchema = z
       .string()
       .url()
       .default("https://9router.asepharyana.my.id/v1"),
-    AI_LLM_MODEL: z.string().default("gpt-4o-mini"),
+    AI_LLM_MODEL: z.string().default("text"),
     AI_LLM_VISION_MODEL: z.string().optional(),
     AI_LLM_MAX_CONCURRENT: z.coerce.number().int().positive().default(5),
     AI_LLM_IMAGE_MAX_DIMENSION: z.coerce

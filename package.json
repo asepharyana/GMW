@@ -8,6 +8,8 @@
     "dev:backend": "pnpm --filter './services/backend' run dev",
     "dev:discord-gateway": "pnpm --filter './services/discord-gateway' run dev",
     "dev:web": "pnpm --filter './services/frontend' run dev",
+    "build:backend": "pnpm --filter './services/backend' run build",
+    "build:discord-gateway": "pnpm --filter './services/discord-gateway' run build",
     "build:web": "pnpm --filter './services/frontend' run build",
     "typecheck": "pnpm -r run typecheck",
     "lint": "biome check --diagnostic-level=error .",

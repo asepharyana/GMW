@@ -1,6 +1,4 @@
-import { Settings } from "lucide-react";
 import { useState } from "react";
-import { AdminPanel } from "../../features/admin/AdminPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../shared/ui";
 import { ChannelProfileDetail } from "./components/ChannelProfileDetail";
 import { ChannelSummaryList } from "./components/ChannelSummaryList";
@@ -89,10 +87,6 @@ export function DashboardPanel() {
         <TabsTrigger value="stats">Stats</TabsTrigger>
         <TabsTrigger value="users">Users</TabsTrigger>
         <TabsTrigger value="channels">Channels</TabsTrigger>
-        <TabsTrigger value="admin" className="flex items-center gap-1.5">
-          <Settings className="h-3.5 w-3.5" />
-          Admin
-        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="stats">
@@ -125,10 +119,6 @@ export function DashboardPanel() {
           onRefetch={refetchChannels}
           onSelectChannel={setSelectedChannelId}
         />
-      </TabsContent>
-
-      <TabsContent value="admin">
-        <AdminPanel />
       </TabsContent>
     </Tabs>
   );

@@ -278,50 +278,6 @@ async function processIndividualFallback(
 }
 
 // ---------------------------------------------------------------------------
-// Individual fallback retry queue (used when circuit breaker is active)
-// ---------------------------------------------------------------------------
-
-/** Messages awaiting retry when individual CB cools down. */
-const individualRetryQueue = new LRUCache<string, MessageRecord>({ max: 10000 });
-let individualRetryTimer: ReturnType<typeof setTimeout> | null = null;
-const INDIVIDUAL_RETRY_CHECK_MS = 30000;
-
-/**
- * Schedule a retry for messages that were skipped because the individual
- * circuit breaker was active. Retries once after cooldown expires.
- */
-function scheduleIndividualRetry(messages: MessageRecord[]): void {
-  for (const msg of messages) {
-    if (!individualRetryQueue.has(msg.id)) {
-      individualRetryQueue.set(msg.id, msg);
-    }
-  }
-  if (individualRetryTimer === null) {
-    individualRetryTimer = setTimeout(() => {
-      individualRetryTimer = null;
-      if (Date.now() < individualCooldownUntil) {
-        // Still in cooldown — reschedule
-        scheduleIndividualRetry([]);
-        return;
-      }
-      const ids = [...individualRetryQueue.keys()];
-      const msgs: MessageRecord[] = [];
-      for (const id of ids) {
-        const m = individualRetryQueue.get(id);
-        if (m) {
-          individualRetryQueue.delete(id);
-          msgs.push(m);
-        }
-      }
-      if (msgs.length > 0) {
-        logger.info({ count: msgs.length }, "Retrying individual fallback messages after circuit breaker cooldown");
-        enqueueIndividualFallbacks(msgs);
-      }
-    }, INDIVIDUAL_RETRY_CHECK_MS);
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Enqueue individual fallbacks
 // ---------------------------------------------------------------------------
 
@@ -339,9 +295,8 @@ export function enqueueIndividualFallbacks(messages: MessageRecord[]): void {
         until: new Date(individualCooldownUntil).toISOString(),
         skipped: messages.length,
       },
-      "Individual fallback circuit breaker active — messages queued for retry",
+      "Individual fallback circuit breaker active -- messages will be recovered later",
     );
-    scheduleIndividualRetry(messages);
     return;
   }
 
