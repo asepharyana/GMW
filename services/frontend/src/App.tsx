@@ -31,13 +31,6 @@ export default function App() {
     setAuthenticated(true);
   }, []);
 
-  // If not authenticated, show the auth overlay
-  if (!authenticated) {
-    const isPublicDashboard = import.meta.env.VITE_DASHBOARD_IS_PUBLIC === "true";
-    if (!isPublicDashboard) {
-      return <AuthOverlay onAuthenticated={handleAuthenticated} />;
-    }
-  }
   const voice = useVoiceControl();
   const media = useMediaControl();
   const messages = useMessages();
@@ -48,6 +41,7 @@ export default function App() {
 
   const audio = useAudioPlayback();
   const activeTab = uiState.activeTab || "messages";
+  const isPublicDashboard = import.meta.env.VITE_DASHBOARD_IS_PUBLIC === "true";
   const selectedVoiceGuild =
     uiState.selectedVoiceGuild || uiState.selectedGuild || "";
 
@@ -237,7 +231,9 @@ export default function App() {
         uiState.selectedTextChannel || uiState.selectedVoiceChannel || undefined
       }
     >
-      {activeTab === "live" ? (
+      {activeTab === "live" && !authenticated && !isPublicDashboard ? (
+        <AuthOverlay onAuthenticated={handleAuthenticated} />
+      ) : activeTab === "live" ? (
         <LivePanel
           guilds={voice.guilds}
           voiceChannels={voice.voiceChannels}
