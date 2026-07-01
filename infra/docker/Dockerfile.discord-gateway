@@ -11,10 +11,7 @@ RUN addgroup -S app && adduser -S -G app app
 # Install build tools for native dependencies (node-crc, @discordjs/opus)
 # and ffmpeg for voice transmit (PCM to OggOpus encoding)
 # This is done early to cache this expensive layer
-RUN apk add --no-cache python3 make g++ rust cargo ffmpeg linux-headers
-
-# Use bundled node headers for native addon compilation
-ENV npm_config_nodedir=/usr/local
+RUN apk add --no-cache python3 make g++ rust cargo ffmpeg
 
 # Copy dependency definition files first for better caching
 COPY pnpm-workspace.yaml .
