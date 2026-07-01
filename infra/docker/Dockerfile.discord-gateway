@@ -12,12 +12,8 @@ RUN groupadd --system app && useradd --system -g app app
 # and ffmpeg for voice transmit (PCM to OggOpus encoding)
 # This is done early to cache this expensive layer
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    python3 make g++ ffmpeg curl ca-certificates \
+    python3 make g++ rustc cargo ffmpeg \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Rust via rustup (Debian's rustc/cargo is too old for node-crc)
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Use bundled node headers for native addon compilation
 ENV npm_config_nodedir=/usr/local
