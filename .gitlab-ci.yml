@@ -115,14 +115,18 @@ deploy-vps:
         echo '$CI_JOB_TOKEN' | docker login $CI_REGISTRY -u '$CI_REGISTRY_USER' --password-stdin
 
         echo '→ Updating docker-compose image references...'
-        sed -i 's|ghcr.io/\${OWNER:-mytheclipse}|$REGISTRY_PROJECT|g' infra/docker/docker-compose.yml
-        sed -i 's|\${OWNER:-mytheclipse}|$CI_PROJECT_NAMESPACE|g' infra/docker/docker-compose.yml
-
         echo '→ Pulling latest images...'
         docker compose -f infra/docker/docker-compose.yml pull
 
-        echo '→ Restarting containers...'
+        echo '→ Restarting containers (recreates if image changed)...'
         docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans
+
+        # Force restart proxy to pick up new upstream DNS IPs.
+        # Docker's DNS changes when backend/frontend containers are recreated,
+        # but nginx only resolves upstream hostnames at startup. Without this,
+        # nginx keeps pointing to stale container IPs → 502 Bad Gateway.
+        echo '→ Ensuring proxy container is restarted (nginx upstream DNS refresh)...'
+        docker compose -f infra/docker/docker-compose.yml restart proxy
 
         echo '→ Cleaning up...'
         docker image prune -f
