@@ -310,7 +310,15 @@
   }
 
   .im-btn-primary {
-    @apply im-btn text-white;
+    @apply inline-flex items-center justify-center gap-2 font-semibold text-white;
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    line-height: 20px;
+    border-radius: var(--radius-lg);
+    padding: 12px 24px;
+    height: 44px;
+    transition: background-color var(--transition-fast);
     background-color: var(--primary);
   }
   .im-btn-primary:hover {
@@ -321,7 +329,15 @@
   }
 
   .im-btn-secondary {
-    @apply im-btn;
+    @apply inline-flex items-center justify-center gap-2 font-semibold;
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    line-height: 20px;
+    border-radius: var(--radius-lg);
+    padding: 12px 24px;
+    height: 44px;
+    transition: background-color var(--transition-fast);
     background-color: transparent;
     color: var(--primary);
     border: 1px solid var(--border);
@@ -332,7 +348,15 @@
   }
 
   .im-btn-ghost {
-    @apply im-btn;
+    @apply inline-flex items-center justify-center gap-2 font-semibold;
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    line-height: 20px;
+    border-radius: var(--radius-lg);
+    padding: 12px 24px;
+    height: 44px;
+    transition: background-color var(--transition-fast);
     background-color: transparent;
     color: var(--foreground);
   }
@@ -489,16 +513,16 @@
     @apply inline-block h-2 w-2 rounded-full;
   }
   .im-status-dot-success {
-    @apply im-status-dot bg-[#22c55e];
+    @apply inline-block h-2 w-2 rounded-full bg-[#22c55e];
   }
   .im-status-dot-warning {
-    @apply im-status-dot bg-[#f59e0b];
+    @apply inline-block h-2 w-2 rounded-full bg-[#f59e0b];
   }
   .im-status-dot-error {
-    @apply im-status-dot bg-[#e4405f];
+    @apply inline-block h-2 w-2 rounded-full bg-[#e4405f];
   }
   .im-status-dot-idle {
-    @apply im-status-dot bg-[#cccccc];
+    @apply inline-block h-2 w-2 rounded-full bg-[#cccccc];
   }
 
   /* ─── Divider ───────────────────────────────────────────────────────── */
