@@ -1,4 +1,4 @@
-FROM node:22-slim
+FROM node:22-alpine
 
 WORKDIR /app
 
@@ -6,14 +6,12 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 # Create non-root user
-RUN groupadd --system app && useradd --system -g app app
+RUN addgroup -S app && adduser -S -G app app
 
 # Install build tools for native dependencies (node-crc, @discordjs/opus)
 # and ffmpeg for voice transmit (PCM to OggOpus encoding)
 # This is done early to cache this expensive layer
-RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    python3 make g++ rustc cargo ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache python3 make g++ rust cargo ffmpeg linux-headers
 
 # Use bundled node headers for native addon compilation
 ENV npm_config_nodedir=/usr/local
