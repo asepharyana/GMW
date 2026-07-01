@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { UIState } from "../types/ui-types.js";
+import type { UIState } from "../../entities/ui/types.js";
 import { uiStateValidator, useLocalStorage } from "./useLocalStorage";
 
 export function useUIState() {

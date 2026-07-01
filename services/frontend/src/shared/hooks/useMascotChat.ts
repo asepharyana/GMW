@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
+import type { ChatResponse } from "../../entities/dashboard/types.js";
 import { request } from "../api/client";
 import { createLogger } from "../lib/logger";
-import type { ChatResponse } from "../types/dashboard.js";
 
 const logger = createLogger("useMascotChat");
 

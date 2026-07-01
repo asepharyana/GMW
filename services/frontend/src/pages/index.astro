@@ -1,6 +1,12 @@
 ---
-// ─── index.astro — Redirect to live dashboard ──────────────────────────────
-// The root path now redirects to /live where the full SPA lives.
-// ────────────────────────────────────────────────────────────────────────────
-return Astro.redirect("/live", 301);
+// ─── index.astro — BETE's main entry point ──────────────────────────────────
+// Shell statis: semua interaktivitas di-delegate ke React island
+// ──────────────────────────────────────────────────────────────────────────────
+import BaseLayout from "../layouts/BaseLayout.astro";
+import AppClient from "../App.client";
 ---
+
+<BaseLayout>
+  <!-- React island: seluruh SPA di-render oleh React -->
+  <AppClient client:only="react" />
+</BaseLayout>
