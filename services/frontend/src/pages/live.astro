@@ -1,108 +1,14 @@
 ---
 // ─── live.astro — Voice & Media live monitoring page ────────────────────────
-// Layout shell (Sidebar, Header) rendered as zero-JS Astro components.
-// Only the truly interactive parts are React islands with client directives.
+// Full-page layout with Sidebar navigation, Header, and the LiveShell React
+// island that composes all live components (VoiceControls, ActiveSpeakers,
+// AudioVisualizer, NowPlaying).
+// Particles and MascotChat are embedded inside the LiveShell island.
 // ────────────────────────────────────────────────────────────────────────────
 import BaseLayout from "../layouts/BaseLayout.astro";
-import Sidebar from "../components/sidebar/Sidebar.astro";
-import Header from "../components/header/Header.astro";
-import Card from "../components/ui/Card.astro";
-
-// React islands — interactive only
-import ThemeToggle from "../islands/ThemeToggle";
-import VoiceControls from "../islands/VoiceControls";
-import ActiveSpeakers from "../islands/ActiveSpeakers";
-import AudioVisualizer from "../islands/AudioVisualizer";
-import NowPlaying from "../islands/NowPlaying";
-import Particles from "../islands/Particles";
-import MascotChat from "../islands/MascotChat";
+import LiveShell from "../islands/LiveShell";
 ---
 
 <BaseLayout>
-  <div class="live-page-layout">
-    <!-- Sidebar — zero JS Astro component -->
-    <Sidebar activeTab="live" />
-
-    <main class="live-main-area">
-      <!-- Header — zero JS, ThemeToggle is a tiny React island -->
-      <Header title="Live">
-        <ThemeToggle slot="actions" client:idle />
-      </Header>
-
-      <div class="live-content p-4 md:p-6 lg:p-8">
-        <!-- Responsive grid: stacks on <1024px -->
-        <div class="live-grid">
-          <!-- Main column -->
-          <div class="live-main-col space-y-4 md:space-y-6">
-            <!-- VoiceControls — core functionality, load immediately -->
-            <Card variant="glass">
-              <h2 class="text-base font-semibold mb-3">Voice Connection</h2>
-              <VoiceControls client:load />
-            </Card>
-
-            <!-- AudioVisualizer — deferred, not critical -->
-            <Card>
-              <h2 class="text-base font-semibold mb-3">Live Audio</h2>
-              <AudioVisualizer client:idle barCount={48} height={32} />
-            </Card>
-
-            <!-- NowPlaying — deferred -->
-            <Card>
-              <h2 class="text-base font-semibold mb-3">Now Playing</h2>
-              <NowPlaying client:idle />
-            </Card>
-          </div>
-
-          <!-- Sidebar column -->
-          <aside class="live-sidebar-col space-y-4 md:space-y-6">
-            <Card>
-              <h2 class="text-base font-semibold mb-3">Active Speakers</h2>
-              <ActiveSpeakers client:idle />
-            </Card>
-          </aside>
-        </div>
-      </div>
-    </main>
-  </div>
-
-  <!-- Deferred background & mascot -->
-  <Particles client:idle />
-  <MascotChat client:idle />
+  <LiveShell client:only="react" />
 </BaseLayout>
-
-<style is:global>
-  .live-page-layout {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    min-height: 100vh;
-  }
-
-  .live-main-area {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .live-content {
-    flex: 1;
-    overflow-y: auto;
-  }
-
-  .live-grid {
-    display: grid;
-    gap: 1.5rem;
-  }
-
-  @media (min-width: 1024px) {
-    .live-grid {
-      grid-template-columns: 1fr 320px;
-    }
-  }
-
-  .live-sidebar-col {
-    position: sticky;
-    top: calc(56px + 2rem);
-    align-self: start;
-  }
-</style>

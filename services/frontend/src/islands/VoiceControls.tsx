@@ -1,47 +1,29 @@
 // ─── VoiceControls.tsx — Voice bridge island ────────────────────────────────
-// Self-contained: fetches guilds/channels internally, reads/writes useVoiceStore,
-// calls API for connect/disconnect.
+// Self-contained: reads/writes useVoiceStore, calls API for connect/disconnect.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Radio } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import {
-  connectVoice,
-  disconnectVoice,
-  getGuilds,
-  getVoiceChannels,
-} from "../shared/api/client.js";
+import { useCallback, useState } from "react";
+import { connectVoice, disconnectVoice } from "../shared/api/client.js";
 import { Button, Select } from "../shared/components/index.js";
 import type { Channel, Guild } from "../shared/types/guild.js";
 import { useVoiceStore } from "../stores/voice-store.js";
 
-export default function VoiceControls() {
+interface VoiceControlsProps {
+  guilds: Guild[];
+  voiceChannels: Channel[];
+}
+
+export default function VoiceControls({
+  guilds,
+  voiceChannels,
+}: VoiceControlsProps) {
   const connected = useVoiceStore((state) => state.connected);
   const guildId = useVoiceStore((state) => state.guildId);
   const channelId = useVoiceStore((state) => state.channelId);
   const setGuildChannel = useVoiceStore((state) => state.setGuildChannel);
   const setConnected = useVoiceStore((state) => state.setConnected);
   const [loading, setLoading] = useState(false);
-  const [guilds, setGuilds] = useState<Guild[]>([]);
-  const [voiceChannels, setVoiceChannels] = useState<Channel[]>([]);
-
-  // Fetch guilds on mount
-  useEffect(() => {
-    getGuilds()
-      .then(setGuilds)
-      .catch(() => { /* offline */ });
-  }, []);
-
-  // Fetch voice channels when guild selection changes
-  useEffect(() => {
-    if (guildId) {
-      getVoiceChannels(guildId)
-        .then(setVoiceChannels)
-        .catch(() => setVoiceChannels([]));
-    } else {
-      setVoiceChannels([]);
-    }
-  }, [guildId]);
 
   const handleConnect = useCallback(async () => {
     if (!guildId || !channelId) return;
@@ -69,7 +51,7 @@ export default function VoiceControls() {
   }, [setConnected]);
 
   return (
-    <div className="space-y-4">
+    <div className="glass rounded-xl p-6">
       <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
         <Radio className="h-5 w-5 text-primary" /> Voice Bridge
       </h3>
