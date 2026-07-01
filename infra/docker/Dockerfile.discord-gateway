@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:22-slim
 
 WORKDIR /app
 
@@ -6,12 +6,18 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 # Create non-root user
-RUN addgroup -S app && adduser -S -G app app
+RUN groupadd --system app && useradd --system -g app app
 
 # Install build tools for native dependencies (node-crc, @discordjs/opus)
 # and ffmpeg for voice transmit (PCM to OggOpus encoding)
 # This is done early to cache this expensive layer
-RUN apk add --no-cache python3 make g++ rust cargo ffmpeg
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    python3 make g++ ffmpeg curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust via rustup (Debian's rustc/cargo is too old for node-crc)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Copy dependency definition files first for better caching
 COPY pnpm-workspace.yaml .
@@ -20,9 +26,6 @@ COPY package.json .
 
 # Copy patches (pnpm patchedDependencies)
 COPY patches ./patches
-
-# Copy vendor packages (workspace dependencies)
-COPY vendor/discord.js-selfbot-v13 ./vendor/discord.js-selfbot-v13
 
 # Copy packages (workspace dependencies)
 COPY packages/shared ./packages/shared
