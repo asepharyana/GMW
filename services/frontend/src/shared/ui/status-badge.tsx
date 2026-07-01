@@ -1,3 +1,7 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+ * IMPHNEN StatusBadge — Untuk AI status moderation (flagged/clean/error/dll)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
 import type { ReactNode } from "react";
 import { cn } from "../lib/utils";
 
@@ -12,19 +16,14 @@ export type StatusType =
   | "none";
 
 const statusStyles: Record<StatusType, string> = {
-  flagged:
-    "bg-red-100 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800",
-  clean:
-    "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800",
-  warn: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800",
-  pending: "bg-muted text-muted-foreground border-border",
-  processing:
-    "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800",
-  error:
-    "bg-red-100 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800",
-  deleted:
-    "bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800 line-through",
-  none: "bg-muted text-muted-foreground border-border",
+  flagged: "bg-[#ffebee] text-[#e4405f] border-[#ffcdd2]",
+  clean: "bg-[#dcfce7] text-[#166534] border-[#bbf7d0]",
+  warn: "bg-[#fef3c7] text-[#92400e] border-[#fde68a]",
+  pending: "bg-[#f5f5f5] text-[#666666] border-[#e0e0e0]",
+  processing: "bg-[#e1f0fd] text-[#0d4a7a] border-[#bce1fb]",
+  error: "bg-[#ffebee] text-[#e4405f] border-[#ffcdd2]",
+  deleted: "bg-[#f0f0f0] text-[#999999] border-[#e0e0e0] line-through",
+  none: "bg-[#f5f5f5] text-[#666666] border-[#e0e0e0]",
 };
 
 interface StatusBadgeProps {
@@ -39,7 +38,8 @@ export function StatusBadge({ status, className, children }: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
+        "inline-flex items-center rounded-full border px-2.5 py-0.5",
+        "font-sans text-xs font-medium leading-4 tracking-[0.03em]",
         style,
         className,
       )}

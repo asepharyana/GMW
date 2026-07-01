@@ -16,7 +16,7 @@ function kindBadge(kind: ImageItem["kind"]): string {
     case "attachment":
       return "bg-primary-soft text-primary border-primary/30";
     case "embed":
-      return "bg-purple-100 text-purple-700 border-purple-200";
+      return "bg-tertiary-soft text-tertiary border-tertiary/20";
   }
 }
 

@@ -34,7 +34,7 @@ export function ActiveSpeakers({ speakers }: ActiveSpeakersProps) {
                 />
                 <span
                   className={`text-xs font-medium ${
-                    s.speaking ? "text-emerald-600" : "text-muted-foreground"
+                    s.speaking ? "text-success" : "text-muted-foreground"
                   }`}
                 >
                   {s.speaking ? "Speaking" : "Silent"}

@@ -121,7 +121,7 @@ export function RecordingsSubPanel() {
   return (
     <div className="space-y-3">
       {recordings.map((rec) => (
-        <div key={rec.id} className="rounded-xl border border-sky-200 bg-white">
+        <div key={rec.id} className="rounded-xl border border-[#e0e0e0] bg-white">
           <div className="flex items-center gap-4 p-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Mic className="h-5 w-5" />

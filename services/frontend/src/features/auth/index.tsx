@@ -27,7 +27,7 @@ export function AuthOverlay({ onAuthenticated }: AuthOverlayProps) {
     setError(null);
     try {
       await login(password);
-      localStorage.setItem("admin-password", password);
+      sessionStorage.setItem("admin-password", password);
       onAuthenticated();
     } catch {
       setError("Invalid password");

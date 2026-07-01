@@ -80,13 +80,13 @@ function parseStringList(value?: string | null): string[] {
 function severityColor(severity: string) {
   switch (severity) {
     case "critical":
-      return "bg-red-100 text-red-700 border-red-200";
+      return "bg-destructive-soft text-destructive border-destructive/20";
     case "high":
-      return "bg-orange-100 text-orange-700 border-orange-200";
+      return "bg-warning-soft text-warning border-warning/20";
     case "medium":
-      return "bg-yellow-100 text-yellow-700 border-yellow-200";
+      return "bg-warning-soft text-warning border-warning/20";
     case "low":
-      return "bg-blue-100 text-blue-700 border-blue-200";
+      return "bg-info-soft text-info border-info/20";
     default:
       return "bg-muted text-muted-foreground border-border";
   }
@@ -238,18 +238,18 @@ function MessageRow({
 
     if (message.is_forward) {
       return (
-        <div className="flex items-center gap-1.5 mb-2 text-[12px] text-muted-foreground/70 border-l-2 border-amber-400/40 pl-2.5 py-1">
-          <Forward className="h-3 w-3 shrink-0 text-amber-500" />
-          <span className="font-medium text-amber-600/70">Forwarded</span>
+        <div className="flex items-center gap-1.5 mb-2 text-[12px] text-muted-foreground/70 border-l-2 border-warning/40 pl-2.5 py-1">
+          <Forward className="h-3 w-3 shrink-0 text-warning" />
+          <span className="font-medium text-warning/70">Forwarded</span>
         </div>
       );
     }
 
     if (message.is_crosspost) {
       return (
-        <div className="flex items-center gap-1.5 mb-2 text-[12px] text-muted-foreground/70 border-l-2 border-sky-400/40 pl-2.5 py-1">
-          <MessageCircle className="h-3 w-3 shrink-0 text-sky-500" />
-          <span className="font-medium text-sky-600/70">Crossposted</span>
+        <div className="flex items-center gap-1.5 mb-2 text-[12px] text-muted-foreground/70 border-l-2 border-info/40 pl-2.5 py-1">
+          <MessageCircle className="h-3 w-3 shrink-0 text-info" />
+          <span className="font-medium text-info/70">Crossposted</span>
         </div>
       );
     }
@@ -409,8 +409,8 @@ function MessageRow({
         <div
           className={`rounded-lg border-l-[3px] px-3 py-2 ${
             aiStatus === "flagged"
-              ? "border-l-pink-400 bg-pink-50/40"
-              : "border-l-emerald-400 bg-emerald-50/40"
+              ? "border-l-tertiary bg-tertiary/5"
+              : "border-l-success bg-success-soft"
           }`}
         >
           <div className="flex items-start gap-2 text-[11px]">
@@ -431,7 +431,7 @@ function MessageRow({
 
       {/* AI Error */}
       {message.ai_error ? (
-        <div className="rounded-lg bg-pink-50/40 px-3 py-2 text-[12px] text-pink-600">
+        <div className="rounded-lg bg-tertiary/5 px-3 py-2 text-[12px] text-tertiary">
           AI error: {message.ai_error}
         </div>
       ) : null}
@@ -451,7 +451,7 @@ function MessageRow({
           {isReanalyzing ? "Reanalyzing..." : "Re-analyze"}
         </Button>
         {aiStatus === "error" && (
-          <span className="text-[11px] text-pink-600/70">
+          <span className="text-[11px] text-tertiary/70">
             Click to retry analysis
           </span>
         )}
@@ -483,7 +483,7 @@ export function MessageCard({ messages, onReanalyze }: MessageCardProps) {
   return (
     <article
       className={`group rounded-xl border bg-card shadow-sm transition-all hover:border-primary/30 hover:shadow-md ${
-        firstMsg.deleted_at ? "border-red-200 opacity-60" : "border-border"
+        firstMsg.deleted_at ? "border-destructive/20 opacity-60" : "border-border"
       }`}
     >
       <div className="flex gap-3 p-4">

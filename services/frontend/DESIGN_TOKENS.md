@@ -633,7 +633,7 @@ Framer Motion `AnimatePresence` and `motion` components (used extensively in Mes
 
 ## 13. Known Issues & Technical Debt
 
-### 13.1 Hardcoded Utility Colors — Not Using CSS Variables
+### 13.1 Hardcoded Utility Colors — Not Using CSS Variables — RESOLVED in redesign (all components migrated to CSS vars)
 
 Several components bypass the OKLCH custom property system and use Tailwind's built-in `emerald-*`, `amber-*`, `red-*`, `blue-*`, `orange-*`, `yellow-*`, `violet-*`, `cyan-*`, `purple-*`, `sky-*`, `pink-*` utility classes directly. These will not respond to theme changes.
 
@@ -692,13 +692,13 @@ const primaryColor = getComputedStyle(document.documentElement)
 // Convert OKLCH to hex or use Canvas oklch() if available
 ```
 
-### 13.4 `glow-pulse` Keyframe Fragmentation
+### 13.4 `glow-pulse` Keyframe Fragmentation — RESOLVED in T02 (moved to styles.css)
 
 The `glowPulse` keyframes are defined in `tailwind.config.js` but NOT in `styles.css`. The class `animate-glow-pulse` is referenced by `ParticleBackground.tsx`. Under Tailwind 4's CSS-first configuration, keyframes should live in the stylesheet. The config-only definition works but is inconsistent with `bar-pulse`, `shimmer`, `fadeInUp`, and `fadeIn` which are in `styles.css`.
 
 **Fix**: Move `@keyframes glowPulse { ... }` into `styles.css`.
 
-### 13.5 `shimmer` Duration Mismatch
+### 13.5 `shimmer` Duration Mismatch — RESOLVED in T02 (CSS canonical at 1.5s)
 
 `styles.css`: `animation: shimmer 1.5s ease-in-out infinite`
 `tailwind.config.js`: `shimmer: "shimmer 2s linear infinite"` (also uses `linear` vs. `ease-in-out`)
@@ -707,19 +707,27 @@ The CSS class `.animate-shimmer` (used by `Skeleton.tsx`) references the CSS-bas
 
 **Fix**: Align both sources. Pick one canonical definition.
 
-### 13.6 Z-Index Scale Not Formalized
+### 13.6 Z-Index Scale Not Formalized — RESOLVED (z-index registry established in layout)
 
 No defined z-index scale or Sass/CSS variables. Values jump from 50 to 9999. The chatbot's `z-[9999]` is brittle — any overlay/modal added later risks overlap issues.
 
 **Fix**: Define z-index custom properties: `--z-header: 10`, `--z-overlay: 50`, `--z-modal: 100`, `--z-toast: 50`, etc.
 
-### 13.7 Toast Container z-index Collision
+### 13.7 Toast Container z-index Collision — RESOLVED in T06 (toast now z-40, positioned top-right)
 
 Toast container (`z-50`) and MobileTabBar (`z-50`) at same z-index. On mobile, toasts could be partially hidden behind the tab bar since toasts use `bottom-4` and the tab bar is `bottom-0`. In practice the toast gap prevents overlap, but this is fragile.
 
 ### 13.8 Retro `bg-white` Usage
 
 `RecordingsSubPanel.tsx` uses `bg-white` (line 86) instead of `bg-card`. This will not respect a dark theme if one is added.
+
+---
+
+## 14. Dark Mode
+
+Dark mode is driven by `[data-theme="dark"]` CSS custom property overrides in `styles.css`.
+The theme is managed by `useTheme()` hook (`shared/hooks/useTheme.ts`).
+See the full palette in `docs/superpowers/specs/2026-07-02-bete-frontend-redesign-design.md`.
 
 ---
 

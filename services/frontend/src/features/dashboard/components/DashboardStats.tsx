@@ -66,22 +66,22 @@ export function DashboardStatsContent() {
       title: "Today's Messages",
       value: stats.today_messages.toLocaleString(),
       icon: MessageSquare,
-      color: "text-emerald-500",
-      bg: "bg-emerald-100",
+      color: "text-success",
+      bg: "bg-success-soft",
     },
     {
       title: "Total Users",
       value: stats.total_users.toLocaleString(),
       icon: Users,
-      color: "text-blue-500",
-      bg: "bg-blue-100",
+      color: "text-primary",
+      bg: "bg-primary-soft",
     },
     {
       title: "Active Users (24h)",
       value: stats.active_users_24h.toLocaleString(),
       icon: UserCheck,
-      color: "text-violet-500",
-      bg: "bg-violet-100",
+      color: "text-tertiary",
+      bg: "bg-tertiary-soft",
     },
     {
       title: "Flagged",
@@ -94,23 +94,23 @@ export function DashboardStatsContent() {
       title: "Clean",
       value: stats.total_clean.toLocaleString(),
       icon: ShieldAlert,
-      color: "text-emerald-600",
-      bg: "bg-emerald-100",
+      color: "text-success",
+      bg: "bg-success-soft",
     },
     {
       title: "Voice Recordings",
       value: stats.total_voice_recordings.toLocaleString(),
       icon: Mic,
-      color: "text-cyan-500",
-      bg: "bg-cyan-100",
+      color: "text-info",
+      bg: "bg-info-soft",
       onClick: () => patchUIState({ activeTab: "live" }),
     },
     {
       title: "AI Profiles",
       value: stats.total_profiles.toLocaleString(),
       icon: Users,
-      color: "text-amber-500",
-      bg: "bg-amber-100",
+      color: "text-warning",
+      bg: "bg-warning-soft",
     },
   ];
 
@@ -207,7 +207,7 @@ export function DashboardStatsContent() {
                 <p className="text-xs text-muted-foreground mt-1">Pending</p>
               </div>
               <div className="rounded-xl border border-border bg-card p-4 text-center">
-                <p className="text-2xl font-bold text-amber-500">
+                <p className="text-2xl font-bold text-warning">
                   {stats.moderation_overview.processing}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">Processing</p>

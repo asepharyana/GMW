@@ -40,9 +40,12 @@ export function AudioVisualizer({ levels }: AudioVisualizerProps) {
     const barWidth = width / levels.length;
     const maxBarHeight = height * 0.85;
 
+    const root = getComputedStyle(document.documentElement);
+    const primaryColor = root.getPropertyValue("--primary").trim() || "#23a1eb";
+
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, "#23a1eb");
-    gradient.addColorStop(1, "#3eb0f2");
+    gradient.addColorStop(0, primaryColor);
+    gradient.addColorStop(1, primaryColor);
 
     for (let i = 0; i < levels.length; i++) {
       const level = levels[i];

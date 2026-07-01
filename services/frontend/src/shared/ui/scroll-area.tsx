@@ -1,3 +1,7 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+ * IMPHNEN ScrollArea — Radix-based, scrollbar dengan primary accent
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import type * as React from "react";
 import { cn } from "../lib/utils";
@@ -32,7 +36,7 @@ function ScrollBar({
     <ScrollAreaPrimitive.ScrollAreaScrollbar
       orientation={orientation}
       className={cn(
-        "flex touch-none select-none transition-colors",
+        "flex touch-none select-none transition-colors duration-[150ms]",
         orientation === "vertical" &&
           "h-full w-2.5 border-l border-l-transparent p-[1px]",
         orientation === "horizontal" &&
@@ -41,7 +45,7 @@ function ScrollBar({
       )}
       {...props}
     >
-      <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-primary/20" />
+      <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-[#23a1eb]/20 hover:bg-[#23a1eb]/40 transition-colors" />
     </ScrollAreaPrimitive.ScrollAreaScrollbar>
   );
 }

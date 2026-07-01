@@ -1,5 +1,7 @@
-// ─── Toast notification system ──────────────────────────────────────────────
-// (no entity type imports needed — only uses string/ReactNode)
+/* ═══════════════════════════════════════════════════════════════════════════
+ * IMPHNEN Toast — Notifikasi ringan dengan IMPHNEN brand accent
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
 import {
   AlertCircle,
   AlertTriangle,
@@ -63,7 +65,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [removeToast],
   );
 
-  // Cleanup all timers on unmount
   useEffect(() => {
     const current = timersRef.current;
     return () => {
@@ -87,17 +88,17 @@ export function useToast() {
 }
 
 const typeStyles: Record<Toast["type"], string> = {
-  info: "border-l-primary bg-card text-card-foreground",
-  success: "border-l-emerald-500 bg-card text-card-foreground",
-  error: "border-l-destructive bg-card text-card-foreground",
-  warning: "border-l-amber-500 bg-card text-card-foreground",
+  info: "border-l-info bg-white text-info",
+  success: "border-l-success bg-white text-success",
+  error: "border-l-destructive bg-white text-destructive",
+  warning: "border-l-warning bg-white text-warning",
 };
 
 const typeIcons: Record<Toast["type"], React.ReactNode> = {
-  info: <Info className="h-4 w-4 text-primary" />,
-  success: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
+  info: <Info className="h-4 w-4 text-info" />,
+  success: <CheckCircle2 className="h-4 w-4 text-success" />,
   error: <AlertCircle className="h-4 w-4 text-destructive" />,
-  warning: <AlertTriangle className="h-4 w-4 text-amber-500" />,
+  warning: <AlertTriangle className="h-4 w-4 text-warning" />,
 };
 
 function ToastContainer() {
@@ -109,7 +110,7 @@ function ToastContainer() {
     <div
       role="alert"
       aria-live="polite"
-      className="fixed bottom-4 right-4 z-50 flex flex-col gap-2"
+      className="fixed top-4 right-4 z-40 flex flex-col gap-2"
     >
       {toasts.map((toast) => (
         <div
@@ -117,7 +118,7 @@ function ToastContainer() {
           role="button"
           tabIndex={0}
           className={cn(
-            "group flex items-center gap-2.5 rounded-lg border border-border px-4 py-3 text-sm shadow-md cursor-pointer transition-all hover:scale-[1.02] border-l-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "group flex items-center gap-2.5 rounded-xl border border-[#e0e0e0] px-4 py-3 text-sm shadow-[0_4px_12px_rgba(0,0,0,0.08)] cursor-pointer transition-all duration-200 hover:scale-[1.02] border-l-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#23a1eb]/40",
             typeStyles[toast.type],
           )}
           onClick={() => removeToast(toast.id)}
@@ -128,10 +129,10 @@ function ToastContainer() {
           }}
         >
           <span className="flex-shrink-0">{typeIcons[toast.type]}</span>
-          <span className="flex-1">{toast.message}</span>
+          <span className="flex-1 font-sans text-sm">{toast.message}</span>
           <X
             aria-label="Close notification"
-            className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+            className="h-3.5 w-3.5 flex-shrink-0 text-[#999999] md:opacity-0 md:group-hover:opacity-100 transition-opacity"
           />
         </div>
       ))}

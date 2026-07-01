@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ActiveSpeaker } from "./entities/voice/types.js";
+import { AuthOverlay } from "./features/auth";
 import { DashboardPanel } from "./features/dashboard";
 import { LivePanel } from "./features/live";
 import { useMediaControl } from "./features/live/hooks/useMediaControl";
@@ -13,6 +14,7 @@ import {
 import { getAppConfig } from "./shared/api/client";
 import { useAudioPlayback } from "./shared/hooks/useAudioPlayback";
 import { useAudioTransmit } from "./shared/hooks/useAudioTransmit";
+import { useTheme } from "./shared/hooks/useTheme";
 import { useUIState } from "./shared/hooks/useUIState";
 import { MobileTabBar } from "./shared/ui/MobileTabBar";
 import { useDashboardSocket } from "./shared/ws/socket";
@@ -20,6 +22,22 @@ import { DashboardLayout } from "./widgets/DashboardLayout";
 
 export default function App() {
   const { uiState, patchUIState } = useUIState();
+  const [authenticated, setAuthenticated] = useState(() => {
+    return sessionStorage.getItem("admin-password") !== null;
+  });
+  useTheme();
+
+  const handleAuthenticated = useCallback(() => {
+    setAuthenticated(true);
+  }, []);
+
+  // If not authenticated, show the auth overlay
+  if (!authenticated) {
+    const isPublicDashboard = import.meta.env.VITE_DASHBOARD_IS_PUBLIC === "true";
+    if (!isPublicDashboard) {
+      return <AuthOverlay onAuthenticated={handleAuthenticated} />;
+    }
+  }
   const voice = useVoiceControl();
   const media = useMediaControl();
   const messages = useMessages();

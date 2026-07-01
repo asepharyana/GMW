@@ -138,7 +138,7 @@ export function MessagesPanel({
           </Badge>
           <Badge
             variant="outline"
-            className="text-xs bg-emerald-100 text-emerald-700 border-emerald-200"
+            className="text-xs bg-success-soft text-success border-success/20"
           >
             {stats.clean} clean
           </Badge>
@@ -150,7 +150,7 @@ export function MessagesPanel({
           </Badge>
           <Badge
             variant="outline"
-            className="text-xs bg-orange-100 text-orange-700 border-orange-200"
+            className="text-xs bg-warning-soft text-warning border-warning/20"
           >
             {stats.error} error
           </Badge>
@@ -163,7 +163,7 @@ export function MessagesPanel({
           {stats.deleted > 0 && (
             <Badge
               variant="outline"
-              className="text-xs bg-red-100 text-red-700 border-red-200"
+              className="text-xs bg-destructive-soft text-destructive border-destructive/20"
             >
               {stats.deleted} deleted
             </Badge>
@@ -236,7 +236,7 @@ export function MessagesPanel({
           </Button>
         )}
         {retriedCount !== null && (
-          <span className="text-xs text-emerald-600">
+          <span className="text-xs text-success">
             {retriedCount} message{retriedCount !== 1 ? "s" : ""} queued for
             re-analysis
           </span>

@@ -49,12 +49,16 @@ class ApiError extends Error {
   }
 }
 
-// Cache admin password in memory — read from localStorage once on first call
+// Cache admin password in memory — read from sessionStorage once on first call
 let _cachedPassword: string | null = null;
 
 function getAdminPassword(): string | null {
   if (_cachedPassword === null) {
-    _cachedPassword = localStorage.getItem("admin-password");
+    try {
+      _cachedPassword = sessionStorage.getItem("admin-password");
+    } catch {
+      _cachedPassword = null;
+    }
   }
   return _cachedPassword;
 }
