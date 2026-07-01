@@ -23,11 +23,11 @@ variables:
 
 deploy-vps:
   stage: deploy
-  image: debian:stable-slim
+  image: alpine:latest
   only:
     - master
   before_script:
-    - apt-get update -qq && apt-get install -y -qq openssh-client git
+    - apk add --no-cache openssh-client git
     - mkdir -p ~/.ssh
     - cp "$VPS_SSH_KEY" ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
