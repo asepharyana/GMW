@@ -4,9 +4,16 @@
 // All interactive content is delegated to React islands via <slot/>.
 // ──────────────────────────────────────────────────────────────────────────────
 
+// Import global design system styles (Tailwind 4 + tokens)
+import "../styles/base.css";
+
 // Font dari design system: Outfit (menggantikan Poppins)
 const FONT_HREF =
   "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap";
+
+// JetBrains Mono untuk code/monospace
+const FONT_HREF_MONO =
+  "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap";
 
 const FALLBACK_TITLE = "IMPHNEN — Discord Moderation";
 const FALLBACK_DESC =
@@ -21,6 +28,7 @@ const FALLBACK_IMAGE =
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" id="meta-theme-color" content="#ffffff" />
+    <meta name="view-transition" content="same-origin" />
 
     <!-- Primary Meta Tags -->
     <title>{FALLBACK_TITLE}</title>
@@ -42,10 +50,13 @@ const FALLBACK_IMAGE =
     <!-- Icon -->
     <link rel="icon" type="image/svg+xml" href={FALLBACK_IMAGE} />
 
-    <!-- Font Preconnect -->
+    <!-- Font Preconnect & Preload -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href={FONT_HREF} />
+    <link rel="preload" as="style" href={FONT_HREF_MONO} />
     <link href={FONT_HREF} rel="stylesheet" />
+    <link href={FONT_HREF_MONO} rel="stylesheet" />
 
     <!-- ── Anti-FOUC: apply saved theme BEFORE React renders ────────────── -->
     <script is:inline>
@@ -76,6 +87,30 @@ const FALLBACK_IMAGE =
         }
       })();
     </script>
+
+    <!-- ── View Transitions ────────────────────────────────── -->
+    <style is:global>
+      @keyframes fade-out {
+        from { opacity: 1; }
+        to   { opacity: 0; }
+      }
+      @keyframes fade-in-up {
+        from { opacity: 0; transform: translateY(20px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      ::view-transition-old(root) {
+        animation: fade-out 250ms ease-out forwards;
+      }
+      ::view-transition-new(root) {
+        animation: fade-in-up 350ms ease-out forwards;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        ::view-transition-old(root),
+        ::view-transition-new(root) {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
     <!-- React island: seluruh app di-render oleh React -->

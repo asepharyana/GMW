@@ -1,0 +1,15 @@
+---
+// ─── AuthLayout.astro — Centered authentication layout ─────────────────────
+// Wraps BaseLayout with a full-screen centered flex container and a glass card.
+// Used for login, password reset, and other auth-related pages.
+// ────────────────────────────────────────────────────────────────────────────
+import BaseLayout from "./BaseLayout.astro";
+---
+
+<BaseLayout>
+  <main class="flex min-h-screen items-center justify-center p-4">
+    <div class="glass w-full max-w-sm rounded-xl p-6">
+      <slot />
+    </div>
+  </main>
+</BaseLayout>

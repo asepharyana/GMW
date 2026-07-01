@@ -1,6 +1,7 @@
 // ─── Shared HTTP client — all API endpoints in one file ──────────────────────
 
 import type { MessageRecord, PageResult } from "@bete/shared";
+import { createLogger } from "../lib/logger.js";
 import type {
   ChatResponse,
   DashboardChannel,
@@ -8,29 +9,20 @@ import type {
   DashboardStats,
   DashboardUser,
   DashboardUserDetail,
-} from "../../entities/dashboard/types.js";
-import type {
-  Channel,
-  Guild,
-  GuildVoiceEntry,
-} from "../../entities/guild/types.js";
-import type {
-  MediaItem,
-  MediaMode,
-  MediaState,
-} from "../../entities/media/types.js";
+} from "../types/dashboard.js";
+import type { Channel, Guild, GuildVoiceEntry } from "../types/guild.js";
+import type { MediaItem, MediaMode, MediaState } from "../types/media.js";
 import type {
   VoiceRecording,
   VoiceRecordingListResponse,
-} from "../../entities/recording/types.js";
+} from "../types/recording.js";
 import type {
   AdminSettings,
   AppConfig,
   DashboardTab,
   UIState,
-} from "../../entities/ui/types.js";
-import type { ActiveSpeaker, VoiceStatus } from "../../entities/voice/types.js";
-import { createLogger } from "../lib/logger.js";
+} from "../types/ui-types.js";
+import type { ActiveSpeaker, VoiceStatus } from "../types/voice.js";
 
 const logger = createLogger("api");
 
@@ -230,9 +222,7 @@ export function reanalyzeMessage(id: string): Promise<void> {
   return request<void>(`/api/messages/${id}/reanalyze`, { method: "POST" });
 }
 
-export function getMessageById(
-  id: string,
-): Promise<MessageRecord | null> {
+export function getMessageById(id: string): Promise<MessageRecord | null> {
   return request<MessageRecord | null>(`/api/messages/detail/${id}`);
 }
 
@@ -335,7 +325,9 @@ export function deleteRecording(id: string): Promise<void> {
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
-export function login(password: string): Promise<{ ok: boolean; token?: string }> {
+export function login(
+  password: string,
+): Promise<{ ok: boolean; token?: string }> {
   return request<{ ok: boolean; token?: string }>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ password }),

@@ -1,0 +1,97 @@
+---
+export interface Props {
+  severity: "safe" | "low" | "medium" | "high" | "critical";
+  class?: string;
+}
+
+const { severity, class: className = "" } = Astro.props;
+
+const ICONS: Record<string, string> = {
+  safe: "&#x2714;",
+  low: "&#x2197;",
+  medium: "&#x26A0;",
+  high: "&#x26A1;",
+  critical: "&#x2716;",
+};
+
+const icon = ICONS[severity] ?? "";
+---
+
+<span
+  class:list={[`severity-badge severity-badge--${severity}`, className]}
+  data-severity={severity}
+  role="status"
+>
+  <span class="severity-badge__icon" aria-hidden="true" set:html={icon} />
+  <span class="severity-badge__label"><slot /></span>
+</span>
+
+<style is:global>
+  .severity-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding-inline: 0.5rem;
+    padding-block: 0.2rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid transparent;
+    line-height: 1;
+    user-select: none;
+  }
+
+  .severity-badge__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .severity-badge__label {
+    text-transform: capitalize;
+  }
+
+  /* ── Severity: safe → success ──────────────────── */
+
+  .severity-badge--safe {
+    background-color: oklch(var(--success) / 0.15);
+    color: oklch(var(--success));
+    border-color: oklch(var(--success) / 0.25);
+  }
+
+  /* ── Severity: low → info ──────────────────────── */
+
+  .severity-badge--low {
+    background-color: oklch(var(--info) / 0.15);
+    color: oklch(var(--info));
+    border-color: oklch(var(--info) / 0.25);
+  }
+
+  /* ── Severity: medium → warning ────────────────── */
+
+  .severity-badge--medium {
+    background-color: oklch(var(--warning) / 0.15);
+    color: oklch(var(--warning));
+    border-color: oklch(var(--warning) / 0.25);
+  }
+
+  /* ── Severity: high → destructive ──────────────── */
+
+  .severity-badge--high {
+    background-color: oklch(var(--destructive) / 0.12);
+    color: oklch(var(--destructive));
+    border-color: oklch(var(--destructive) / 0.2);
+  }
+
+  /* ── Severity: critical ────────────────────────── */
+
+  .severity-badge--critical {
+    background-color: oklch(var(--destructive) / 0.25);
+    color: oklch(var(--destructive));
+    border-color: oklch(var(--destructive) / 0.4);
+    font-weight: 600;
+  }
+</style>

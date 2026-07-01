@@ -1,0 +1,35 @@
+---
+// ─── EmptyState.astro — Empty / no-data state ───────────────────────────────
+// Features: centered layout, icon, title, description, actions slot
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface Props {
+  icon: string;
+  title: string;
+  description?: string;
+}
+
+const { icon, title, description } = Astro.props;
+---
+
+<div
+  class="flex min-h-64 flex-col items-center justify-center gap-4 px-6 py-12 text-center"
+>
+  <!-- Icon -->
+  <div class="flex size-16 items-center justify-center" aria-hidden="true" set:html={icon} />
+
+  <!-- Title -->
+  <h2 class="text-xl font-semibold text-foreground">{title}</h2>
+
+  <!-- Description -->
+  {description && (
+    <p class="max-w-sm text-sm text-muted-foreground">{description}</p>
+  )}
+
+  <!-- Actions slot (buttons, links, etc.) -->
+  {Astro.slots.has("actions") && (
+    <div class="mt-2">
+      <slot name="actions" />
+    </div>
+  )}
+</div>

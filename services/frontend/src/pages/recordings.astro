@@ -1,0 +1,27 @@
+---
+// ─── recordings.astro — Voice Recordings page ─────────────────────────────
+// Lists all voice recordings with loading/error/empty/success states.
+// ────────────────────────────────────────────────────────────────────────────
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Sidebar from "../components/sidebar/Sidebar.astro";
+import Header from "../components/header/Header.astro";
+import Card from "../components/ui/Card.astro";
+import ThemeToggle from "../islands/ThemeToggle";
+import RecordingsList from "../islands/RecordingsList";
+---
+
+<BaseLayout>
+  <div class="flex min-h-screen">
+    <Sidebar currentPath={Astro.url.pathname} />
+    <div class="ml-64 flex flex-1 flex-col">
+      <Header title="Recordings">
+        <ThemeToggle slot="actions" client:load />
+      </Header>
+      <main class="flex-1 p-6">
+        <Card>
+          <RecordingsList client:load />
+        </Card>
+      </main>
+    </div>
+  </div>
+</BaseLayout>

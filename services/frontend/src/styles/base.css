@@ -1,0 +1,352 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   base.css — BETE Design System
+   Tailwind 4 CSS-first configuration + design tokens + base styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import "tailwindcss/index.css";
+
+/* ───────────────────────────────────────────────────────────────────────────
+   1. Design Tokens — Dark Theme (default)
+   All colors in OKLCH space: lightness chroma hue
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* ── Surfaces ────────────────────────────────────────────────────────── */
+  --background:          0.147 0.004 285.823;
+  --foreground:          0.92  0.004 286.32;
+  --card:                0.162 0.008 286.034;
+  --card-foreground:     0.92  0.004 286.32;
+  --muted:               0.2   0.008 286.034;
+  --muted-foreground:    0.6   0.016 285.938;
+
+  /* ── Brand / Interaction ─────────────────────────────────────────────── */
+  --primary:             0.623 0.214 259.815;
+  --primary-soft:        0.3   0.04  259.815;
+  --primary-foreground:  0.97  0.014 254.604;
+  --secondary:           0.2   0.008 286.034;
+  --secondary-foreground:0.85  0.008 286.034;
+  --accent:              0.2   0.008 286.034;
+  --accent-foreground:   0.85  0.008 286.034;
+
+  /* ── Severity ────────────────────────────────────────────────────────── */
+  --destructive:          0.577 0.245 27.325;
+  --destructive-foreground: 0.97 0.014 254.604;
+  --success:              0.62  0.18  150;
+  --success-foreground:   0.95  0.02  150;
+  --warning:              0.7   0.18  85;
+  --warning-foreground:   0.95  0.02  85;
+  --info:                 0.6   0.15  240;
+  --info-foreground:      0.95  0.02  240;
+
+  /* ── Borders & Rings ─────────────────────────────────────────────────── */
+  --border:               0.25  0.008 286.034;
+  --input:                0.25  0.008 286.034;
+  --ring:                 0.623 0.214 259.815;
+
+  /* ── Glows & Effects ─────────────────────────────────────────────────── */
+  --primary-glow:         0.623 0.214 259.815 / 0.08;
+  --accent-glow:          0.552 0.016 285.938 / 0.08;
+  --card-shadow:          0 0 0 / 0.5;
+  --particle-primary:     0.623 0.214 259.815 / 0.06;
+  --particle-secondary:   0.552 0.016 285.938 / 0.06;
+
+  /* ── Glass ───────────────────────────────────────────────────────────── */
+  --glass-bg:             0.162 0.008 286.034 / 0.4;
+  --glass-border:         0.25  0.008 286.034 / 0.2;
+  --glass-shadow:         0 0 0 / 0.3;
+
+  /* ── Gradients ───────────────────────────────────────────────────────── */
+  --brand-gradient-from:  var(--primary);
+  --brand-gradient-to:    0.7   0.2   220;
+
+  /* ── Scrollbar ───────────────────────────────────────────────────────── */
+  --scrollbar-track:      0.147 0.004 285.823;
+  --scrollbar-thumb:      0.3   0.008 286.034;
+
+  /* ── Spacing Scale (static) ──────────────────────────────────────────── */
+  --spacing-xs:  0.25rem;
+  --spacing-sm:  0.5rem;
+  --spacing-md:  1rem;
+  --spacing-lg:  1.5rem;
+  --spacing-xl:  2rem;
+  --spacing-2xl: 3rem;
+
+  /* ── Border Radius ───────────────────────────────────────────────────── */
+  --radius:      1rem;
+
+  /* ── Z-Index Registry (static) ───────────────────────────────────────── */
+  --z-base:      1;
+  --z-header:    10;
+  --z-overlay:   50;
+  --z-modal:     100;
+  --z-toast:     50;
+
+  /* ── Duration & Easing (static) ──────────────────────────────────────── */
+  --duration-fast:   150ms;
+  --duration-normal: 300ms;
+  --duration-slow:   500ms;
+  --ease-out:        cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-in:         cubic-bezier(0.55, 0.085, 0.68, 0.53);
+  --ease-in-out:     cubic-bezier(0.455, 0.03, 0.515, 0.955);
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   2. Design Tokens — Light Theme
+   ─────────────────────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  /* ── Surfaces ────────────────────────────────────────────────────────── */
+  --background:          1     0     0;
+  --foreground:          0.141 0.005 285.823;
+  --card:                1     0     0;
+  --card-foreground:     0.141 0.005 285.823;
+  --muted:               0.967 0.001 286.375;
+  --muted-foreground:    0.552 0.016 285.938;
+
+  /* ── Brand / Interaction ─────────────────────────────────────────────── */
+  --primary:             0.623 0.214 259.815;
+  --primary-soft:        0.92  0.04  259.815;
+  --primary-foreground:  0.97  0.014 254.604;
+  --secondary:           0.967 0.001 286.375;
+  --secondary-foreground:0.21  0.006 285.885;
+  --accent:              0.967 0.001 286.375;
+  --accent-foreground:   0.21  0.006 285.885;
+
+  /* ── Severity ────────────────────────────────────────────────────────── */
+  --destructive:          0.577 0.245 27.325;
+  --destructive-foreground: 0.97 0.014 254.604;
+  --success:              0.55  0.18  150;
+  --success-foreground:   0.2   0.06  150;
+  --warning:              0.65  0.18  85;
+  --warning-foreground:   0.3   0.08  85;
+  --info:                 0.55  0.15  240;
+  --info-foreground:      0.2   0.06  240;
+
+  /* ── Borders & Rings ─────────────────────────────────────────────────── */
+  --border:               0.92  0.004 286.32;
+  --input:                0.92  0.004 286.32;
+  --ring:                 0.623 0.214 259.815;
+
+  /* ── Glows & Effects ─────────────────────────────────────────────────── */
+  --primary-glow:         0.623 0.214 259.815 / 0.15;
+  --accent-glow:          0.552 0.016 285.938 / 0.15;
+  --card-shadow:          0.92  0.004 286.32 / 0.3;
+  --particle-primary:     0.623 0.214 259.815 / 0.1;
+  --particle-secondary:   0.552 0.016 285.938 / 0.1;
+
+  /* ── Glass ───────────────────────────────────────────────────────────── */
+  --glass-bg:             1     0     0 / 0.4;
+  --glass-border:         0.92  0.004 286.32 / 0.3;
+  --glass-shadow:         0.92  0.004 286.32 / 0.15;
+
+  /* ── Gradients ───────────────────────────────────────────────────────── */
+  --brand-gradient-from:  var(--primary);
+  --brand-gradient-to:    0.623 0.2   200;
+
+  /* ── Scrollbar ───────────────────────────────────────────────────────── */
+  --scrollbar-track:      0.967 0.001 286.375;
+  --scrollbar-thumb:      0.92  0.004 286.32;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   3. Tailwind 4 @theme — Map design tokens to utility classes
+   See: https://tailwindcss.com/docs/theme
+   ─────────────────────────────────────────────────────────────────────────── */
+@theme {
+  /* ── Semantic Colors ─────────────────────────────────────────────────── */
+  --color-background:           oklch(var(--background));
+  --color-foreground:           oklch(var(--foreground));
+  --color-card:                 oklch(var(--card));
+  --color-card-foreground:      oklch(var(--card-foreground));
+  --color-muted:                oklch(var(--muted));
+  --color-muted-foreground:     oklch(var(--muted-foreground));
+
+  --color-primary:              oklch(var(--primary));
+  --color-primary-soft:         oklch(var(--primary-soft));
+  --color-primary-foreground:   oklch(var(--primary-foreground));
+  --color-secondary:            oklch(var(--secondary));
+  --color-secondary-foreground: oklch(var(--secondary-foreground));
+  --color-accent:               oklch(var(--accent));
+  --color-accent-foreground:    oklch(var(--accent-foreground));
+
+  --color-destructive:              oklch(var(--destructive));
+  --color-destructive-foreground:   oklch(var(--destructive-foreground));
+  --color-success:                  oklch(var(--success));
+  --color-success-foreground:       oklch(var(--success-foreground));
+  --color-warning:                  oklch(var(--warning));
+  --color-warning-foreground:       oklch(var(--warning-foreground));
+  --color-info:                     oklch(var(--info));
+  --color-info-foreground:          oklch(var(--info-foreground));
+
+  --color-border:               oklch(var(--border));
+  --color-input:                oklch(var(--input));
+  --color-ring:                 oklch(var(--ring));
+
+  --color-primary-glow:         oklch(var(--primary-glow));
+  --color-accent-glow:          oklch(var(--accent-glow));
+  --color-card-shadow:          oklch(var(--card-shadow));
+
+  /* ── Fonts ───────────────────────────────────────────────────────────── */
+  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* ── Border Radius ───────────────────────────────────────────────────── */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  /* ── Animations ──────────────────────────────────────────────────────── */
+  --animate-fade-in:      fadeIn 0.3s ease-out;
+  --animate-fade-in-up:   fadeInUp 0.5s ease-out;
+  --animate-shimmer:      shimmer 1.5s ease-in-out infinite;
+  --animate-scale-in:     scaleIn 0.3s ease-out;
+  --animate-glow-pulse:   glowPulse 3s ease-in-out infinite;
+  --animate-slide-up:     slideUp 0.3s ease-out;
+  --animate-slide-down:   slideDown 0.3s ease-out;
+  --animate-bar-pulse:    barPulse 0.4s ease-in-out infinite;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   4. Keyframes
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.8; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes barPulse {
+  0%, 100% { transform: scaleY(0.8); }
+  50%      { transform: scaleY(1.2); }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   5. @layer base — Global defaults
+   ─────────────────────────────────────────────────────────────────────────── */
+@layer base {
+  /* ── Base element defaults ───────────────────────────────────────────── */
+  [data-theme] {
+    border-color: oklch(var(--border));
+    transition:
+      background-color var(--duration-normal) var(--ease-out),
+      color var(--duration-normal) var(--ease-out),
+      border-color var(--duration-normal) var(--ease-out),
+      box-shadow var(--duration-normal) var(--ease-out);
+  }
+
+  body {
+    background-color: oklch(var(--background));
+    color: oklch(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-family: "Outfit", ui-sans-serif, system-ui, -apple-system,
+      BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  /* ── Scrollbar ──────────────────────────────────────────────────────── */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: oklch(var(--scrollbar-track));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: oklch(var(--scrollbar-thumb));
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(var(--muted-foreground) / 0.5);
+  }
+
+  /* ── Focus ring ─────────────────────────────────────────────────────── */
+  :focus-visible {
+    outline: 2px solid oklch(var(--ring));
+    outline-offset: 2px;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   6. @layer components — Design system utilities
+   ─────────────────────────────────────────────────────────────────────────── */
+@layer components {
+  /* ── Glass surface ───────────────────────────────────────────────────── */
+  .glass {
+    background-color: oklch(var(--glass-bg));
+    border: 1px solid oklch(var(--glass-border));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 24px oklch(var(--glass-shadow));
+  }
+
+  /* ── Stronger glass surface (less transparent) ───────────────────────── */
+  .glass-strong {
+    background-color: oklch(var(--glass-bg) / 0.7);
+    border: 1px solid oklch(var(--glass-border));
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 4px 32px oklch(var(--glass-shadow));
+  }
+
+  /* ── Gradient text ───────────────────────────────────────────────────── */
+  .gradient-text {
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    background-image: linear-gradient(
+      to right,
+      oklch(var(--brand-gradient-from)),
+      oklch(var(--brand-gradient-to))
+    );
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   7. @media (prefers-reduced-motion: reduce)
+   ─────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

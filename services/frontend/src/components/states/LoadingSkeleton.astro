@@ -1,0 +1,60 @@
+---
+// ─── LoadingSkeleton.astro — Placeholder loading states ─────────────────────
+// Uses the shared Skeleton React component in 3 layout variants.
+// ──────────────────────────────────────────────────────────────────────────────
+
+import { Skeleton } from "../../shared/components/skeleton";
+
+export type Variant = "card" | "list" | "detail";
+
+export interface Props {
+  /** Visual layout variant */
+  variant?: Variant;
+  /** Number of skeleton items to render (default 1) */
+  count?: number;
+}
+
+const { variant = "card", count = 1 } = Astro.props;
+
+const items = Array.from({ length: count });
+---
+
+<div role="presentation" aria-hidden="true" class="flex flex-col gap-4">
+  {
+    items.map((_, i) => (
+      <div class="skeleton-group" data-variant={variant}>
+        {variant === "card" && (
+          <div class="overflow-hidden rounded-xl border border-border">
+            <Skeleton class="h-40 w-full rounded-none" />
+            <div class="space-y-3 p-4">
+              <Skeleton class="h-4 w-3/4" />
+              <Skeleton class="h-3 w-1/2" />
+            </div>
+          </div>
+        )}
+
+        {variant === "list" && (
+          <div class="flex items-center gap-3 rounded-lg p-3">
+            <Skeleton class="size-10 shrink-0 rounded-full" />
+            <div class="flex-1 space-y-2">
+              <Skeleton class="h-3.5 w-1/3" />
+              <Skeleton class="h-3 w-2/3" />
+            </div>
+          </div>
+        )}
+
+        {variant === "detail" && (
+          <div class="space-y-4 rounded-xl p-4">
+            <Skeleton class="h-6 w-1/2" />
+            <div class="space-y-2">
+              <Skeleton class="h-4 w-full" />
+              <Skeleton class="h-4 w-full" />
+              <Skeleton class="h-4 w-3/4" />
+            </div>
+            <Skeleton class="h-10 w-32" />
+          </div>
+        )}
+      </div>
+    ))
+  }
+</div>

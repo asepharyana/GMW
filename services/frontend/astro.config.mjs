@@ -36,10 +36,8 @@ export default defineConfig({
         "imphnen.asepharyana.web.id",
       ],
       watch: {
-        // Penting: Astro punya public/ dir sendiri, jangan bentrok
         ignored: ["!**/node_modules/**"],
       },
     },
-    // PostCSS otomatis terdeteksi dari root project
   },
 });

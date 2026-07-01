@@ -1,0 +1,27 @@
+---
+// ─── settings.astro — Dashboard Settings page ─────────────────────────────
+// Appearance settings: theme selection (dark/light/system).
+// ────────────────────────────────────────────────────────────────────────────
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Sidebar from "../components/sidebar/Sidebar.astro";
+import Header from "../components/header/Header.astro";
+import Card from "../components/ui/Card.astro";
+import ThemeToggle from "../islands/ThemeToggle";
+import SettingsForm from "../islands/SettingsForm";
+---
+
+<BaseLayout>
+  <div class="flex min-h-screen">
+    <Sidebar currentPath={Astro.url.pathname} />
+    <div class="ml-64 flex flex-1 flex-col">
+      <Header title="Settings">
+        <ThemeToggle slot="actions" client:load />
+      </Header>
+      <main class="flex-1 p-6">
+        <Card class="max-w-2xl">
+          <SettingsForm client:idle />
+        </Card>
+      </main>
+    </div>
+  </div>
+</BaseLayout>

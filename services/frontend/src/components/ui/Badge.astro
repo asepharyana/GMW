@@ -1,0 +1,106 @@
+---
+export interface Props {
+  variant?: "default" | "secondary" | "success" | "warning" | "destructive" | "outline";
+  size?: "sm" | "default";
+  dot?: boolean;
+  class?: string;
+}
+
+const {
+  variant = "default",
+  size = "default",
+  dot = false,
+  class: className = "",
+} = Astro.props;
+---
+
+<span class:list={[`badge badge--${variant} badge--${size}`, className]}>
+  {dot && <span class="badge__dot" aria-hidden="true" />}
+  <slot />
+</span>
+
+<style is:global>
+  .badge {
+    --fs-xs: 0.75rem;
+    --fs-xxs: 0.625rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-weight: var(--fw-medium, 500);
+    transition:
+      background-color var(--duration-fast, 150ms) var(--ease-out, ease-out),
+      color var(--duration-fast, 150ms) var(--ease-out, ease-out);
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .badge--default {
+    padding-inline: 0.625rem;
+    padding-block: 0.125rem;
+    font-size: var(--fs-xs);
+    background-color: oklch(var(--primary));
+    color: oklch(var(--primary-foreground));
+  }
+
+  .badge--secondary {
+    padding-inline: 0.625rem;
+    padding-block: 0.125rem;
+    font-size: var(--fs-xs);
+    background-color: oklch(var(--muted));
+    color: oklch(var(--muted-foreground));
+  }
+
+  .badge--success {
+    padding-inline: 0.625rem;
+    padding-block: 0.125rem;
+    font-size: var(--fs-xs);
+    background-color: oklch(var(--success) / 0.15);
+    color: oklch(var(--success));
+  }
+
+  .badge--warning {
+    padding-inline: 0.625rem;
+    padding-block: 0.125rem;
+    font-size: var(--fs-xs);
+    background-color: oklch(var(--warning) / 0.15);
+    color: oklch(var(--warning));
+  }
+
+  .badge--destructive {
+    padding-inline: 0.625rem;
+    padding-block: 0.125rem;
+    font-size: var(--fs-xs);
+    background-color: oklch(var(--destructive) / 0.15);
+    color: oklch(var(--destructive));
+  }
+
+  .badge--outline {
+    padding-inline: 0.625rem;
+    padding-block: 0.125rem;
+    font-size: var(--fs-xs);
+    border-color: oklch(var(--border));
+    background-color: transparent;
+    color: oklch(var(--foreground));
+  }
+
+  /* ── Size sm ───────────────────────────────────── */
+
+  .badge--sm {
+    padding-inline: 0.375rem;
+    padding-block: 0.0625rem;
+    font-size: var(--fs-xxs);
+  }
+
+  /* ── Dot indicator ─────────────────────────────── */
+
+  .badge__dot {
+    display: inline-block;
+    width: 0.375rem;
+    height: 0.375rem;
+    border-radius: 50%;
+    background-color: currentColor;
+    flex-shrink: 0;
+  }
+</style>

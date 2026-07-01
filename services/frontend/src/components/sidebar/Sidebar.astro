@@ -1,0 +1,93 @@
+---
+// ─── Sidebar.astro — Main app sidebar navigation ──────────────────────────
+// Features: collapsed / expanded (64px / 256px), logo, nav items, version
+// ──────────────────────────────────────────────────────────────────────────────
+
+import NavItem from "./NavItem.astro";
+
+export interface Props {
+  collapsed?: boolean;
+  version?: string;
+  currentPath?: string;
+}
+
+const { collapsed = false, version = "1.0.0", currentPath = "/live" } =
+  Astro.props;
+
+const ICONS = {
+  live: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+  messages: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  recordings: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>`,
+  settings: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+} as const;
+---
+
+<aside
+  class="sidebar fixed left-0 top-0 z-30 flex h-screen flex-col border-r border-border bg-background transition-all duration-300 ease-out"
+  class:list={[collapsed ? "w-16" : "w-64"]}
+  aria-label="Main navigation"
+>
+  <!-- ── Header / Logo ──────────────────────────────────────────── -->
+  <div class="flex items-center border-b border-border px-4 py-4">
+    <a
+      href="/"
+      class="flex items-center gap-3 no-underline"
+      aria-label="Dashboard home"
+    >
+      <span
+        class="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground"
+      >
+        B
+      </span>
+      {!collapsed && (
+        <span class="text-lg font-extrabold gradient-text">BETE</span>
+      )}
+    </a>
+  </div>
+
+  <!-- ── Navigation ─────────────────────────────────────────────── -->
+  <nav class="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+    <NavItem
+      href="/live"
+      icon={ICONS.live}
+      label="Live"
+      active={currentPath.startsWith("/live")}
+      collapsed={collapsed}
+    />
+    <NavItem
+      href="/messages"
+      icon={ICONS.messages}
+      label="Messages"
+      active={currentPath.startsWith("/messages")}
+      collapsed={collapsed}
+      notificationCount={12}
+    />
+    <NavItem
+      href="/recordings"
+      icon={ICONS.recordings}
+      label="Recordings"
+      active={currentPath.startsWith("/recordings")}
+      collapsed={collapsed}
+    />
+    <NavItem
+      href="/settings"
+      icon={ICONS.settings}
+      label="Settings"
+      active={currentPath.startsWith("/settings")}
+      collapsed={collapsed}
+    />
+  </nav>
+
+  <!-- ── Footer / Version ───────────────────────────────────────── -->
+  <footer class="border-t border-border px-4 py-3">
+    {!collapsed && (
+      <span class="text-xs text-muted-foreground">v{version}</span>
+    )}
+  </footer>
+</aside>
+
+<style>
+  .sidebar {
+    will-change: width;
+  }
+</style>

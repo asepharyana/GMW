@@ -6,9 +6,9 @@ import type {
   VoiceRecordingUploadData,
 } from "@bete/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { MediaState } from "../../entities/media/types.js";
-import { createLogger } from "../lib/logger.js";
 import { getSessionToken } from "../api/client.js";
+import { createLogger } from "../lib/logger.js";
+import type { MediaState } from "../types/media.js";
 import type { ActiveSpeakerData } from "./events.js";
 
 const logger = createLogger("socket");
@@ -390,4 +390,44 @@ export function useDashboardSocket(handlers: WsHandlers) {
   }, []);
 
   return { status, send, socketRef: { current: _wsInstance } };
+}
+
+/**
+ * Singleton manager for the WebSocket connection.
+ * Provides imperative connect/disconnect/send access alongside useDashboardSocket.
+ */
+export class SocketManager {
+  private static _instance: SocketManager;
+
+  private constructor() {}
+
+  static getInstance(): SocketManager {
+    if (!SocketManager._instance) {
+      SocketManager._instance = new SocketManager();
+    }
+    return SocketManager._instance;
+  }
+
+  /** Ensure the WebSocket is connected (reconnects if closed). */
+  connect(): void {
+    _closed = false;
+    ensureConnected();
+  }
+
+  /** Close the WebSocket and stop reconnection. */
+  disconnect(): void {
+    _closed = true;
+    if (_reconnectTimer) clearTimeout(_reconnectTimer);
+    if (_wsInstance) {
+      _wsInstance.close();
+      _wsInstance = null;
+    }
+  }
+
+  /** Send data through the WebSocket (no-op if not connected). */
+  send(data: ArrayBuffer | string): void {
+    if (_wsInstance?.readyState === WebSocket.OPEN) {
+      _wsInstance.send(data);
+    }
+  }
 }

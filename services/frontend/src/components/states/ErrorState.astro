@@ -1,0 +1,51 @@
+---
+// ─── ErrorState.astro — Error / failure state ───────────────────────────────
+// Features: role="alert", severity-critical bg tint, error icon, retry slot
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface Props {
+  message: string;
+}
+
+const { message } = Astro.props;
+---
+
+<div
+  role="alert"
+  class="flex min-h-48 flex-col items-center justify-center gap-4 rounded-xl px-6 py-10 text-center"
+  style="background-color: oklch(var(--destructive) / 0.08)"
+>
+  <!-- Error icon circle -->
+  <div
+    class="flex size-12 items-center justify-center rounded-full"
+    style="background-color: oklch(var(--destructive) / 0.15)"
+    aria-hidden="true"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      style="color: oklch(var(--destructive))"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  </div>
+
+  <!-- Error message -->
+  <p class="max-w-sm text-sm font-medium text-foreground">{message}</p>
+
+  <!-- Retry slot -->
+  {Astro.slots.has("retry") && (
+    <div class="mt-2">
+      <slot name="retry" />
+    </div>
+  )}
+</div>

@@ -1,0 +1,28 @@
+---
+// ─── messages.astro — Standalone messages & moderation page ─────────────────
+// Shows a full-page message feed with sidebar navigation, page header, and
+// real-time WebSocket updates via the MessageFeed React island.
+// ──────────────────────────────────────────────────────────────────────────────
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHeader from "../islands/PageHeader.tsx";
+import PageSidebar from "../islands/PageSidebar.tsx";
+import MessageFeed from "../islands/MessageFeed.tsx";
+---
+
+<BaseLayout>
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <PageSidebar client:load activeTab="messages" />
+
+    <!-- Main content area -->
+    <main class="flex min-w-0 flex-1 flex-col">
+      <!-- Header with title and built-in theme toggle -->
+      <PageHeader client:load title="Messages" />
+
+      <!-- Message feed -->
+      <div class="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+        <MessageFeed client:load />
+      </div>
+    </main>
+  </div>
+</BaseLayout>

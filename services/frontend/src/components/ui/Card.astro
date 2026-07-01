@@ -1,0 +1,101 @@
+---
+export interface Props {
+  variant?: "default" | "elevated" | "glass" | "interactive";
+  padding?: "none" | "sm" | "md" | "lg";
+  class?: string;
+}
+
+const {
+  variant = "default",
+  padding = "md",
+  class: className = "",
+} = Astro.props;
+---
+
+<div class:list={[`card card--${variant} card--pad-${padding}`, className]}>
+  <slot />
+</div>
+
+<style is:global>
+  .card {
+    --rd-lg: var(--radius, 1rem);
+    border-radius: var(--rd-lg);
+    transition:
+      background-color var(--duration-normal, 300ms) var(--ease-out, ease-out),
+      color var(--duration-normal, 300ms) var(--ease-out, ease-out),
+      border-color var(--duration-normal, 300ms) var(--ease-out, ease-out),
+      box-shadow var(--duration-normal, 300ms) var(--ease-out, ease-out),
+      transform var(--duration-normal, 300ms) var(--ease-out, ease-out);
+  }
+
+  /* ── Padding variants ──────────────────────────── */
+
+  .card--pad-none {
+    padding: 0;
+  }
+
+  .card--pad-sm {
+    padding: 0.75rem;
+  }
+
+  .card--pad-md {
+    padding: 1.5rem;
+  }
+
+  .card--pad-lg {
+    padding: 2rem;
+  }
+
+  /* ── Variant: default ──────────────────────────── */
+
+  .card--default {
+    background-color: oklch(var(--card));
+    color: oklch(var(--card-foreground));
+    border: 1px solid oklch(var(--border));
+    box-shadow: 0 1px 2px oklch(0 0 0 / 0.05);
+  }
+
+  /* ── Variant: elevated ─────────────────────────── */
+
+  .card--elevated {
+    background-color: oklch(var(--card));
+    color: oklch(var(--card-foreground));
+    border: 1px solid oklch(var(--border));
+    box-shadow:
+      0 4px 6px -1px oklch(0 0 0 / 0.1),
+      0 2px 4px -2px oklch(0 0 0 / 0.1);
+  }
+
+  /* ── Variant: glass ────────────────────────────── */
+
+  .card--glass {
+    background-color: oklch(var(--glass-bg));
+    border: 1px solid oklch(var(--glass-border));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 24px oklch(var(--glass-shadow));
+  }
+
+  /* ── Variant: interactive ──────────────────────── */
+
+  .card--interactive {
+    background-color: oklch(var(--card));
+    color: oklch(var(--card-foreground));
+    border: 1px solid oklch(var(--border));
+    box-shadow: 0 1px 2px oklch(0 0 0 / 0.05);
+    cursor: pointer;
+  }
+
+  .card--interactive:hover {
+    transform: translateY(-4px);
+    box-shadow:
+      0 10px 15px -3px oklch(0 0 0 / 0.1),
+      0 4px 6px -4px oklch(0 0 0 / 0.1);
+    border-color: oklch(var(--primary) / 0.3);
+  }
+
+  .card--interactive:focus-visible {
+    outline: 2px solid oklch(var(--ring));
+    outline-offset: 2px;
+  }
+</style>
