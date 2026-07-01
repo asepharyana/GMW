@@ -1,0 +1,132 @@
+# ─── BETE GitLab CI/CD Pipeline ───────────────────────────────────────────────
+# 1. Build 4 Docker images (frontend, backend, discord-gateway, proxy)
+# 2. Push to GitLab Container Registry
+# 3. Deploy to VPS — pull images, docker compose up
+#
+# Required CI/CD Variables (set in GitLab → Settings → CI/CD → Variables):
+#
+#   VPS_HOST        - VPS IP/hostname
+#   VPS_USERNAME    - SSH user
+#   VPS_SSH_KEY     - SSH private key (type: file)
+#   ENV_FILE        - Full .env file content (type: env_var) — optional if .env already on VPS
+#
+# ──────────────────────────────────────────────────────────────────────────────
+
+stages:
+  - build
+  - deploy
+
+variables:
+  # Submodules — discord.js-selfbot-v13 and discord-video-stream
+  GIT_SUBMODULE_STRATEGY: recursive
+
+  REGISTRY: $CI_REGISTRY
+  REGISTRY_PROJECT: $CI_REGISTRY/$CI_PROJECT_PATH
+  IMAGE_TAG_COMMIT: $CI_COMMIT_SHA
+  IMAGE_TAG_LATEST: latest
+
+  # Frontend build args
+  VITE_BE_API_URL: https://imphnen.asepharyana.my.id
+  VITE_BE_WS_URL: wss://imphnen.asepharyana.my.id
+
+  # Deploy target
+  SSH_HOST: "${VPS_USERNAME}@${VPS_HOST}"
+  APP_DIR: /opt/imphenbot
+
+# ── Build stage ───────────────────────────────────────────────────────────────
+.docker-build:
+  stage: build
+  image: docker:27-cli
+  services:
+    - name: docker:27-dind
+      command: ["--mtu=1400"]
+  before_script:
+    - echo "$CI_JOB_TOKEN" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+  script:
+    # Build image
+    - |
+      docker build \
+        --file infra/docker/Dockerfile.$SERVICE_NAME \
+        --tag $REGISTRY_PROJECT/bete-$SERVICE_NAME:$IMAGE_TAG_COMMIT \
+        --tag $REGISTRY_PROJECT/bete-$SERVICE_NAME:$IMAGE_TAG_LATEST \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        --build-arg VITE_BE_API_URL=$VITE_BE_API_URL \
+        --build-arg VITE_BE_WS_URL=$VITE_BE_WS_URL \
+        --cache-from $REGISTRY_PROJECT/bete-$SERVICE_NAME:latest \
+        .
+    # Push to GitLab Container Registry
+    - docker push $REGISTRY_PROJECT/bete-$SERVICE_NAME:$IMAGE_TAG_COMMIT
+    - docker push $REGISTRY_PROJECT/bete-$SERVICE_NAME:$IMAGE_TAG_LATEST
+
+build-frontend:
+  extends: .docker-build
+  variables:
+    SERVICE_NAME: frontend
+  only:
+    - master
+
+build-backend:
+  extends: .docker-build
+  variables:
+    SERVICE_NAME: backend
+  only:
+    - master
+
+build-discord-gateway:
+  extends: .docker-build
+  variables:
+    SERVICE_NAME: discord-gateway
+  only:
+    - master
+
+build-proxy:
+  extends: .docker-build
+  variables:
+    SERVICE_NAME: proxy
+  only:
+    - master
+
+# ── Deploy stage ──────────────────────────────────────────────────────────────
+deploy-vps:
+  stage: deploy
+  image: debian:stable-slim
+  only:
+    - master
+  needs:
+    - build-frontend
+    - build-backend
+    - build-discord-gateway
+    - build-proxy
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq openssh-client
+    - mkdir -p ~/.ssh
+    - cp "$VPS_SSH_KEY" ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+  script:
+    # Login to GitLab Container Registry, pull images, update docker-compose, restart
+    - |
+      ssh "$SSH_HOST" "
+        set -eu
+
+        cd $APP_DIR
+
+        echo '→ Logging in to GitLab Container Registry...'
+        echo '$CI_JOB_TOKEN' | docker login $CI_REGISTRY -u '$CI_REGISTRY_USER' --password-stdin
+
+        echo '→ Updating docker-compose image references...'
+        sed -i 's|ghcr.io/\${OWNER:-mytheclipse}|$REGISTRY_PROJECT|g' infra/docker/docker-compose.yml
+        sed -i 's|\${OWNER:-mytheclipse}|$CI_PROJECT_NAMESPACE|g' infra/docker/docker-compose.yml
+
+        echo '→ Pulling latest images...'
+        docker compose -f infra/docker/docker-compose.yml pull
+
+        echo '→ Restarting containers...'
+        docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans
+
+        echo '→ Cleaning up...'
+        docker image prune -f
+        echo '✓ Deploy complete'
+      "
+  after_script:
+    - rm -f ~/.ssh/id_rsa
