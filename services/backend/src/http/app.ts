@@ -19,6 +19,7 @@ import { createUiStateRouter } from "../modules/ui-state/ui-state.routes.js";
 import { createGuildsRouter } from "../modules/voice/guilds.routes.js";
 import { createVoiceRouter } from "../modules/voice/voice.routes.js";
 import {
+  adminAuth,
   errorHandler,
 } from "../shared/middlewares/index.js";
 import { config } from "../shared/config/index.js";
@@ -73,17 +74,18 @@ export function createHttpApp(): Express {
   app.use("/api", createConfigRouter());
   app.use("/api", createDashboardRouter());
 
-  // Protected routes — all routes are now public
-  app.use("/api", createMessagesRouter());
-  app.use("/api", createAnalysisRouter());
-  app.use("/api", createMascotChatRouter());
-  app.use("/api", createMediaRouter());
-  app.use("/api", createVoiceRouter());
-  app.use("/api", createRecordingsRouter());
-  app.use("/api", createUiStateRouter());
+  // Protected routes — require admin authentication (X-Admin-Password header)
+  const adminAuthMiddleware = adminAuth(ADMIN_PASSWORD);
+  app.use("/api", adminAuthMiddleware, createMessagesRouter());
+  app.use("/api", adminAuthMiddleware, createAnalysisRouter());
+  app.use("/api", adminAuthMiddleware, createMascotChatRouter());
+  app.use("/api", adminAuthMiddleware, createMediaRouter());
+  app.use("/api", adminAuthMiddleware, createVoiceRouter());
+  app.use("/api", adminAuthMiddleware, createRecordingsRouter());
+  app.use("/api", adminAuthMiddleware, createUiStateRouter());
 
   // Guilds routes
-  app.use("/api/guilds", createGuildsRouter());
+  app.use("/api/guilds", adminAuthMiddleware, createGuildsRouter());
 
   // 404 handler
   app.use((_req: Request, res: Response) => {

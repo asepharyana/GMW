@@ -1,6 +1,7 @@
 import { resolve } from "node:dns/promises";
 import { isIP } from "node:net";
 import { createChildLogger } from "@bete/shared/logger";
+import { createAbortControllerWithTimeout } from "@bete/shared/utils";
 
 const log = createChildLogger("urlFetcher");
 
@@ -112,8 +113,7 @@ export async function fetchUrlSafely(
     return { url, type: "error", error: "Unsafe URL blocked" };
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const { controller, clear } = createAbortControllerWithTimeout(FETCH_TIMEOUT_MS);
 
   try {
     const response = await fetch(url, {
@@ -190,7 +190,7 @@ export async function fetchUrlSafely(
       error: err instanceof Error ? err.message : String(err),
     };
   } finally {
-    clearTimeout(timeoutId);
+    clear();
   }
 }
 

@@ -51,6 +51,48 @@ export function asyncHandler(
 }
 
 /**
+ * Simple in-memory rate limiter (no external dependency).
+ * Tracks request counts per IP within a rolling window.
+ * Use for auth endpoints to prevent brute-force attacks.
+ */
+export function rateLimit(opts: { windowMs: number; max: number }) {
+  const { windowMs, max } = opts;
+  const hits = new Map<string, { count: number; resetAt: number }>();
+
+  // Periodic cleanup of stale entries to prevent unbounded memory growth
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of hits) {
+      if (now >= value.resetAt) hits.delete(key);
+    }
+  }, windowMs * 2);
+  cleanupInterval.unref();
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+    const now = Date.now();
+    const entry = hits.get(ip);
+
+    if (!entry || now >= entry.resetAt) {
+      hits.set(ip, { count: 1, resetAt: now + windowMs });
+      next();
+      return;
+    }
+
+    entry.count++;
+    if (entry.count > max) {
+      res.status(429).json({
+        error: "TOO_MANY_REQUESTS",
+        message: `Rate limit exceeded. Try again in ${Math.ceil((entry.resetAt - now) / 1000)}s.`,
+      });
+      return;
+    }
+
+    next();
+  };
+}
+
+/**
  * Validate that a value is a non-empty string, or throw a descriptive error.
  * Use for both route params and query string values.
  */

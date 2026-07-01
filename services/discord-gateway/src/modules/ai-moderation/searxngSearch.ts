@@ -1,5 +1,6 @@
 import Redis from "ioredis";
 import { createChildLogger } from "@bete/shared/logger";
+import { createAbortControllerWithTimeout } from "@bete/shared/utils";
 
 const log = createChildLogger("searxng-search");
 
@@ -68,43 +69,45 @@ export async function searchSearxng(
   // Cache miss — hit SearXNG API
   try {
     const url = `${SEARXNG_BASE_URL}/search?q=${encodeURIComponent(query)}&format=json&language=id&categories=${category}`;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const { controller, clear } = createAbortControllerWithTimeout(TIMEOUT_MS);
 
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        Accept: "application/json",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      },
-    });
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      log.warn({ status: response.status, query }, "SearXNG search failed");
-      return [];
-    }
-
-    const data = (await response.json()) as {
-      results?: Array<{ title?: string; url?: string; content?: string }>;
-    };
-    const results = data.results ?? [];
-    const mapped = results.slice(0, MAX_RESULTS).map((r) => ({
-      title: r.title ?? "",
-      url: r.url ?? "",
-      snippet: (r.content ?? "").slice(0, 500),
-    }));
-
-    // Store in cache (fire and forget — don't block on write)
-    if (redis) {
-      redis.setex(cacheKey, CACHE_TTL, JSON.stringify(mapped)).catch(() => {
-        // Cache write failed silently
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
       });
-    }
 
-    log.debug({ query, category, resultCount: mapped.length }, "SearXNG search OK");
-    return mapped;
+      if (!response.ok) {
+        log.warn({ status: response.status, query }, "SearXNG search failed");
+        return [];
+      }
+
+      const data = (await response.json()) as {
+        results?: Array<{ title?: string; url?: string; content?: string }>;
+      };
+      const results = data.results ?? [];
+      const mapped = results.slice(0, MAX_RESULTS).map((r) => ({
+        title: r.title ?? "",
+        url: r.url ?? "",
+        snippet: (r.content ?? "").slice(0, 500),
+      }));
+
+      // Store in cache (fire and forget — don't block on write)
+      if (redis) {
+        redis.setex(cacheKey, CACHE_TTL, JSON.stringify(mapped)).catch(() => {
+          // Cache write failed silently
+        });
+      }
+
+      log.debug({ query, category, resultCount: mapped.length }, "SearXNG search OK");
+      return mapped;
+    } finally {
+      clear();
+    }
   } catch (err) {
     log.warn(
       { error: err instanceof Error ? err.message : String(err), query },

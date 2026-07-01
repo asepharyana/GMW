@@ -7,6 +7,40 @@ export function delay(ms: number): Promise<void> {
 export * from "./pagination.js";
 
 // ---------------------------------------------------------------------------
+// Centralized AbortController with guaranteed cleanup
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates an AbortController with a timeout that is ALWAYS cleaned up,
+ * even if the caller throws or returns early without calling clear().
+ *
+ * Returns both the controller and a cleanup handle.
+ *
+ * Usage:
+ *   const { controller, clear } = createAbortControllerWithTimeout(8000);
+ *   try {
+ *     const res = await fetch(url, { signal: controller.signal });
+ *     // ... work ...
+ *   } finally {
+ *     clear(); // guaranteed to clear the timeout
+ *   }
+ */
+export function createAbortControllerWithTimeout(
+  timeoutMs: number,
+): { controller: AbortController; clear: () => void } {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  // Unref so the timeout doesn't keep the process alive
+  timeoutId?.unref?.();
+  return {
+    controller,
+    clear: () => {
+      clearTimeout(timeoutId);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Retry with exponential backoff
 // ---------------------------------------------------------------------------
 

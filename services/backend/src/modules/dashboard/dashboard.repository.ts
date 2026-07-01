@@ -43,9 +43,10 @@ export class DashboardRepository {
     // Top channels by message count
     const topChannels = await pool.query(`
       SELECT channel_id,
-             (metadata::jsonb -> 'channel' ->> 'channelName') AS channel_name,
+             COALESCE(NULLIF((metadata::jsonb -> 'channel' ->> 'channelName'), ''), channel_id) AS channel_name,
              COUNT(*)::int AS message_count
       FROM messages
+      WHERE metadata IS NOT NULL AND metadata != ''
       GROUP BY channel_id, (metadata::jsonb -> 'channel' ->> 'channelName')
       ORDER BY COUNT(*) DESC
       LIMIT 10

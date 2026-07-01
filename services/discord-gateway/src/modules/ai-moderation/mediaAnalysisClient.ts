@@ -11,7 +11,7 @@ import { readFile, writeFile, unlink, rm, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { delay } from "@bete/shared/utils";
+import { createAbortControllerWithTimeout, delay } from "@bete/shared/utils";
 import { LRUCache } from "lru-cache";
 import { config } from "../../shared/config/config.js";
 import { resizeImageForVision } from "../attachment-upload/imageResizer.js";
@@ -297,8 +297,7 @@ async function downloadSingleAttachment(
   const urlToUse = att.uploaded_url ?? att.discord_url ?? null;
   if (!urlToUse) return;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const { controller, clear } = createAbortControllerWithTimeout(15000);
   try {
     const res = await fetch(urlToUse, { signal: controller.signal });
     if (!res.ok || !res.body) return;
@@ -322,7 +321,35 @@ async function downloadSingleAttachment(
       await extractVideoFrames(att, imageBytes, targetId, maxDimension, imageMap);
       return;
     }
-    if (!sniffedMime) return;
+
+    // Fallback: try attachment type metadata, then filename extension
+    let resolvedMime = sniffedMime;
+    if (!resolvedMime) {
+      if (att.type.startsWith("image/")) {
+        resolvedMime = att.type;
+        log.warn({ attachmentId: att.id, filename: att.filename, type: att.type },
+          "Image MIME sniff failed — using attachment metadata type as fallback");
+      } else {
+        // Last resort: check file extension
+        const ext = att.filename?.toLowerCase().split(".").pop();
+        if (ext && ["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) {
+          const mimeMap: Record<string, string> = {
+            jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+            gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
+          };
+          resolvedMime = mimeMap[ext];
+          log.warn({ attachmentId: att.id, filename: att.filename, ext },
+            "Image MIME sniff failed — using file extension fallback");
+        }
+      }
+    }
+
+    // If all fallbacks fail, still try with generic image/jpeg (better than silent skip)
+    if (!resolvedMime) {
+      resolvedMime = "image/jpeg";
+      log.warn({ attachmentId: att.id, filename: att.filename },
+        "All MIME detection failed — forcing image/jpeg as last resort");
+    }
 
     const { data: resizedBuffer, mimeType: resizedMime } = await resizeImageForVision(imageBytes, maxDimension);
     const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
@@ -334,7 +361,7 @@ async function downloadSingleAttachment(
   } catch (err) {
     log.warn({ attachmentId: att.id, error: err instanceof Error ? err.message : String(err) }, "Download failed");
   } finally {
-    clearTimeout(timeoutId);
+    clear();
   }
 }
 
@@ -404,6 +431,8 @@ async function downloadMediaCandidate(
       const existing = mediaAnalysisMap.get(targetId) ?? [];
       existing.push(`[Media analysis for message ${candidate.messageId}] ${candidate.label}: ${cached}`);
       mediaAnalysisMap.set(targetId, existing);
+      // Warm the LRU cache so subsequent calls in the same process skip DB query
+      visionLruCache.set(vck, cached);
       return;
     }
   }
