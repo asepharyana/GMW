@@ -1,159 +1,53 @@
 # ─── BETE GitLab CI/CD Pipeline ───────────────────────────────────────────────
-# Builds 4 Docker images (frontend, backend, discord-gateway, proxy),
-# pushes to GitLab Container Registry, then deploys to VPS via SSH.
+# Simply SSH into VPS → git pull → docker compose up -d --build
 #
 # Required CI/CD Variables (set in GitLab → Settings → CI/CD → Variables):
 #
-#   VPS_HOST        - VPS IP/hostname
-#   VPS_USERNAME    - SSH user
+#   VPS_HOST        - VPS IP/hostname (e.g. 45.127.35.244)
+#   VPS_USERNAME    - SSH user (e.g. root)
 #   VPS_SSH_KEY     - SSH private key (type: file)
-#   ENV_FILE        - Full .env file content (type: env_var)
 #
 # Notes:
+#   - VPS must have git access to this repo (deploy key or SSH agent)
+#   - .env file must already exist on VPS at $APP_DIR/.env
 #   - VPS_SSH_KEY must be "File" type so GitLab writes it to disk
-#   - ENV_FILE is "Variable" type — contains full multi-line .env content
 #
 # ──────────────────────────────────────────────────────────────────────────────
 
 stages:
-  - build
   - deploy
 
 variables:
-  # Use Docker-in-Docker for building with BuildKit
-  DOCKER_HOST: tcp://docker:2376
-  DOCKER_TLS_CERTDIR: "/certs"
-  DOCKER_DRIVER: overlay2
-  DOCKER_BUILDKIT: 1
-
-  # Image naming
-  REGISTRY: $CI_REGISTRY
-  IMAGE_TAG_LATEST: latest
-  IMAGE_TAG_COMMIT: $CI_COMMIT_SHA
-
-  # Frontend build args
-  VITE_BE_API_URL: https://imphnen.asepharyana.my.id
-  VITE_BE_WS_URL: wss://imphnen.asepharyana.my.id
-
-  # Deploy defaults
-  SSH_HOST: "${VPS_USERNAME:-root}@${VPS_HOST:-45.127.35.244}"
   APP_DIR: /opt/imphenbot
+  SSH_HOST: "${VPS_USERNAME}@${VPS_HOST}"
 
-# ── Build stage ───────────────────────────────────────────────────────────────
-.docker-build:
-  stage: build
-  image: docker:27-cli
-  tags:
-    - docker
-  services:
-    - name: docker:27-dind
-      command: ["--mtu=1400"]
-  cache:
-    key: docker-$CI_COMMIT_REF_SLUG-$SERVICE_NAME
-    paths:
-      - /caches/$SERVICE_NAME/
-  before_script:
-    # Login to GitLab Container Registry
-    - echo "$CI_JOB_TOKEN" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
-    # Ensure cache directory exists
-    - mkdir -p /caches/$SERVICE_NAME
-  script:
-    # Build with cache
-    - |
-      docker build \
-        --file infra/docker/Dockerfile.$SERVICE_NAME \
-        --tag $REGISTRY/$CI_PROJECT_PATH/bete-$SERVICE_NAME:$IMAGE_TAG_COMMIT \
-        --tag $REGISTRY/$CI_PROJECT_PATH/bete-$SERVICE_NAME:$IMAGE_TAG_LATEST \
-        --build-arg BUILDKIT_INLINE_CACHE=1 \
-        --build-arg VITE_BE_API_URL=$VITE_BE_API_URL \
-        --build-arg VITE_BE_WS_URL=$VITE_BE_WS_URL \
-        --cache-from $REGISTRY/$CI_PROJECT_PATH/bete-$SERVICE_NAME:latest \
-        .
-    # Push images
-    - docker push $REGISTRY/$CI_PROJECT_PATH/bete-$SERVICE_NAME:$IMAGE_TAG_COMMIT
-    - docker push $REGISTRY/$CI_PROJECT_PATH/bete-$SERVICE_NAME:$IMAGE_TAG_LATEST
-
-build-frontend:
-  extends: .docker-build
-  variables:
-    SERVICE_NAME: frontend
-  only:
-    - master
-
-build-backend:
-  extends: .docker-build
-  variables:
-    SERVICE_NAME: backend
-  only:
-    - master
-
-build-discord-gateway:
-  extends: .docker-build
-  variables:
-    SERVICE_NAME: discord-gateway
-  only:
-    - master
-
-build-proxy:
-  extends: .docker-build
-  variables:
-    SERVICE_NAME: proxy
-  only:
-    - master
-
-# ── Deploy stage ──────────────────────────────────────────────────────────────
 deploy-vps:
   stage: deploy
   image: alpine:latest
-  tags:
-    - docker
   only:
     - master
-  needs:
-    - build-frontend
-    - build-backend
-    - build-discord-gateway
-    - build-proxy
   before_script:
-    # Install SSH client and tools
-    - apk add --no-cache openssh-client docker-compose bash
-    # Set up SSH key (file-type variable: value is a path)
+    - apk add --no-cache openssh-client git
     - mkdir -p ~/.ssh
     - cp "$VPS_SSH_KEY" ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
-    # Write .env content to temp file for scp
-    - printf '%s' "$ENV_FILE" > /tmp/.env.prod
-    # Add VPS to known_hosts
-    - ssh-keyscan -H "${VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+    - ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
   script:
-    # Copy .env and docker-compose to VPS
-    - scp /tmp/.env.prod "$SSH_HOST:$APP_DIR/.env"
-    - scp infra/docker/docker-compose.yml "$SSH_HOST:$APP_DIR/docker-compose.yml"
-    # Deploy via SSH
     - |
       ssh "$SSH_HOST" "
         set -eu
-
+        echo '→ Pulling latest code...'
         cd $APP_DIR
+        git fetch --depth 1 origin master
+        git checkout master
+        git reset --hard origin/master
 
-        # Login to GitLab Container Registry
-        echo '$CI_JOB_TOKEN' | docker login $CI_REGISTRY -u '$CI_REGISTRY_USER' --password-stdin
+        echo '→ Rebuilding and restarting containers...'
+        docker compose -f infra/docker/docker-compose.yml up -d --build --remove-orphans
 
-        # Update image tags in docker-compose.yml to use GitLab registry
-        sed -i 's|ghcr.io/\${OWNER:-mytheclipse}|$CI_REGISTRY/$CI_PROJECT_PATH|g' docker-compose.yml
-        sed -i 's|\${OWNER:-mytheclipse}|$CI_PROJECT_NAMESPACE|g' docker-compose.yml
-
-        # Pull latest images
-        docker compose pull
-
-        # Stop and remove old containers
-        docker rm -f imphenbot-proxy imphenbot-backend imphenbot-frontend imphenbot-discord-gateway 2>/dev/null || true
-
-        # Start fresh
-        docker compose up -d --remove-orphans
-
-        # Cleanup old images
+        echo '→ Cleaning up...'
         docker image prune -f
+        echo '✓ Deploy complete'
       "
   after_script:
-    - rm -f ~/.ssh/id_rsa /tmp/.env.prod
+    - rm -f ~/.ssh/id_rsa
