@@ -34,9 +34,10 @@ variables:
 .docker-build:
   stage: build
   image: docker:27-cli
+  tags:
+    - docker
   services:
-    - name: docker:27-dind
-      command: ["--mtu=1400"]
+    - docker:27-dind
   before_script:
     - echo "$CI_JOB_TOKEN" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
   script:
