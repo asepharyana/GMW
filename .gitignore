@@ -11,3 +11,5 @@ logs/
 # moon
 .moon/cache
 .moon/docker
+worktrees/
+.worktrees/
