@@ -41,7 +41,17 @@ export default function App() {
 
   const audio = useAudioPlayback();
   const isPublicDashboard = import.meta.env.VITE_DASHBOARD_IS_PUBLIC === "true";
-  const activeTab = !authenticated && !isPublicDashboard ? "messages" : uiState.activeTab || "messages";
+  const activeTab = uiState.activeTab || "messages";
+
+  // Reset persisted tab to "messages" once on mount if not authenticated
+  // Prevents localStorage carryover from a prior session on the Live tab
+  useEffect(() => {
+    if (!authenticated && !isPublicDashboard && uiState.activeTab === "live") {
+      patchUIState({ activeTab: "messages" });
+    }
+    // Run only on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const selectedVoiceGuild =
     uiState.selectedVoiceGuild || uiState.selectedGuild || "";
 
