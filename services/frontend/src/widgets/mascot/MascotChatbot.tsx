@@ -188,7 +188,7 @@ export function MascotChatbot({
                   )}
                   <div
                     className={cn(
-                      "max-w-xs px-3 py-2 rounded-xl text-sm leading-relaxed [overflow-wrap:anywhere]",
+                      "max-w-[280px] px-3 py-2 rounded-xl text-sm leading-relaxed [overflow-wrap:anywhere]",
                       message.role === "user"
                         ? "bg-[#23a1eb] text-white rounded-br-[4px]"
                         : "bg-[#f5f5f5] text-[#1a1a1a] rounded-bl-[4px]",
