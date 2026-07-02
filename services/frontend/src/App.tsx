@@ -40,8 +40,8 @@ export default function App() {
   const [monitorGuildId, setMonitorGuildId] = useState("");
 
   const audio = useAudioPlayback();
-  const activeTab = uiState.activeTab || "messages";
   const isPublicDashboard = import.meta.env.VITE_DASHBOARD_IS_PUBLIC === "true";
+  const activeTab = !authenticated && !isPublicDashboard ? "messages" : uiState.activeTab || "messages";
   const selectedVoiceGuild =
     uiState.selectedVoiceGuild || uiState.selectedGuild || "";
 
