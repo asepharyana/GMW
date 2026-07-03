@@ -1,6 +1,7 @@
 pub mod api;
 pub mod app;
 pub mod auth;
+pub mod features;
 pub mod layout;
 pub mod ui;
 pub mod ws;
