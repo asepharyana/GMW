@@ -3,6 +3,7 @@ use shared_types::ui_state::Tab;
 use crate::auth::AuthOverlay;
 use crate::ws::context::WsContext;
 use crate::features::messages::MessagesPanel;
+use crate::features::live::LivePanel;
 
 #[derive(Clone)]
 pub struct AppConfig {
@@ -93,7 +94,7 @@ pub fn App() -> impl IntoView {
                     <div style="flex: 1; overflow: auto; padding: 1.5rem;">
                         {move || match ui.active_tab.get() {
                             Tab::Messages => view! { <MessagesPanel /> }.into_any(),
-                            Tab::Live => view! { <div>"Live Panel"</div> }.into_any(),
+                            Tab::Live => view! { <LivePanel /> }.into_any(),
                             Tab::Dashboard => view! { <div>"Dashboard Panel"</div> }.into_any(),
                         }}
                     </div>
