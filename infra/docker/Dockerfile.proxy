@@ -3,7 +3,7 @@ FROM rust:alpine AS frontend-builder
 
 RUN apk add --no-cache musl-dev
 RUN rustup target add wasm32-unknown-unknown
-RUN cargo install trunk --locked
+RUN cargo install trunk --version 0.22.0-beta.1 --locked
 
 WORKDIR /app
 
