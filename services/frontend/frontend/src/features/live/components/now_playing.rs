@@ -2,13 +2,15 @@ use leptos::prelude::*;
 use shared_types::media::MediaState;
 
 /// NowPlaying — Displays current media item and queue info
+/// Accepts an optional RwSignal to enable real-time updates from WebSocket events.
 #[component]
 pub fn NowPlaying(
-    #[prop(optional)] state: Option<MediaState>,
+    #[prop(optional)] media_rw: Option<RwSignal<Option<MediaState>>>,
     #[prop(optional)] on_skip: Option<Box<dyn Fn() + Send + Sync + 'static>>,
     #[prop(optional)] on_stop: Option<Box<dyn Fn() + Send + Sync + 'static>>,
 ) -> impl IntoView {
-    let media_state = RwSignal::new(state);
+    // Use provided signal, or fall back to a local one for static usage
+    let media_state = media_rw.unwrap_or_else(|| RwSignal::new(None));
 
     // Wrap callbacks in StoredValue for shareable non-Clone ownership in Leptos context
     let skip_cb = StoredValue::new(on_skip);

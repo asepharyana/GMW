@@ -1,8 +1,11 @@
 use crate::features::live::audio::pcm_decoder::decode_pcm_frame;
 use crate::features::live::audio::ring_buffer::SharedRingBuffer;
 use leptos::prelude::*;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// AudioPlaybackState — Manages PCM audio playback from WebSocket binary frames
+#[derive(Clone)]
 pub struct AudioPlaybackState {
     /// Ring buffer for incoming PCM data
     pub buffer: SharedRingBuffer,
@@ -10,6 +13,8 @@ pub struct AudioPlaybackState {
     pub active: RwSignal<bool>,
     /// Volume level (0.0-1.0)
     pub volume: RwSignal<f64>,
+    /// Abort flag to stop the playback loop (prevents leak on teardown)
+    pub abort: Arc<AtomicBool>,
 }
 
 /// Create and initialize audio playback state
@@ -22,6 +27,7 @@ pub fn use_audio_playback() -> AudioPlaybackState {
         buffer,
         active,
         volume,
+        abort: Arc::new(AtomicBool::new(false)),
     }
 }
 
@@ -34,14 +40,18 @@ pub fn process_pcm_data(state: &AudioPlaybackState, data: Vec<u8>) {
 }
 
 /// Start consuming the ring buffer and playing through AudioContext
+/// The loop respects the abort flag in `AudioPlaybackState` for clean teardown.
 pub fn start_playback(state: &AudioPlaybackState) {
     if state.active.get_untracked() {
         return;
     }
     state.active.set(true);
+    // Reset abort flag for a fresh start
+    state.abort.store(false, Ordering::Relaxed);
 
     let buffer = state.buffer.clone();
     let active = state.active;
+    let abort = state.abort.clone();
 
     wasm_bindgen_futures::spawn_local(async move {
         let ctx = match web_sys::AudioContext::new() {
@@ -55,7 +65,7 @@ pub fn start_playback(state: &AudioPlaybackState) {
         let ctx_ref = &ctx;
         let _ = ctx_ref.resume();
 
-        while active.get_untracked() {
+        while active.get_untracked() && !abort.load(Ordering::Relaxed) {
             let available = buffer.available_samples();
             if available >= 4410 {
                 // ~100ms worth at 44.1kHz
@@ -73,6 +83,7 @@ pub fn start_playback(state: &AudioPlaybackState) {
 
 /// Stop playback and clear buffer
 pub fn stop_playback(state: &AudioPlaybackState) {
+    state.abort.store(true, Ordering::Relaxed);
     state.active.set(false);
     state.buffer.clear();
 }

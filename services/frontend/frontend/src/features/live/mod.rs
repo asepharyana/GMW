@@ -4,17 +4,72 @@ pub mod hooks;
 
 use crate::app::AuthContext;
 use crate::auth::AuthOverlay;
+use crate::ws::context::WsContext;
 use components::{
     ActiveSpeakers, AudioVisualizer, MusicSubPanel, NowPlaying, RecordingsSubPanel, ScreenSubPanel,
     VoiceConnectionCard,
 };
 use leptos::prelude::*;
+use shared_types::media::MediaState;
+use shared_types::voice::ActiveSpeaker;
 
 /// LivePanel — Composition shell for all voice and media components.
 /// Shows an auth overlay if not authenticated, otherwise shows voice controls.
 #[component]
 pub fn LivePanel() -> impl IntoView {
     let auth = use_context::<AuthContext>().expect("AuthContext not provided");
+    let ws = use_context::<WsContext>();
+
+    // ── Shared state for WS-driven components ──────────────
+    let speakers = RwSignal::new(Vec::<ActiveSpeaker>::new());
+    let media_state = RwSignal::new(None::<MediaState>);
+    let (recordings_refresh, set_recordings_refresh) = signal(0u64);
+    let audio_playback = hooks::use_audio_playback::use_audio_playback();
+
+    // ── Wire WS events (runs on mount, persists while LivePanel is active) ──
+    if let Some(ref ws) = ws {
+        // Voice active user — update speakers list
+        *ws.on_voice_active_user.borrow_mut() = Some(Box::new({
+            let speakers = speakers.clone();
+            move |speaker: ActiveSpeaker| {
+                speakers.update(|list| {
+                    if let Some(pos) = list.iter().position(|s| s.user_id == speaker.user_id) {
+                        list[pos] = speaker;
+                    } else {
+                        list.push(speaker);
+                    }
+                });
+            }
+        }));
+
+        // Media state — update NowPlaying
+        *ws.on_media_state.borrow_mut() = Some(Box::new({
+            let ms = media_state.clone();
+            move |state: MediaState| {
+                ms.set(Some(state));
+            }
+        }));
+
+        // Recording uploaded — trigger recordings list refresh
+        *ws.on_voice_recording_uploaded.borrow_mut() = Some(Box::new({
+            let set_refresh = set_recordings_refresh;
+            move |_recording| {
+                set_refresh.update(|v| *v = v.wrapping_add(1));
+            }
+        }));
+
+        // Binary PCM data — process and play audio
+        *ws.on_binary.borrow_mut() = Some(Box::new({
+            let playback = audio_playback.clone();
+            move |data: Vec<u8>| {
+                hooks::use_audio_playback::process_pcm_data(&playback, data);
+                // Auto-start playback on first PCM data
+                if !playback.active.get_untracked() {
+                    hooks::use_audio_playback::start_playback(&playback);
+                }
+            }
+        }));
+    }
 
     view! {
         <div class="live-panel">
@@ -37,7 +92,7 @@ pub fn LivePanel() -> impl IntoView {
                                     <VoiceConnectionCard />
                                 </div>
                                 <div>
-                                    <ActiveSpeakers />
+                                    <ActiveSpeakers speakers=speakers />
                                 </div>
                             </div>
 
@@ -54,7 +109,7 @@ pub fn LivePanel() -> impl IntoView {
                             {/* Media controls: Now Playing + Music + Screen */}
                             <div class="grid gap-6 lg:grid-cols-3">
                                 <div>
-                                    <NowPlaying />
+                                    <NowPlaying media_rw=media_state />
                                 </div>
                                 <div>
                                     <MusicSubPanel />
@@ -65,7 +120,7 @@ pub fn LivePanel() -> impl IntoView {
                             </div>
 
                             {/* Recordings */}
-                            <RecordingsSubPanel />
+                            <RecordingsSubPanel refresh_trigger=recordings_refresh />
                         </div>
                     }.into_any()
                 } else {

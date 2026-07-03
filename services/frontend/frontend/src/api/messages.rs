@@ -22,17 +22,21 @@ pub async fn get_messages(
 }
 
 /// GET /api/review?params
+/// Backend `GET /review` accepts `channelId` and `limit` (not guildId).
 pub async fn get_review_messages(
-    guild_id: &str,
     limit: Option<u32>,
     channel_id: Option<&str>,
 ) -> Result<PageResult<MessageRecord>, ApiError> {
-    let mut path = format!("/api/review?guildId={}", guild_id);
+    let mut path = "/api/review".to_string();
+    let mut params = vec![];
     if let Some(l) = limit {
-        path.push_str(&format!("&limit={}", l));
+        params.push(format!("limit={}", l));
     }
     if let Some(c) = channel_id {
-        path.push_str(&format!("&channelId={}", c));
+        params.push(format!("channelId={}", c));
+    }
+    if !params.is_empty() {
+        path.push_str(&format!("?{}", params.join("&")));
     }
     request("GET", &path, None).await
 }

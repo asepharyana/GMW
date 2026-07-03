@@ -6,16 +6,13 @@ pub fn MusicSubPanel(
     #[prop(optional)] on_queue: Option<Box<dyn Fn(String) + Send + Sync + 'static>>,
 ) -> impl IntoView {
     let (url_input, set_url_input) = signal::<String>(String::new());
-    let (is_loading, set_is_loading) = signal::<bool>(false);
 
     let handle_queue_click = move |_| {
         let url = url_input.get_untracked().trim().to_string();
         if !url.is_empty() {
             if let Some(ref cb) = on_queue {
-                set_is_loading.set(true);
                 cb(url.clone());
                 set_url_input.set(String::new());
-                set_is_loading.set(false);
             }
         }
     };
@@ -40,15 +37,14 @@ pub fn MusicSubPanel(
                         placeholder="youtube.com/watch?v=... or song name"
                         prop:value=url_input
                         on:input=move |ev| set_url_input.set(event_target_value(&ev))
-                        disabled=move || is_loading.get()
                     />
                 </div>
                 <button
-                    class=move || format!("btn btn-primary w-full {}", if is_loading.get() { "opacity-50" } else { "" })
+                    class="btn btn-primary w-full"
                     on:click=handle_queue_click
-                    disabled=move || url_input.get().is_empty() || is_loading.get()
+                    disabled=move || url_input.get().is_empty()
                 >
-                    {move || if is_loading.get() { "Queuing..." } else { "Queue Music" }}
+                    "Queue Music"
                 </button>
             </div>
         </div>

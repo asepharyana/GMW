@@ -29,6 +29,36 @@ pub fn MascotChatbot() -> impl IntoView {
                 .to_string(),
     }]);
 
+    // Fetch chat history when the panel opens
+    Effect::new(move |_| {
+        if open.get() {
+            spawn_local(async move {
+                if let Ok(history) = crate::api::mascot::get_chat_history().await {
+                    messages.update(|list| {
+                        // Keep the initial greeting, then append history messages
+                        let greeting = list.first().cloned();
+                        list.clear();
+                        if let Some(g) = greeting {
+                            list.push(g);
+                        }
+                        for msg in history {
+                            let role = if msg.role == "user" {
+                                ChatRole::User
+                            } else {
+                                ChatRole::Mascot
+                            };
+                            list.push(ChatMessage {
+                                id: format!("hist-{}", list.len()),
+                                role,
+                                content: msg.content,
+                            });
+                        }
+                    });
+                }
+            });
+        }
+    });
+
     let send_message = move || {
         let text = input.get_untracked().trim().to_string();
         if text.is_empty() || loading.get_untracked() {

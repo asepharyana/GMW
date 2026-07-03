@@ -3,8 +3,11 @@ use leptos::prelude::*;
 use shared_types::recording::VoiceRecording;
 
 /// RecordingsSubPanel — Paginated list of voice recordings
+/// Accepts an optional refresh_trigger signal to reload when a new recording is uploaded.
 #[component]
-pub fn RecordingsSubPanel() -> impl IntoView {
+pub fn RecordingsSubPanel(
+    #[prop(optional)] refresh_trigger: Option<ReadSignal<u64>>,
+) -> impl IntoView {
     let recordings = RwSignal::new(Vec::<VoiceRecording>::new());
     let loading = RwSignal::new(false);
     let has_more = RwSignal::new(true);
@@ -47,8 +50,11 @@ pub fn RecordingsSubPanel() -> impl IntoView {
         });
     };
 
-    // Load on mount
+    // Load on mount, and reload when refresh_trigger changes (e.g., new recording uploaded)
     Effect::new(move |_| {
+        if let Some(trigger) = refresh_trigger {
+            trigger.get(); // Track — re-run when WS signals a new recording
+        }
         load(true);
     });
 
