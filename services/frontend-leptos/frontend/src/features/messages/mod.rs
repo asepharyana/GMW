@@ -287,6 +287,7 @@ pub fn MessagesPanel() -> impl IntoView {
                         let load_more_cb = state.load_more.clone();
                         let empty_text: &'static str = if show_search.get() { "No messages found matching your search." } else { "No captures yet." };
                         let has_more = if show_search.get() { false } else { state.has_more.get() };
+                        let on_load_more_clone: Arc<dyn Fn() + Send + Sync + 'static> = Arc::new(move || load_more_cb());
                         view! {
                             <MessageFeed
                                 messages=filtered_messages.get()
@@ -294,7 +295,7 @@ pub fn MessagesPanel() -> impl IntoView {
                                 loading=state.loading.get()
                                 has_more=has_more
                                 loading_more=state.loading_more.get()
-                                on_load_more=Arc::new(move || load_more_cb()) as Arc<dyn Fn() + Send + Sync + 'static>
+                                on_load_more=on_load_more_clone
                                 on_reanalyze=state.reanalyze.clone()
                             />
                         }
