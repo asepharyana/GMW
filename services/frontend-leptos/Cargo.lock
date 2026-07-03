@@ -498,6 +498,7 @@ dependencies = [
  "lucide-leptos",
  "serde",
  "serde-wasm-bindgen",
+ "serde_json",
  "shared-types",
  "wasm-bindgen",
  "wasm-logger",

@@ -1,5 +1,6 @@
 pub mod app;
 pub mod ui;
+pub mod ws;
 
 use wasm_bindgen::prelude::*;
 
