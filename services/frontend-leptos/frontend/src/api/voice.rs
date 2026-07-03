@@ -26,6 +26,7 @@ pub async fn get_voice_status() -> Result<VoiceStatus, ApiError> {
 
 /// POST /api/voice/connect { guildId, channelId }
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ConnectPayload {
     guild_id: String,
     channel_id: String,

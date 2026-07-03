@@ -101,7 +101,11 @@ impl WsContext {
                             }
                         }
                         "media_state" => {
-                            if let Some(d) = data.and_then(|v| serde_json::from_value::<MediaState>(v.clone()).ok()) {
+                            // Backend sends initial state with "state" key, live updates with "data"
+                            let raw = data
+                                .or_else(|| parsed.get("state"))
+                                .cloned();
+                            if let Some(d) = raw.and_then(|v| serde_json::from_value::<MediaState>(v).ok()) {
                                 if let Some(cb) = self.on_media_state.borrow().as_ref() {
                                     cb(d);
                                 }

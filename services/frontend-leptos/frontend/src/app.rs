@@ -34,7 +34,7 @@ pub fn App() -> impl IntoView {
     provide_context(auth.clone());
     provide_context(ui.clone());
 
-    let ws = WsContext::new("ws://localhost:3001");
+    let ws = WsContext::new("ws://localhost:3001/ws");
     provide_context(ws.clone());
 
     // Auth check: redirect "live" tab to "messages" if not authenticated

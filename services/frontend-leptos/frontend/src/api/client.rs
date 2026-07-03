@@ -18,15 +18,15 @@ impl std::fmt::Display for ApiError {
 impl std::error::Error for ApiError {}
 
 fn get_base_url() -> String {
-    // Try to read from a JS global set by index.html, or fall back to localhost
-    let default = "http://localhost:3001";
-    js_sys::global()
-        .unchecked_ref::<web_sys::Window>()
-        .location()
-        .hostname()
-        .ok()
-        .map(|_| format!("http://localhost:3001"))
-        .unwrap_or_else(|| default.to_string())
+    if let Some(window) = web_sys::window() {
+        let location = window.location();
+        let protocol = location.protocol().unwrap_or_else(|_| "http:".to_string());
+        let protocol = protocol.trim_end_matches(':');
+        let host = location.host().unwrap_or_else(|_| "localhost:3001".to_string());
+        format!("{}://{}", protocol, host)
+    } else {
+        "http://localhost:3001".to_string()
+    }
 }
 
 fn get_auth_header() -> Option<String> {
@@ -42,7 +42,7 @@ pub async fn request<T: DeserializeOwned>(
 ) -> Result<T, ApiError> {
     let url = format!("{}{}", get_base_url(), path);
 
-    let mut headers = Headers::new().map_err(|_| ApiError {
+    let headers = Headers::new().map_err(|_| ApiError {
         message: "Failed to create headers".to_string(),
         status_code: 0,
     })?;
@@ -51,13 +51,16 @@ pub async fn request<T: DeserializeOwned>(
         headers.set("X-Admin-Password", &password).ok();
     }
 
-    let mut opts = RequestInit::new();
+    if body.is_some() {
+        headers.set("Content-Type", "application/json").ok();
+    }
+
+    let opts = RequestInit::new();
     opts.set_method(method);
     opts.set_headers(&headers);
     opts.set_mode(RequestMode::Cors);
 
     if let Some(json_body) = body {
-        headers.set("Content-Type", "application/json").ok();
         opts.set_body(&JsValue::from_str(json_body));
     }
 

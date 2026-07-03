@@ -32,5 +32,6 @@ pub struct VoiceRecordingListResponse {
     pub items: Vec<VoiceRecording>,
     #[serde(rename = "nextCursor")]
     pub next_cursor: Option<String>,
+    #[serde(rename = "hasMore")]
     pub has_more: bool,
 }

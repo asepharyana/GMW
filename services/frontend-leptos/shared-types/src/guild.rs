@@ -20,6 +20,7 @@ pub struct Channel {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GuildVoiceEntry {
     pub guild_id: String,
     pub channel_id: String,
