@@ -1,0 +1,56 @@
+// services/frontend-leptos/frontend/src/layout/header.rs
+use leptos::prelude::*;
+use crate::ws::context::WsContext;
+use crate::ws::socket::WsStatus;
+
+#[component]
+pub fn Header() -> impl IntoView {
+    let ws = use_context::<WsContext>().expect("WsContext not provided");
+    let ws_status = ws.status;
+
+    let indicator_text_memo = create_memo(move |_| match ws_status.get() {
+        WsStatus::Connected => "Online",
+        WsStatus::Connecting => "Menghubungkan...",
+        WsStatus::Disconnected => "Offline",
+        WsStatus::Error(_) => "Error",
+    });
+    let indicator_color_memo = create_memo(move |_| match ws_status.get() {
+        WsStatus::Connected => "var(--color-success)",
+        WsStatus::Connecting => "var(--color-warning)",
+        WsStatus::Disconnected => "var(--text-tertiary)",
+        WsStatus::Error(_) => "var(--color-error)",
+    });
+
+    view! {
+        <header style="
+            height: var(--header-height);
+            border-bottom: 1px solid var(--surface-border);
+            display: flex;
+            align-items: center;
+            padding: 0 1.5rem;
+            background: var(--surface-base);
+            position: sticky;
+            top: 0;
+            z-index: var(--z-header);
+        ">
+            <div class="flex items-center gap-2">
+                <span style="font-weight: 700; font-size: 1.125rem; color: var(--color-primary);">
+                    "IMPHNEN"
+                </span>
+                <span style="color: var(--text-secondary); font-size: 0.75rem; padding: 0.125rem 0.375rem; background: var(--surface-overlay); border-radius: var(--radius-sm);">
+                    "Guild Watcher"
+                </span>
+            </div>
+
+            <div class="flex items-center gap-4 ml-auto">
+                <div class="flex items-center gap-1" style="font-size: 0.75rem; color: var(--text-secondary);">
+                    <span
+                        style="width: 8px; height: 8px; border-radius: 50%;"
+                        style:background={move || indicator_color_memo.get()}
+                    ></span>
+                    <span>{move || indicator_text_memo.get()}</span>
+                </div>
+            </div>
+        </header>
+    }
+}

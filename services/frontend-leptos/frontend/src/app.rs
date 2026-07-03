@@ -1,0 +1,147 @@
+use leptos::prelude::*;
+use shared_types::ui_state::Tab;
+use crate::auth::AuthOverlay;
+use crate::ws::context::WsContext;
+use crate::features::dashboard::DashboardPanel;
+use crate::features::live::LivePanel;
+use crate::features::messages::MessagesPanel;
+use crate::features::polish::{initial_theme, ThemeContext};
+use crate::features::polish::components::{MascotChatbot, ParticleBackground, ThemeToggle};
+
+#[derive(Clone)]
+pub struct AppConfig {
+    pub monitor_guild_id: Option<String>,
+}
+
+// ── Contexts ────────────────────────────────────────────
+
+#[derive(Clone)]
+pub struct AuthContext {
+    pub authenticated: RwSignal<bool>,
+    pub password: RwSignal<String>,
+}
+
+#[derive(Clone)]
+pub struct UiContext {
+    pub active_tab: RwSignal<Tab>,
+    pub selected_guild: RwSignal<Option<String>>,
+}
+
+// ── App ─────────────────────────────────────────────────
+
+#[component]
+pub fn App() -> impl IntoView {
+    // Initialize contexts
+    let auth = AuthContext {
+        authenticated: create_rw_signal(false),
+        password: create_rw_signal(String::new()),
+    };
+    let ui = UiContext {
+        active_tab: create_rw_signal(Tab::Messages),
+        selected_guild: create_rw_signal(None),
+    };
+    let theme = ThemeContext {
+        theme: create_rw_signal(initial_theme()),
+    };
+
+    provide_context(auth.clone());
+    provide_context(ui.clone());
+    provide_context(theme.clone());
+
+    let config = AppConfig {
+        monitor_guild_id: None,
+    };
+    provide_context(config);
+
+    let ws = WsContext::new("ws://localhost:3001/ws");
+    provide_context(ws.clone());
+
+    // Auth check: redirect "live" tab to "messages" if not authenticated
+    create_effect(move |_| {
+        if !auth.authenticated.get() && ui.active_tab.get() == Tab::Live {
+            ui.active_tab.set(Tab::Messages);
+        }
+    });
+
+    {
+        let ws = ws.clone();
+        let auth = auth.clone();
+        create_effect(move |_| {
+            if auth.authenticated.get() {
+                ws.connect();
+            }
+        });
+    }
+
+    view! {
+        <div data-theme=move || theme.theme.get()>
+            <ParticleBackground />
+
+            // Auth overlay
+            {move || (!auth.authenticated.get()).then(|| {
+                view! { <AuthOverlay /> }
+            })}
+
+            // Main content
+            <div class="app-shell">
+                <header class="app-header">
+                    <div class="app-brand">
+                        <span class="app-brand-mark">"IMPHNEN"</span>
+                        <span class="app-brand-subtitle">"Discord Moderation"</span>
+                    </div>
+                    <ThemeToggle />
+                </header>
+
+                <main class="app-main">
+                    <nav class="app-sidebar">
+                        <div class="flex flex-col gap-2">
+                            <TabButton tab=Tab::Messages ui=ui.clone() label="Pesan & Moderasi" />
+                            <TabButton tab=Tab::Live ui=ui.clone() label="Voice & Media" />
+                            <TabButton tab=Tab::Dashboard ui=ui.clone() label="Dashboard Guild" />
+                        </div>
+                    </nav>
+
+                    <div class="app-content">
+                        {move || match ui.active_tab.get() {
+                            Tab::Messages => view! { <MessagesPanel /> }.into_any(),
+                            Tab::Live => view! { <LivePanel /> }.into_any(),
+                            Tab::Dashboard => view! { <DashboardPanel /> }.into_any(),
+                        }}
+                    </div>
+                </main>
+            </div>
+
+            {move || auth.authenticated.get().then(|| view! { <MascotChatbot /> })}
+        </div>
+    }
+}
+
+// ── Tab Button Helper ───────────────────────────────────
+
+#[component]
+fn TabButton(
+    tab: Tab,
+    ui: UiContext,
+    label: &'static str,
+) -> impl IntoView {
+    let active_tab = ui.active_tab.clone();
+    let tab1 = tab.clone();
+    let tab2 = tab.clone();
+    let tab3 = tab.clone();
+    let tab4 = tab;
+
+    view! {
+        <button
+            class:btn=true
+            class:btn-ghost=true
+            class:btn-active=move || active_tab.get() == tab1
+            on:click=move |_| active_tab.set(tab4.clone())
+            style:background=move || if active_tab.get() == tab2 { "var(--surface-overlay)" } else { "" }
+            style:color=move || if active_tab.get() == tab3 { "var(--color-primary)" } else { "" }
+            style:width="100%"
+            style:justify-content="flex-start"
+        >
+            {label}
+        </button>
+    }
+}
