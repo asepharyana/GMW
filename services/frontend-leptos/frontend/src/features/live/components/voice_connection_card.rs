@@ -1,8 +1,6 @@
 use leptos::prelude::*;
+use wasm_bindgen::prelude::*;
 use crate::features::live::hooks::use_voice_control::{use_voice_control, VoiceControlState};
-use crate::ui::button::{Button, ButtonVariant};
-use crate::ui::card::{Card, CardContent, CardDescription, CardHeader, CardTitle};
-use shared_types::guild::{Guild, Channel};
 
 /// VoiceConnectionCard component for Leptos
 /// Renders guild and voice channel selectors with connect/disconnect controls
@@ -33,14 +31,18 @@ pub fn VoiceConnectionCard(
     });
 
     let on_guild_change = move |ev: leptos::ev::Event| {
-        if let Some(target) = ev.target().and_then(|t| t.dyn_into::<web_sys::HtmlSelectElement>().ok()) {
-            set_selected_guild(target.value());
+        if let Some(target) = ev.target() {
+            if let Ok(select_el) = target.dyn_into::<web_sys::HtmlSelectElement>() {
+                set_selected_guild.set(select_el.value());
+            }
         }
     };
 
     let on_channel_change = move |ev: leptos::ev::Event| {
-        if let Some(target) = ev.target().and_then(|t| t.dyn_into::<web_sys::HtmlSelectElement>().ok()) {
-            set_selected_channel(target.value());
+        if let Some(target) = ev.target() {
+            if let Ok(select_el) = target.dyn_into::<web_sys::HtmlSelectElement>() {
+                set_selected_channel.set(select_el.value());
+            }
         }
     };
 
@@ -76,9 +78,9 @@ pub fn VoiceConnectionCard(
     };
 
     view! {
-        <Card class=format!("{} border border-border bg-card shadow-sm", class) bordered=true>
-            <CardHeader>
-                <div class="flex items-center gap-2">
+        <div class=format!("rounded-xl border border-border bg-card shadow-sm {}", class)>
+            <div class="p-6">
+                <div class="flex items-center gap-2 mb-2">
                     <svg
                         class="h-5 w-5 text-primary"
                         fill="currentColor"
@@ -86,24 +88,22 @@ pub fn VoiceConnectionCard(
                     >
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
                     </svg>
-                    <CardTitle>"Voice Bridge"</CardTitle>
+                    <h3 class="text-lg font-semibold tracking-tight">"Voice Bridge"</h3>
                 </div>
-                <CardDescription>
+                <p class="text-sm text-muted-foreground mb-4">
                     "Join a Discord voice channel, listen, and transmit audio."
-                </CardDescription>
-            </CardHeader>
+                </p>
 
-            <CardContent class="space-y-4">
                 {/* Guild and Channel Selectors */}
-                <div class="grid gap-4 md:grid-cols-2">
+                <div class="grid gap-4 md:grid-cols-2 mb-4">
                     <div class="space-y-2">
-                        <label class="text-sm font-medium text-foreground">Guild</label>
+                        <label class="text-sm font-medium text-foreground">"Guild"</label>
                         <select
                             prop:value=selected_guild
                             on:change=on_guild_change
                             class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            <option value="">Select guild</option>
+                            <option value="">"Select guild"</option>
                             <For each=move || guilds.get() key=|g| g.id.clone() let:guild>
                                 <option value=guild.id.clone()>
                                     {guild.name.clone()}
@@ -113,13 +113,13 @@ pub fn VoiceConnectionCard(
                     </div>
 
                     <div class="space-y-2">
-                        <label class="text-sm font-medium text-foreground">Voice Channel</label>
+                        <label class="text-sm font-medium text-foreground">"Voice Channel"</label>
                         <select
                             prop:value=selected_channel
                             on:change=on_channel_change
                             class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            <option value="">Select voice channel</option>
+                            <option value="">"Select voice channel"</option>
                             <For each=move || voice_channels.get() key=|c| c.id.clone() let:channel>
                                 <option value=channel.id.clone()>
                                     {channel.name.clone()}
@@ -133,7 +133,7 @@ pub fn VoiceConnectionCard(
                 {move || {
                     error.get().map(|err| {
                         view! {
-                            <div class="rounded-md bg-destructive/15 px-3 py-2 text-sm text-destructive">
+                            <div class="rounded-md bg-destructive/15 px-3 py-2 text-sm text-destructive mb-4">
                                 {err}
                             </div>
                         }
@@ -143,33 +143,33 @@ pub fn VoiceConnectionCard(
                 {/* Status Display */}
                 {move || {
                     voice_status.get().map(|status| {
+                        let connected = status.connected;
+                        let active_channel = status.active_channel_name.clone();
                         view! {
-                            <div class="flex items-center gap-2 text-sm">
+                            <div class="flex items-center gap-2 text-sm mb-4">
                                 <div class=move || {
-                                    if status.connected {
+                                    if connected {
                                         "h-2 w-2 rounded-full bg-emerald-500"
                                     } else {
                                         "h-2 w-2 rounded-full bg-muted-foreground/40"
                                     }
                                 }></div>
                                 <span class=move || {
-                                    if status.connected {
+                                    if connected {
                                         "text-emerald-600 dark:text-emerald-400 font-medium"
                                     } else {
                                         "text-muted-foreground"
                                     }
                                 }>
-                                    {move || if status.connected { "Connected" } else { "Disconnected" }}
+                                    {if connected { "Connected" } else { "Disconnected" }}
                                 </span>
-                                {move || {
-                                    status.active_channel_name.clone().map(|name| {
-                                        view! {
-                                            <span class="text-muted-foreground">
-                                                " - "{name}
-                                            </span>
-                                        }
-                                    })
-                                }}
+                                {active_channel.map(|name| {
+                                    view! {
+                                        <span class="text-muted-foreground">
+                                            {format!(" - {}", name)}
+                                        </span>
+                                    }
+                                })}
                             </div>
                         }
                     })
@@ -177,21 +177,33 @@ pub fn VoiceConnectionCard(
 
                 {/* Control Buttons */}
                 <div class="flex flex-wrap gap-2">
-                    <Button
-                        variant=ButtonVariant::Primary
+                    <button
+                        class=move || {
+                            if can_join() {
+                                "btn btn-primary"
+                            } else {
+                                "btn btn-primary opacity-50 cursor-not-allowed"
+                            }
+                        }
                         disabled=move || !can_join()
-                        on_click=Box::new(on_join_click)
+                        on:click=on_join_click
                     >
                         {move || if is_connected() { "Reconnect" } else { "Join Voice" }}
-                    </Button>
+                    </button>
 
-                    <Button
-                        variant=ButtonVariant::Destructive
+                    <button
+                        class=move || {
+                            if can_disconnect() {
+                                "btn btn-destructive"
+                            } else {
+                                "btn btn-destructive opacity-50 cursor-not-allowed"
+                            }
+                        }
                         disabled=move || !can_disconnect()
-                        on_click=Box::new(on_disconnect_click)
+                        on:click=on_disconnect_click
                     >
                         "Disconnect"
-                    </Button>
+                    </button>
 
                     {move || {
                         if loading.get() {
@@ -199,13 +211,13 @@ pub fn VoiceConnectionCard(
                                 <span class="inline-flex items-center px-3 py-2 text-sm text-muted-foreground">
                                     "Loading..."
                                 </span>
-                            }.into_view()
+                            }.into_any()
                         } else {
-                            view! { }.into_view()
+                            view! { <></> }.into_any()
                         }
                     }}
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     }
 }
