@@ -164,8 +164,9 @@ pub fn MessagesPanel() -> impl IntoView {
     // Fetch messages on mount if guild is configured
     Effect::new(move |_| {
         if let Some(config) = use_context::<crate::app::AppConfig>() {
-            if let Some(ref guild_id) = config.monitor_guild_id {
-                (state.fetch_messages)(guild_id.clone());
+            if let Some(ref guild_id) = config.monitor_guild_id.get() {
+                let gid = guild_id.clone();
+                (state.fetch_messages)(gid);
             }
         }
     });

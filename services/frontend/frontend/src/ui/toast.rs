@@ -52,7 +52,7 @@ impl ToastContext {
 
         // Auto-dismiss after 4 seconds
         let toasts = self.toasts;
-        leptos::prelude::set_timeout(
+        let _ = leptos::prelude::set_timeout(
             move || {
                 toasts.update(|t| t.retain(|m| m.id != id));
             },

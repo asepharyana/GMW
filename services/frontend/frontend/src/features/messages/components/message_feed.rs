@@ -3,6 +3,7 @@ use leptos::prelude::*;
 use shared_types::message::MessageRecord;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 use web_sys::IntersectionObserver;
 
 const GROUP_WINDOW_MS: i64 = 5 * 60 * 1000;
@@ -40,31 +41,52 @@ pub fn MessageFeed(
     on_reanalyze: Arc<dyn Fn(String) + Send + Sync + 'static>,
 ) -> impl IntoView {
     let sentinel_ref = NodeRef::<html::Div>::new();
-    let (_intersecting, _set_intersecting) = signal(false);
+    let (observer_ready, set_observer_ready) = signal(false);
 
+    // Schedule observer setup to run AFTER the DOM is mounted (next microtask).
+    // With has_more, !loading, and messages present the sentinel div will be in the DOM.
+    if !loading && !messages.is_empty() && has_more {
+        wasm_bindgen_futures::spawn_local({
+            let setter = set_observer_ready;
+            async move {
+                setter.set(true);
+            }
+        });
+    }
+
+    // Clone before move into Effect closure so it's still available for the view
+    let on_load_more_io = on_load_more.clone();
     Effect::new(move |_| {
-        let _ = _intersecting.get(); // track signal
+        let _ready = observer_ready.get();
+        if !_ready {
+            return;
+        }
         if let Some(node) = sentinel_ref.get() {
-            let on_load_more = on_load_more.clone();
-            let cb = Closure::<dyn Fn(Vec<JsValue>)>::new(move |entries: Vec<JsValue>| {
-                for entry in entries {
-                    if let Some(entry) = entry.dyn_ref::<web_sys::IntersectionObserverEntry>() {
-                        if entry.is_intersecting() {
-                            if let Some(ref cb) = on_load_more {
-                                cb();
+            let cb = on_load_more_io.clone();
+            let observer_cb = Closure::<dyn Fn(Vec<JsValue>, IntersectionObserver)>::new(
+                move |entries: Vec<JsValue>, _observer: IntersectionObserver| {
+                    for entry in entries {
+                        if let Some(entry) =
+                            entry.dyn_ref::<web_sys::IntersectionObserverEntry>()
+                        {
+                            if entry.is_intersecting() {
+                                if let Some(ref cb) = cb {
+                                    cb();
+                                }
                             }
                         }
                     }
-                }
-            });
-            let observer = IntersectionObserver::new(cb.as_ref().unchecked_ref())
-                .expect("IntersectionObserver failed");
+                },
+            );
+            let observer =
+                IntersectionObserver::new(observer_cb.as_ref().unchecked_ref())
+                    .expect("IntersectionObserver failed");
             observer.observe(&node);
+            // Keep closure alive — forget rather than cleanup since observer owns it
+            observer_cb.forget();
             on_cleanup(move || {
                 observer.disconnect();
             });
-            // Keep closure alive
-            cb.forget();
         }
     });
 
@@ -105,15 +127,33 @@ pub fn MessageFeed(
                 }
             }).collect::<Vec<_>>()}
 
-            {/* Infinite scroll sentinel */}
+            {/* Infinite scroll sentinel + fallback load more button */}
             {has_more_val.then(|| {
                 view! {
-                    <div node_ref=sentinel_ref class="h-4">
-                        {loading_more_val.then(|| {
-                            use super::message_card::MessageCardSkeleton;
-                            view! { <MessageCardSkeleton /> }
+                    <>
+                        <div node_ref=sentinel_ref class="h-4">
+                            {loading_more_val.then(|| {
+                                use super::message_card::MessageCardSkeleton;
+                                view! { <MessageCardSkeleton /> }
+                            })}
+                        </div>
+                        {/* Fallback: visible button in case IntersectionObserver doesn't fire */}
+                        {(!loading_more_val).then(|| {
+                            let load_more_cb = on_load_more.clone();
+                            view! {
+                                <div class="mt-4 text-center">
+                                    <button
+                                        class="btn btn-outline btn-sm"
+                                        on:click=move |_| {
+                                            if let Some(ref cb) = load_more_cb { cb(); }
+                                        }
+                                    >
+                                        "Load more"
+                                    </button>
+                                </div>
+                            }
                         })}
-                    </div>
+                    </>
                 }
             })}
         </div>

@@ -1,3 +1,5 @@
+use wasm_bindgen::prelude::*;
+
 /// PCM Frame decoded from binary WebSocket data
 /// Format: [u32 userId (4 bytes)][i16 samples (N bytes)]
 pub struct PcmFrame {
@@ -53,15 +55,16 @@ pub fn encode_samples_to_base64(samples: &[f32]) -> String {
     encode_bytes_base64(&bytes)
 }
 
-/// Encode raw bytes to base64 using JavaScript's btoa
+/// Encode raw bytes to base64 using JavaScript's btoa via wasm-bindgen
 fn encode_bytes_base64(data: &[u8]) -> String {
-    // Build binary string for btoa
-    let binary: String = data.iter().map(|&b| b as char).collect();
+    // Convert bytes 0-255 to a Latin-1 string (each byte → char with same codepoint)
+    let latin1: String = data.iter().map(|&b| b as char).collect();
+    js_btoa(&latin1)
+}
 
-    // Call btoa from JavaScript via js_sys::eval
-    let js_code = format!("btoa('{}')", binary.replace('\'', "\\'"));
-    js_sys::eval(&js_code)
-        .ok()
-        .and_then(|r| r.as_string())
-        .unwrap_or_default()
+/// Direct wasm-bindgen binding to the browser's btoa function
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_name = btoa)]
+    fn js_btoa(input: &str) -> String;
 }

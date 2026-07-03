@@ -9,9 +9,19 @@ pub fn AudioVisualizer(
     #[prop(optional)] pcm_data: Option<Arc<Mutex<Vec<f32>>>>,
 ) -> impl IntoView {
     let bars = RwSignal::new(vec![0.0; 32]);
+    let (tick, set_tick) = signal(0u32);
 
-    // Periodically update bars from PCM data
+    // Drive periodic updates: increment tick every 100ms
+    wasm_bindgen_futures::spawn_local(async move {
+        loop {
+            gloo_timers::future::TimeoutFuture::new(100).await;
+            set_tick.update(|t| *t = t.wrapping_add(1));
+        }
+    });
+
+    // Effect reacts to tick changes, updating bars from PCM data each frame
     Effect::new(move |_| {
+        tick.get(); // Track — Effect re-runs on each tick (every 100ms)
         if let Some(ref pcm_arc) = pcm_data {
             if let Ok(pcm_vec) = pcm_arc.lock() {
                 let computed = compute_frequency_bands(&pcm_vec);

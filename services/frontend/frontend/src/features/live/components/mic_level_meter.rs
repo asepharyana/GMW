@@ -11,9 +11,19 @@ pub fn MicLevelMeter(
 ) -> impl IntoView {
     let level = RwSignal::new(0.0f32);
     let peak = RwSignal::new(0.0f32);
+    let (tick, set_tick) = signal(0u32);
 
-    // Update level periodically
+    // Drive periodic updates: increment tick every 100ms
+    wasm_bindgen_futures::spawn_local(async move {
+        loop {
+            gloo_timers::future::TimeoutFuture::new(100).await;
+            set_tick.update(|t| *t = t.wrapping_add(1));
+        }
+    });
+
+    // Effect reacts to tick changes, updating level from PCM data each frame
     Effect::new(move |_| {
+        tick.get(); // Track — Effect re-runs on each tick
         if !active {
             return;
         }

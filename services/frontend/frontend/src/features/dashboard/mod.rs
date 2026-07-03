@@ -114,11 +114,12 @@ pub fn DashboardPanel() -> impl IntoView {
         });
     });
 
+    // Initial fetch on mount (use spawn_local to avoid reactive dependency tracking)
     {
         let fetch_stats = fetch_stats.clone();
         let fetch_users = fetch_users.clone();
         let fetch_channels = fetch_channels.clone();
-        Effect::new(move |_| {
+        spawn_local(async move {
             fetch_stats();
             fetch_users(true);
             fetch_channels(true);

@@ -1,3 +1,4 @@
+use crate::api::config as config_api;
 use crate::features::dashboard::DashboardPanel;
 use crate::features::live::LivePanel;
 use crate::features::messages::MessagesPanel;
@@ -6,6 +7,7 @@ use crate::features::polish::{initial_theme, ThemeContext};
 use crate::ws::context::WsContext;
 use leptos::prelude::*;
 use shared_types::ui_state::Tab;
+use wasm_bindgen_futures::spawn_local;
 
 /// Derive WebSocket URL from the page's own origin.
 /// In development (serve on :8080, backend on :3001) use the detected host + /ws path.
@@ -28,7 +30,7 @@ fn get_ws_url() -> String {
 
 #[derive(Clone)]
 pub struct AppConfig {
-    pub monitor_guild_id: Option<String>,
+    pub monitor_guild_id: RwSignal<Option<String>>,
 }
 
 // ── Contexts ────────────────────────────────────────────
@@ -67,14 +69,52 @@ pub fn App() -> impl IntoView {
     provide_context(theme.clone());
 
     let config = AppConfig {
-        monitor_guild_id: None,
+        monitor_guild_id: RwSignal::new(None),
     };
-    provide_context(config);
+    provide_context(config.clone());
 
     let ws = WsContext::new(&get_ws_url());
     provide_context(ws.clone());
 
     ws.connect();
+
+    // Try to fetch config on startup (works if password is already in localStorage)
+    spawn_local({
+        let config = config.clone();
+        async move {
+            match config_api::get_config().await {
+                Ok(cfg) => {
+                    config.monitor_guild_id.set(cfg.monitor_guild_id);
+                }
+                Err(e) => {
+                    web_sys::console::log_1(
+                        &format!("[config] failed to fetch: {}", e).into(),
+                    );
+                }
+            }
+        }
+    });
+
+    // Re-fetch config when user authenticates (handles first-time login)
+    Effect::new(move |_| {
+        if auth.authenticated.get() {
+            spawn_local({
+                let config = config.clone();
+                async move {
+                    match config_api::get_config().await {
+                        Ok(cfg) => {
+                            config.monitor_guild_id.set(cfg.monitor_guild_id);
+                        }
+                        Err(e) => {
+                            web_sys::console::log_1(
+                                &format!("[config] fetch after auth failed: {}", e).into(),
+                            );
+                        }
+                    }
+                }
+            });
+        }
+    });
 
     view! {
         <div data-theme=move || theme.theme.get()>
