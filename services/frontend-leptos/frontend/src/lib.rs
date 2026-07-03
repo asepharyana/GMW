@@ -1,5 +1,6 @@
 pub mod api;
 pub mod app;
+pub mod layout;
 pub mod ui;
 pub mod ws;
 

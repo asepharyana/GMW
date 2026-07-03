@@ -1,5 +1,11 @@
 use leptos::prelude::*;
 
+// Temporary stub until Task 4 creates the real UiContext
+#[derive(Clone)]
+pub struct UiContext {
+    pub active_tab: RwSignal<shared_types::ui_state::Tab>,
+}
+
 #[component]
 pub fn App() -> impl IntoView {
     view! {
