@@ -1,7 +1,7 @@
 // services/frontend-leptos/frontend/src/layout/mobile_tab_bar.rs
+use crate::app::UiContext;
 use leptos::prelude::*;
 use shared_types::ui_state::Tab;
-use crate::app::UiContext;
 
 #[component]
 pub fn MobileTabBar() -> impl IntoView {

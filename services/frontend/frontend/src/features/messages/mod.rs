@@ -6,51 +6,82 @@ use wasm_bindgen_futures::spawn_local;
 pub mod components;
 pub mod hooks;
 
-use components::message_feed::MessageFeed;
 use components::image_grid::ImageGrid;
+use components::message_feed::MessageFeed;
 use hooks::use_messages::{merge_messages, use_messages};
 
 type AiFilter = &'static str;
 const FILTERS: &[AiFilter] = &["all", "analyzed", "clean", "flagged", "error", "pending"];
 
 #[derive(Clone, PartialEq)]
-enum ViewTab { All, Images }
+enum ViewTab {
+    All,
+    Images,
+}
 
 #[component]
 pub fn MessagesPanel() -> impl IntoView {
     let state = use_messages();
-    let (search_query, set_search_query) = create_signal(String::new());
-    let (search_results, set_search_results) = create_signal::<Vec<MessageRecord>>(Vec::new());
-    let (show_search, set_show_search) = create_signal(false);
-    let (is_searching, set_is_searching) = create_signal(false);
+    let (search_query, set_search_query) = signal(String::new());
+    let (search_results, set_search_results) = signal::<Vec<MessageRecord>>(Vec::new());
+    let (show_search, set_show_search) = signal(false);
+    let (is_searching, set_is_searching) = signal(false);
     let ai_filter = RwSignal::new("analyzed".to_string());
     let view_tab = RwSignal::new(ViewTab::All);
-    let (retrying_all, set_retrying_all) = create_signal(false);
+    let (retrying_all, set_retrying_all) = signal(false);
 
     // Stats derived from filtered messages
-    let stats = create_memo(move |_| {
-        let base = if show_search.get() { search_results.get() } else { state.messages.get() };
+    let stats = Memo::new(move |_| {
+        let base = if show_search.get() {
+            search_results.get()
+        } else {
+            state.messages.get()
+        };
         let total = base.len();
-        let clean = base.iter().filter(|m| m.ai_status == Some(AiStatus::Clean)).count();
-        let flagged = base.iter().filter(|m| m.ai_status == Some(AiStatus::Flagged)).count();
-        let error = base.iter().filter(|m| m.ai_status == Some(AiStatus::Error)).count();
-        let pending = base.iter().filter(|m| m.ai_status.is_none() || m.ai_status == Some(AiStatus::Pending)).count();
+        let clean = base
+            .iter()
+            .filter(|m| m.ai_status == Some(AiStatus::Clean))
+            .count();
+        let flagged = base
+            .iter()
+            .filter(|m| m.ai_status == Some(AiStatus::Flagged))
+            .count();
+        let error = base
+            .iter()
+            .filter(|m| m.ai_status == Some(AiStatus::Error))
+            .count();
+        let pending = base
+            .iter()
+            .filter(|m| m.ai_status.is_none() || m.ai_status == Some(AiStatus::Pending))
+            .count();
         let deleted = base.iter().filter(|m| m.deleted_at.is_some()).count();
         let edited = base.iter().filter(|m| m.edited_at.is_some()).count();
         (total, clean, flagged, error, pending, deleted, edited)
     });
 
     // Filter messages based on active filter
-    let filtered_messages = create_memo(move |_| {
-        let base = if show_search.get() { search_results.get() } else { state.messages.get() };
+    let filtered_messages = Memo::new(move |_| {
+        let base = if show_search.get() {
+            search_results.get()
+        } else {
+            state.messages.get()
+        };
         let filter = ai_filter.get();
-        if filter == "all" { return base; }
-        base.into_iter().filter(|m| {
-            let status = m.ai_status.clone().unwrap_or(AiStatus::Pending);
-            if filter == "analyzed" { return status != AiStatus::Pending; }
-            if filter == "pending" { return status == AiStatus::Pending; }
-            format!("{:?}", status).to_lowercase() == filter
-        }).collect()
+        if filter == "all" {
+            return base;
+        }
+        base.into_iter()
+            .filter(|m| {
+                let status = m.ai_status.clone().unwrap_or(AiStatus::Pending);
+                if filter == "analyzed" {
+                    return status != AiStatus::Pending;
+                }
+                if filter == "pending" {
+                    return status == AiStatus::Pending;
+                }
+                format!("{:?}", status).to_lowercase() == filter
+            })
+            .collect()
     });
 
     // Search handler - takes any event type and triggers the search
@@ -88,16 +119,6 @@ pub fn MessagesPanel() -> impl IntoView {
         set_show_search.set(false);
         set_search_results.set(Vec::new());
         set_search_query.set(String::new());
-    };
-
-    // Reanalyze all errors
-    let handle_retry_all = move |_| {
-        set_retrying_all.set(true);
-        let cb = state.reanalyze_all_errors.clone();
-        spawn_local(async move {
-            cb();
-            set_retrying_all.set(false);
-        });
     };
 
     // Filter chip click
@@ -141,7 +162,7 @@ pub fn MessagesPanel() -> impl IntoView {
     }
 
     // Fetch messages on mount if guild is configured
-    create_effect(move |_| {
+    Effect::new(move |_| {
         if let Some(config) = use_context::<crate::app::AppConfig>() {
             if let Some(ref guild_id) = config.monitor_guild_id {
                 (state.fetch_messages)(guild_id.clone());
@@ -174,9 +195,9 @@ pub fn MessagesPanel() -> impl IntoView {
             </div>
 
             {/* Stats badges */}
-            {(total() > 0).then(|| view! {
+            {move || (total() > 0).then(|| view! {
                 <div class="message-stats">
-                    <span class="badge badge-outline text-xs">{total()} " total" {state.has_more.get().then(|| "+")}</span>
+                    <span class="badge badge-outline text-xs">{total()} " total" {state.has_more.get().then_some("+")}</span>
                     <span class="badge badge-success text-xs">{clean()} " clean"</span>
                     <span class="badge badge-primary text-xs">{flagged()} " flagged"</span>
                     <span class="badge badge-warning text-xs">{error()} " error"</span>
@@ -194,7 +215,7 @@ pub fn MessagesPanel() -> impl IntoView {
             <div class="search-row">
                 <div class="relative flex-1" style="min-width:200px">
                     {/* Search icon as SVG */}
-                    <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
+                    <svg width="16" height="16" style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);color:var(--color-primary)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
                     <input
                         class="input"
                         style="padding-left:2.25rem;border-radius:9999px"
@@ -214,42 +235,49 @@ pub fn MessagesPanel() -> impl IntoView {
                 >
                     {move || if is_searching.get() { "Searching..." } else { "Search" }}
                 </button>
-                {show_search.get().then(|| view! {
+                {move || show_search.get().then(|| view! {
                     <button class="btn btn-outline btn-sm" on:click=clear_search>
                         "✕ Clear"
                     </button>
                 })}
-                {(error() > 0 && !show_search.get()).then(|| view! {
-                    <button
-                        class="btn btn-destructive btn-sm"
-                        on:click=handle_retry_all
-                        disabled=move || retrying_all.get()
-                    >
-                        {/* Rotate CCW icon as SVN */}
-                        <svg class=format!("mr-1.5 h-3.5 w-3.5{}", if retrying_all.get() { " animate-spin" } else { "" }) xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"></path></svg>
-                        {move || if retrying_all.get() { "Retrying...".to_string() } else { format!("Retry All Errors ({})", error()) }}
-                    </button>
-                })}
-                <div class="ml-auto flex items-center gap-1.5">
+                {move || {
+                    (error() > 0 && !show_search.get()).then(|| {
+                        let cb = state.reanalyze_all_errors.clone();
+                        let err_count = error();
+                        view! {
+                            <button
+                                class="btn btn-destructive btn-sm"
+                                on:click=move |_| {
+                                    set_retrying_all.set(true);
+                                    let cb = cb.clone();
+                                    spawn_local(async move {
+                                        cb();
+                                        set_retrying_all.set(false);
+                                    });
+                                }
+                                disabled=move || retrying_all.get()
+                            >
+                                {/* Rotate CCW icon as SVN */}
+                                <svg class=format!("mr-1.5 h-3.5 w-3.5{}", if retrying_all.get() { " animate-spin" } else { "" }) xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"></path></svg>
+                                {move || if retrying_all.get() { "Retrying...".to_string() } else { format!("Retry All Errors ({})", err_count) }}
+                            </button>
+                        }
+                    })
+                }}
+                <div class="ml-auto flex items-center" style="gap:0.375rem">
                     {/* Filter icon as SVG since lucide-leptos Filter unavailable */}
-                    <svg class="h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                    <svg width="16" height="16" style="color:var(--color-primary)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
                     {FILTERS.iter().map(|f| {
-                        let active = ai_filter.get() == *f;
-                        let cls = if active {
-                            "filter-chip active"
-                        } else {
-                            "filter-chip"
-                        };
                         let f_ptr: &'static str = f;
                         view! {
-                            <button class=cls on:click=move |_| set_filter(f_ptr) >{*f}</button>
+                            <button class="filter-chip" class:active=move || ai_filter.get() == f_ptr on:click=move |_| set_filter(f_ptr) >{*f}</button>
                         }
                     }).collect::<Vec<_>>()}
                 </div>
             </div>
 
             {/* Search results count */}
-            {show_search.get().then(|| {
+            {move || show_search.get().then(|| {
                 let n = search_results.get().len();
                 view! {
                     <div class="text-sm text-secondary">
@@ -283,7 +311,7 @@ pub fn MessagesPanel() -> impl IntoView {
                 </div>
 
                 <div class="tab-content" style:display=move || if view_tab.get() == ViewTab::All { "block" } else { "none" }>
-                    {
+                    {move || {
                         let load_more_cb = state.load_more.clone();
                         let empty_text: &'static str = if show_search.get() { "No messages found matching your search." } else { "No captures yet." };
                         let has_more = if show_search.get() { false } else { state.has_more.get() };
@@ -299,10 +327,12 @@ pub fn MessagesPanel() -> impl IntoView {
                                 on_reanalyze=state.reanalyze.clone()
                             />
                         }
-                    }
+                    }}
                 </div>
                 <div class="tab-content" style:display=move || if view_tab.get() == ViewTab::Images { "block" } else { "none" }>
-                    <ImageGrid messages=filtered_messages.get() />
+                    {move || view! {
+                        <ImageGrid messages=filtered_messages.get() />
+                    }}
                 </div>
             </div>
         </div>

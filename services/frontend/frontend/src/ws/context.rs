@@ -1,12 +1,13 @@
 // services/frontend-leptos/frontend/src/ws/context.rs
+use crate::ws::socket::{WsEvent, WsHandle, WsStatus};
 use leptos::prelude::*;
-use crate::ws::socket::{WsHandle, WsStatus, WsEvent};
-use shared_types::message::MessageRecord;
-use shared_types::voice::ActiveSpeaker;
 use shared_types::media::MediaState;
+use shared_types::message::MessageRecord;
 use shared_types::recording::VoiceRecording;
+use shared_types::voice::ActiveSpeaker;
 
 #[derive(Clone)]
+#[allow(clippy::type_complexity)]
 pub struct WsContext {
     pub handle: std::rc::Rc<WsHandle>,
     pub status: ReadSignal<WsStatus>,
@@ -17,7 +18,8 @@ pub struct WsContext {
     pub on_message_deleted: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(String)>>>>,
     pub on_message_analyzed: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(MessageRecord)>>>>,
     pub on_voice_active_user: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(ActiveSpeaker)>>>>,
-    pub on_voice_recording_uploaded: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(VoiceRecording)>>>>,
+    pub on_voice_recording_uploaded:
+        std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(VoiceRecording)>>>>,
     pub on_media_state: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(MediaState)>>>>,
     pub on_binary: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(Vec<u8>)>>>>,
 }
@@ -59,14 +61,18 @@ impl WsContext {
 
                     match event_type.as_str() {
                         "message_created" => {
-                            if let Some(d) = data.and_then(|v| serde_json::from_value::<MessageRecord>(v.clone()).ok()) {
+                            if let Some(d) = data.and_then(|v| {
+                                serde_json::from_value::<MessageRecord>(v.clone()).ok()
+                            }) {
                                 if let Some(cb) = self.on_message_created.borrow().as_ref() {
                                     cb(d);
                                 }
                             }
                         }
                         "message_updated" => {
-                            if let Some(d) = data.and_then(|v| serde_json::from_value::<MessageRecord>(v.clone()).ok()) {
+                            if let Some(d) = data.and_then(|v| {
+                                serde_json::from_value::<MessageRecord>(v.clone()).ok()
+                            }) {
                                 if let Some(cb) = self.on_message_updated.borrow().as_ref() {
                                     cb(d);
                                 }
@@ -80,32 +86,39 @@ impl WsContext {
                             }
                         }
                         "message_analyzed" => {
-                            if let Some(d) = data.and_then(|v| serde_json::from_value::<MessageRecord>(v.clone()).ok()) {
+                            if let Some(d) = data.and_then(|v| {
+                                serde_json::from_value::<MessageRecord>(v.clone()).ok()
+                            }) {
                                 if let Some(cb) = self.on_message_analyzed.borrow().as_ref() {
                                     cb(d);
                                 }
                             }
                         }
                         "voice_active_user" => {
-                            if let Some(d) = data.and_then(|v| serde_json::from_value::<ActiveSpeaker>(v.clone()).ok()) {
+                            if let Some(d) = data.and_then(|v| {
+                                serde_json::from_value::<ActiveSpeaker>(v.clone()).ok()
+                            }) {
                                 if let Some(cb) = self.on_voice_active_user.borrow().as_ref() {
                                     cb(d);
                                 }
                             }
                         }
                         "voice_recording_uploaded" => {
-                            if let Some(d) = data.and_then(|v| serde_json::from_value::<VoiceRecording>(v.clone()).ok()) {
-                                if let Some(cb) = self.on_voice_recording_uploaded.borrow().as_ref() {
+                            if let Some(d) = data.and_then(|v| {
+                                serde_json::from_value::<VoiceRecording>(v.clone()).ok()
+                            }) {
+                                if let Some(cb) = self.on_voice_recording_uploaded.borrow().as_ref()
+                                {
                                     cb(d);
                                 }
                             }
                         }
                         "media_state" => {
                             // Backend sends initial state with "state" key, live updates with "data"
-                            let raw = data
-                                .or_else(|| parsed.get("state"))
-                                .cloned();
-                            if let Some(d) = raw.and_then(|v| serde_json::from_value::<MediaState>(v).ok()) {
+                            let raw = data.or_else(|| parsed.get("state")).cloned();
+                            if let Some(d) =
+                                raw.and_then(|v| serde_json::from_value::<MediaState>(v).ok())
+                            {
                                 if let Some(cb) = self.on_media_state.borrow().as_ref() {
                                     cb(d);
                                 }
@@ -113,7 +126,9 @@ impl WsContext {
                         }
                         _ => {
                             // Unknown event type — log and ignore
-                            web_sys::console::log_1(&format!("[WS] unhandled event: {}", event_type).into());
+                            web_sys::console::log_1(
+                                &format!("[WS] unhandled event: {}", event_type).into(),
+                            );
                         }
                     }
                 }

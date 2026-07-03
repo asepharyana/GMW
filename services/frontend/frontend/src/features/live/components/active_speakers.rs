@@ -22,36 +22,36 @@ pub fn ActiveSpeakers(
                                 key=|s| s.user_id.clone() + &s.username
                                 let:speaker
                             >
-                                <div class="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
-                                    <div class="h-8 w-8 flex-shrink-0">
+                                <div style="display:flex;align-items:center;gap:0.75rem;border-radius:0.75rem;border:1px solid var(--surface-border);background:var(--surface-base);padding:0.75rem">
+                                    <div style="width:2rem;height:2rem;flex-shrink:0">
                                         {speaker.avatar.as_ref().map(|avatar_url| {
                                             let url = avatar_url.clone();
                                             view! {
                                                 <img
                                                     src=url
                                                     alt=""
-                                                    class="h-8 w-8 rounded-full object-cover ring-2 ring-primary/30"
+                                                    style="width:2rem;height:2rem;border-radius:9999px;object-fit:cover;box-shadow:0 0 0 2px rgba(35,161,235,0.3)"
                                                 />
                                             }
                                         })}
                                     </div>
-                                    <div class="min-w-0 flex-1">
+                                    <div style="min-width:0;flex:1">
                                         <div class="truncate text-sm font-medium">
                                             {speaker.username.clone()}
                                         </div>
-                                        <div class="flex items-center gap-1.5">
-                                            <span class=move || {
+                                        <div style="display:flex;align-items:center;gap:0.375rem">
+                                            <span style=move || {
                                                 if speaker.speaking {
-                                                    "inline-block h-2 w-2 rounded-full bg-emerald-500"
+                                                    "display:inline-block;width:0.5rem;height:0.5rem;border-radius:9999px;background:#10b981"
                                                 } else {
-                                                    "inline-block h-2 w-2 rounded-full bg-muted-foreground/40"
+                                                    "display:inline-block;width:0.5rem;height:0.5rem;border-radius:9999px;background:color-mix(in srgb, var(--text-tertiary) 40%, transparent)"
                                                 }
                                             }></span>
-                                            <span class=move || {
+                                            <span style=move || {
                                                 if speaker.speaking {
-                                                    "text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                                                    "font-size:0.75rem;font-weight:500;color:#059669"
                                                 } else {
-                                                    "text-xs font-medium text-muted-foreground"
+                                                    "font-size:0.75rem;font-weight:500;color:var(--text-secondary)"
                                                 }
                                             }>
                                                 {move || if speaker.speaking { "Speaking" } else { "Silent" }}
@@ -64,12 +64,12 @@ pub fn ActiveSpeakers(
                     }
                 }
             >
-                <div class="rounded-xl border border-border bg-card p-8 text-center shadow-sm">
-                    <div class="space-y-2">
-                        <div class="text-4xl">
+                <div style="border-radius:0.75rem;border:1px solid var(--surface-border);background:var(--surface-base);padding:2rem;text-align:center">
+                    <div>
+                        <div style="font-size:2.25rem;line-height:2.5rem">
                             "🎤"
                         </div>
-                        <p class="text-sm text-muted-foreground">
+                        <p style="font-size:0.875rem;color:var(--text-secondary)">
                             "No active speakers"
                         </p>
                     </div>

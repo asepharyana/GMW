@@ -8,7 +8,7 @@ pub fn NowPlaying(
     #[prop(optional)] on_skip: Option<Box<dyn Fn() + Send + Sync + 'static>>,
     #[prop(optional)] on_stop: Option<Box<dyn Fn() + Send + Sync + 'static>>,
 ) -> impl IntoView {
-    let media_state = create_rw_signal::<Option<MediaState>>(state);
+    let media_state = RwSignal::new(state);
 
     // Wrap callbacks in StoredValue for shareable non-Clone ownership in Leptos context
     let skip_cb = StoredValue::new(on_skip);

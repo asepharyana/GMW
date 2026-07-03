@@ -56,7 +56,13 @@ pub fn DashboardPanel() -> impl IntoView {
         let search = users_search.get();
         spawn_local(async move {
             let search_ref = (!search.trim().is_empty()).then_some(search.trim());
-            match crate::api::dashboard::get_dashboard_users(Some(20), cursor.as_deref(), search_ref).await {
+            match crate::api::dashboard::get_dashboard_users(
+                Some(20),
+                cursor.as_deref(),
+                search_ref,
+            )
+            .await
+            {
                 Ok(page) => {
                     if reset {
                         users.set(page.data);
@@ -84,7 +90,14 @@ pub fn DashboardPanel() -> impl IntoView {
         let search = channels_search.get();
         spawn_local(async move {
             let search_ref = (!search.trim().is_empty()).then_some(search.trim());
-            match crate::api::dashboard::get_dashboard_channels(Some(20), cursor.as_deref(), search_ref, None).await {
+            match crate::api::dashboard::get_dashboard_channels(
+                Some(20),
+                cursor.as_deref(),
+                search_ref,
+                None,
+            )
+            .await
+            {
                 Ok(page) => {
                     if reset {
                         channels.set(page.data);
@@ -105,7 +118,7 @@ pub fn DashboardPanel() -> impl IntoView {
         let fetch_stats = fetch_stats.clone();
         let fetch_users = fetch_users.clone();
         let fetch_channels = fetch_channels.clone();
-        create_effect(move |_| {
+        Effect::new(move |_| {
             fetch_stats();
             fetch_users(true);
             fetch_channels(true);
@@ -131,67 +144,86 @@ pub fn DashboardPanel() -> impl IntoView {
                 </div>
 
                 <div class="tab-content" style:display=move || if active_tab.get() == DashboardTab::Stats { "block" } else { "none" }>
-                    <StatsOverview
-                        stats=stats.get()
-                        loading=stats_loading.get()
-                        error=stats_error.get()
-                        on_retry=Box::new({
+                    {move || {
+                        let on_retry = {
                             let fetch_stats = fetch_stats.clone();
-                            move || fetch_stats()
-                        })
-                    />
+                            Box::new(move || fetch_stats())
+                        };
+                        view! {
+                            <StatsOverview
+                                stats=stats.get()
+                                loading=stats_loading.get()
+                                error=stats_error.get()
+                                on_retry=on_retry
+                            />
+                        }
+                    }}
                 </div>
 
                 <div class="tab-content" style:display=move || if active_tab.get() == DashboardTab::Users { "block" } else { "none" }>
-                    <UserSummaryList
-                        users=users.get()
-                        loading=users_loading.get()
-                        error=users_error.get()
-                        search=users_search.get()
-                        has_more=users_cursor.get().is_some()
-                        on_search_change=Box::new({
+                    {move || {
+                        let on_search_change = {
                             let fetch_users = fetch_users.clone();
-                            move |value| {
+                            Box::new(move |value| {
                                 users_search.set(value);
                                 users_cursor.set(None);
                                 fetch_users(true);
-                            }
-                        })
-                        on_load_more=Box::new({
+                            })
+                        };
+                        let on_load_more = {
                             let fetch_users = fetch_users.clone();
-                            move || fetch_users(false)
-                        })
-                        on_retry=Box::new({
+                            Box::new(move || fetch_users(false))
+                        };
+                        let on_retry = {
                             let fetch_users = fetch_users.clone();
-                            move || fetch_users(true)
-                        })
-                    />
+                            Box::new(move || fetch_users(true))
+                        };
+                        view! {
+                            <UserSummaryList
+                                users=users.get()
+                                loading=users_loading.get()
+                                error=users_error.get()
+                                search=users_search.get()
+                                has_more=users_cursor.get().is_some()
+                                on_search_change=on_search_change
+                                on_load_more=on_load_more
+                                on_retry=on_retry
+                            />
+                        }
+                    }}
                 </div>
 
                 <div class="tab-content" style:display=move || if active_tab.get() == DashboardTab::Channels { "block" } else { "none" }>
-                    <ChannelSummaryList
-                        channels=channels.get()
-                        loading=channels_loading.get()
-                        error=channels_error.get()
-                        search=channels_search.get()
-                        has_more=channels_cursor.get().is_some()
-                        on_search_change=Box::new({
+                    {move || {
+                        let on_search_change = {
                             let fetch_channels = fetch_channels.clone();
-                            move |value| {
+                            Box::new(move |value| {
                                 channels_search.set(value);
                                 channels_cursor.set(None);
                                 fetch_channels(true);
-                            }
-                        })
-                        on_load_more=Box::new({
+                            })
+                        };
+                        let on_load_more = {
                             let fetch_channels = fetch_channels.clone();
-                            move || fetch_channels(false)
-                        })
-                        on_retry=Box::new({
+                            Box::new(move || fetch_channels(false))
+                        };
+                        let on_retry = {
                             let fetch_channels = fetch_channels.clone();
-                            move || fetch_channels(true)
-                        })
-                    />
+                            Box::new(move || fetch_channels(true))
+                        };
+                        view! {
+                            <ChannelSummaryList
+                                channels=channels.get()
+                                loading=channels_loading.get()
+                                error=channels_error.get()
+                                search=channels_search.get()
+                                has_more=channels_cursor.get().is_some()
+                                on_search_change=on_search_change
+                                on_load_more=on_load_more
+                                on_retry=on_retry
+                            />
+                        }
+                    }}
                 </div>
             </div>
         </div>

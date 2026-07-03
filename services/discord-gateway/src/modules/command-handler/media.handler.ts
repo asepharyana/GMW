@@ -1,10 +1,16 @@
+import { randomUUID } from "node:crypto";
 import { type CommandMessage, type CommandReply } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import { StreamType } from "@discordjs/voice";
-import { randomUUID } from "node:crypto";
-import { extractMediaInfo, resolveMediaUrl } from "../voice-recording/mediaSource.js";
+import {
+  extractMediaInfo,
+  resolveMediaUrl,
+} from "../voice-recording/mediaSource.js";
+import type {
+  MediaMode,
+  MediaQueueItem,
+} from "../voice-recording/mediaTypes.js";
 import { discordPlayer } from "../voice-recording/player.js";
-import type { MediaMode, MediaQueueItem } from "../voice-recording/mediaTypes.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,8 +57,7 @@ function mapToStatusItem(item: MediaQueueItem): MediaStatusItem {
 function buildStatusPayload(): MediaStatusPayload {
   return {
     playing:
-      currentTrackItem !== null &&
-      discordPlayer.getStatus() === "playing",
+      currentTrackItem !== null && discordPlayer.getStatus() === "playing",
     musicVolume: discordPlayer.getMusicVolume(),
     current: currentTrackItem ? mapToStatusItem(currentTrackItem) : null,
     queue: mediaQueue.map(mapToStatusItem),
@@ -81,8 +86,7 @@ export class MediaHandler {
 
   async handleMediaQueue(cmd: CommandMessage): Promise<CommandReply<unknown>> {
     const url = String(cmd.payload.url ?? "").trim();
-    const mode: MediaMode =
-      cmd.payload.mode === "screen" ? "screen" : "music";
+    const mode: MediaMode = cmd.payload.mode === "screen" ? "screen" : "music";
     const requestedBy = String(cmd.payload.requestedBy ?? "unknown");
 
     if (!url) {
@@ -96,9 +100,7 @@ export class MediaHandler {
     }
 
     if (!discordPlayer.isConnected()) {
-      this.logger.warn(
-        "media:queue attempted without active voice connection",
-      );
+      this.logger.warn("media:queue attempted without active voice connection");
       return {
         id: cmd.id,
         success: false,
@@ -256,7 +258,10 @@ export class MediaHandler {
       // Try the next item in the queue
       setImmediate(() => {
         this.playNext().catch((err2) => {
-          this.logger.error({ err: err2 }, "playNext after error recovery failed");
+          this.logger.error(
+            { err: err2 },
+            "playNext after error recovery failed",
+          );
         });
       });
     }

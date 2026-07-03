@@ -46,7 +46,7 @@ pub fn encode_samples_to_base64(samples: &[f32]) -> String {
     // Convert f32 samples to i16 bytes
     let mut bytes = Vec::with_capacity(samples.len() * 2);
     for &sample in samples {
-        let clamped = sample.max(-1.0).min(1.0);
+        let clamped = sample.clamp(-1.0, 1.0);
         let int_sample = (clamped * 32767.0) as i16;
         bytes.extend_from_slice(&int_sample.to_le_bytes());
     }
@@ -65,5 +65,3 @@ fn encode_bytes_base64(data: &[u8]) -> String {
         .and_then(|r| r.as_string())
         .unwrap_or_default()
 }
-
-use wasm_bindgen::prelude::*;

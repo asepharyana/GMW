@@ -1,9 +1,9 @@
+use leptos::html;
 use leptos::prelude::*;
 use shared_types::message::MessageRecord;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 use web_sys::IntersectionObserver;
-use leptos::html;
 
 const GROUP_WINDOW_MS: i64 = 5 * 60 * 1000;
 
@@ -11,10 +11,12 @@ fn group_messages(messages: Vec<MessageRecord>) -> Vec<Vec<MessageRecord>> {
     let mut groups: Vec<Vec<MessageRecord>> = Vec::new();
     for msg in messages {
         if let Some(last_group) = groups.last_mut() {
-            let same_user = last_group.first()
+            let same_user = last_group
+                .first()
                 .map(|m| m.user_id == msg.user_id)
                 .unwrap_or(false);
-            let same_window = last_group.last()
+            let same_window = last_group
+                .last()
                 .map(|m| (m.created_at - msg.created_at).abs() < GROUP_WINDOW_MS)
                 .unwrap_or(false);
             if same_user && same_window {
@@ -37,11 +39,11 @@ pub fn MessageFeed(
     #[prop(optional)] on_load_more: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
     on_reanalyze: Arc<dyn Fn(String) + Send + Sync + 'static>,
 ) -> impl IntoView {
-    let sentinel_ref = create_node_ref::<html::Div>();
-    let (intersecting, set_intersecting) = create_signal(false);
+    let sentinel_ref = NodeRef::<html::Div>::new();
+    let (_intersecting, _set_intersecting) = signal(false);
 
-    create_effect(move |_| {
-        let _ = intersecting.get(); // track signal
+    Effect::new(move |_| {
+        let _ = _intersecting.get(); // track signal
         if let Some(node) = sentinel_ref.get() {
             let on_load_more = on_load_more.clone();
             let cb = Closure::<dyn Fn(Vec<JsValue>)>::new(move |entries: Vec<JsValue>| {
@@ -75,7 +77,8 @@ pub fn MessageFeed(
                     view! { <MessageCardSkeleton /> }
                 }).take(3).collect::<Vec<_>>()}
             </div>
-        }.into_any();
+        }
+        .into_any();
     }
 
     if messages.is_empty() {
@@ -85,7 +88,8 @@ pub fn MessageFeed(
                     {if empty_text.is_empty() { "No messages" } else { empty_text }}
                 </div>
             </div>
-        }.into_any();
+        }
+        .into_any();
     }
 
     let groups = group_messages(messages);
@@ -113,7 +117,8 @@ pub fn MessageFeed(
                 }
             })}
         </div>
-    }.into_any()
+    }
+    .into_any()
 }
 
 #[component]

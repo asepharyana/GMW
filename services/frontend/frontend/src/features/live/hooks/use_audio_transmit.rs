@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{MediaStream, MediaStreamConstraints, MediaStreamTrack};
 
@@ -11,14 +11,14 @@ pub struct AudioTransmitState {
 
 /// Create microphone transmit state
 pub fn use_audio_transmit() -> AudioTransmitState {
-    let active = create_rw_signal::<bool>(false);
+    let active = RwSignal::new(false);
     let stream = StoredValue::new(None::<MediaStream>);
     AudioTransmitState { active, stream }
 }
 
 /// Start microphone capture - requests getUserMedia and stores the stream
 pub fn start_transmit(state: &AudioTransmitState) {
-    if state.active.get() {
+    if state.active.get_untracked() {
         return;
     }
     state.active.set(true);

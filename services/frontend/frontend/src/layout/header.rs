@@ -1,20 +1,20 @@
 // services/frontend-leptos/frontend/src/layout/header.rs
-use leptos::prelude::*;
 use crate::ws::context::WsContext;
 use crate::ws::socket::WsStatus;
+use leptos::prelude::*;
 
 #[component]
 pub fn Header() -> impl IntoView {
     let ws = use_context::<WsContext>().expect("WsContext not provided");
     let ws_status = ws.status;
 
-    let indicator_text_memo = create_memo(move |_| match ws_status.get() {
+    let indicator_text_memo = Memo::new(move |_| match ws_status.get() {
         WsStatus::Connected => "Online",
         WsStatus::Connecting => "Menghubungkan...",
         WsStatus::Disconnected => "Offline",
         WsStatus::Error(_) => "Error",
     });
-    let indicator_color_memo = create_memo(move |_| match ws_status.get() {
+    let indicator_color_memo = Memo::new(move |_| match ws_status.get() {
         WsStatus::Connected => "var(--color-success)",
         WsStatus::Connecting => "var(--color-warning)",
         WsStatus::Disconnected => "var(--text-tertiary)",

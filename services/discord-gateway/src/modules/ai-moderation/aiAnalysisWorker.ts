@@ -1,6 +1,7 @@
 import { createChildLogger } from "@bete/shared/logger";
 import { config } from "../../shared/config/config.js";
 import { initializeDatabase } from "../../shared/database/drizzle.js";
+import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
 import {
   getAttachmentsForMessages,
   getConversationContextBefore,
@@ -10,7 +11,6 @@ import type {
   AnalysisResult,
   MessageRecord,
 } from "../message-capture/types.js";
-import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
 import { buildConversationContext } from "./conversationContext.js";
 import {
   runModerationAnalysis,
@@ -173,8 +173,15 @@ async function processBatch(job: {
   const media: MessageRecord[] = [];
 
   for (const msg of messages) {
-    const meta = msg.metadata ? extractMessageMediaEvidence(msg.metadata) : null;
-    if (meta && (meta.attachments.length > 0 || meta.stickers.length > 0 || meta.embeds.length > 0)) {
+    const meta = msg.metadata
+      ? extractMessageMediaEvidence(msg.metadata)
+      : null;
+    if (
+      meta &&
+      (meta.attachments.length > 0 ||
+        meta.stickers.length > 0 ||
+        meta.embeds.length > 0)
+    ) {
       media.push(msg);
       // If the message also has text content, analyze it in the text batch too
       const rawContent = msg.edited_content ?? msg.content;
@@ -193,73 +200,80 @@ async function processBatch(job: {
   // Running both in parallel means media downloads overlap with text LLM call.
   // Each path saves to DB as soon as its own results are ready.
   // ────────────────────────────────────────────────────────────────────
-  const textPromise = textOnly.length > 0
-    ? runModerationAnalysis({
-        targets: textOnly,
-        contextText: contextLines.join("\n"),
-        attachments,
-      }).then((result) => {
-        const updates = result.results.map((analysisResult) => ({
-          messageId: analysisResult.messageId,
-          result: {
-            status: analysisResult.status,
-            flags: JSON.stringify(analysisResult.flags),
-            score: analysisResult.score,
-            analysis: analysisResult.analysis,
-            categories: analysisResult.categories,
-            severity: analysisResult.severity,
-            confidence: analysisResult.confidence,
-            recommendedAction: analysisResult.recommendedAction,
-            analyzedAt: Date.now(),
-            error: null,
-          },
-        }));
-        if (updates.length > 0) {
-          return updateMessagesAIAnalysisBulk(updates).then((rows) => {
-            allRows.push(...rows);
-            logger.info(
-              { count: updates.length, conversationKey },
-              "Text-only batch saved — media analysis still in progress",
-            );
-          });
-        }
-      })
-    : Promise.resolve();
+  const textPromise =
+    textOnly.length > 0
+      ? runModerationAnalysis({
+          targets: textOnly,
+          contextText: contextLines.join("\n"),
+          attachments,
+        }).then((result) => {
+          const updates = result.results.map((analysisResult) => ({
+            messageId: analysisResult.messageId,
+            result: {
+              status: analysisResult.status,
+              flags: JSON.stringify(analysisResult.flags),
+              score: analysisResult.score,
+              analysis: analysisResult.analysis,
+              categories: analysisResult.categories,
+              severity: analysisResult.severity,
+              confidence: analysisResult.confidence,
+              recommendedAction: analysisResult.recommendedAction,
+              analyzedAt: Date.now(),
+              error: null,
+            },
+          }));
+          if (updates.length > 0) {
+            return updateMessagesAIAnalysisBulk(updates).then((rows) => {
+              allRows.push(...rows);
+              logger.info(
+                { count: updates.length, conversationKey },
+                "Text-only batch saved — media analysis still in progress",
+              );
+            });
+          }
+        })
+      : Promise.resolve();
 
-  const mediaPromise = media.length > 0
-    ? runModerationAnalysis({
-        targets: media,
-        contextText: contextLines.join("\n"),
-        attachments,
-      }).then((result) => {
-        const updates = result.results.map((analysisResult) => ({
-          messageId: analysisResult.messageId,
-          result: {
-            status: analysisResult.status,
-            flags: JSON.stringify(analysisResult.flags),
-            score: analysisResult.score,
-            analysis: analysisResult.analysis,
-            categories: analysisResult.categories,
-            severity: analysisResult.severity,
-            confidence: analysisResult.confidence,
-            recommendedAction: analysisResult.recommendedAction,
-            analyzedAt: Date.now(),
-            error: null,
-          },
-        }));
-        if (updates.length > 0) {
-          return updateMessagesAIAnalysisBulk(updates).then((rows) => {
-            allRows.push(...rows);
-          });
-        }
-      })
-    : Promise.resolve();
+  const mediaPromise =
+    media.length > 0
+      ? runModerationAnalysis({
+          targets: media,
+          contextText: contextLines.join("\n"),
+          attachments,
+        }).then((result) => {
+          const updates = result.results.map((analysisResult) => ({
+            messageId: analysisResult.messageId,
+            result: {
+              status: analysisResult.status,
+              flags: JSON.stringify(analysisResult.flags),
+              score: analysisResult.score,
+              analysis: analysisResult.analysis,
+              categories: analysisResult.categories,
+              severity: analysisResult.severity,
+              confidence: analysisResult.confidence,
+              recommendedAction: analysisResult.recommendedAction,
+              analyzedAt: Date.now(),
+              error: null,
+            },
+          }));
+          if (updates.length > 0) {
+            return updateMessagesAIAnalysisBulk(updates).then((rows) => {
+              allRows.push(...rows);
+            });
+          }
+        })
+      : Promise.resolve();
 
   // Wait for both to complete
   await Promise.all([textPromise, mediaPromise]);
 
   logger.info(
-    { total: messages.length, textOnly: textOnly.length, media: media.length, saved: allRows.length },
+    {
+      total: messages.length,
+      textOnly: textOnly.length,
+      media: media.length,
+      saved: allRows.length,
+    },
     "Batch analysis complete",
   );
 

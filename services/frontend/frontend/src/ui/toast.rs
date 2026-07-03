@@ -23,10 +23,16 @@ pub struct ToastContext {
     next_id: Arc<Mutex<u64>>,
 }
 
+impl Default for ToastContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ToastContext {
     pub fn new() -> Self {
         Self {
-            toasts: create_rw_signal(vec![]),
+            toasts: RwSignal::new(vec![]),
             next_id: Arc::new(Mutex::new(0)),
         }
     }

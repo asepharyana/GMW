@@ -11,15 +11,38 @@ import type { ChatCompletion } from "openai/resources/chat/completions";
 import { config } from "../../shared/config/config.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
 import { getMessageById } from "../message-capture/messageStore.js";
-import type { AnalysisResult, AttachmentRecord, MessageRecord } from "../message-capture/types.js";
+import type {
+  AnalysisResult,
+  AttachmentRecord,
+  MessageRecord,
+} from "../message-capture/types.js";
 import { getChannelCulture } from "./channelCultureStore.js";
 import { llmChat } from "./llmClient.js";
-import { buildSystemPrompt as buildSystemPromptModular, sanitizeAiContent } from "./moderationPrompt.js";
+import type {
+  MessageImagePart,
+  PreparedMediaMessage,
+} from "./mediaAnalysisClient.js";
+import {
+  analyzeSingleMediaImage,
+  hasMediaContent,
+  prepareMediaMessage,
+} from "./mediaAnalysisClient.js";
+import {
+  buildReferenceXml,
+  escapeXml,
+  getAnalysisContent,
+} from "./moderationBuilders.js";
+import {
+  buildSystemPrompt as buildSystemPromptModular,
+  sanitizeAiContent,
+} from "./moderationPrompt.js";
 import { logModerationAnalysis, logModerationError } from "./responseLogger.js";
-import { searchSearxng, extractSearchQueries, formatSearchResults, initSearxngCache } from "./searxngSearch.js";
-import { escapeXml, getAnalysisContent, buildReferenceXml } from "./moderationBuilders.js";
-import { hasMediaContent, analyzeSingleMediaImage, prepareMediaMessage } from "./mediaAnalysisClient.js";
-import type { PreparedMediaMessage, MessageImagePart } from "./mediaAnalysisClient.js";
+import {
+  extractSearchQueries,
+  formatSearchResults,
+  initSearxngCache,
+  searchSearxng,
+} from "./searxngSearch.js";
 import {
   getCachedTextModeration,
   getRecentCorrectedModerations,
@@ -55,9 +78,13 @@ async function buildCorrectedFewShotExamples(): Promise<string> {
       const origFlags = c.originalFlags.join(", ") || "(none)";
       const corrFlags = c.correctedFlags.join(", ") || "(clean)";
       const notes = c.correctionNotes ? ` — ${c.correctionNotes}` : "";
-      lines.push(`- Konten: "${c.contentSnippet.substring(0, 100)}" → sebelumnya di-flag sebagai [${origFlags}], dikoreksi menjadi [${corrFlags}]${notes}`);
+      lines.push(
+        `- Konten: "${c.contentSnippet.substring(0, 100)}" → sebelumnya di-flag sebagai [${origFlags}], dikoreksi menjadi [${corrFlags}]${notes}`,
+      );
     }
-    lines.push("JANGAN ulangi kesalahan yang sama. Jika konten serupa dengan contoh di atas, gunakan koreksi yang sudah ditentukan.");
+    lines.push(
+      "JANGAN ulangi kesalahan yang sama. Jika konten serupa dengan contoh di atas, gunakan koreksi yang sudah ditentukan.",
+    );
     return lines.join("\n");
   } catch {
     return "";
@@ -97,8 +124,13 @@ async function callModerationLLM(
             signal,
           });
 
-          if (!completion) throw new Error("LLM client unavailable (no API key)");
-          if (!completion.choices || !Array.isArray(completion.choices) || !completion.choices[0]) {
+          if (!completion)
+            throw new Error("LLM client unavailable (no API key)");
+          if (
+            !completion.choices ||
+            !Array.isArray(completion.choices) ||
+            !completion.choices[0]
+          ) {
             throw new Error("Invalid LLM response structure");
           }
 
@@ -106,17 +138,36 @@ async function callModerationLLM(
           if (!rawContent) throw new Error("No content in LLM response");
 
           try {
-            const { parseModerationResponse } = await import("./moderationResponseParser.js");
-            return { parsed: parseModerationResponse(rawContent, targetIds), result: completion };
+            const { parseModerationResponse } = await import(
+              "./moderationResponseParser.js"
+            );
+            return {
+              parsed: parseModerationResponse(rawContent, targetIds),
+              result: completion,
+            };
           } catch (parseError) {
-            state.lastParseError = parseError instanceof Error ? parseError.message : String(parseError);
+            state.lastParseError =
+              parseError instanceof Error
+                ? parseError.message
+                : String(parseError);
             state.lastInvalidContent = rawContent;
-            log.warn({ error: state.lastParseError, contentLength: rawContent.length, targetIds, model: config.AI_LLM_MODEL }, `Failed to parse moderation response (${label})`);
+            log.warn(
+              {
+                error: state.lastParseError,
+                contentLength: rawContent.length,
+                targetIds,
+                model: config.AI_LLM_MODEL,
+              },
+              `Failed to parse moderation response (${label})`,
+            );
             throw parseError;
           }
         } catch (apiError: any) {
           if (apiError?.status === 429) {
-            log.warn({ status: 429, targetIds, model: config.AI_LLM_MODEL, label }, "LLM API 429 — will retry");
+            log.warn(
+              { status: 429, targetIds, model: config.AI_LLM_MODEL, label },
+              "LLM API 429 — will retry",
+            );
             await delay(Math.floor(Math.random() * 1000) + 500);
             throw apiError;
           }
@@ -125,7 +176,12 @@ async function callModerationLLM(
             abortErr.name = "AbortError";
             throw abortErr;
           }
-          if (apiError?.status >= 500 || apiError?.code === "ECONNRESET" || apiError?.code === "ETIMEDOUT" || apiError?.name === "APIError") {
+          if (
+            apiError?.status >= 500 ||
+            apiError?.code === "ECONNRESET" ||
+            apiError?.code === "ETIMEDOUT" ||
+            apiError?.name === "APIError"
+          ) {
             throw apiError;
           }
           throw apiError;
@@ -146,11 +202,21 @@ async function callModerationLLM(
 
     const errorMsg = err instanceof Error ? err.message : String(err);
     const isApiError = !state.lastInvalidContent;
-    const apiErrorCode = isApiError ? `MOD_${Date.now().toString(36).slice(0, 6)}` : null;
+    const apiErrorCode = isApiError
+      ? `MOD_${Date.now().toString(36).slice(0, 6)}`
+      : null;
 
     if (isApiError) {
-      log.warn({ error: errorMsg, targetIds, model: config.AI_LLM_MODEL, label }, `LLM API error after retries (${label})`);
-      logModerationError(targetIds, config.AI_LLM_MODEL, err instanceof Error ? err : new Error(String(err)), { phase: "api_call", label });
+      log.warn(
+        { error: errorMsg, targetIds, model: config.AI_LLM_MODEL, label },
+        `LLM API error after retries (${label})`,
+      );
+      logModerationError(
+        targetIds,
+        config.AI_LLM_MODEL,
+        err instanceof Error ? err : new Error(String(err)),
+        { phase: "api_call", label },
+      );
       parsed = targetIds.map((id) => ({
         messageId: id,
         status: "error" as const,
@@ -166,9 +232,28 @@ async function callModerationLLM(
       }));
     } else {
       const parseMsg = err instanceof Error ? err.message : String(err);
-      const contentPreview = state.lastInvalidContent?.substring(0, 500) ?? "<empty>";
-      log.error({ error: parseMsg, contentLength: state.lastInvalidContent?.length ?? 0, contentPreview, targetIds, model: config.AI_LLM_MODEL }, `Robust Fallback (${label}): parse error`);
-      logModerationError(targetIds, config.AI_LLM_MODEL, err instanceof Error ? err : new Error(String(err)), { phase: "parse_response", label, contentLength: state.lastInvalidContent?.length ?? 0 });
+      const contentPreview =
+        state.lastInvalidContent?.substring(0, 500) ?? "<empty>";
+      log.error(
+        {
+          error: parseMsg,
+          contentLength: state.lastInvalidContent?.length ?? 0,
+          contentPreview,
+          targetIds,
+          model: config.AI_LLM_MODEL,
+        },
+        `Robust Fallback (${label}): parse error`,
+      );
+      logModerationError(
+        targetIds,
+        config.AI_LLM_MODEL,
+        err instanceof Error ? err : new Error(String(err)),
+        {
+          phase: "parse_response",
+          label,
+          contentLength: state.lastInvalidContent?.length ?? 0,
+        },
+      );
       const errorCode = `MOD_${Date.now().toString(36).slice(0, 6)}`;
       parsed = targetIds.map((id) => ({
         messageId: id,
@@ -204,15 +289,22 @@ async function runTextOnlyBatch(
   const urlFetchPromise = (async () => {
     const allUrls = new Set<string>();
     for (const msg of targets) {
-      for (const url of extractUrlsFromText(msg.edited_content ?? msg.content)) allUrls.add(url);
+      for (const url of extractUrlsFromText(msg.edited_content ?? msg.content))
+        allUrls.add(url);
     }
     const urlArr = Array.from(allUrls).slice(0, 10);
     if (urlArr.length === 0) return new Map<string, string>();
-    const results = await Promise.allSettled(urlArr.map((url) => fetchUrlSafely(url)));
+    const results = await Promise.allSettled(
+      urlArr.map((url) => fetchUrlSafely(url)),
+    );
     const map = new Map<string, string>();
     for (let i = 0; i < urlArr.length; i++) {
       const r = results[i];
-      if (r.status === "fulfilled" && r.value.type === "text" && r.value.textContent) {
+      if (
+        r.status === "fulfilled" &&
+        r.value.type === "text" &&
+        r.value.textContent
+      ) {
         map.set(urlArr[i], r.value.textContent);
       }
     }
@@ -222,20 +314,27 @@ async function runTextOnlyBatch(
   const searxngPromise = (async () => {
     const queries = new Set<string>();
     for (const msg of targets) {
-      for (const q of extractSearchQueries(msg.edited_content ?? msg.content)) queries.add(q);
+      for (const q of extractSearchQueries(msg.edited_content ?? msg.content))
+        queries.add(q);
     }
     if (queries.size === 0) return new Map<string, string>();
     const queryArr = Array.from(queries).slice(0, 3);
-    const results = await Promise.allSettled(queryArr.map((q) => searchSearxng(q)));
+    const results = await Promise.allSettled(
+      queryArr.map((q) => searchSearxng(q)),
+    );
     const map = new Map<string, string>();
     for (let i = 0; i < queryArr.length; i++) {
       const r = results[i];
-      if (r.status === "fulfilled" && r.value.length > 0) map.set(queryArr[i], formatSearchResults(r.value));
+      if (r.status === "fulfilled" && r.value.length > 0)
+        map.set(queryArr[i], formatSearchResults(r.value));
     }
     return map;
   })();
 
-  const [urlFetchMap, searxngResults] = await Promise.all([urlFetchPromise, searxngPromise]);
+  const [urlFetchMap, searxngResults] = await Promise.all([
+    urlFetchPromise,
+    searxngPromise,
+  ]);
 
   // Deduplicate identical short messages
   const shortContentGroups = new Map<string, MessageRecord[]>();
@@ -256,7 +355,11 @@ async function runTextOnlyBatch(
     }
   }
   for (const [, members] of shortContentGroups) {
-    if (members.length > 1) groupMapping.set(members[0].id, members.map((m) => m.id));
+    if (members.length > 1)
+      groupMapping.set(
+        members[0].id,
+        members.map((m) => m.id),
+      );
   }
 
   // Split into sub-batches
@@ -268,7 +371,9 @@ async function runTextOnlyBatch(
   const allResults: AnalysisResult[] = [];
   let lastRaw: unknown = null;
   const channelId = targets[0]?.channel_id ?? "";
-  const channelCultureObj = channelId ? await getChannelCulture(channelId) : null;
+  const channelCultureObj = channelId
+    ? await getChannelCulture(channelId)
+    : null;
   const channelCulture = channelCultureObj?.culture_summary;
 
   for (let i = 0; i < subBatches.length; i++) {
@@ -281,36 +386,70 @@ async function runTextOnlyBatch(
     for (const msg of batch) {
       if (!userContexts.has(msg.user_id)) {
         const rep = await initializeUserReputation(msg.user_id, msg.guild_id);
-        userContexts.set(msg.user_id, `<user_reputation trust_score="${rep.trust_score}" />`);
+        userContexts.set(
+          msg.user_id,
+          `<user_reputation trust_score="${rep.trust_score}" />`,
+        );
       }
       if (!userProfiles.has(msg.user_id)) {
         const profile = await getUserProfile(msg.user_id);
-        userProfiles.set(msg.user_id, profile ? `<user_profile>${sanitizeAiContent(profile.profile_summary)}</user_profile>` : "");
+        userProfiles.set(
+          msg.user_id,
+          profile
+            ? `<user_profile>${sanitizeAiContent(profile.profile_summary)}</user_profile>`
+            : "",
+        );
       }
     }
 
     const buildContent = async (state: RetryState): Promise<string> => {
-      const correction = state.lastParseError ? { error: state.lastParseError, preview: state.lastInvalidContent?.slice(0, 800) ?? "<empty>" } : undefined;
+      const correction = state.lastParseError
+        ? {
+            error: state.lastParseError,
+            preview: state.lastInvalidContent?.slice(0, 800) ?? "<empty>",
+          }
+        : undefined;
       const correctedExamples = await buildCorrectedFewShotExamples();
-      const systemText = buildSystemPromptModular({ contextText, mode: "text", correction, correctedExamples, channelCulture });
+      const systemText = buildSystemPromptModular({
+        contextText,
+        mode: "text",
+        correction,
+        correctedExamples,
+        channelCulture,
+      });
 
-      const messagesBlock = (await Promise.all(batch.map(async (msg) => {
-        const content = getAnalysisContent(msg);
-        const msgUrls = extractUrlsFromText(content);
-        const urlContexts = msgUrls.map((url) => {
-          const ft = urlFetchMap.get(url);
-          return ft ? `<web_content url="${escapeXml(url)}">${escapeXml(ft)}</web_content>` : null;
-        }).filter(Boolean).join("\n");
-        const webContext = urlContexts ? `\n${urlContexts}` : "";
-        const userCtx = userContexts.get(msg.user_id) ?? "";
-        const userProfileCtx = userProfiles.get(msg.user_id) ?? "";
-        const refXml = await buildReferenceXml(msg);
-        return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}${userProfileCtx ? `\n  ${userProfileCtx}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${webContext}\n</message>`;
-      }))).join("\n");
+      const messagesBlock = (
+        await Promise.all(
+          batch.map(async (msg) => {
+            const content = getAnalysisContent(msg);
+            const msgUrls = extractUrlsFromText(content);
+            const urlContexts = msgUrls
+              .map((url) => {
+                const ft = urlFetchMap.get(url);
+                return ft
+                  ? `<web_content url="${escapeXml(url)}">${escapeXml(ft)}</web_content>`
+                  : null;
+              })
+              .filter(Boolean)
+              .join("\n");
+            const webContext = urlContexts ? `\n${urlContexts}` : "";
+            const userCtx = userContexts.get(msg.user_id) ?? "";
+            const userProfileCtx = userProfiles.get(msg.user_id) ?? "";
+            const refXml = await buildReferenceXml(msg);
+            return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}${userProfileCtx ? `\n  ${userProfileCtx}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${webContext}\n</message>`;
+          }),
+        )
+      ).join("\n");
 
-      const searxngBlock = searxngResults.size > 0
-        ? `\n\n<web_searches>\n${Array.from(searxngResults.entries()).map(([q, xml]) => `  <search_query query="${escapeXml(q)}">\n${xml}  </search_query>`).join("\n")}\n</web_searches>`
-        : "";
+      const searxngBlock =
+        searxngResults.size > 0
+          ? `\n\n<web_searches>\n${Array.from(searxngResults.entries())
+              .map(
+                ([q, xml]) =>
+                  `  <search_query query="${escapeXml(q)}">\n${xml}  </search_query>`,
+              )
+              .join("\n")}\n</web_searches>`
+          : "";
       return `${systemText}${searxngBlock}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
     };
 
@@ -320,10 +459,17 @@ async function runTextOnlyBatch(
 
     let batchResult: { results: AnalysisResult[]; raw: unknown };
     try {
-      batchResult = await callModerationLLM(buildContent, targetIds, `text-batch-${i + 1}`, abortController.signal);
+      batchResult = await callModerationLLM(
+        buildContent,
+        targetIds,
+        `text-batch-${i + 1}`,
+        abortController.signal,
+      );
     } catch (err: any) {
       if (err.name === "AbortError" || abortController.signal.aborted) {
-        throw new Error(`Text-only batch sub-batch ${i + 1} timed out for messages ${targetIds.join(", ")}`);
+        throw new Error(
+          `Text-only batch sub-batch ${i + 1} timed out for messages ${targetIds.join(", ")}`,
+        );
       }
       throw err;
     } finally {
@@ -331,20 +477,36 @@ async function runTextOnlyBatch(
     }
 
     // Fan-out results for deduplicated messages
-    const fannedOutResults = groupMapping.size > 0
-      ? batchResult.results.flatMap((result) => {
-          const members = groupMapping.get(result.messageId);
-          return members ? members.map((memberId) => ({ ...result, messageId: memberId })) : [result];
-        })
-      : batchResult.results;
+    const fannedOutResults =
+      groupMapping.size > 0
+        ? batchResult.results.flatMap((result) => {
+            const members = groupMapping.get(result.messageId);
+            return members
+              ? members.map((memberId) => ({ ...result, messageId: memberId }))
+              : [result];
+          })
+        : batchResult.results;
 
     allResults.push(...fannedOutResults);
     if (batchResult.raw) lastRaw = batchResult.raw;
 
-    logModerationAnalysis(targetIds, config.AI_LLM_MODEL, batchResult.results, 0, undefined);
+    logModerationAnalysis(
+      targetIds,
+      config.AI_LLM_MODEL,
+      batchResult.results,
+      0,
+      undefined,
+    );
   }
 
-  log.debug({ targetCount: targets.length, resultCount: allResults.length, subBatchCount: subBatches.length }, "Text-only batch analysis complete");
+  log.debug(
+    {
+      targetCount: targets.length,
+      resultCount: allResults.length,
+      subBatchCount: subBatches.length,
+    },
+    "Text-only batch analysis complete",
+  );
   return { results: allResults, raw: lastRaw };
 }
 
@@ -359,27 +521,46 @@ async function runMediaBatch(
   if (!targets.length) return { results: [], raw: null };
 
   // Lazy init sticker cache
-  const { isStickerCacheReady, initStickerCache } = await import("./stickerCache.js");
+  const { isStickerCacheReady, initStickerCache } = await import(
+    "./stickerCache.js"
+  );
   if (!isStickerCacheReady()) {
-    await initStickerCache().catch((err: unknown) => log.warn({ error: err instanceof Error ? err.message : String(err) }, "Sticker cache init failed"));
+    await initStickerCache().catch((err: unknown) =>
+      log.warn(
+        { error: err instanceof Error ? err.message : String(err) },
+        "Sticker cache init failed",
+      ),
+    );
   }
 
   // Phase A: Prepare ALL messages in parallel
-  const prepared = await Promise.all(targets.map((target) => prepareMediaMessage(target, attachments)));
+  const prepared = await Promise.all(
+    targets.map((target) => prepareMediaMessage(target, attachments)),
+  );
 
   // Phase B: ONE batched LLM call
   const targetIds = targets.map((t) => t.id);
   const channelId = targets[0].channel_id;
-  const channelCultureObj = channelId ? await getChannelCulture(channelId) : null;
+  const channelCultureObj = channelId
+    ? await getChannelCulture(channelId)
+    : null;
   const channelCulture = channelCultureObj?.culture_summary;
   const correctedExamples = await buildCorrectedFewShotExamples();
-  const systemText = buildSystemPromptModular({ contextText, mode: "mixed", correctedExamples, channelCulture });
+  const systemText = buildSystemPromptModular({
+    contextText,
+    mode: "mixed",
+    correctedExamples,
+    channelCulture,
+  });
 
   const messagesBlock = prepared.map((p) => p.messageBlock).join("\n");
   const userContent = `${systemText}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
 
   const perMsgTimeout = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
-  const batchTimeout = Math.min(Math.max(perMsgTimeout, perMsgTimeout * targets.length), 300_000);
+  const batchTimeout = Math.min(
+    Math.max(perMsgTimeout, perMsgTimeout * targets.length),
+    300_000,
+  );
 
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), batchTimeout);
@@ -392,11 +573,16 @@ async function runMediaBatch(
       `media-batch:${targetIds.length}msgs`,
       abortController.signal,
     );
-    log.info({ mediaCount: targets.length, resultCount: result.results.length }, "Media batch analysis complete");
+    log.info(
+      { mediaCount: targets.length, resultCount: result.results.length },
+      "Media batch analysis complete",
+    );
     return result;
   } catch (err: any) {
     if (err.name === "AbortError" || abortController.signal.aborted) {
-      throw new Error(`Media batch analysis timed out after ${batchTimeout}ms for ${targets.length} messages`);
+      throw new Error(
+        `Media batch analysis timed out after ${batchTimeout}ms for ${targets.length} messages`,
+      );
     }
     throw err;
   } finally {
@@ -441,10 +627,16 @@ export async function runModerationAnalysis(
 
   for (const target of targets) {
     const hasMedia = hasMediaContent(target, attachments);
-    if (hasMedia) { uncachedTargets.push(target); continue; }
+    if (hasMedia) {
+      uncachedTargets.push(target);
+      continue;
+    }
 
     const rawContent = target.edited_content ?? target.content;
-    if (!rawContent.trim()) { uncachedTargets.push(target); continue; }
+    if (!rawContent.trim()) {
+      uncachedTargets.push(target);
+      continue;
+    }
 
     const cacheKey = makeTextModerationCacheKey(rawContent);
     if (seenCacheKeys.has(cacheKey)) {
@@ -461,15 +653,35 @@ export async function runModerationAnalysis(
     try {
       const cached = await getCachedTextModeration(cacheKey);
       if (cached) {
-        const hasMediaInMeta = target.metadata && (() => {
-          const ev = extractMessageMediaEvidence(target.metadata);
-          return ev.attachments.length > 0 || ev.stickers.length > 0 || ev.embeds.length > 0;
-        })();
+        const hasMediaInMeta =
+          target.metadata &&
+          (() => {
+            const ev = extractMessageMediaEvidence(target.metadata);
+            return (
+              ev.attachments.length > 0 ||
+              ev.stickers.length > 0 ||
+              ev.embeds.length > 0
+            );
+          })();
 
         if (hasMediaInMeta) {
-          log.debug({ messageId: target.id, cacheKey }, "Cache entry but message has media — treating as miss");
-        } else if (cached.flags.some((f) => ["analysis_api_failed", "analysis_parse_failed", "analysis_incomplete"].includes(f))) {
-          log.warn({ messageId: target.id, cacheKey }, "Cache entry contains error artifact — treating as miss");
+          log.debug(
+            { messageId: target.id, cacheKey },
+            "Cache entry but message has media — treating as miss",
+          );
+        } else if (
+          cached.flags.some((f) =>
+            [
+              "analysis_api_failed",
+              "analysis_parse_failed",
+              "analysis_incomplete",
+            ].includes(f),
+          )
+        ) {
+          log.warn(
+            { messageId: target.id, cacheKey },
+            "Cache entry contains error artifact — treating as miss",
+          );
         } else {
           cacheHits.push({
             messageId: target.id,
@@ -480,20 +692,30 @@ export async function runModerationAnalysis(
             categories: cached.categories,
             severity: cached.severity as AnalysisResult["severity"],
             confidence: cached.confidence,
-            recommendedAction: cached.recommendedAction as AnalysisResult["recommendedAction"],
+            recommendedAction:
+              cached.recommendedAction as AnalysisResult["recommendedAction"],
             policyVersion: "cached-user-moderation-2026-06",
             evidence: [],
           } as AnalysisResult);
           continue;
         }
       }
-    } catch { /* proceed */ }
+    } catch {
+      /* proceed */
+    }
 
     uncachedTargets.push(target);
   }
 
   if (cacheHits.length > 0) {
-    log.info({ cacheHits: cacheHits.length, uncached: uncachedTargets.length, total: targets.length }, "User moderation cache applied");
+    log.info(
+      {
+        cacheHits: cacheHits.length,
+        uncached: uncachedTargets.length,
+        total: targets.length,
+      },
+      "User moderation cache applied",
+    );
   }
 
   if (uncachedTargets.length === 0) return { results: cacheHits, raw: null };
@@ -509,7 +731,15 @@ export async function runModerationAnalysis(
     }
   }
 
-  log.debug({ total: targets.length, textOnly: textOnlyTargets.length, media: mediaTargets.length, cacheHits: cacheHits.length }, "Split uncached targets");
+  log.debug(
+    {
+      total: targets.length,
+      textOnly: textOnlyTargets.length,
+      media: mediaTargets.length,
+      cacheHits: cacheHits.length,
+    },
+    "Split uncached targets",
+  );
 
   // Run both paths in parallel
   const [textBatchResult, mediaBatchResult] = await Promise.all([
@@ -531,7 +761,12 @@ export async function runModerationAnalysis(
 
     if (target.metadata) {
       const evidence = extractMessageMediaEvidence(target.metadata);
-      if (evidence.attachments.length > 0 || evidence.stickers.length > 0 || evidence.embeds.length > 0) continue;
+      if (
+        evidence.attachments.length > 0 ||
+        evidence.stickers.length > 0 ||
+        evidence.embeds.length > 0
+      )
+        continue;
     }
 
     const cacheKey = makeTextModerationCacheKey(rawContent);
@@ -547,10 +782,21 @@ export async function runModerationAnalysis(
     }).catch(() => {});
   }
 
-  const allResults = [...cacheHits, ...textBatchResult.results, ...mediaBatchResult.results];
+  const allResults = [
+    ...cacheHits,
+    ...textBatchResult.results,
+    ...mediaBatchResult.results,
+  ];
   const raw = textBatchResult.raw ?? mediaBatchResult.raw;
 
-  log.debug({ targetCount: targets.length, resultCount: allResults.length, cacheHits: cacheHits.length }, "Moderation analysis complete");
+  log.debug(
+    {
+      targetCount: targets.length,
+      resultCount: allResults.length,
+      cacheHits: cacheHits.length,
+    },
+    "Moderation analysis complete",
+  );
   return { results: allResults, raw };
 }
 
@@ -568,7 +814,10 @@ export async function runSimpleTextFallback(
 ): Promise<AnalysisResult> {
   const content = getAnalysisContent(message);
   const MAX_CONTENT_CHARS = 500;
-  const truncatedContent = content.length > MAX_CONTENT_CHARS ? content.slice(0, MAX_CONTENT_CHARS) + "..." : content;
+  const truncatedContent =
+    content.length > MAX_CONTENT_CHARS
+      ? content.slice(0, MAX_CONTENT_CHARS) + "..."
+      : content;
 
   let userProfileCtx = "";
   try {
@@ -576,7 +825,9 @@ export async function runSimpleTextFallback(
     if (profile?.profile_summary) {
       userProfileCtx = `\n\nProfil pengirim pesan:\n${sanitizeAiContent(profile.profile_summary, 2000, false)}\n`;
     }
-  } catch { /* non-fatal */ }
+  } catch {
+    /* non-fatal */
+  }
 
   // Step 1: Single-word classification
   const classifyPrompt = `Pesan berikut perlu diklasifikasikan sebagai: clean, warn, atau flagged.
@@ -603,13 +854,20 @@ Jawab HANYA dengan satu kata: clean, warn, atau flagged`;
       max_tokens: 10,
       temperature: 0.1,
     });
-    const raw = completion?.choices[0]?.message?.content?.trim().toLowerCase() ?? "";
+    const raw =
+      completion?.choices[0]?.message?.content?.trim().toLowerCase() ?? "";
     if (raw.includes("flagged")) status = "flagged";
     else if (raw.includes("warn")) status = "warn";
     else status = "clean";
     log.info({ messageId: message.id, status, raw }, "Simple fallback step 1");
   } catch (error) {
-    log.warn({ messageId: message.id, error: error instanceof Error ? error.message : String(error) }, "Simple fallback step 1 failed — defaulting to clean");
+    log.warn(
+      {
+        messageId: message.id,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Simple fallback step 1 failed — defaulting to clean",
+    );
     status = "clean";
   }
 
@@ -621,7 +879,8 @@ Jawab HANYA dengan satu kata: clean, warn, atau flagged`;
     analysis = `${message.username ?? "user"}: ${content.length > 200 ? content.slice(0, 200) + "..." : content}. Percakapan normal, tidak ada pelanggaran.`;
   } else {
     category = status === "flagged" ? "harassment" : "spam";
-    const categoryOptions = status === "flagged" ? "harassment, gambling, atau sara" : "spam";
+    const categoryOptions =
+      status === "flagged" ? "harassment, gambling, atau sara" : "spam";
     const reasonPrompt = `Pesan berikut telah diklasifikasikan sebagai "${status}".
 ${userProfileCtx}
 Pesan: "${truncatedContent}"
@@ -659,13 +918,28 @@ Kategori: spam`;
       const categoryMatch = analysis.match(/[Kk]ategori:\s*(\w+)/i);
       if (categoryMatch) {
         const parsedCat = categoryMatch[1].toLowerCase();
-        if (["harassment", "spam", "gambling", "sara"].includes(parsedCat)) category = parsedCat;
+        if (["harassment", "spam", "gambling", "sara"].includes(parsedCat))
+          category = parsedCat;
         analysis = analysis.replace(/[Kk]ategori:\s*\w+\s*/i, "").trim();
       }
-      log.info({ messageId: message.id, status, category, analysis: analysis.slice(0, 100) }, "Simple fallback step 2");
+      log.info(
+        {
+          messageId: message.id,
+          status,
+          category,
+          analysis: analysis.slice(0, 100),
+        },
+        "Simple fallback step 2",
+      );
     } catch (error) {
       analysis = `Pesan diklasifikasikan sebagai ${status} oleh sistem moderasi otomatis berdasarkan analisis konten.`;
-      log.warn({ messageId: message.id, error: error instanceof Error ? error.message : String(error) }, "Simple fallback step 2 failed");
+      log.warn(
+        {
+          messageId: message.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Simple fallback step 2 failed",
+      );
     }
   }
 
@@ -676,10 +950,15 @@ Kategori: spam`;
     score: status === "flagged" ? 0.7 : status === "warn" ? 0.4 : 0,
     analysis,
     categories: status === "clean" ? [] : [category],
-    severity: status === "flagged" ? "medium" : status === "warn" ? "low" : "none",
+    severity:
+      status === "flagged" ? "medium" : status === "warn" ? "low" : "none",
     confidence: 0.6,
-    recommendedAction: status === "flagged" ? "review" : status === "warn" ? "warn" : "none",
+    recommendedAction:
+      status === "flagged" ? "review" : status === "warn" ? "warn" : "none",
     policyVersion: "default-simple-2026-06",
-    evidence: status !== "clean" ? [content.length > 120 ? content.slice(0, 120) + "..." : content] : [],
+    evidence:
+      status !== "clean"
+        ? [content.length > 120 ? content.slice(0, 120) + "..." : content]
+        : [],
   };
 }

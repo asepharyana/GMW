@@ -1,12 +1,12 @@
 // services/frontend-leptos/frontend/src/layout/sidebar.rs
+use crate::app::UiContext;
 use leptos::prelude::*;
 use shared_types::ui_state::Tab;
-use crate::app::UiContext;
 
 #[component]
 pub fn Sidebar() -> impl IntoView {
     let ui = use_context::<UiContext>().expect("UiContext not provided");
-    let (collapsed, _set_collapsed) = create_signal(false);
+    let (collapsed, _set_collapsed) = signal(false);
 
     view! {
         <nav style:width=move || if collapsed.get() { "var(--sidebar-collapsed-width)" } else { "var(--sidebar-width)" }
@@ -43,16 +43,12 @@ pub fn Sidebar() -> impl IntoView {
 }
 
 #[component]
-fn NavItem(
-    icon: &'static str,
-    label: &'static str,
-    tab: Tab,
-    ui: UiContext,
-) -> impl IntoView {
+fn NavItem(icon: &'static str, label: &'static str, tab: Tab, ui: UiContext) -> impl IntoView {
     let tab_bg = tab.clone();
     let tab_clr = tab.clone();
     let tab_click = tab;
     let handle_click = move |_| ui.active_tab.set(tab_click.clone());
+    let _ = icon;
 
     view! {
         <button

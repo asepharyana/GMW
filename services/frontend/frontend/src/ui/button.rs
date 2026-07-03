@@ -12,19 +12,14 @@ pub enum ButtonVariant {
     Link,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub enum ButtonSize {
+    #[default]
     Default,
     Sm,
     Lg,
     Icon,
     IconSm,
-}
-
-impl Default for ButtonSize {
-    fn default() -> Self {
-        Self::Default
-    }
 }
 
 #[component]

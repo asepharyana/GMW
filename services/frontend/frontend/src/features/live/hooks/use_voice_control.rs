@@ -1,10 +1,9 @@
-use leptos::prelude::*;
-use shared_types::guild::{Guild, Channel};
-use shared_types::voice::VoiceStatus;
 use crate::api::voice::{
-    get_guilds, get_voice_channels, get_text_channels, get_voice_status,
-    connect_voice, disconnect_voice,
+    connect_voice, disconnect_voice, get_guilds, get_text_channels, get_voice_channels,
 };
+use leptos::prelude::*;
+use shared_types::guild::{Channel, Guild};
+use shared_types::voice::VoiceStatus;
 use std::sync::Arc;
 use wasm_bindgen_futures::spawn_local;
 

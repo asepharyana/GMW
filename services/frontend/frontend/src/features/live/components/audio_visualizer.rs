@@ -8,17 +8,17 @@ pub fn AudioVisualizer(
     #[prop(default = true)] _active: bool,
     #[prop(optional)] pcm_data: Option<Arc<Mutex<Vec<f32>>>>,
 ) -> impl IntoView {
-    let bars = create_rw_signal::<Vec<f32>>(vec![0.0; 32]);
+    let bars = RwSignal::new(vec![0.0; 32]);
 
     // Periodically update bars from PCM data
-    create_effect(move |_| {
+    Effect::new(move |_| {
         if let Some(ref pcm_arc) = pcm_data {
             if let Ok(pcm_vec) = pcm_arc.lock() {
                 let computed = compute_frequency_bands(&pcm_vec);
                 bars.update(|b| {
-                    for i in 0..32 {
-                        let target = computed.get(i).copied().unwrap_or(0.0).max(0.0).min(1.0);
-                        b[i] = b[i] * 0.7 + target * 0.3; // Smooth decay
+                    for (i, band) in b.iter_mut().enumerate() {
+                        let target = computed.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0);
+                        *band = *band * 0.7 + target * 0.3; // Smooth decay
                     }
                 });
             }

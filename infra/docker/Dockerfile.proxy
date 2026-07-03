@@ -1,6 +1,31 @@
+# ---- Builder Stage (Frontend WASM) ----
+FROM rust:alpine AS frontend-builder
+
+RUN apk add --no-cache musl-dev
+RUN rustup target add wasm32-unknown-unknown
+RUN cargo install trunk --locked
+
+WORKDIR /app
+
+# Copy workspace definition and lock file for dependency caching
+COPY services/frontend/Cargo.toml services/frontend/Cargo.lock ./
+
+# Copy shared-types library
+COPY services/frontend/shared-types ./shared-types/
+
+# Copy frontend source
+COPY services/frontend/frontend ./frontend/
+
+# Build WASM bundle via trunk
+RUN cd frontend && trunk build --release
+
+# ---- Runner Stage ----
 FROM nginx:alpine
 
 COPY infra/docker/nginx/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy frontend static files from builder stage
+COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 
 EXPOSE 80
 

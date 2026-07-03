@@ -7,6 +7,7 @@ pub fn Tabs(
     #[prop(optional)] class: &'static str,
     children: Children,
 ) -> impl IntoView {
+    let _ = active;
     view! {
         <div class={if !class.is_empty() { format!("tabs {}", class) } else { "tabs".to_string() }}>
             {children()}
@@ -15,10 +16,7 @@ pub fn Tabs(
 }
 
 #[component]
-pub fn TabList(
-    #[prop(optional)] class: &'static str,
-    children: Children,
-) -> impl IntoView {
+pub fn TabList(#[prop(optional)] class: &'static str, children: Children) -> impl IntoView {
     view! {
         <div class={if !class.is_empty() { format!("tab-list {}", class) } else { "tab-list".to_string() }} role="tablist">
             {children()}
@@ -27,11 +25,7 @@ pub fn TabList(
 }
 
 #[component]
-pub fn TabTrigger(
-    value: String,
-    active: RwSignal<String>,
-    children: Children,
-) -> impl IntoView {
+pub fn TabTrigger(value: String, active: RwSignal<String>, children: Children) -> impl IntoView {
     let v1 = value.clone();
     let v2 = value.clone();
     view! {
@@ -48,11 +42,7 @@ pub fn TabTrigger(
 }
 
 #[component]
-pub fn TabContent(
-    value: String,
-    active: RwSignal<String>,
-    children: Children,
-) -> impl IntoView {
+pub fn TabContent(value: String, active: RwSignal<String>, children: Children) -> impl IntoView {
     let is_selected = move || active.get() == value;
     view! {
         <div

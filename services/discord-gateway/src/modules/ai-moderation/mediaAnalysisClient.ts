@@ -6,11 +6,11 @@
  * preparation for the LLM moderation pipeline.
  */
 import { execFile } from "node:child_process";
-import { createChildLogger } from "@bete/shared/logger";
-import { readFile, writeFile, unlink, rm, mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { createChildLogger } from "@bete/shared/logger";
 import { createAbortControllerWithTimeout, delay } from "@bete/shared/utils";
 import { LRUCache } from "lru-cache";
 import { config } from "../../shared/config/config.js";
@@ -20,8 +20,24 @@ import type {
   AttachmentRecord,
   MessageRecord,
 } from "../message-capture/types.js";
+import { sniffImageMimeType } from "./imageMimeSniffer.js";
 import { llmVision } from "./llmClient.js";
+import {
+  buildReferenceXml,
+  escapeXml,
+  getAnalysisContent,
+} from "./moderationBuilders.js";
 import { sanitizeAiContent } from "./moderationPrompt.js";
+import {
+  extractSearchQueries,
+  formatSearchResults,
+  searchSearxng,
+} from "./searxngSearch.js";
+import {
+  getStickerFromCache,
+  isStickerCacheReady,
+  uploadAndCacheSticker,
+} from "./stickerCache.js";
 import {
   buildCustomEmojiVisionPrompt,
   buildGeneralImageVisionPrompt,
@@ -40,17 +56,9 @@ import {
   upsertCachedMediaAnalysis,
   upsertCachedMediaByPhash,
 } from "./textCacheStore.js";
-import { sniffImageMimeType } from "./imageMimeSniffer.js";
-import { fetchUrlSafely, extractUrlsFromText } from "./urlFetcher.js";
-import {
-  getStickerFromCache,
-  isStickerCacheReady,
-  uploadAndCacheSticker,
-} from "./stickerCache.js";
-import { searchSearxng, extractSearchQueries, formatSearchResults } from "./searxngSearch.js";
+import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 import { getUserProfile } from "./userProfileStore.js";
 import { initializeUserReputation } from "./userReputationStore.js";
-import { escapeXml, getAnalysisContent, buildReferenceXml } from "./moderationBuilders.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -122,10 +130,18 @@ function buildMediaCandidates(
     ...evidence.embeds.flatMap((embed): MediaCandidate[] =>
       [
         embed.image
-          ? ({ messageId, url: embed.image, label: `[gambar di atas berasal dari embed image pada pesan id=${messageId}]` } as MediaCandidate)
+          ? ({
+              messageId,
+              url: embed.image,
+              label: `[gambar di atas berasal dari embed image pada pesan id=${messageId}]`,
+            } as MediaCandidate)
           : null,
         embed.thumbnail
-          ? ({ messageId, url: embed.thumbnail, label: `[gambar di atas berasal dari embed thumbnail pada pesan id=${messageId}]` } as MediaCandidate)
+          ? ({
+              messageId,
+              url: embed.thumbnail,
+              label: `[gambar di atas berasal dari embed thumbnail pada pesan id=${messageId}]`,
+            } as MediaCandidate)
           : null,
       ].filter((c): c is MediaCandidate => c !== null),
     ),
@@ -234,12 +250,19 @@ export const analyzeSingleMediaImage = async (
             const phashCached = await getCachedMediaByPhash(phash);
             if (phashCached) {
               visionLruCache.set(cacheKey, phashCached);
-              await upsertCachedMediaAnalysis(cacheKey, phashCached, "vision_llm", Date.now() + 24 * 60 * 60 * 1000).catch(() => {});
+              await upsertCachedMediaAnalysis(
+                cacheKey,
+                phashCached,
+                "vision_llm",
+                Date.now() + 24 * 60 * 60 * 1000,
+              ).catch(() => {});
               return phashCached;
             }
           }
         }
-      } catch { phash = null; }
+      } catch {
+        phash = null;
+      }
     }
 
     // Vision API call
@@ -248,10 +271,20 @@ export const analyzeSingleMediaImage = async (
       try {
         const content = await llmVision(promptText, image.image_url);
         if (content) {
-          await upsertCachedMediaAnalysis(cacheKey, content, "vision_llm", Date.now() + 24 * 60 * 60 * 1000);
+          await upsertCachedMediaAnalysis(
+            cacheKey,
+            content,
+            "vision_llm",
+            Date.now() + 24 * 60 * 60 * 1000,
+          );
           visionLruCache.set(cacheKey, content);
           if (phash) {
-            upsertCachedMediaByPhash(phash, content, "vision_llm", Date.now() + 7 * 24 * 60 * 60 * 1000).catch(() => {});
+            upsertCachedMediaByPhash(
+              phash,
+              content,
+              "vision_llm",
+              Date.now() + 7 * 24 * 60 * 60 * 1000,
+            ).catch(() => {});
           }
           return content;
         }
@@ -260,13 +293,27 @@ export const analyzeSingleMediaImage = async (
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         if (attempt < 2) {
-          const backoffMs = Math.min(2_000 * 3 ** attempt + Math.random() * 500, 30_000);
-          log.warn({ messageId, attempt: attempt + 1, backoffMs, error: lastError.message }, "Vision retry");
+          const backoffMs = Math.min(
+            2_000 * 3 ** attempt + Math.random() * 500,
+            30_000,
+          );
+          log.warn(
+            {
+              messageId,
+              attempt: attempt + 1,
+              backoffMs,
+              error: lastError.message,
+            },
+            "Vision retry",
+          );
           await delay(backoffMs);
         }
       }
     }
-    log.warn({ messageId, lastError: lastError?.message ?? "null" }, "Vision failed after 3 attempts");
+    log.warn(
+      { messageId, lastError: lastError?.message ?? "null" },
+      "Vision failed after 3 attempts",
+    );
     await deleteCachedMediaAnalysis(cacheKey).catch(() => {});
     return FAILED_ANALYSIS_PREFIX;
   })();
@@ -276,7 +323,14 @@ export const analyzeSingleMediaImage = async (
     const content = await visionPromise;
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${content}`;
   } catch (outerErr) {
-    log.error({ messageId, cacheKey, error: outerErr instanceof Error ? outerErr.message : String(outerErr) }, "visionPromise threw unexpectedly");
+    log.error(
+      {
+        messageId,
+        cacheKey,
+        error: outerErr instanceof Error ? outerErr.message : String(outerErr),
+      },
+      "visionPromise threw unexpectedly",
+    );
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${FAILED_ANALYSIS_PREFIX}`;
   } finally {
     inFlightVisionCalls.delete(cacheKey);
@@ -310,7 +364,10 @@ async function downloadSingleAttachment(
       if (done) break;
       if (value) {
         totalBytes += value.length;
-        if (totalBytes > 10 * 1024 * 1024) { reader.cancel(); return; }
+        if (totalBytes > 10 * 1024 * 1024) {
+          reader.cancel();
+          return;
+        }
         chunks.push(value);
       }
     }
@@ -318,7 +375,13 @@ async function downloadSingleAttachment(
     const sniffedMime = sniffImageMimeType(imageBytes);
 
     if (!sniffedMime && att.type.startsWith("video/")) {
-      await extractVideoFrames(att, imageBytes, targetId, maxDimension, imageMap);
+      await extractVideoFrames(
+        att,
+        imageBytes,
+        targetId,
+        maxDimension,
+        imageMap,
+      );
       return;
     }
 
@@ -327,19 +390,27 @@ async function downloadSingleAttachment(
     if (!resolvedMime) {
       if (att.type.startsWith("image/")) {
         resolvedMime = att.type;
-        log.warn({ attachmentId: att.id, filename: att.filename, type: att.type },
-          "Image MIME sniff failed — using attachment metadata type as fallback");
+        log.warn(
+          { attachmentId: att.id, filename: att.filename, type: att.type },
+          "Image MIME sniff failed — using attachment metadata type as fallback",
+        );
       } else {
         // Last resort: check file extension
         const ext = att.filename?.toLowerCase().split(".").pop();
         if (ext && ["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) {
           const mimeMap: Record<string, string> = {
-            jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
-            gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
+            jpg: "image/jpeg",
+            jpeg: "image/jpeg",
+            png: "image/png",
+            gif: "image/gif",
+            webp: "image/webp",
+            bmp: "image/bmp",
           };
           resolvedMime = mimeMap[ext];
-          log.warn({ attachmentId: att.id, filename: att.filename, ext },
-            "Image MIME sniff failed — using file extension fallback");
+          log.warn(
+            { attachmentId: att.id, filename: att.filename, ext },
+            "Image MIME sniff failed — using file extension fallback",
+          );
         }
       }
     }
@@ -347,11 +418,14 @@ async function downloadSingleAttachment(
     // If all fallbacks fail, still try with generic image/jpeg (better than silent skip)
     if (!resolvedMime) {
       resolvedMime = "image/jpeg";
-      log.warn({ attachmentId: att.id, filename: att.filename },
-        "All MIME detection failed — forcing image/jpeg as last resort");
+      log.warn(
+        { attachmentId: att.id, filename: att.filename },
+        "All MIME detection failed — forcing image/jpeg as last resort",
+      );
     }
 
-    const { data: resizedBuffer, mimeType: resizedMime } = await resizeImageForVision(imageBytes, maxDimension);
+    const { data: resizedBuffer, mimeType: resizedMime } =
+      await resizeImageForVision(imageBytes, maxDimension);
     const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
     addImageToMap(imageMap, targetId, {
       type: "image_url",
@@ -359,7 +433,13 @@ async function downloadSingleAttachment(
       sourceLabel: `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`,
     });
   } catch (err) {
-    log.warn({ attachmentId: att.id, error: err instanceof Error ? err.message : String(err) }, "Download failed");
+    log.warn(
+      {
+        attachmentId: att.id,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      "Download failed",
+    );
   } finally {
     clear();
   }
@@ -379,36 +459,87 @@ async function extractVideoFrames(
   const outputPattern = path.join(tmpDir, "frame-%03d.jpg");
   try {
     await writeFile(inputPath, videoBytes);
-    const { stdout: durationStr } = await execFileAsync("/usr/bin/ffprobe", [
-      "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", inputPath,
-    ], { timeout: 10000 });
+    const { stdout: durationStr } = await execFileAsync(
+      "/usr/bin/ffprobe",
+      [
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "csv=p=0",
+        inputPath,
+      ],
+      { timeout: 10000 },
+    );
     const duration = parseFloat(durationStr.trim()) || 1;
     const fps = (3 / duration).toFixed(6);
-    await execFileAsync("/usr/bin/ffmpeg", [
-      "-i", inputPath, "-vf", `fps=${fps}`, "-frames:v", "4", "-vsync", "vfr", "-q:v", "2", outputPattern,
-    ], { timeout: 30000 });
+    await execFileAsync(
+      "/usr/bin/ffmpeg",
+      [
+        "-i",
+        inputPath,
+        "-vf",
+        `fps=${fps}`,
+        "-frames:v",
+        "4",
+        "-vsync",
+        "vfr",
+        "-q:v",
+        "2",
+        outputPattern,
+      ],
+      { timeout: 30000 },
+    );
     for (let i = 1; i <= 4; i++) {
       try {
-        const framePath = path.join(tmpDir, `frame-${String(i).padStart(3, "0")}.jpg`);
+        const framePath = path.join(
+          tmpDir,
+          `frame-${String(i).padStart(3, "0")}.jpg`,
+        );
         const frameBytes = await readFile(framePath);
-        const { data: resizedBuffer, mimeType: resizedMime } = await resizeImageForVision(frameBytes, maxDimension);
+        const { data: resizedBuffer, mimeType: resizedMime } =
+          await resizeImageForVision(frameBytes, maxDimension);
         const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
         addImageToMap(imageMap, targetId, {
           type: "image_url",
           image_url: { url: dataUrl },
           sourceLabel: `[frame ${i}/4 dari video ${att.filename} (attachment), pesan id=${att.message_id}]`,
         });
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
     log.info({ attachmentId: att.id }, "Video frames extracted");
   } catch (ffmpegErr) {
-    log.warn({ attachmentId: att.id, error: ffmpegErr instanceof Error ? ffmpegErr.message : String(ffmpegErr) }, "ffmpeg failed");
+    log.warn(
+      {
+        attachmentId: att.id,
+        error:
+          ffmpegErr instanceof Error ? ffmpegErr.message : String(ffmpegErr),
+      },
+      "ffmpeg failed",
+    );
   } finally {
-    try { await unlink(inputPath); } catch { /* ignore */ }
-    for (let i = 1; i <= 4; i++) {
-      try { await unlink(path.join(tmpDir, `frame-${String(i).padStart(3, "0")}.jpg`)); } catch { /* ignore */ }
+    try {
+      await unlink(inputPath);
+    } catch {
+      /* ignore */
     }
-    try { await rm(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    for (let i = 1; i <= 4; i++) {
+      try {
+        await unlink(
+          path.join(tmpDir, `frame-${String(i).padStart(3, "0")}.jpg`),
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      await rm(tmpDir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -429,7 +560,9 @@ async function downloadMediaCandidate(
     const cached = await getCachedMediaAnalysis(vck);
     if (cached) {
       const existing = mediaAnalysisMap.get(targetId) ?? [];
-      existing.push(`[Media analysis for message ${candidate.messageId}] ${candidate.label}: ${cached}`);
+      existing.push(
+        `[Media analysis for message ${candidate.messageId}] ${candidate.label}: ${cached}`,
+      );
       mediaAnalysisMap.set(targetId, existing);
       // Warm the LRU cache so subsequent calls in the same process skip DB query
       visionLruCache.set(vck, cached);
@@ -449,15 +582,22 @@ async function downloadMediaCandidate(
         });
         return;
       }
-    } catch { /* fall through */ }
+    } catch {
+      /* fall through */
+    }
   }
 
   const result = await fetchUrlSafely(candidate.url);
   if (result.type !== "image" || !result.data || !result.mimeType) return;
-  const { data: resizedBuffer, mimeType: resizedMime } = await resizeImageForVision(result.data, maxDimension);
+  const { data: resizedBuffer, mimeType: resizedMime } =
+    await resizeImageForVision(result.data, maxDimension);
   const base64 = resizedBuffer.toString("base64");
   if (candidate.stickerName) {
-    uploadAndCacheSticker(candidate.stickerName, resizedBuffer, resizedMime).catch(() => {});
+    uploadAndCacheSticker(
+      candidate.stickerName,
+      resizedBuffer,
+      resizedMime,
+    ).catch(() => {});
   }
   addImageToMap(imageMap, targetId, {
     type: "image_url",
@@ -478,14 +618,19 @@ async function fetchUrlInline(
 ): Promise<void> {
   const result = await fetchUrlSafely(url);
   if (result.type === "image" && result.data && result.mimeType) {
-    const { data: resizedBuffer, mimeType: resizedMime } = await resizeImageForVision(result.data, maxDimension);
+    const { data: resizedBuffer, mimeType: resizedMime } =
+      await resizeImageForVision(result.data, maxDimension);
     addImageToMap(imageMap, targetId, {
       type: "image_url",
-      image_url: { url: `data:${resizedMime};base64,${resizedBuffer.toString("base64")}` },
+      image_url: {
+        url: `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`,
+      },
       sourceLabel: `[gambar dari URL ${url} (inline), pesan id=${targetId}]`,
     });
   } else if (result.type === "text" && result.textContent) {
-    webTexts.push(`<web_content url="${escapeXml(url)}">${escapeXml(result.textContent.slice(0, 2000))}</web_content>`);
+    webTexts.push(
+      `<web_content url="${escapeXml(url)}">${escapeXml(result.textContent.slice(0, 2000))}</web_content>`,
+    );
   }
 }
 
@@ -512,23 +657,40 @@ export async function prepareMediaMessage(
 
   // Attachments
   const msgAttachments = (allAttachments ?? [])
-    .filter((a) => a.message_id === targetId && (a.uploaded_url ?? a.discord_url ?? null) && (a.type.startsWith("image/") || a.type.startsWith("video/")))
+    .filter(
+      (a) =>
+        a.message_id === targetId &&
+        (a.uploaded_url ?? a.discord_url ?? null) &&
+        (a.type.startsWith("image/") || a.type.startsWith("video/")),
+    )
     .slice(0, 8);
   for (const att of msgAttachments) {
-    downloadPromises.push(downloadSingleAttachment(att, targetId, maxDimension, imageMap));
+    downloadPromises.push(
+      downloadSingleAttachment(att, targetId, maxDimension, imageMap),
+    );
   }
 
   // URLs
   const urls = extractUrlsFromText(content).slice(0, 3);
   const urlWebTexts: string[] = [];
   for (const url of urls) {
-    downloadPromises.push(fetchUrlInline(url, targetId, maxDimension, imageMap, urlWebTexts));
+    downloadPromises.push(
+      fetchUrlInline(url, targetId, maxDimension, imageMap, urlWebTexts),
+    );
   }
 
   // Stickers, embeds, custom emoji
   const mediaEvidence = extractMessageMediaEvidence(target.metadata);
   for (const candidate of buildMediaCandidates(targetId, mediaEvidence)) {
-    downloadPromises.push(downloadMediaCandidate(candidate, targetId, maxDimension, imageMap, mediaAnalysisMap));
+    downloadPromises.push(
+      downloadMediaCandidate(
+        candidate,
+        targetId,
+        maxDimension,
+        imageMap,
+        mediaAnalysisMap,
+      ),
+    );
   }
 
   await Promise.all(downloadPromises);
@@ -550,28 +712,37 @@ export async function prepareMediaMessage(
   let searxngXml = "";
   const queries = extractSearchQueries(content);
   if (queries.length > 0) {
-    const results = await Promise.allSettled(queries.map((q) => searchSearxng(q)));
+    const results = await Promise.allSettled(
+      queries.map((q) => searchSearxng(q)),
+    );
     const parts: string[] = [];
     for (let i = 0; i < results.length; i++) {
       const r = results[i];
-      if (r.status === "fulfilled" && r.value.length > 0) parts.push(formatSearchResults(r.value));
+      if (r.status === "fulfilled" && r.value.length > 0)
+        parts.push(formatSearchResults(r.value));
     }
-    if (parts.length > 0) searxngXml = `\n<web_searches>\n${parts.join("\n")}\n</web_searches>`;
+    if (parts.length > 0)
+      searxngXml = `\n<web_searches>\n${parts.join("\n")}\n</web_searches>`;
   }
 
   // Build XML block
   const webTexts = webTextMap.get(targetId) ?? [];
   const mediaAnalyses = mediaAnalysisMap.get(targetId) ?? [];
   const webContext = webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
-  const mediaAnalysisContext = mediaAnalyses.length > 0 ? `\n${mediaAnalyses.join("\n")}` : "";
+  const mediaAnalysisContext =
+    mediaAnalyses.length > 0 ? `\n${mediaAnalyses.join("\n")}` : "";
   const mediaContext = [
     mediaEvidence.stickers.length > 0
-      ? mediaEvidence.stickers.map((s) => buildStickerTextOnlyWarning(s.name, s.url)).join(" ")
+      ? mediaEvidence.stickers
+          .map((s) => buildStickerTextOnlyWarning(s.name, s.url))
+          .join(" ")
       : null,
     mediaEvidence.embeds.length > 0
       ? `[embed evidence: ${mediaEvidence.embeds.map((e) => [e.title, e.description, e.url, e.image, e.thumbnail].filter(Boolean).join(" | ")).join(" || ")}]`
       : null,
-  ].filter(Boolean).join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const rep = await initializeUserReputation(target.user_id, target.guild_id);
   const profile = await getUserProfile(target.user_id);

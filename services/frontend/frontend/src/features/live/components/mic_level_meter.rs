@@ -9,11 +9,11 @@ pub fn MicLevelMeter(
     #[prop(optional)] pcm_data: Option<Arc<Mutex<Vec<f32>>>>,
     #[prop(optional)] label: Option<&'static str>,
 ) -> impl IntoView {
-    let level = create_rw_signal::<f32>(0.0);
-    let peak = create_rw_signal::<f32>(0.0);
+    let level = RwSignal::new(0.0f32);
+    let peak = RwSignal::new(0.0f32);
 
     // Update level periodically
-    create_effect(move |_| {
+    Effect::new(move |_| {
         if !active {
             return;
         }

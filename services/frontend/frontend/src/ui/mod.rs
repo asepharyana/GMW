@@ -2,12 +2,12 @@
 pub mod badge;
 pub mod button;
 pub mod card;
+pub mod empty_state;
 pub mod input;
+pub mod modal;
 pub mod scroll_area;
 pub mod select;
-pub mod tabs;
-pub mod toast;
 pub mod skeleton;
 pub mod status_badge;
-pub mod empty_state;
-pub mod modal;
+pub mod tabs;
+pub mod toast;

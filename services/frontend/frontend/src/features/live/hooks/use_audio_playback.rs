@@ -1,7 +1,6 @@
-use leptos::prelude::*;
-use std::sync::Arc;
 use crate::features::live::audio::pcm_decoder::decode_pcm_frame;
 use crate::features::live::audio::ring_buffer::SharedRingBuffer;
+use leptos::prelude::*;
 
 /// AudioPlaybackState — Manages PCM audio playback from WebSocket binary frames
 pub struct AudioPlaybackState {
@@ -16,8 +15,8 @@ pub struct AudioPlaybackState {
 /// Create and initialize audio playback state
 pub fn use_audio_playback() -> AudioPlaybackState {
     let buffer = SharedRingBuffer::new(44100 * 5); // 5 seconds at 44.1kHz
-    let active = create_rw_signal::<bool>(false);
-    let volume = create_rw_signal::<f64>(0.5);
+    let active = RwSignal::new(false);
+    let volume = RwSignal::new(0.5);
 
     AudioPlaybackState {
         buffer,
@@ -36,7 +35,7 @@ pub fn process_pcm_data(state: &AudioPlaybackState, data: Vec<u8>) {
 
 /// Start consuming the ring buffer and playing through AudioContext
 pub fn start_playback(state: &AudioPlaybackState) {
-    if state.active.get() {
+    if state.active.get_untracked() {
         return;
     }
     state.active.set(true);
@@ -56,7 +55,7 @@ pub fn start_playback(state: &AudioPlaybackState) {
         let ctx_ref = &ctx;
         let _ = ctx_ref.resume();
 
-        while active.get() {
+        while active.get_untracked() {
             let available = buffer.available_samples();
             if available >= 4410 {
                 // ~100ms worth at 44.1kHz
@@ -90,7 +89,7 @@ fn play_samples(ctx: &web_sys::AudioContext, samples: &[f32]) {
         return;
     };
 
-    let len = samples.len().min(channel_data.len() as usize);
+    let len = samples.len().min(channel_data.len());
     if len == 0 {
         return;
     }

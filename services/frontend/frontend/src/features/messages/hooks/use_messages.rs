@@ -1,18 +1,23 @@
+use crate::api::messages::{get_messages, reanalyze_batch, reanalyze_message};
 use leptos::prelude::*;
 use shared_types::message::{MessageRecord, PageResult};
-use crate::api::messages::{get_messages, reanalyze_message, reanalyze_batch};
 use std::collections::HashMap;
 use std::sync::Arc;
 use wasm_bindgen_futures::spawn_local;
 
 /// Merges current messages with incoming messages, deduplicating by ID and sorting
 pub fn merge_messages(current: &[MessageRecord], incoming: &[MessageRecord]) -> Vec<MessageRecord> {
-    let mut by_id: HashMap<String, MessageRecord> = current.iter().map(|m| (m.id.clone(), m.clone())).collect();
+    let mut by_id: HashMap<String, MessageRecord> =
+        current.iter().map(|m| (m.id.clone(), m.clone())).collect();
     for msg in incoming {
         by_id.insert(msg.id.clone(), msg.clone());
     }
     let mut merged: Vec<MessageRecord> = by_id.into_values().collect();
-    merged.sort_by(|a, b| b.created_at.cmp(&a.created_at).then_with(|| b.id.cmp(&a.id)));
+    merged.sort_by(|a, b| {
+        b.created_at
+            .cmp(&a.created_at)
+            .then_with(|| b.id.cmp(&a.id))
+    });
     merged
 }
 
@@ -56,14 +61,14 @@ pub struct MessagesState {
 pub fn use_messages() -> MessagesState {
     // Core signals
     let messages_signal = RwSignal::new(Vec::<MessageRecord>::new());
-    let (loading, set_loading) = create_signal(false);
+    let (loading, set_loading) = signal(false);
     let loading_more_signal = RwSignal::new(false);
     let cursor_signal = RwSignal::new(None::<String>);
     let error_signal = RwSignal::new(None::<String>);
     let current_guild_signal = RwSignal::new(None::<String>);
 
     // Derived signal: has_more is true if cursor is Some
-    let has_more_signal = create_memo(move |_| cursor_signal.get().is_some());
+    let has_more_signal = Memo::new(move |_| cursor_signal.get().is_some());
 
     // Fetch initial messages for a guild
     let fetch_messages_impl = Arc::new(move |guild_id: String| {

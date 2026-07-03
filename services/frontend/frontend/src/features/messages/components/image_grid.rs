@@ -2,9 +2,7 @@ use leptos::prelude::*;
 use shared_types::message::MessageRecord;
 
 #[component]
-pub fn ImageGrid(
-    messages: Vec<MessageRecord>,
-) -> impl IntoView {
+pub fn ImageGrid(messages: Vec<MessageRecord>) -> impl IntoView {
     let mut seen_urls = std::collections::HashSet::new();
     let mut urls = Vec::new();
 
@@ -13,7 +11,11 @@ pub fn ImageGrid(
             // attachments with image MIME
             if let Some(atts) = &meta.attachments {
                 for att in atts {
-                    let is_img = att.content_type.as_deref().map(|ct| ct.starts_with("image/")).unwrap_or(false)
+                    let is_img = att
+                        .content_type
+                        .as_deref()
+                        .map(|ct| ct.starts_with("image/"))
+                        .unwrap_or(false)
                         || att.name.to_lowercase().ends_with(".png")
                         || att.name.to_lowercase().ends_with(".jpg")
                         || att.name.to_lowercase().ends_with(".jpeg")
@@ -57,7 +59,8 @@ pub fn ImageGrid(
             <div class="flex items-center justify-center h-32 text-secondary italic">
                 "No images found"
             </div>
-        }.into_any();
+        }
+        .into_any();
     }
 
     view! {
@@ -71,5 +74,6 @@ pub fn ImageGrid(
                 }
             }).collect::<Vec<_>>()}
         </div>
-    }.into_any()
+    }
+    .into_any()
 }

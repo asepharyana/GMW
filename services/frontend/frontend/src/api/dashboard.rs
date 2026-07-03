@@ -14,10 +14,18 @@ pub async fn get_dashboard_users(
 ) -> Result<PaginatedUsers, ApiError> {
     let mut path = "/api/dashboard/users".to_string();
     let mut params = vec![];
-    if let Some(l) = limit { params.push(format!("limit={}", l)); }
-    if let Some(c) = cursor { params.push(format!("cursor={}", c)); }
-    if let Some(s) = search { params.push(format!("search={}", s)); }
-    if !params.is_empty() { path.push_str(&format!("?{}", params.join("&"))); }
+    if let Some(l) = limit {
+        params.push(format!("limit={}", l));
+    }
+    if let Some(c) = cursor {
+        params.push(format!("cursor={}", c));
+    }
+    if let Some(s) = search {
+        params.push(format!("search={}", s));
+    }
+    if !params.is_empty() {
+        path.push_str(&format!("?{}", params.join("&")));
+    }
     request("GET", &path, None).await
 }
 
@@ -42,11 +50,21 @@ pub async fn get_dashboard_channels(
 ) -> Result<PaginatedChannels, ApiError> {
     let mut path = "/api/dashboard/channels".to_string();
     let mut params = vec![];
-    if let Some(l) = limit { params.push(format!("limit={}", l)); }
-    if let Some(c) = cursor { params.push(format!("cursor={}", c)); }
-    if let Some(s) = search { params.push(format!("search={}", s)); }
-    if let Some(g) = guild_id { params.push(format!("guild_id={}", g)); }
-    if !params.is_empty() { path.push_str(&format!("?{}", params.join("&"))); }
+    if let Some(l) = limit {
+        params.push(format!("limit={}", l));
+    }
+    if let Some(c) = cursor {
+        params.push(format!("cursor={}", c));
+    }
+    if let Some(s) = search {
+        params.push(format!("search={}", s));
+    }
+    if let Some(g) = guild_id {
+        params.push(format!("guild_id={}", g));
+    }
+    if !params.is_empty() {
+        path.push_str(&format!("?{}", params.join("&")));
+    }
     request("GET", &path, None).await
 }
 
@@ -58,6 +76,13 @@ pub struct PaginatedChannels {
 }
 
 /// GET /api/dashboard/channels/{channelId}
-pub async fn get_dashboard_channel_detail(channel_id: &str) -> Result<DashboardChannelDetail, ApiError> {
-    request("GET", &format!("/api/dashboard/channels/{}", channel_id), None).await
+pub async fn get_dashboard_channel_detail(
+    channel_id: &str,
+) -> Result<DashboardChannelDetail, ApiError> {
+    request(
+        "GET",
+        &format!("/api/dashboard/channels/{}", channel_id),
+        None,
+    )
+    .await
 }

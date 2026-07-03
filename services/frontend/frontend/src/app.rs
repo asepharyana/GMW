@@ -1,12 +1,30 @@
-use leptos::prelude::*;
-use shared_types::ui_state::Tab;
-use crate::auth::AuthOverlay;
-use crate::ws::context::WsContext;
 use crate::features::dashboard::DashboardPanel;
 use crate::features::live::LivePanel;
 use crate::features::messages::MessagesPanel;
-use crate::features::polish::{initial_theme, ThemeContext};
 use crate::features::polish::components::{MascotChatbot, ParticleBackground, ThemeToggle};
+use crate::features::polish::{initial_theme, ThemeContext};
+use crate::ws::context::WsContext;
+use leptos::prelude::*;
+use shared_types::ui_state::Tab;
+
+/// Derive WebSocket URL from the page's own origin.
+/// In development (serve on :8080, backend on :3001) use the detected host + /ws path.
+/// In production (nginx proxies /ws to backend) the same logic works.
+fn get_ws_url() -> String {
+    web_sys::window()
+        .map(|w| {
+            let loc = w.location();
+            let protocol = loc.protocol().unwrap_or_else(|_| "http:".to_string());
+            let host = loc.host().unwrap_or_else(|_| "localhost:3001".to_string());
+            let ws_proto = if protocol.starts_with("https") {
+                "wss"
+            } else {
+                "ws"
+            };
+            format!("{}://{}/ws", ws_proto, host)
+        })
+        .unwrap_or_else(|| "ws://localhost:3001/ws".to_string())
+}
 
 #[derive(Clone)]
 pub struct AppConfig {
@@ -33,15 +51,15 @@ pub struct UiContext {
 pub fn App() -> impl IntoView {
     // Initialize contexts
     let auth = AuthContext {
-        authenticated: create_rw_signal(false),
-        password: create_rw_signal(String::new()),
+        authenticated: RwSignal::new(false),
+        password: RwSignal::new(String::new()),
     };
     let ui = UiContext {
-        active_tab: create_rw_signal(Tab::Messages),
-        selected_guild: create_rw_signal(None),
+        active_tab: RwSignal::new(Tab::Messages),
+        selected_guild: RwSignal::new(None),
     };
     let theme = ThemeContext {
-        theme: create_rw_signal(initial_theme()),
+        theme: RwSignal::new(initial_theme()),
     };
 
     provide_context(auth.clone());
@@ -53,34 +71,14 @@ pub fn App() -> impl IntoView {
     };
     provide_context(config);
 
-    let ws = WsContext::new("ws://localhost:3001/ws");
+    let ws = WsContext::new(&get_ws_url());
     provide_context(ws.clone());
 
-    // Auth check: redirect "live" tab to "messages" if not authenticated
-    create_effect(move |_| {
-        if !auth.authenticated.get() && ui.active_tab.get() == Tab::Live {
-            ui.active_tab.set(Tab::Messages);
-        }
-    });
-
-    {
-        let ws = ws.clone();
-        let auth = auth.clone();
-        create_effect(move |_| {
-            if auth.authenticated.get() {
-                ws.connect();
-            }
-        });
-    }
+    ws.connect();
 
     view! {
         <div data-theme=move || theme.theme.get()>
             <ParticleBackground />
-
-            // Auth overlay
-            {move || (!auth.authenticated.get()).then(|| {
-                view! { <AuthOverlay /> }
-            })}
 
             // Main content
             <div class="app-shell">
@@ -96,8 +94,8 @@ pub fn App() -> impl IntoView {
                     <nav class="app-sidebar">
                         <div class="flex flex-col gap-2">
                             <TabButton tab=Tab::Messages ui=ui.clone() label="Pesan & Moderasi" />
-                            <TabButton tab=Tab::Live ui=ui.clone() label="Voice & Media" />
                             <TabButton tab=Tab::Dashboard ui=ui.clone() label="Dashboard Guild" />
+                            <TabButton tab=Tab::Live ui=ui.clone() label="Voice & Media" />
                         </div>
                     </nav>
 
@@ -119,12 +117,8 @@ pub fn App() -> impl IntoView {
 // ── Tab Button Helper ───────────────────────────────────
 
 #[component]
-fn TabButton(
-    tab: Tab,
-    ui: UiContext,
-    label: &'static str,
-) -> impl IntoView {
-    let active_tab = ui.active_tab.clone();
+fn TabButton(tab: Tab, ui: UiContext, label: &'static str) -> impl IntoView {
+    let active_tab = ui.active_tab;
     let tab1 = tab.clone();
     let tab2 = tab.clone();
     let tab3 = tab.clone();

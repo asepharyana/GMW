@@ -1,5 +1,5 @@
 # ─── BETE GitLab CI/CD Pipeline ───────────────────────────────────────────────
-# 1. Build 4 Docker images (frontend, backend, discord-gateway, proxy)
+# 1. Build 3 Docker images (backend, discord-gateway, proxy — proxy includes frontend WASM)
 # 2. Push to GitLab Container Registry
 # 3. Deploy to VPS — pull images, docker compose up
 #
@@ -25,10 +25,6 @@ variables:
   IMAGE_TAG_COMMIT: $CI_COMMIT_SHA
   IMAGE_TAG_LATEST: latest
 
-  # Frontend build args
-  VITE_BE_API_URL: https://imphnen.asepharyana.my.id
-  VITE_BE_WS_URL: wss://imphnen.asepharyana.my.id
-
   # Deploy target
   SSH_HOST: "${VPS_USERNAME}@${VPS_HOST}"
   APP_DIR: /opt/imphenbot
@@ -50,20 +46,11 @@ variables:
         --tag $REGISTRY_PROJECT/bete-$SERVICE_NAME:$IMAGE_TAG_COMMIT \
         --tag $REGISTRY_PROJECT/bete-$SERVICE_NAME:$IMAGE_TAG_LATEST \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
-        --build-arg VITE_BE_API_URL=$VITE_BE_API_URL \
-        --build-arg VITE_BE_WS_URL=$VITE_BE_WS_URL \
         --cache-from $REGISTRY_PROJECT/bete-$SERVICE_NAME:latest \
         .
     # Push to GitLab Container Registry
     - docker push $REGISTRY_PROJECT/bete-$SERVICE_NAME:$IMAGE_TAG_COMMIT
     - docker push $REGISTRY_PROJECT/bete-$SERVICE_NAME:$IMAGE_TAG_LATEST
-
-build-frontend:
-  extends: .docker-build
-  variables:
-    SERVICE_NAME: frontend
-  only:
-    - master
 
 build-backend:
   extends: .docker-build
@@ -93,7 +80,6 @@ deploy-vps:
   only:
     - master
   needs:
-    - build-frontend
     - build-backend
     - build-discord-gateway
     - build-proxy
@@ -122,7 +108,7 @@ deploy-vps:
         docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans
 
         # Force restart proxy to pick up new upstream DNS IPs.
-        # Docker's DNS changes when backend/frontend containers are recreated,
+        # Docker's DNS changes when backend containers are recreated,
         # but nginx only resolves upstream hostnames at startup. Without this,
         # nginx keeps pointing to stale container IPs → 502 Bad Gateway.
         echo '→ Ensuring proxy container is restarted (nginx upstream DNS refresh)...'

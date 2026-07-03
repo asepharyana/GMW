@@ -291,8 +291,7 @@ export function getMessageMetadata(message: Message): RichMessageMetadata {
           messageId: ref.messageId ?? null,
           channelId: ref.channelId ?? null,
           guildId: ref.guildId ?? null,
-          type:
-            (ref.type as unknown as string | undefined) ?? null,
+          type: (ref.type as unknown as string | undefined) ?? null,
           content: referenceContent?.content ?? null,
           repliedUsername: referenceContent?.username ?? null,
           repliedUserId: referenceContent?.userId ?? null,

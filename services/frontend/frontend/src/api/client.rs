@@ -1,7 +1,7 @@
 use serde::de::DeserializeOwned;
 use wasm_bindgen::prelude::*;
-use web_sys::{Request, RequestInit, RequestMode, Headers, Response};
 use wasm_bindgen_futures::JsFuture;
+use web_sys::{Headers, Request, RequestInit, RequestMode, Response};
 
 #[derive(Debug)]
 pub struct ApiError {
@@ -22,7 +22,9 @@ fn get_base_url() -> String {
         let location = window.location();
         let protocol = location.protocol().unwrap_or_else(|_| "http:".to_string());
         let protocol = protocol.trim_end_matches(':');
-        let host = location.host().unwrap_or_else(|_| "localhost:3001".to_string());
+        let host = location
+            .host()
+            .unwrap_or_else(|_| "localhost:3001".to_string());
         format!("{}://{}", protocol, host)
     } else {
         "http://localhost:3001".to_string()
@@ -88,12 +90,10 @@ pub async fn request<T: DeserializeOwned>(
 
     let status = response.status();
     if status >= 400 {
-        let text = JsFuture::from(
-            response.text().map_err(|_| ApiError {
-                message: "Failed to read error body".to_string(),
-                status_code: status,
-            })?
-        )
+        let text = JsFuture::from(response.text().map_err(|_| ApiError {
+            message: "Failed to read error body".to_string(),
+            status_code: status,
+        })?)
         .await
         .ok()
         .and_then(|v| v.as_string())
@@ -105,12 +105,10 @@ pub async fn request<T: DeserializeOwned>(
         });
     }
 
-    let text = JsFuture::from(
-        response.text().map_err(|_| ApiError {
-            message: "Failed to read response body".to_string(),
-            status_code: status,
-        })?
-    )
+    let text = JsFuture::from(response.text().map_err(|_| ApiError {
+        message: "Failed to read response body".to_string(),
+        status_code: status,
+    })?)
     .await
     .map_err(|_| ApiError {
         message: "Failed to await response".to_string(),
@@ -123,7 +121,11 @@ pub async fn request<T: DeserializeOwned>(
     })?;
 
     serde_json::from_str(&text).map_err(|e| ApiError {
-        message: format!("JSON parse error: {} — body: {}", e, &text[..text.len().min(200)]),
+        message: format!(
+            "JSON parse error: {} — body: {}",
+            e,
+            &text[..text.len().min(200)]
+        ),
         status_code: status,
     })
 }

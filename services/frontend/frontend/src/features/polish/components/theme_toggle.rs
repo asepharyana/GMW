@@ -1,5 +1,5 @@
-use leptos::prelude::*;
 use crate::features::polish::{persist_theme, ThemeContext};
+use leptos::prelude::*;
 
 #[component]
 pub fn ThemeToggle() -> impl IntoView {
@@ -16,7 +16,11 @@ pub fn ThemeToggle() -> impl IntoView {
 
     let toggle = move |_| {
         if let Some(ctx) = theme_for_toggle.as_ref() {
-            let next = if ctx.theme.get() == "dark" { "light" } else { "dark" };
+            let next = if ctx.theme.get() == "dark" {
+                "light"
+            } else {
+                "dark"
+            };
             ctx.theme.set(next.to_string());
             persist_theme(next);
         }

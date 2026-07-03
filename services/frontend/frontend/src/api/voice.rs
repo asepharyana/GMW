@@ -1,8 +1,8 @@
-use crate::api::client::{request, request_no_body, ApiError};
-use shared_types::voice::VoiceStatus;
-use shared_types::media::MediaState;
-use shared_types::guild::{Guild, Channel};
+use crate::api::client::{request, ApiError};
 use serde::Serialize;
+use shared_types::guild::{Channel, Guild};
+use shared_types::media::MediaState;
+use shared_types::voice::VoiceStatus;
 
 /// GET /api/guilds
 pub async fn get_guilds() -> Result<Vec<Guild>, ApiError> {
@@ -11,7 +11,12 @@ pub async fn get_guilds() -> Result<Vec<Guild>, ApiError> {
 
 /// GET /api/guilds/{guildId}/voice-channels
 pub async fn get_voice_channels(guild_id: &str) -> Result<Vec<Channel>, ApiError> {
-    request("GET", &format!("/api/guilds/{}/voice-channels", guild_id), None).await
+    request(
+        "GET",
+        &format!("/api/guilds/{}/voice-channels", guild_id),
+        None,
+    )
+    .await
 }
 
 /// GET /api/guilds/{guildId}/channels
@@ -35,7 +40,8 @@ pub async fn connect_voice(guild_id: &str, channel_id: &str) -> Result<VoiceStat
     let body = serde_json::to_string(&ConnectPayload {
         guild_id: guild_id.to_string(),
         channel_id: channel_id.to_string(),
-    }).unwrap();
+    })
+    .unwrap();
     request("POST", "/api/voice/connect", Some(&body)).await
 }
 
@@ -59,7 +65,8 @@ pub async fn media_queue(source: &str, mode: &str) -> Result<MediaState, ApiErro
     let body = serde_json::to_string(&MediaQueuePayload {
         source: source.to_string(),
         mode: mode.to_string(),
-    }).unwrap();
+    })
+    .unwrap();
     request("POST", "/api/media/queue", Some(&body)).await
 }
 
@@ -75,7 +82,9 @@ pub async fn media_stop() -> Result<MediaState, ApiError> {
 
 /// POST /api/media/volume { volume }
 #[derive(Serialize)]
-struct VolumePayload { volume: f64 }
+struct VolumePayload {
+    volume: f64,
+}
 pub async fn media_volume(volume: f64) -> Result<MediaState, ApiError> {
     let body = serde_json::to_string(&VolumePayload { volume }).unwrap();
     request("POST", "/api/media/volume", Some(&body)).await

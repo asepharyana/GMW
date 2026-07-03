@@ -1,6 +1,6 @@
-use leptos::prelude::*;
-use wasm_bindgen::prelude::*;
 use crate::features::live::hooks::use_voice_control::{use_voice_control, VoiceControlState};
+use leptos::prelude::*;
+use wasm_bindgen::JsCast;
 
 /// VoiceConnectionCard component for Leptos
 /// Renders guild and voice channel selectors with connect/disconnect controls
@@ -13,12 +13,12 @@ pub fn VoiceConnectionCard(
     let state = voice_state.unwrap_or(default_state);
 
     // Reactive signal for selected guild
-    let (selected_guild, set_selected_guild) = create_signal::<String>(String::new());
+    let (selected_guild, set_selected_guild) = signal::<String>(String::new());
     // Reactive signal for selected channel
-    let (selected_channel, set_selected_channel) = create_signal::<String>(String::new());
+    let (selected_channel, set_selected_channel) = signal::<String>(String::new());
 
     // When guild is selected, load voice channels
-    create_effect(move |_| {
+    Effect::new(move |_| {
         let guild_id = selected_guild.get();
         if !guild_id.is_empty() {
             (state.load_voice_channels)(guild_id);
@@ -26,7 +26,7 @@ pub fn VoiceConnectionCard(
     });
 
     // Load guilds on mount
-    create_effect(move |_| {
+    Effect::new(move |_| {
         (state.load_guilds)();
     });
 
@@ -65,17 +65,13 @@ pub fn VoiceConnectionCard(
     let error = state.error;
     let voice_status = state.voice_status;
 
-    let is_connected = move || {
-        voice_status.get().map(|s| s.connected).unwrap_or(false)
-    };
+    let is_connected = move || voice_status.get().map(|s| s.connected).unwrap_or(false);
 
     let can_join = move || {
         !selected_guild.get().is_empty() && !selected_channel.get().is_empty() && !loading.get()
     };
 
-    let can_disconnect = move || {
-        is_connected() && !loading.get()
-    };
+    let can_disconnect = move || is_connected() && !loading.get();
 
     view! {
         <div class=format!("rounded-xl border border-border bg-card shadow-sm {}", class)>
@@ -213,7 +209,8 @@ pub fn VoiceConnectionCard(
                                 </span>
                             }.into_any()
                         } else {
-                            view! { <></> }.into_any()
+                            let _: () = view! { <></> };
+                            ().into_any()
                         }
                     }}
                 </div>

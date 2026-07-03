@@ -67,7 +67,9 @@ export class RecordingsService {
 
     const items = rows.slice(0, limit) as unknown as RecordingRow[];
     const hasMore = rows.length > limit;
-    const nextCursor = hasMore ? String(items[items.length - 1]!.created_at) : null;
+    const nextCursor = hasMore
+      ? String(items[items.length - 1]!.created_at)
+      : null;
 
     return { items, nextCursor, hasMore };
   }

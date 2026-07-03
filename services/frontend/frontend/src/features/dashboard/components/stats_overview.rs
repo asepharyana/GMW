@@ -73,7 +73,12 @@ pub fn StatsOverview(
 }
 
 #[component]
-fn MetricCard(label: &'static str, value: u64, icon: &'static str, tone: &'static str) -> impl IntoView {
+fn MetricCard(
+    label: &'static str,
+    value: u64,
+    icon: &'static str,
+    tone: &'static str,
+) -> impl IntoView {
     view! {
         <div class="card dashboard-metric-card">
             <div class="dashboard-metric-content">
@@ -115,7 +120,8 @@ fn TopChannels(channels: Vec<TopChannel>) -> impl IntoView {
                 }
             }).collect::<Vec<_>>()}
         </div>
-    }.into_any()
+    }
+    .into_any()
 }
 
 #[component]

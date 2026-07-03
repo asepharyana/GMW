@@ -41,7 +41,10 @@ async function learnUserProfile(
   }
 
   // Group messages by channel for channel-aware profiling
-  const channelGroups = new Map<string, { content: string; channelId: string }[]>();
+  const channelGroups = new Map<
+    string,
+    { content: string; channelId: string }[]
+  >();
   for (const msg of recentMessages) {
     const ch = msg.channelId ?? "unknown";
     if (!channelGroups.has(ch)) channelGroups.set(ch, []);

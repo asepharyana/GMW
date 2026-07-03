@@ -9,6 +9,7 @@ enum ChatRole {
 
 #[derive(Clone)]
 struct ChatMessage {
+    #[allow(dead_code)]
     id: String,
     role: ChatRole,
     content: String,
@@ -23,21 +24,25 @@ pub fn MascotChatbot() -> impl IntoView {
     let messages = RwSignal::new(vec![ChatMessage {
         id: "init-1".to_string(),
         role: ChatRole::Mascot,
-        content: "Halo! 👋 Aku mascot IMPHNEN. Tanya aku soal analytics, pesan, atau moderation queue.".to_string(),
+        content:
+            "Halo! 👋 Aku mascot IMPHNEN. Tanya aku soal analytics, pesan, atau moderation queue."
+                .to_string(),
     }]);
 
     let send_message = move || {
-        let text = input.get().trim().to_string();
-        if text.is_empty() || loading.get() {
+        let text = input.get_untracked().trim().to_string();
+        if text.is_empty() || loading.get_untracked() {
             return;
         }
 
         let now = js_sys::Date::now() as u64;
-        messages.update(|list| list.push(ChatMessage {
-            id: format!("user-{}", now),
-            role: ChatRole::User,
-            content: text.clone(),
-        }));
+        messages.update(|list| {
+            list.push(ChatMessage {
+                id: format!("user-{}", now),
+                role: ChatRole::User,
+                content: text.clone(),
+            })
+        });
         input.set(String::new());
         loading.set(true);
 
@@ -47,11 +52,13 @@ pub fn MascotChatbot() -> impl IntoView {
                 Err(_) => fallback_response(&text),
             };
 
-            messages.update(|list| list.push(ChatMessage {
-                id: format!("mascot-{}", js_sys::Date::now() as u64),
-                role: ChatRole::Mascot,
-                content: response,
-            }));
+            messages.update(|list| {
+                list.push(ChatMessage {
+                    id: format!("mascot-{}", js_sys::Date::now() as u64),
+                    role: ChatRole::Mascot,
+                    content: response,
+                })
+            });
             loading.set(false);
         });
     };
@@ -143,9 +150,11 @@ fn fallback_response(input: &str) -> String {
     } else if lower.contains("pesan") || lower.contains("message") {
         "Cek tab Messages untuk live capture dan hasil AI moderation terbaru.".to_string()
     } else if lower.contains("voice") || lower.contains("audio") {
-        "Tab Voice & Media punya voice bridge, speakers, media controls, dan recordings.".to_string()
+        "Tab Voice & Media punya voice bridge, speakers, media controls, dan recordings."
+            .to_string()
     } else if lower.contains("dashboard") || lower.contains("stat") {
-        "Dashboard Guild merangkum total pesan, user aktif, channel teratas, dan moderation queue.".to_string()
+        "Dashboard Guild merangkum total pesan, user aktif, channel teratas, dan moderation queue."
+            .to_string()
     } else {
         format!("Menarik: \"{}\". Kalau backend mascot offline, aku tetap bisa bantu arahkan ke Messages, Voice, atau Dashboard. 😊", input)
     }

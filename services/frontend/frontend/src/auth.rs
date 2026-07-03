@@ -1,15 +1,15 @@
 // services/frontend-leptos/frontend/src/auth.rs
+use crate::api::auth as auth_api;
+use crate::app::AuthContext;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-use crate::app::AuthContext;
-use crate::api::auth as auth_api;
 
 #[component]
 pub fn AuthOverlay() -> impl IntoView {
     let auth = use_context::<AuthContext>().expect("AuthContext not provided");
-    let (password, set_password) = create_signal(String::new());
-    let (error, set_error) = create_signal(Option::<String>::None);
-    let (loading, set_loading) = create_signal(false);
+    let (password, set_password) = signal(String::new());
+    let (error, set_error) = signal(Option::<String>::None);
+    let (loading, set_loading) = signal(false);
 
     let handle_submit = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
@@ -23,8 +23,8 @@ pub fn AuthOverlay() -> impl IntoView {
 
         let auth_clone = auth.clone();
         let pwd_clone = pwd.clone();
-        let set_loading_clone = set_loading.clone();
-        let set_error_clone = set_error.clone();
+        let set_loading_clone = set_loading;
+        let set_error_clone = set_error;
 
         spawn_local(async move {
             match auth_api::login(&pwd_clone).await {

@@ -11,6 +11,10 @@
 export { sniffImageMimeType } from "./imageMimeSniffer.js";
 export { extractJson } from "./jsonExtractor.js";
 export {
+  runModerationAnalysis,
+  runSimpleTextFallback,
+} from "./moderationOrchestrator.js";
+export {
   parseModerationResponse,
   sanitizeErrorMessage,
 } from "./moderationResponseParser.js";
@@ -28,7 +32,3 @@ export {
   deriveSeverity,
   hasDeferralAnalysis,
 } from "./severityDeriver.js";
-export {
-  runModerationAnalysis,
-  runSimpleTextFallback,
-} from "./moderationOrchestrator.js";

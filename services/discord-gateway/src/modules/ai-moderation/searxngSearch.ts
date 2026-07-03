@@ -1,6 +1,6 @@
-import Redis from "ioredis";
 import { createChildLogger } from "@bete/shared/logger";
 import { createAbortControllerWithTimeout } from "@bete/shared/utils";
+import Redis from "ioredis";
 
 const log = createChildLogger("searxng-search");
 
@@ -103,7 +103,10 @@ export async function searchSearxng(
         });
       }
 
-      log.debug({ query, category, resultCount: mapped.length }, "SearXNG search OK");
+      log.debug(
+        { query, category, resultCount: mapped.length },
+        "SearXNG search OK",
+      );
       return mapped;
     } finally {
       clear();
@@ -151,7 +154,10 @@ export function extractSearchQueries(content: string): string[] {
   );
   if (titleBeforeCategory) {
     const title = titleBeforeCategory[1].trim();
-    if (title.length >= 3 && !/^(yang|yang|sama|dari|untuk|ini|itu|ada)$/i.test(title)) {
+    if (
+      title.length >= 3 &&
+      !/^(yang|yang|sama|dari|untuk|ini|itu|ada)$/i.test(title)
+    ) {
       queries.add(title);
     }
   }
@@ -163,7 +169,8 @@ export function extractSearchQueries(content: string): string[] {
   if (properNouns) {
     for (const noun of properNouns) {
       // Skip common non-title proper nouns
-      const skip = /^(Discord|YouTube|Google|Facebook|Instagram|Twitter|Github|ChatGPT|OpenAI|Claude|Telegram|WhatsApp|TikTok|Netflix|Spotify|Steam|Instagram)$/i;
+      const skip =
+        /^(Discord|YouTube|Google|Facebook|Instagram|Twitter|Github|ChatGPT|OpenAI|Claude|Telegram|WhatsApp|TikTok|Netflix|Spotify|Steam|Instagram)$/i;
       if (!skip.test(noun) && noun.length >= 5) {
         queries.add(noun);
       }

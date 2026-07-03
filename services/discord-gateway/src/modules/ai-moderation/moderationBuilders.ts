@@ -4,8 +4,9 @@
  * Shared builder utilities extracted from llmModerationClient.ts.
  * Used by both mediaAnalysisClient.ts and moderationOrchestrator.ts.
  */
-import type { MessageRecord } from "../message-capture/types.js";
+
 import { getMessageById } from "../message-capture/messageStore.js";
+import type { MessageRecord } from "../message-capture/types.js";
 
 /** Simple XML-escaping for content text. */
 export function escapeXml(s: string): string {

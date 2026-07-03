@@ -2,7 +2,7 @@
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{WebSocket, MessageEvent, CloseEvent, ErrorEvent};
+use web_sys::{CloseEvent, ErrorEvent, MessageEvent, WebSocket};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WsStatus {
@@ -18,6 +18,7 @@ pub enum WsEvent {
     Binary(Vec<u8>),
 }
 
+#[allow(clippy::type_complexity)]
 pub struct WsHandle {
     pub status: ReadSignal<WsStatus>,
     set_status: WriteSignal<WsStatus>,
@@ -29,7 +30,7 @@ pub struct WsHandle {
 
 impl WsHandle {
     pub fn new(url: &str) -> Self {
-        let (status, set_status) = create_signal(WsStatus::Disconnected);
+        let (status, set_status) = signal(WsStatus::Disconnected);
         Self {
             status,
             set_status,
@@ -48,24 +49,34 @@ impl WsHandle {
     }
 
     pub fn connect(&self) {
-        if self.status.get() == WsStatus::Connected || self.status.get() == WsStatus::Connecting {
+        if self.status.get_untracked() == WsStatus::Connected
+            || self.status.get_untracked() == WsStatus::Connecting
+        {
             return;
         }
         self.set_status.set(WsStatus::Connecting);
 
         let url = self.url.clone();
-        let status_clone = self.set_status.clone();
-        let event_clone: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(WsEvent)>>>> = self.on_event.clone();
+        let status_clone = self.set_status;
+        #[allow(clippy::type_complexity)]
+        let event_clone: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(WsEvent)>>>> =
+            self.on_event.clone();
         let ws_holder = &self.ws as *const std::cell::RefCell<Option<WebSocket>>;
         let reconnect_attempt = &self.reconnect_attempt as *const std::cell::Cell<u32>;
 
-        Self::perform_connect(&url, status_clone, event_clone, ws_holder, reconnect_attempt);
+        Self::perform_connect(
+            &url,
+            status_clone,
+            event_clone,
+            ws_holder,
+            reconnect_attempt,
+        );
     }
 
     /// Shared connection setup used for both initial connect and reconnection.
     /// Takes raw pointers because it must be callable from `wasm_bindgen` closures
     /// that cannot borrow `self`.
-    #[allow(unsafe_code)]
+    #[allow(unsafe_code, clippy::type_complexity)]
     fn perform_connect(
         url: &str,
         set_status: WriteSignal<WsStatus>,
@@ -74,9 +85,9 @@ impl WsHandle {
         reconnect_attempt: *const std::cell::Cell<u32>,
     ) {
         let url_owned = url.to_string();
-        let status1 = set_status.clone();
-        let status2 = set_status.clone();
-        let status3 = set_status.clone();
+        let status1 = set_status;
+        let status2 = set_status;
+        let status3 = set_status;
         let event_clone = on_event.clone();
 
         match WebSocket::new(&url_owned) {
@@ -100,7 +111,9 @@ impl WsHandle {
 
                     let attempt = unsafe { (*reconnect_attempt).get() };
                     if attempt >= 20 {
-                        status2.set(WsStatus::Error("Max reconnect attempts reached".to_string()));
+                        status2.set(WsStatus::Error(
+                            "Max reconnect attempts reached".to_string(),
+                        ));
                         return;
                     }
                     // Full-jitter exponential backoff: min(1000 * 2^attempt, 30000) * (0.5 + random * 0.5)
@@ -110,18 +123,24 @@ impl WsHandle {
                     unsafe { (*reconnect_attempt).set(attempt + 1) };
 
                     let url_reconnect = url_owned.clone();
-                    let status_rc = status2.clone();
+                    let status_rc = status2;
                     let event_rc = event_for_close.clone();
                     let reconnect_fn = Closure::<dyn Fn()>::new(move || {
-                        Self::perform_connect(&url_reconnect, status_rc.clone(), event_rc.clone(), ws_holder, reconnect_attempt);
+                        Self::perform_connect(
+                            &url_reconnect,
+                            status_rc,
+                            event_rc.clone(),
+                            ws_holder,
+                            reconnect_attempt,
+                        );
                     });
-                    web_sys::window()
-                        .and_then(|w| {
-                            w.set_timeout_with_callback_and_timeout_and_arguments_0(
-                                reconnect_fn.as_ref().unchecked_ref(),
-                                delay_ms as i32,
-                            ).ok()
-                        });
+                    web_sys::window().and_then(|w| {
+                        w.set_timeout_with_callback_and_timeout_and_arguments_0(
+                            reconnect_fn.as_ref().unchecked_ref(),
+                            delay_ms as i32,
+                        )
+                        .ok()
+                    });
                     reconnect_fn.forget();
                 });
                 ws.set_onclose(Some(onclose_cb.as_ref().unchecked_ref()));
@@ -155,7 +174,10 @@ impl WsHandle {
             }
             Err(e) => {
                 set_status.set(WsStatus::Error(
-                    js_sys::Error::from(e).to_string().as_string().unwrap_or_default(),
+                    js_sys::Error::from(e)
+                        .to_string()
+                        .as_string()
+                        .unwrap_or_default(),
                 ));
             }
         }

@@ -1,15 +1,13 @@
 // services/frontend-leptos/frontend/src/layout/dashboard_layout.rs
-use leptos::children::Children;
-use leptos::prelude::*;
 use super::header::Header;
 use super::mobile_tab_bar::MobileTabBar;
 use super::sidebar::Sidebar;
 use super::tab_strip::TabStrip;
+use leptos::children::Children;
+use leptos::prelude::*;
 
 #[component]
-pub fn DashboardLayout(
-    children: Children,
-) -> impl IntoView {
+pub fn DashboardLayout(children: Children) -> impl IntoView {
     view! {
         <div style="display: flex; flex-direction: column; height: 100vh;">
             <Header />

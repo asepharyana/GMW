@@ -8,9 +8,15 @@ pub async fn get_recordings(
 ) -> Result<VoiceRecordingListResponse, ApiError> {
     let mut path = "/api/recordings".to_string();
     let mut params = vec![];
-    if let Some(l) = limit { params.push(format!("limit={}", l)); }
-    if let Some(c) = cursor { params.push(format!("cursor={}", c)); }
-    if !params.is_empty() { path.push_str(&format!("?{}", params.join("&"))); }
+    if let Some(l) = limit {
+        params.push(format!("limit={}", l));
+    }
+    if let Some(c) = cursor {
+        params.push(format!("cursor={}", c));
+    }
+    if !params.is_empty() {
+        path.push_str(&format!("?{}", params.join("&")));
+    }
     request("GET", &path, None).await
 }
 

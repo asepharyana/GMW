@@ -5,11 +5,11 @@ use leptos::prelude::*;
 pub fn MusicSubPanel(
     #[prop(optional)] on_queue: Option<Box<dyn Fn(String) + Send + Sync + 'static>>,
 ) -> impl IntoView {
-    let (url_input, set_url_input) = create_signal::<String>(String::new());
-    let (is_loading, set_is_loading) = create_signal::<bool>(false);
+    let (url_input, set_url_input) = signal::<String>(String::new());
+    let (is_loading, set_is_loading) = signal::<bool>(false);
 
     let handle_queue_click = move |_| {
-        let url = url_input.get().trim().to_string();
+        let url = url_input.get_untracked().trim().to_string();
         if !url.is_empty() {
             if let Some(ref cb) = on_queue {
                 set_is_loading.set(true);
@@ -24,7 +24,7 @@ pub fn MusicSubPanel(
         <div class="music-sub-panel card">
             <div class="card-header">
                 <div class="card-title flex items-center gap-2">
-                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"></circle>
                         <path d="M9 8h6v8h-6z"></path>
                     </svg>

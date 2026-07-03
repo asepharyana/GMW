@@ -1,7 +1,8 @@
 use leptos::prelude::*;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub enum BadgeVariant {
+    #[default]
     Default,
     Primary,
     Success,
@@ -11,17 +12,8 @@ pub enum BadgeVariant {
     Info,
 }
 
-impl Default for BadgeVariant {
-    fn default() -> Self {
-        Self::Default
-    }
-}
-
 #[component]
-pub fn Badge(
-    #[prop(optional)] variant: BadgeVariant,
-    children: Children,
-) -> impl IntoView {
+pub fn Badge(#[prop(optional)] variant: BadgeVariant, children: Children) -> impl IntoView {
     let variant_class = match variant {
         BadgeVariant::Default => "",
         BadgeVariant::Primary => "badge-primary",

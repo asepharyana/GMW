@@ -1,21 +1,27 @@
+use crate::api::recordings::{delete_recording, get_recordings};
 use leptos::prelude::*;
 use shared_types::recording::VoiceRecording;
-use crate::api::recordings::{get_recordings, delete_recording};
 
 /// RecordingsSubPanel — Paginated list of voice recordings
 #[component]
 pub fn RecordingsSubPanel() -> impl IntoView {
-    let recordings = create_rw_signal::<Vec<VoiceRecording>>(Vec::new());
-    let loading = create_rw_signal::<bool>(false);
-    let has_more = create_rw_signal::<bool>(true);
-    let next_cursor = create_rw_signal::<Option<String>>(None);
+    let recordings = RwSignal::new(Vec::<VoiceRecording>::new());
+    let loading = RwSignal::new(false);
+    let has_more = RwSignal::new(true);
+    let next_cursor = RwSignal::new(None::<String>);
 
     // Load recordings
     let load = move |reset: bool| {
-        if loading.get() { return; }
+        if loading.get_untracked() {
+            return;
+        }
         loading.set(true);
 
-        let cursor_val = if reset { None } else { next_cursor.get() };
+        let cursor_val = if reset {
+            None
+        } else {
+            next_cursor.get_untracked()
+        };
         wasm_bindgen_futures::spawn_local({
             async move {
                 match get_recordings(Some(20), cursor_val.as_deref()).await {
@@ -23,7 +29,7 @@ pub fn RecordingsSubPanel() -> impl IntoView {
                         if reset {
                             recordings.set(resp.items);
                         } else {
-                            let mut current = recordings.get();
+                            let mut current = recordings.get_untracked();
                             current.extend(resp.items);
                             recordings.set(current);
                         }
@@ -42,7 +48,7 @@ pub fn RecordingsSubPanel() -> impl IntoView {
     };
 
     // Load on mount
-    create_effect(move |_| {
+    Effect::new(move |_| {
         load(true);
     });
 
@@ -61,7 +67,7 @@ pub fn RecordingsSubPanel() -> impl IntoView {
         <div class="recordings-sub-panel card">
             <div class="card-header">
                 <div class="card-title flex items-center gap-2">
-                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                         <line x1="12" y1="19" x2="12" y2="23"></line>
@@ -106,7 +112,7 @@ pub fn RecordingsSubPanel() -> impl IntoView {
                                                     <span>{created_at}</span>
                                                 </div>
                                             </div>
-                                            <div class="flex items-center gap-1.5 shrink-0">
+                                            <div class="flex items-center" style="gap:0.375rem;flex-shrink:0">
                                                 {has_url.then(|| {
                                                     view! {
                                                         <a
@@ -166,5 +172,6 @@ fn format_size(bytes: u64) -> String {
 /// Format timestamp i64 to readable date
 fn format_timestamp(ts: i64) -> String {
     let d = js_sys::Date::new(&wasm_bindgen::JsValue::from_f64((ts as f64) * 1000.0));
-    d.to_locale_date_string("en-US", &wasm_bindgen::JsValue::UNDEFINED).into()
+    d.to_locale_date_string("en-US", &wasm_bindgen::JsValue::UNDEFINED)
+        .into()
 }

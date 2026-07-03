@@ -1,6 +1,6 @@
 // services/frontend-leptos/frontend/src/ui/modal.rs
-use std::sync::Arc;
 use leptos::prelude::*;
+use std::sync::Arc;
 
 #[component]
 pub fn Modal(

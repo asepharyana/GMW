@@ -115,29 +115,27 @@ export function createWebSocketServer(server: Server): WebSocketServer {
         data[0] === 0x50 && // 'P'
         data[1] === 0x43 && // 'C'
         data[2] === 0x4d && // 'M'
-        data[3] === 0x00    // '\0'
+        data[3] === 0x00 // '\0'
       ) {
         const pcmBuffer = data.subarray(4);
         const base64 = pcmBuffer.toString("base64");
-        import("../shared/redis/index.js").then(
-          ({ getCommandPublisher }) => {
-            const publisher = getCommandPublisher();
-            publisher
-              .publish(
-                BACKEND_VOICE_TRANSMIT,
-                JSON.stringify({
-                  type: "pcm",
-                  buffer: base64,
-                }),
-              )
-              .catch((err: Error) => {
-                logger.error(
-                  { err },
-                  "Failed to publish voice transmit to Redis",
-                );
-              });
-          },
-        );
+        import("../shared/redis/index.js").then(({ getCommandPublisher }) => {
+          const publisher = getCommandPublisher();
+          publisher
+            .publish(
+              BACKEND_VOICE_TRANSMIT,
+              JSON.stringify({
+                type: "pcm",
+                buffer: base64,
+              }),
+            )
+            .catch((err: Error) => {
+              logger.error(
+                { err },
+                "Failed to publish voice transmit to Redis",
+              );
+            });
+        });
         return;
       }
 
@@ -243,10 +241,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
         try {
           client.send(data);
         } catch (err) {
-          logger.error(
-            { err },
-            "Failed to send binary to frontend client",
-          );
+          logger.error({ err }, "Failed to send binary to frontend client");
         }
       }
     }

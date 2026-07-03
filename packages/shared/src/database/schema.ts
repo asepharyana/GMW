@@ -83,12 +83,9 @@ export const pgMessagesTable = pgTable(
       table.created_at,
       table.id,
     ),
-    guildAiStatusAnalyzedIdx: pgIndex("idx_messages_guild_ai_status_analyzed").on(
-      table.guild_id,
-      table.ai_status,
-      table.ai_analyzed_at,
-      table.id,
-    ),
+    guildAiStatusAnalyzedIdx: pgIndex(
+      "idx_messages_guild_ai_status_analyzed",
+    ).on(table.guild_id, table.ai_status, table.ai_analyzed_at, table.id),
     guildCreatedDeletedIdx: pgIndex("idx_messages_guild_created_deleted").on(
       table.guild_id,
       table.created_at,

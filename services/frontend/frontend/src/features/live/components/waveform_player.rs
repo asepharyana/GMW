@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 /// WaveformPlayer — Audio player with waveform progress bar
 #[component]
@@ -7,10 +7,10 @@ pub fn WaveformPlayer(
     audio_url: String,
     #[prop(default = "Recording".to_string())] title: String,
 ) -> impl IntoView {
-    let is_playing = create_rw_signal::<bool>(false);
-    let current_time = create_rw_signal::<f64>(0.0);
-    let duration = create_rw_signal::<f64>(0.0);
-    let audio_id = format!("audio_{}", &audio_url);
+    let is_playing = RwSignal::new(false);
+    let current_time = RwSignal::new(0.0);
+    let duration = RwSignal::new(0.0);
+    let audio_id = format!("audio_{}", audio_url);
 
     // Clone audio_url for the audio element
     let audio_src = audio_url.clone();
@@ -18,17 +18,17 @@ pub fn WaveformPlayer(
 
     let toggle_play = move |_| {
         let doc = web_sys::window().unwrap().document().unwrap();
-        let audio_opt = doc.get_element_by_id(&format!("audio_{}", &audio_src_for_id));
+        let audio_opt = doc.get_element_by_id(&format!("audio_{}", audio_src_for_id));
         if let Some(audio_el) = audio_opt {
             if let Ok(audio) = audio_el.dyn_into::<web_sys::HtmlAudioElement>() {
-                if is_playing.get() {
+                if is_playing.get_untracked() {
                     let _ = audio.pause();
                     is_playing.set(false);
                 } else {
                     if audio.ended() {
                         audio.set_current_time(0.0);
                     }
-                    if let Ok(_) = audio.play() {
+                    if audio.play().is_ok() {
                         is_playing.set(true);
                     }
                 }
@@ -87,11 +87,17 @@ pub fn WaveformPlayer(
 }
 
 fn progress_pct(current: f64, dur: f64) -> f64 {
-    if dur > 0.0 { (current / dur * 100.0).min(100.0) } else { 0.0 }
+    if dur > 0.0 {
+        (current / dur * 100.0).min(100.0)
+    } else {
+        0.0
+    }
 }
 
 fn format_time(secs: f64) -> String {
-    if !secs.is_finite() || secs < 0.0 { return "00:00".to_string(); }
+    if !secs.is_finite() || secs < 0.0 {
+        return "00:00".to_string();
+    }
     let total = secs as u32;
     format!("{:02}:{:02}", total / 60, total % 60)
 }

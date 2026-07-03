@@ -2,7 +2,11 @@ import { createChildLogger } from "@bete/shared/logger";
 import type { Request, Response } from "express";
 import { asyncHandler } from "../../shared/middlewares/index.js";
 import { publishCommandNoReply } from "../../shared/redis/index.js";
-import { connectVoice, disconnectVoice, getVoiceStatus } from "./voice.service.js";
+import {
+  connectVoice,
+  disconnectVoice,
+  getVoiceStatus,
+} from "./voice.service.js";
 
 const logger = createChildLogger("voice.controller");
 

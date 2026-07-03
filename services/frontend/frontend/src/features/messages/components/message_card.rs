@@ -28,9 +28,12 @@ fn render_emojis(content: &str) -> Vec<AnyView> {
         let ext = if animated { "gif" } else { "png" };
         let url = format!("https://cdn.discordapp.com/emojis/{}.{}?size=128", id, ext);
         let title = format!(":{}:", name);
-        parts.push(view! {
-            <img src=url alt=name class="custom-emoji" title=title loading="lazy" />
-        }.into_any());
+        parts.push(
+            view! {
+                <img src=url alt=name class="custom-emoji" title=title loading="lazy" />
+            }
+            .into_any(),
+        );
         last = m.end();
     }
     if last < content_owned.len() {
@@ -70,14 +73,17 @@ fn severity_class(s: &AiSeverity) -> &'static str {
 }
 
 fn is_fallback(t: &str) -> bool {
-    t.starts_with("[Attachment:")
-        || t.starts_with("[Sticker:")
-        || t.starts_with("[Embed]")
+    t.starts_with("[Attachment:") || t.starts_with("[Sticker:") || t.starts_with("[Embed]")
 }
 
 fn get_cats(raw: &Option<Vec<String>>) -> Vec<String> {
     raw.as_ref()
-        .map(|v| v.iter().filter(|c| *c != "analysis_incomplete").cloned().collect())
+        .map(|v| {
+            v.iter()
+                .filter(|c| *c != "analysis_incomplete")
+                .cloned()
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -88,9 +94,15 @@ fn StatusBadgeInline(status: AiStatus) -> impl IntoView {
         AiStatus::Clean => ("status-badge-clean", view! { <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M10 15.586L6.707 12.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 10-1.414-1.414L10 15.586z"></path></svg> }.into_any()),
         AiStatus::Flagged => ("status-badge-flagged", view! { <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg> }.into_any()),
         AiStatus::Error => ("status-badge-error", view! { <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg> }.into_any()),
-        AiStatus::Pending => ("status-badge-pending", view! { }.into_any()),
-        AiStatus::Processing => ("status-badge-processing", view! { }.into_any()),
-        AiStatus::Warn => ("status-badge-warn", view! { }.into_any()),
+        AiStatus::Pending => {
+            ("status-badge-pending", ().into_any())
+        },
+        AiStatus::Processing => {
+            ("status-badge-processing", ().into_any())
+        },
+        AiStatus::Warn => {
+            ("status-badge-warn", ().into_any())
+        },
     };
     view! {
         <span class=format!("status-badge {}", cl)>
@@ -108,7 +120,10 @@ pub fn MessageRow(
 ) -> impl IntoView {
     let cats = get_cats(&message.ai_categories);
     let conf = message.ai_confidence.or(message.ai_moderation_score);
-    let display = message.edited_content.as_deref().unwrap_or(&message.content);
+    let display = message
+        .edited_content
+        .as_deref()
+        .unwrap_or(&message.content);
     let show = !display.is_empty() && !is_fallback(display);
     let ai_st = message.ai_status.clone().unwrap_or(AiStatus::Pending);
 
@@ -117,31 +132,58 @@ pub fn MessageRow(
         if cats.len() > 3 {
             p = format!("{} +{} more", p, cats.len() - 3);
         }
-        if !p.is_empty() { p.push_str(" · "); }
-        p.push_str(&format!("{}% conf", conf.map(|c| (c * 100.0) as u8).unwrap_or(0)));
+        if !p.is_empty() {
+            p.push_str(" · ");
+        }
+        p.push_str(&format!(
+            "{}% conf",
+            conf.map(|c| (c * 100.0) as u8).unwrap_or(0)
+        ));
         p
     };
 
     // Attachments
-    let all_atts = message.metadata.as_ref()
-        .and_then(|m| m.attachments.as_ref()).cloned().unwrap_or_default();
-    let imgs: Vec<AttachmentRef> = all_atts.iter().filter(|a| {
-        a.content_type.as_deref().map(|ct| ct.starts_with("image/")).unwrap_or(false)
-            || a.name.to_lowercase().ends_with(".png")
-            || a.name.to_lowercase().ends_with(".jpg")
-            || a.name.to_lowercase().ends_with(".jpeg")
-            || a.name.to_lowercase().ends_with(".gif")
-            || a.name.to_lowercase().ends_with(".webp")
-    }).cloned().collect();
-    let vids: Vec<AttachmentRef> = all_atts.iter().filter(|a| {
-        a.content_type.as_deref().map(|ct| ct.starts_with("video/")).unwrap_or(false)
-            || a.name.to_lowercase().ends_with(".mp4")
-            || a.name.to_lowercase().ends_with(".webm")
-            || a.name.to_lowercase().ends_with(".mov")
-    }).cloned().collect();
+    let all_atts = message
+        .metadata
+        .as_ref()
+        .and_then(|m| m.attachments.as_ref())
+        .cloned()
+        .unwrap_or_default();
+    let imgs: Vec<AttachmentRef> = all_atts
+        .iter()
+        .filter(|a| {
+            a.content_type
+                .as_deref()
+                .map(|ct| ct.starts_with("image/"))
+                .unwrap_or(false)
+                || a.name.to_lowercase().ends_with(".png")
+                || a.name.to_lowercase().ends_with(".jpg")
+                || a.name.to_lowercase().ends_with(".jpeg")
+                || a.name.to_lowercase().ends_with(".gif")
+                || a.name.to_lowercase().ends_with(".webp")
+        })
+        .cloned()
+        .collect();
+    let vids: Vec<AttachmentRef> = all_atts
+        .iter()
+        .filter(|a| {
+            a.content_type
+                .as_deref()
+                .map(|ct| ct.starts_with("video/"))
+                .unwrap_or(false)
+                || a.name.to_lowercase().ends_with(".mp4")
+                || a.name.to_lowercase().ends_with(".webm")
+                || a.name.to_lowercase().ends_with(".mov")
+        })
+        .cloned()
+        .collect();
 
-    let stickers = message.metadata.as_ref()
-        .and_then(|m| m.stickers.as_ref()).cloned().unwrap_or_default();
+    let stickers = message
+        .metadata
+        .as_ref()
+        .and_then(|m| m.stickers.as_ref())
+        .cloned()
+        .unwrap_or_default();
 
     let reanalyze_id = message.id.clone();
     let on_click_re = move |_| on_reanalyze(reanalyze_id.clone());
@@ -236,7 +278,7 @@ pub fn MessageRow(
                         </div>
                     }.into_any()
                 } else {
-                    view! {}.into_any()
+                    ().into_any()
                 };
                 view! {
                     <div class="flex gap-2 overflow-x-auto">
@@ -245,7 +287,7 @@ pub fn MessageRow(
                     </div>
                 }.into_any()
             } else {
-                view! {}.into_any()
+                ().into_any()
             }}
 
             {/* Videos */}
@@ -265,7 +307,7 @@ pub fn MessageRow(
                         </div>
                     }.into_any()
                 } else {
-                    view! {}.into_any()
+                    ().into_any()
                 };
                 view! {
                     <div class="flex gap-2 overflow-x-auto">
@@ -274,7 +316,7 @@ pub fn MessageRow(
                     </div>
                 }.into_any()
             } else {
-                view! {}.into_any()
+                ().into_any()
             }}
 
             {/* Categories */}
@@ -288,7 +330,7 @@ pub fn MessageRow(
                     </div>
                 }.into_any()
             } else {
-                view! {}.into_any()
+                ().into_any()
             }}
 
             {/* AI Analysis */}
@@ -347,16 +389,26 @@ pub fn MessageCard(
     let first = &messages[0];
     let has_multi = messages.len() > 1;
     let deleted = first.deleted_at.is_some();
-    let avatar = first.avatar_url.clone()
+    let avatar = first
+        .avatar_url
+        .clone()
         .unwrap_or_else(|| "https://cdn.discordapp.com/embed/avatars/0.png".into());
-    let loc_label = first.metadata.as_ref().and_then(|m| m.channel.as_ref()).map(|c| {
-        if let Some(ref tn) = c.thread_name {
-            format!("# {} › {}", c.channel_name.as_deref().unwrap_or("?"), tn)
-        } else {
-            format!("# {}", c.channel_name.as_deref().unwrap_or("?"))
-        }
-    });
-    let card_cls = if deleted { "border-destructive/20 opacity-60" } else { "" };
+    let loc_label = first
+        .metadata
+        .as_ref()
+        .and_then(|m| m.channel.as_ref())
+        .map(|c| {
+            if let Some(ref tn) = c.thread_name {
+                format!("# {} › {}", c.channel_name.as_deref().unwrap_or("?"), tn)
+            } else {
+                format!("# {}", c.channel_name.as_deref().unwrap_or("?"))
+            }
+        });
+    let card_cls = if deleted {
+        "border-destructive/20 opacity-60"
+    } else {
+        ""
+    };
 
     view! {
         <article class=format!("message-card shadow-sm transition-all {}", card_cls)>

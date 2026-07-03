@@ -18,11 +18,8 @@ import { createRecordingsRouter } from "../modules/recordings/recordings.routes.
 import { createUiStateRouter } from "../modules/ui-state/ui-state.routes.js";
 import { createGuildsRouter } from "../modules/voice/guilds.routes.js";
 import { createVoiceRouter } from "../modules/voice/voice.routes.js";
-import {
-  adminAuth,
-  errorHandler,
-} from "../shared/middlewares/index.js";
 import { config } from "../shared/config/index.js";
+import { adminAuth, errorHandler } from "../shared/middlewares/index.js";
 
 const ADMIN_PASSWORD = config.ADMIN_PASSWORD || "admin";
 

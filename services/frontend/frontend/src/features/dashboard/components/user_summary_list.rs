@@ -79,7 +79,10 @@ pub fn UserSummaryList(
 
 #[component]
 fn UserRow(user: DashboardUser) -> impl IntoView {
-    let name = user.username.clone().unwrap_or_else(|| user.user_id.clone());
+    let name = user
+        .username
+        .clone()
+        .unwrap_or_else(|| user.user_id.clone());
     let summary = user
         .profile_summary
         .clone()
@@ -130,7 +133,9 @@ fn format_number(value: u64) -> String {
     let raw = value.to_string();
     let mut out = String::new();
     for (idx, ch) in raw.chars().rev().enumerate() {
-        if idx > 0 && idx % 3 == 0 { out.push(','); }
+        if idx > 0 && idx % 3 == 0 {
+            out.push(',');
+        }
         out.push(ch);
     }
     out.chars().rev().collect()
@@ -138,5 +143,6 @@ fn format_number(value: u64) -> String {
 
 fn format_timestamp(ts: i64) -> String {
     let d = js_sys::Date::new(&wasm_bindgen::JsValue::from_f64((ts as f64) * 1000.0));
-    d.to_locale_date_string("en-US", &wasm_bindgen::JsValue::UNDEFINED).into()
+    d.to_locale_date_string("en-US", &wasm_bindgen::JsValue::UNDEFINED)
+        .into()
 }

@@ -1,7 +1,7 @@
 // services/frontend-leptos/frontend/src/layout/tab_strip.rs
+use crate::app::UiContext;
 use leptos::prelude::*;
 use shared_types::ui_state::Tab;
-use crate::app::UiContext;
 
 #[component]
 pub fn TabStrip() -> impl IntoView {
@@ -22,11 +22,7 @@ pub fn TabStrip() -> impl IntoView {
 }
 
 #[component]
-fn TabItem(
-    label: &'static str,
-    tab: Tab,
-    ui: UiContext,
-) -> impl IntoView {
+fn TabItem(label: &'static str, tab: Tab, ui: UiContext) -> impl IntoView {
     let tab_color = tab.clone();
     let tab_border = tab.clone();
     let tab_click = tab;

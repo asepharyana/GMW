@@ -113,7 +113,8 @@ export async function fetchUrlSafely(
     return { url, type: "error", error: "Unsafe URL blocked" };
   }
 
-  const { controller, clear } = createAbortControllerWithTimeout(FETCH_TIMEOUT_MS);
+  const { controller, clear } =
+    createAbortControllerWithTimeout(FETCH_TIMEOUT_MS);
 
   try {
     const response = await fetch(url, {

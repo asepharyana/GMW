@@ -23,14 +23,16 @@ import { getExpiredMessages } from "../modules/message-capture/messageStore.js";
 import { registerReactionCapture } from "../modules/reaction-tracking/index.js";
 import { registerThreadCapture } from "../modules/thread-tracking/index.js";
 import { registerPresenceCapture } from "../modules/user-presence/index.js";
+import { VoicePcmWsClient } from "../modules/voice-pcm-ws/index.js";
 import {
   startMuxerWorker,
   stopMuxerWorker,
 } from "../modules/voice-recording/muxer.js";
-import { setEventBroadcaster as setRecorderEventBroadcaster } from "../modules/voice-recording/recorder.js";
-import { setPcmWsClient } from "../modules/voice-recording/recorder.js";
+import {
+  setPcmWsClient,
+  setEventBroadcaster as setRecorderEventBroadcaster,
+} from "../modules/voice-recording/recorder.js";
 import { VoiceController } from "../modules/voice-recording/voiceController.js";
-import { VoicePcmWsClient } from "../modules/voice-pcm-ws/index.js";
 import { config } from "../shared/config/config.js";
 import {
   closeDatabase,
@@ -229,10 +231,7 @@ export async function initializeDiscordGateway() {
     );
     pcmWsClient.connect();
     setPcmWsClient(pcmWsClient);
-    logger.info(
-      { url: config.BACKEND_WS_URL },
-      "Voice PCM WS client enabled",
-    );
+    logger.info({ url: config.BACKEND_WS_URL }, "Voice PCM WS client enabled");
   } else if (config.VOICE_PCM_WS_ENABLED && !config.BACKEND_WS_TOKEN) {
     logger.warn(
       "VOICE_PCM_WS_ENABLED=true but BACKEND_WS_TOKEN is empty — falling back to Redis for PCM",

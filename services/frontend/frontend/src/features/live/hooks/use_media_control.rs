@@ -1,8 +1,6 @@
+use crate::api::voice::{get_media_status, media_queue, media_skip, media_stop, media_volume};
 use leptos::prelude::*;
 use shared_types::media::MediaState;
-use crate::api::voice::{
-    get_media_status, media_queue, media_skip, media_stop, media_volume,
-};
 use std::sync::Arc;
 use wasm_bindgen_futures::spawn_local;
 

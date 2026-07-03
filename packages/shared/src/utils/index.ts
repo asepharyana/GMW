@@ -25,9 +25,10 @@ export * from "./pagination.js";
  *     clear(); // guaranteed to clear the timeout
  *   }
  */
-export function createAbortControllerWithTimeout(
-  timeoutMs: number,
-): { controller: AbortController; clear: () => void } {
+export function createAbortControllerWithTimeout(timeoutMs: number): {
+  controller: AbortController;
+  clear: () => void;
+} {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   // Unref so the timeout doesn't keep the process alive

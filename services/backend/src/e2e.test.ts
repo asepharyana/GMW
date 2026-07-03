@@ -2,7 +2,7 @@
  * E2E API tests — runs against a running backend instance.
  * Usage: vitest run  (or: API_BASE=http://localhost:3001 vitest run)
  */
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 const BASE = process.env.API_BASE ?? "https://imphnen.asepharyana.my.id/api";
 

@@ -62,7 +62,10 @@ export function runFfmpeg(args: string[]): Promise<void> {
         resolve();
       } else {
         const detail = stderrBuf.trim().slice(0, 2000);
-        logger.warn({ exitCode: code, stderr: detail }, "ffmpeg exited with non-zero code");
+        logger.warn(
+          { exitCode: code, stderr: detail },
+          "ffmpeg exited with non-zero code",
+        );
         reject(new Error(`ffmpeg exited with code ${code}: ${detail}`));
       }
     });
