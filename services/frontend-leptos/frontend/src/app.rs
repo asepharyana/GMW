@@ -92,9 +92,9 @@ pub fn App() -> impl IntoView {
                     // Content area
                     <div style="flex: 1; overflow: auto; padding: 1.5rem;">
                         {move || match ui.active_tab.get() {
-                            Tab::Messages => view! { <MessagesPanel /> }.into_view(),
-                            Tab::Live => view! { <div>"Live Panel"</div> }.into_view(),
-                            Tab::Dashboard => view! { <div>"Dashboard Panel"</div> }.into_view(),
+                            Tab::Messages => view! { <MessagesPanel /> }.into_any(),
+                            Tab::Live => view! { <div>"Live Panel"</div> }.into_any(),
+                            Tab::Dashboard => view! { <div>"Dashboard Panel"</div> }.into_any(),
                         }}
                     </div>
                 </main>

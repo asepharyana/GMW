@@ -53,10 +53,10 @@ pub fn MessagesPanel() -> impl IntoView {
         }).collect()
     });
 
-    // Search handler
-    let handle_search = {
+    // Search handler - takes any event type and triggers the search
+    let do_search = {
         let q = search_query;
-        move |_| {
+        move || {
             let query = q.get();
             if query.trim().is_empty() {
                 set_show_search.set(false);
@@ -79,6 +79,9 @@ pub fn MessagesPanel() -> impl IntoView {
             });
         }
     };
+    // Separate closures for different event types so on:click/on:keydown type-check
+    let handle_search_click = move |_: web_sys::MouseEvent| do_search();
+    let handle_search_keydown = move |_: web_sys::KeyboardEvent| do_search();
 
     // Clear search
     let clear_search = move |_| {
@@ -141,13 +144,22 @@ pub fn MessagesPanel() -> impl IntoView {
     create_effect(move |_| {
         if let Some(config) = use_context::<crate::app::AppConfig>() {
             if let Some(ref guild_id) = config.monitor_guild_id {
-                state.fetch_messages(guild_id.clone());
+                (state.fetch_messages)(guild_id.clone());
             }
         }
     });
 
     // ─── View ────────────────────────────────────────────────
-    let (total, clean, flagged, error, pending, deleted, edited) = move || stats.get();
+    let get_stats = move || stats.get();
+    let (total, clean, flagged, error, pending, deleted, edited) = (
+        move || get_stats().0,
+        move || get_stats().1,
+        move || get_stats().2,
+        move || get_stats().3,
+        move || get_stats().4,
+        move || get_stats().5,
+        move || get_stats().6,
+    );
 
     view! {
         <div class="messages-panel">
@@ -190,15 +202,15 @@ pub fn MessagesPanel() -> impl IntoView {
                         prop:value=search_query
                         on:input=move |ev| set_search_query.set(event_target_value(&ev))
                         on:keydown=move |ev| {
-                            if ev.key() == "Enter" { handle_search(()); }
+                            if ev.key() == "Enter" { handle_search_keydown(ev); }
                         }
-                        disabled=is_searching.get()
+                        disabled=move || is_searching.get()
                     />
                 </div>
                 <button
                     class="btn btn-primary btn-sm"
-                    on:click=handle_search
-                    disabled=is_searching.get() || search_query.get().trim().is_empty()
+                    on:click=handle_search_click
+                    disabled=move || is_searching.get() || search_query.get().trim().is_empty()
                 >
                     {move || if is_searching.get() { "Searching..." } else { "Search" }}
                 </button>
@@ -211,7 +223,7 @@ pub fn MessagesPanel() -> impl IntoView {
                     <button
                         class="btn btn-destructive btn-sm"
                         on:click=handle_retry_all
-                        disabled=retrying_all.get()
+                        disabled=move || retrying_all.get()
                     >
                         {/* Rotate CCW icon as SVN */}
                         <svg class=format!("mr-1.5 h-3.5 w-3.5{}", if retrying_all.get() { " animate-spin" } else { "" }) xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"></path></svg>
@@ -271,18 +283,22 @@ pub fn MessagesPanel() -> impl IntoView {
                 </div>
 
                 <div class="tab-content" style:display=move || if view_tab.get() == ViewTab::All { "block" } else { "none" }>
-                    <MessageFeed
-                        messages=filtered_messages.get()
-                        empty_text=if show_search.get() { "No messages found matching your search." } else { "No captures yet." }
-                        loading=state.loading.get()
-                        has_more=if show_search.get() { false } else { state.has_more.get() }
-                        loading_more=state.loading_more.get()
-                        on_load_more={
-                            let cb = state.load_more.clone();
-                            Some(Arc::new(move || cb()) as Arc<dyn Fn() + Send + Sync + 'static>)
+                    {
+                        let load_more_cb = state.load_more.clone();
+                        let empty_text: &'static str = if show_search.get() { "No messages found matching your search." } else { "No captures yet." };
+                        let has_more = if show_search.get() { false } else { state.has_more.get() };
+                        view! {
+                            <MessageFeed
+                                messages=filtered_messages.get()
+                                empty_text=empty_text
+                                loading=state.loading.get()
+                                has_more=has_more
+                                loading_more=state.loading_more.get()
+                                on_load_more=Arc::new(move || load_more_cb()) as Arc<dyn Fn() + Send + Sync + 'static>
+                                on_reanalyze=state.reanalyze.clone()
+                            />
                         }
-                        on_reanalyze=state.reanalyze.clone()
-                    />
+                    }
                 </div>
                 <div class="tab-content" style:display=move || if view_tab.get() == ViewTab::Images { "block" } else { "none" }>
                     <ImageGrid messages=filtered_messages.get() />

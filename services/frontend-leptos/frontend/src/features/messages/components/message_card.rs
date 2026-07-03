@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 use regex::Regex;
-use shared_types::message::{AiSeverity, AiStatus, MessageRecord};
+use shared_types::message::{AiSeverity, AiStatus, AttachmentRef, MessageRecord};
 use std::sync::{Arc, OnceLock};
 use wasm_bindgen::prelude::*;
 
@@ -84,13 +84,13 @@ fn get_cats(raw: &Option<Vec<String>>) -> Vec<String> {
 // ─── StatusBadgeInline ────────────────────────────────────
 #[component]
 fn StatusBadgeInline(status: AiStatus) -> impl IntoView {
-    let (cl, icon_svg) = match &status {
-        AiStatus::Clean => ("status-badge-clean", Some(view! { <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M10 15.586L6.707 12.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 10-1.414-1.414L10 15.586z"></path></svg> }).into_any()),
-        AiStatus::Flagged => ("status-badge-flagged", Some(view! { <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg> }).into_any()),
-        AiStatus::Error => ("status-badge-error", Some(view! { <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg> }).into_any()),
-        AiStatus::Pending => ("status-badge-pending", None.into_any()),
-        AiStatus::Processing => ("status-badge-processing", None.into_any()),
-        AiStatus::Warn => ("status-badge-warn", None.into_any()),
+    let (cl, icon_svg): (&'static str, AnyView) = match &status {
+        AiStatus::Clean => ("status-badge-clean", view! { <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M10 15.586L6.707 12.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 10-1.414-1.414L10 15.586z"></path></svg> }.into_any()),
+        AiStatus::Flagged => ("status-badge-flagged", view! { <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg> }.into_any()),
+        AiStatus::Error => ("status-badge-error", view! { <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg> }.into_any()),
+        AiStatus::Pending => ("status-badge-pending", view! { }.into_any()),
+        AiStatus::Processing => ("status-badge-processing", view! { }.into_any()),
+        AiStatus::Warn => ("status-badge-warn", view! { }.into_any()),
     };
     view! {
         <span class=format!("status-badge {}", cl)>
@@ -125,20 +125,20 @@ pub fn MessageRow(
     // Attachments
     let all_atts = message.metadata.as_ref()
         .and_then(|m| m.attachments.as_ref()).cloned().unwrap_or_default();
-    let imgs: Vec<_> = all_atts.iter().filter(|a| {
+    let imgs: Vec<AttachmentRef> = all_atts.iter().filter(|a| {
         a.content_type.as_deref().map(|ct| ct.starts_with("image/")).unwrap_or(false)
             || a.name.to_lowercase().ends_with(".png")
             || a.name.to_lowercase().ends_with(".jpg")
             || a.name.to_lowercase().ends_with(".jpeg")
             || a.name.to_lowercase().ends_with(".gif")
             || a.name.to_lowercase().ends_with(".webp")
-    }).collect();
-    let vids: Vec<_> = all_atts.iter().filter(|a| {
+    }).cloned().collect();
+    let vids: Vec<AttachmentRef> = all_atts.iter().filter(|a| {
         a.content_type.as_deref().map(|ct| ct.starts_with("video/")).unwrap_or(false)
             || a.name.to_lowercase().ends_with(".mp4")
             || a.name.to_lowercase().ends_with(".webm")
             || a.name.to_lowercase().ends_with(".mov")
-    }).collect();
+    }).cloned().collect();
 
     let stickers = message.metadata.as_ref()
         .and_then(|m| m.stickers.as_ref()).cloned().unwrap_or_default();
@@ -180,9 +180,10 @@ pub fn MessageRow(
             {/* Content */}
             {show.then(|| {
                 let rendered = render_emojis(display);
-                let cls = if message.deleted_at.is_some() { "text-secondary/60" } else { "" };
+                let cls_str = if message.deleted_at.is_some() { "text-secondary/60" } else { "" };
+                let class_str = format!("whitespace-pre-wrap break-words text-sm leading-6 {}", cls_str);
                 view! {
-                    <p class=format!("whitespace-pre-wrap break-words text-sm leading-6 {}", cls)>
+                    <p class=class_str>
                         {rendered.into_iter().collect::<Vec<_>>()}
                     </p>
                 }
@@ -192,17 +193,22 @@ pub fn MessageRow(
             {(!stickers.is_empty()).then(|| view! {
                 <div class="flex flex-wrap gap-2">
                     {stickers.iter().map(|s| {
-                        let url = s.url.clone();
-                        let name = s.name.clone().unwrap_or_default();
+                        let url_owned = s.url.clone().unwrap_or_default();
+                        let name_owned = s.name.clone().unwrap_or_default();
+                        let has_url = !url_owned.is_empty();
                         view! {
                             <div>
-                                {url.as_ref().map(|u| view! {
-                                    <img src=u alt=&name class="h-12 w-12 rounded-lg border border-border object-contain bg-surface/50" loading="lazy" />
-                                }).unwrap_or_else(|| view! {
-                                    <div class="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-surface/50">
-                                        "😊"
-                                    </div>
-                                })}
+                                {if has_url {
+                                    view! {
+                                        <img src=url_owned alt=name_owned class="h-12 w-12 rounded-lg border border-border object-contain bg-surface/50" loading="lazy" />
+                                    }.into_any()
+                                } else {
+                                    view! {
+                                        <div class="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-surface/50">
+                                            "😊"
+                                        </div>
+                                    }.into_any()
+                                }}
                             </div>
                         }
                     }).collect::<Vec<_>>()}
@@ -210,55 +216,94 @@ pub fn MessageRow(
             })}
 
             {/* Images */}
-            {(!imgs.is_empty()).then(|| view! {
-                <div class="flex gap-2 overflow-x-auto">
-                    {imgs.iter().take(4).map(|a| view! {
-                        <a href=&a.url target="_blank" class="shrink-0 overflow-hidden rounded-lg border border-border">
-                            <img src=&a.url alt=&a.name class="h-16 w-16 object-cover hover:scale-105 transition-transform" loading="lazy" />
+            {if !imgs.is_empty() {
+                let imgs_local = imgs.clone();
+                let images_view = imgs_local.iter().take(4).map(|a| {
+                    let url1 = a.url.clone();
+                    let url2 = a.url.clone();
+                    let name1 = a.name.clone();
+                    view! {
+                        <a href=url1 target="_blank" class="shrink-0 overflow-hidden rounded-lg border border-border">
+                            <img src=url2 alt=name1 class="h-16 w-16 object-cover hover:scale-105 transition-transform" loading="lazy" />
                         </a>
-                    }).collect::<Vec<_>>()}
-                    {(imgs.len() > 4).then(|| view! {
+                    }
+                }).collect::<Vec<_>>();
+                let overflow = if imgs.len() > 4 {
+                    let extra = imgs.len() - 4;
+                    view! {
                         <div class="flex h-16 w-16 items-center justify-center rounded-lg border border-border bg-surface text-xs text-secondary">
-                            <span>{"+"} {imgs.len() - 4}</span> <span class="ml-0.5">"🖼"</span>
+                            <span>{"+"} {extra}</span> <span class="ml-0.5">"🖼"</span>
                         </div>
-                    })}
-                </div>
-            })}
+                    }.into_any()
+                } else {
+                    view! {}.into_any()
+                };
+                view! {
+                    <div class="flex gap-2 overflow-x-auto">
+                        {images_view}
+                        {overflow}
+                    </div>
+                }.into_any()
+            } else {
+                view! {}.into_any()
+            }}
 
             {/* Videos */}
-            {(!vids.is_empty()).then(|| view! {
-                <div class="flex gap-2 overflow-x-auto">
-                    {vids.iter().take(4).map(|a| view! {
-                        <video src=&a.url controls class="h-28 w-48 shrink-0 rounded-lg border border-border object-cover bg-black" preload="metadata"></video>
-                    }).collect::<Vec<_>>()}
-                    {(vids.len() > 4).then(|| view! {
+            {if !vids.is_empty() {
+                let vids_local = vids.clone();
+                let videos_view = vids_local.iter().take(4).map(|a| {
+                    let url = a.url.clone();
+                    view! {
+                        <video src=url controls class="h-28 w-48 shrink-0 rounded-lg border border-border object-cover bg-black" preload="metadata"></video>
+                    }
+                }).collect::<Vec<_>>();
+                let overflow = if vids.len() > 4 {
+                    let extra = vids.len() - 4;
+                    view! {
                         <div class="flex h-28 w-16 items-center justify-center rounded-lg border border-border bg-surface text-xs text-secondary">
-                            <span>{"+"} {vids.len() - 4}</span> <span class="ml-0.5">"▶"</span>
+                            <span>{"+"} {extra}</span> <span class="ml-0.5">"▶"</span>
                         </div>
-                    })}
-                </div>
-            })}
+                    }.into_any()
+                } else {
+                    view! {}.into_any()
+                };
+                view! {
+                    <div class="flex gap-2 overflow-x-auto">
+                        {videos_view}
+                        {overflow}
+                    </div>
+                }.into_any()
+            } else {
+                view! {}.into_any()
+            }}
 
             {/* Categories */}
-            {(!cats.is_empty()).then(|| view! {
-                <div class="flex flex-wrap gap-1">
-                    {cats.iter().map(|c| view! {
-                        <span class="badge badge-secondary text-xs">{c.clone()}</span>
-                    }).collect::<Vec<_>>()}
-                </div>
-            })}
+            {if !cats.is_empty() {
+                let cats_local = cats.clone();
+                view! {
+                    <div class="flex flex-wrap gap-1">
+                        {cats_local.iter().map(|c| view! {
+                            <span class="badge badge-secondary text-xs">{c.clone()}</span>
+                        }).collect::<Vec<_>>()}
+                    </div>
+                }.into_any()
+            } else {
+                view! {}.into_any()
+            }}
 
             {/* AI Analysis */}
             {message.ai_analysis.as_ref().map(|analysis| {
-                let border = if ai_st == AiStatus::Flagged { "border-l-3 bg-warning/5" } else { "border-l-3 bg-success/5" };
+                let border_str = if ai_st == AiStatus::Flagged { "border-l-3 bg-warning/5" } else { "border-l-3 bg-success/5" };
                 let icon = if ai_st == AiStatus::Flagged { "🚨" } else { "ℹ️" };
+                let analysis_summary_str = analysis_summary.clone();
+                let analysis_str = analysis.clone();
                 view! {
-                    <div class=format!("rounded-lg px-3 py-2 {}", border)>
+                    <div class=format!("rounded-lg px-3 py-2 {}", border_str)>
                         <div class="flex items-start gap-2 text-xs">
                             <span class="mt-0.5 shrink-0">{icon}</span>
                             <div class="min-w-0 flex-1">
-                                <span class="block font-medium mb-1">{&analysis_summary}</span>
-                                <div class="text-xs leading-relaxed whitespace-pre-wrap">{analysis}</div>
+                                <span class="block font-medium mb-1">{analysis_summary_str}</span>
+                                <div class="text-xs leading-relaxed whitespace-pre-wrap">{analysis_str}</div>
                             </div>
                         </div>
                     </div>
@@ -266,10 +311,13 @@ pub fn MessageRow(
             })}
 
             {/* Error */}
-            {message.ai_error.as_ref().map(|e| view! {
-                <div class="rounded-lg bg-warning/5 px-3 py-2 text-xs text-warning">
-                    <span>"AI error: "{e}</span>
-                </div>
+            {message.ai_error.as_ref().map(|e| {
+                let error_str = e.clone();
+                view! {
+                    <div class="rounded-lg bg-warning/5 px-3 py-2 text-xs text-warning">
+                        <span>"AI error: "{error_str}</span>
+                    </div>
+                }
             })}
 
             {/* Re-analyze */}
@@ -316,11 +364,14 @@ pub fn MessageCard(
                 <img src=avatar alt="" class="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-primary/30" />
                 <div class="min-w-0 flex-1">
                     <div class="flex items-baseline gap-2 mb-2">
-                        <span class="font-semibold text-sm">{&first.username}</span>
-                        {loc_label.as_ref().map(|l| view! {
-                            <span class="flex items-center gap-1 text-xs text-secondary/50 bg-surface/50 px-1.5 py-0.5 rounded-full">
-                                "#" " " {l}
-                            </span>
+                        <span class="font-semibold text-sm">{first.username.clone()}</span>
+                        {loc_label.as_ref().map(|l| {
+                            let label_str = l.clone();
+                            view! {
+                                <span class="flex items-center gap-1 text-xs text-secondary/50 bg-surface/50 px-1.5 py-0.5 rounded-full">
+                                    "#" " " {label_str}
+                                </span>
+                            }
                         })}
                         <span class="text-xs text-secondary/60">
                             {time_ago(first.created_at)}

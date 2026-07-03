@@ -34,7 +34,7 @@ pub enum AiRecommendedAction {
 }
 
 // ── Message Metadata ──────────────────────────────────────
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MessageMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stickers: Option<Vec<StickerInfo>>,
@@ -46,7 +46,7 @@ pub struct MessageMetadata {
     pub channel: Option<ChannelRef>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StickerInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -54,7 +54,7 @@ pub struct StickerInfo {
     pub url: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AttachmentRef {
     pub name: String,
     pub url: String,
@@ -63,7 +63,7 @@ pub struct AttachmentRef {
     pub content_type: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EmbedInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -73,7 +73,7 @@ pub struct EmbedInfo {
     pub thumbnail: Option<EmbedMedia>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EmbedMedia {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -82,7 +82,7 @@ pub struct EmbedMedia {
     pub height: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChannelRef {
     pub channel_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -94,7 +94,7 @@ pub struct ChannelRef {
 }
 
 // ── Message Record ────────────────────────────────────────
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MessageRecord {
     pub id: String,
     pub guild_id: String,
@@ -140,7 +140,7 @@ pub struct MessageRecord {
 }
 
 // ── Pagination ────────────────────────────────────────────
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PageResult<T> {
     pub data: Vec<T>,
     #[serde(rename = "nextCursor")]
@@ -148,7 +148,7 @@ pub struct PageResult<T> {
 }
 
 // ── Attachment ────────────────────────────────────────────
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AttachmentRecord {
     pub id: String,
     pub message_id: String,

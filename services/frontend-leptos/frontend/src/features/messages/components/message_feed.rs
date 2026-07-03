@@ -43,6 +43,7 @@ pub fn MessageFeed(
     create_effect(move |_| {
         let _ = intersecting.get(); // track signal
         if let Some(node) = sentinel_ref.get() {
+            let on_load_more = on_load_more.clone();
             let cb = Closure::<dyn Fn(Vec<JsValue>)>::new(move |entries: Vec<JsValue>| {
                 for entry in entries {
                     if let Some(entry) = entry.dyn_ref::<web_sys::IntersectionObserverEntry>() {
