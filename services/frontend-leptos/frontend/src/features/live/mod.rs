@@ -1,5 +1,6 @@
 pub mod components;
 pub mod hooks;
+pub mod audio;
 
 use leptos::prelude::*;
 use crate::ui::card::Card;

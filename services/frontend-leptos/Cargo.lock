@@ -492,6 +492,7 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "gloo-net",
+ "gloo-timers",
  "js-sys",
  "leptos 0.7.8",
  "leptos-use",
