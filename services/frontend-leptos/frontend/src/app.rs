@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use shared_types::ui_state::Tab;
 use crate::auth::AuthOverlay;
+use crate::ws::context::WsContext;
 
 // ── Contexts ────────────────────────────────────────────
 
@@ -33,12 +34,25 @@ pub fn App() -> impl IntoView {
     provide_context(auth.clone());
     provide_context(ui.clone());
 
+    let ws = WsContext::new("ws://localhost:3001");
+    provide_context(ws.clone());
+
     // Auth check: redirect "live" tab to "messages" if not authenticated
     create_effect(move |_| {
         if !auth.authenticated.get() && ui.active_tab.get() == Tab::Live {
             ui.active_tab.set(Tab::Messages);
         }
     });
+
+    {
+        let ws = ws.clone();
+        let auth = auth.clone();
+        create_effect(move |_| {
+            if auth.authenticated.get() {
+                ws.connect();
+            }
+        });
+    }
 
     view! {
         <div data-theme="light">

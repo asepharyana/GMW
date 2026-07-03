@@ -138,3 +138,10 @@ impl WsContext {
         let _ = self.handle.send_binary(data);
     }
 }
+
+// SAFETY: WsContext uses Rc/RefCell for cheap cloning in a single-threaded WASM
+// environment. The leptos reactive system requires provided contexts to be Send+Sync.
+#[allow(unsafe_code)]
+unsafe impl Send for WsContext {}
+#[allow(unsafe_code)]
+unsafe impl Sync for WsContext {}
