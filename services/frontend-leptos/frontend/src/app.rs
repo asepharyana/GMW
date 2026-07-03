@@ -2,6 +2,12 @@ use leptos::prelude::*;
 use shared_types::ui_state::Tab;
 use crate::auth::AuthOverlay;
 use crate::ws::context::WsContext;
+use crate::features::messages::MessagesPanel;
+
+#[derive(Clone)]
+pub struct AppConfig {
+    pub monitor_guild_id: Option<String>,
+}
 
 // ── Contexts ────────────────────────────────────────────
 
@@ -33,6 +39,11 @@ pub fn App() -> impl IntoView {
 
     provide_context(auth.clone());
     provide_context(ui.clone());
+
+    let config = AppConfig {
+        monitor_guild_id: None,
+    };
+    provide_context(config);
 
     let ws = WsContext::new("ws://localhost:3001/ws");
     provide_context(ws.clone());
@@ -81,7 +92,7 @@ pub fn App() -> impl IntoView {
                     // Content area
                     <div style="flex: 1; overflow: auto; padding: 1.5rem;">
                         {move || match ui.active_tab.get() {
-                            Tab::Messages => view! { <div>"Messages Panel"</div> }.into_view(),
+                            Tab::Messages => view! { <MessagesPanel /> }.into_view(),
                             Tab::Live => view! { <div>"Live Panel"</div> }.into_view(),
                             Tab::Dashboard => view! { <div>"Dashboard Panel"</div> }.into_view(),
                         }}

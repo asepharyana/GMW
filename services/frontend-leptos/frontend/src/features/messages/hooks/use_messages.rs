@@ -53,7 +53,6 @@ pub struct MessagesState {
 }
 
 /// Hook to manage message data fetching and state
-#[component]
 pub fn use_messages() -> MessagesState {
     // Core signals
     let messages_signal = RwSignal::new(Vec::<MessageRecord>::new());

@@ -496,6 +496,7 @@ dependencies = [
  "leptos 0.7.8",
  "leptos-use",
  "lucide-leptos",
+ "regex",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
