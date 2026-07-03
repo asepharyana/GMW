@@ -5,6 +5,8 @@ use crate::ws::context::WsContext;
 use crate::features::dashboard::DashboardPanel;
 use crate::features::live::LivePanel;
 use crate::features::messages::MessagesPanel;
+use crate::features::polish::{initial_theme, ThemeContext};
+use crate::features::polish::components::{MascotChatbot, ParticleBackground, ThemeToggle};
 
 #[derive(Clone)]
 pub struct AppConfig {
@@ -38,9 +40,13 @@ pub fn App() -> impl IntoView {
         active_tab: create_rw_signal(Tab::Messages),
         selected_guild: create_rw_signal(None),
     };
+    let theme = ThemeContext {
+        theme: create_rw_signal(initial_theme()),
+    };
 
     provide_context(auth.clone());
     provide_context(ui.clone());
+    provide_context(theme.clone());
 
     let config = AppConfig {
         monitor_guild_id: None,
@@ -68,22 +74,26 @@ pub fn App() -> impl IntoView {
     }
 
     view! {
-        <div data-theme="light">
+        <div data-theme=move || theme.theme.get()>
+            <ParticleBackground />
+
             // Auth overlay
             {move || (!auth.authenticated.get()).then(|| {
                 view! { <AuthOverlay /> }
             })}
 
-            // Main content (minimal for now — filled in later tasks)
-            <div style="display: flex; flex-direction: column; height: 100vh;">
-                <header style="height: var(--header-height); border-bottom: 1px solid var(--surface-border); display: flex; align-items: center; padding: 0 1rem;">
-                    <span style="font-weight: 700; color: var(--color-primary);">"IMPHNEN"</span>
-                    <span style="margin-left: 0.5rem; color: var(--text-secondary); font-size: 0.875rem;">"Discord Moderation"</span>
+            // Main content
+            <div class="app-shell">
+                <header class="app-header">
+                    <div class="app-brand">
+                        <span class="app-brand-mark">"IMPHNEN"</span>
+                        <span class="app-brand-subtitle">"Discord Moderation"</span>
+                    </div>
+                    <ThemeToggle />
                 </header>
 
-                <main style="flex: 1; display: flex;">
-                    // Sidebar placeholder
-                    <nav style="width: var(--sidebar-width); border-right: 1px solid var(--surface-border); padding: 1rem;">
+                <main class="app-main">
+                    <nav class="app-sidebar">
                         <div class="flex flex-col gap-2">
                             <TabButton tab=Tab::Messages ui=ui.clone() label="Pesan & Moderasi" />
                             <TabButton tab=Tab::Live ui=ui.clone() label="Voice & Media" />
@@ -91,8 +101,7 @@ pub fn App() -> impl IntoView {
                         </div>
                     </nav>
 
-                    // Content area
-                    <div style="flex: 1; overflow: auto; padding: 1.5rem;">
+                    <div class="app-content">
                         {move || match ui.active_tab.get() {
                             Tab::Messages => view! { <MessagesPanel /> }.into_any(),
                             Tab::Live => view! { <LivePanel /> }.into_any(),
@@ -101,6 +110,8 @@ pub fn App() -> impl IntoView {
                     </div>
                 </main>
             </div>
+
+            {move || auth.authenticated.get().then(|| view! { <MascotChatbot /> })}
         </div>
     }
 }
