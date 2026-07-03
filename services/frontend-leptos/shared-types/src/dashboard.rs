@@ -20,7 +20,8 @@ pub struct DashboardStats {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TopChannel {
     pub channel_id: String,
-    pub channel_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel_name: Option<String>,
     pub message_count: u64,
 }
 
@@ -34,7 +35,8 @@ pub struct ModerationOverview {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DashboardUser {
     pub user_id: String,
-    pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -62,8 +64,10 @@ pub struct DashboardUserDetail {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DashboardChannel {
     pub channel_id: String,
-    pub channel_name: String,
-    pub guild_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guild_id: Option<String>,
     pub total_messages: u64,
     pub flagged_count: u64,
     #[serde(skip_serializing_if = "Option::is_none")]

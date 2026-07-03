@@ -24,6 +24,7 @@ pub async fn get_dashboard_users(
 #[derive(serde::Deserialize)]
 pub struct PaginatedUsers {
     pub data: Vec<DashboardUser>,
+    #[serde(rename = "nextCursor")]
     pub next_cursor: Option<String>,
 }
 
@@ -52,6 +53,7 @@ pub async fn get_dashboard_channels(
 #[derive(serde::Deserialize)]
 pub struct PaginatedChannels {
     pub data: Vec<DashboardChannel>,
+    #[serde(rename = "nextCursor")]
     pub next_cursor: Option<String>,
 }
 
