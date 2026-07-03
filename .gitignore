@@ -13,5 +13,5 @@ logs/
 .moon/docker
 worktrees/
 .worktrees/
-frontend-leptos/frontend/dist/
+services/frontend/frontend/dist/
 target/

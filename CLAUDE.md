@@ -12,7 +12,7 @@ Built with **pnpm workspace monorepo** with 3 services and 1 shared library:
 |---------|------|-------------|
 | `discord-moderation-backend` | `services/backend` | Express HTTP/WS server, REST API, Redis bridge |
 | `@bete/discord-gateway` | `services/discord-gateway` | Discord client, voice recording, message capture, AI moderation |
-| `@gmw/frontend` | `services/frontend` | React 19 + Vite + Tailwind web dashboard |
+| `frontend` | `services/frontend/frontend` | Leptos 0.7 CSR WASM dashboard |
 | `@bete/shared` | `packages/shared` | Shared types, errors, logger, utilities |
 
 **Database:** PostgreSQL (Drizzle ORM) — NOT SQLite.
@@ -28,7 +28,7 @@ Discord
    |
    v
 discord-gateway ---- Redis ---- backend ---- WebSocket ---- frontend
-   |                 pub/sub      (broadcast)                (React)
+   |                 pub/sub      (broadcast)                (Leptos WASM)
    |                   |
    |                   |
    <------------------+
@@ -194,19 +194,18 @@ The core service that connects to Discord using `discord.js-selfbot-v13`.
 - `src/shared/database/voiceRecordingRepo.ts` — Voice recording queries
 - `src/shared/discord/clientOptions.ts` — Discord client configuration
 
-### frontend (`services/frontend`)
+### frontend (`services/frontend/frontend`)
 
-React 19 + Vite 8 + Tailwind CSS 4 + TypeScript dashboard.
+Leptos 0.7 CSR WASM + TypeScript + CSS dashboard.
 
 **Tech stack:**
-- React 19 with hooks
-- Vite 8 (rolldown) for bundling
-- Tailwind CSS 4 with PostCSS
-- Three.js + React Three Fiber + Drei for 3D visualizations
-- GSAP + Framer Motion for animations
-- Radix UI primitives (ScrollArea, Slot, Tabs)
-- TanStack React Query for data fetching
-- Lucide React for icons
+- Leptos 0.7 CSR (WASM via `#[wasm_bindgen(start)]`)
+- Trunk for bundling
+- Plain CSS with design tokens
+- Canvas 2D via `web-sys` for audio visualization
+- CSS animations (GSAP/Framer Motion dihapus — unused)
+- `web-sys` primitives (WebSocket, AudioContext, IntersectionObserver)
+- `lucide-leptos` 3 for icons
 
 **Feature structure (entity + feature slices):**
 - `entities/` — Type exports re-exported from shared API client
@@ -389,15 +388,16 @@ pnpm install
 # Run each service in development mode (separate terminal each)
 pnpm run dev:backend          # Backend on port 3001
 pnpm run dev:discord-gateway  # Discord client + all features
-pnpm run dev:web              # Frontend on Vite dev server
+pnpm run dev:web              # Frontend via trunk serve
 
 # Build
 pnpm run build:backend
 pnpm run build:discord-gateway
-pnpm run build:web
+pnpm run build:web            # trunk build --release
 
-# Type checking across all packages
-pnpm run typecheck
+# Type checking
+pnpm run typecheck            # Node services (pnpm -r)
+pnpm run typecheck:web        # Leptos frontend (cargo check)
 
 # Lint (Biome)
 pnpm run lint
