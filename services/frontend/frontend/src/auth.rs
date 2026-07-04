@@ -61,8 +61,8 @@ pub fn AuthOverlay() -> impl IntoView {
     };
 
     view! {
-        <div class="modal-overlay">
-            <div class="modal-content auth-box">
+        <div class="modal-overlay" on:click=skip_dismiss>
+            <div class="modal-content auth-box" on:click=move |ev| ev.stop_propagation()>
                 <div class="modal-body" style="position:relative">
                     <button
                         on:click=skip_dismiss
