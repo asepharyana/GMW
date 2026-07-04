@@ -99,14 +99,14 @@ pub fn MascotChatbot() -> impl IntoView {
                 view! {
                     <div class=move || if minimized.get() { "mascot-panel minimized" } else { "mascot-panel" }>
                         <div class="mascot-header">
-                            <div class="flex items-center gap-2">
+                            <div class="mascot-controls">
                                 <div class="mascot-header-icon">"💬"</div>
                                 <div>
                                     <div class="mascot-title">"Mascot IMPHNEN"</div>
                                     <div class="mascot-subtitle">{move || if loading.get() { "Mengetik..." } else { "Online" }}</div>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-1">
+                            <div class="mascot-inline">
                                 <button class="mascot-icon-button" on:click=move |_| minimized.update(|v| *v = !*v)>
                                     {move || if minimized.get() { "▣" } else { "—" }}
                                 </button>

@@ -16,7 +16,7 @@ pub fn ActiveSpeakers(
                 when=empty_state
                 fallback=move || {
                     view! {
-                        <div class="space-y-2">
+                        <div class="speak-list">
                             <For
                                 each=move || speakers.get()
                                 key=|s| s.user_id.clone() + &s.username

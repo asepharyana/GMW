@@ -39,12 +39,12 @@ pub fn WaveformPlayer(
     let _ = audio_url; // Mark as used for the audio_id
 
     view! {
-        <div class="waveform-player border border-border/50 rounded-lg p-3 bg-surface/30">
+        <div class="wave-wrap">
             <audio
                 id=audio_id.clone()
                 preload="auto"
                 src=audio_src
-                class="hidden"
+                style="display:none"
                 on:timeupdate=move |ev| {
                     if let Some(target) = ev.target() {
                         if let Ok(audio) = target.dyn_into::<web_sys::HtmlAudioElement>() {
@@ -62,14 +62,14 @@ pub fn WaveformPlayer(
                 }
             ></audio>
 
-            <div class="h-2 rounded-full bg-surface border border-border/50 overflow-hidden mb-2">
+            <div class="wave-progress">
                 <div
-                    class="h-full rounded-full bg-primary transition-all duration-200"
+                    class="wave-bar"
                     style=move || format!("width: {}%", progress_pct(current_time.get(), duration.get()))
                 ></div>
             </div>
 
-            <div class="flex items-center justify-between">
+            <div class="wave-info">
                 <button
                     class=move || format!("btn btn-sm {}", if is_playing.get() { "btn-secondary" } else { "btn-primary" })
                     on:click=toggle_play
@@ -77,9 +77,9 @@ pub fn WaveformPlayer(
                     {move || if is_playing.get() { "⏸" } else { "▶" }}
                 </button>
 
-                <div class="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+                <div class="wave-time">
                     <span>{move || format_time(current_time.get())}</span>
-                    <span class="max-w-32 truncate">{title.clone()}</span>
+                    <span class="wave-title">{title.clone()}</span>
                 </div>
             </div>
         </div>

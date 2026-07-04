@@ -19,11 +19,11 @@ pub fn NowPlaying(
     let has_stop = stop_cb.with_value(|v| v.is_some());
 
     view! {
-        <div class="now-playing card">
+        <div class="card">
             <div class="card-header">
                 <div class="card-title">"Now Playing"</div>
             </div>
-            <div class="card-content space-y-3">
+            <div class="card-content np-body">
                 {move || {
                     media_state.get().map(|ms| {
                         let current = ms.current.as_ref().cloned();
@@ -36,14 +36,14 @@ pub fn NowPlaying(
                                     let duration_ms = item.duration_ms.unwrap_or(0);
                                     let duration_sec = duration_ms / 1000;
                                     view! {
-                                        <div class="space-y-2">
+                                        <div class="np-body">
                                             <div class="text-sm font-medium text-foreground truncate">
                                                 {title}
                                             </div>
-                                            <div class="flex items-center justify-between text-xs text-muted-foreground">
+                                            <div class="np-meta">
                                                 <span>{format!("{}s", duration_sec)}</span>
                                             </div>
-                                            <div class="flex items-center gap-2">
+                                            <div class="np-tags">
                                                 {has_skip.then(|| {
                                                     view! {
                                                         <button

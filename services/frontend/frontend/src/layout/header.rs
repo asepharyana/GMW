@@ -33,7 +33,7 @@ pub fn Header() -> impl IntoView {
             top: 0;
             z-index: var(--z-header);
         ">
-            <div class="flex items-center gap-2">
+            <div class="head-left">
                 <span style="font-weight: 700; font-size: 1.125rem; color: var(--color-primary);">
                     "IMPHNEN"
                 </span>
@@ -42,8 +42,8 @@ pub fn Header() -> impl IntoView {
                 </span>
             </div>
 
-            <div class="flex items-center gap-4 ml-auto">
-                <div class="flex items-center gap-1" style="font-size: 0.75rem; color: var(--text-secondary);">
+            <div class="head-right">
+                <div class="head-status">
                     <span
                         style="width: 8px; height: 8px; border-radius: 50%;"
                         style:background={move || indicator_color_memo.get()}

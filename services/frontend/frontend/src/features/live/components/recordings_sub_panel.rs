@@ -88,14 +88,14 @@ pub fn RecordingsSubPanel(
                     let recs = recordings.get();
                     if recs.is_empty() && !loading.get() {
                         view! {
-                            <div class="flex flex-col items-center justify-center py-8 gap-2">
-                                <p class="text-sm text-muted-foreground">"No recordings yet."</p>
-                                <p class="text-xs text-muted-foreground">"Join a voice channel to start recording."</p>
+                            <div class="rec-empty">
+                                <p style="font-size:0.875rem;color:var(--text-secondary)">"No recordings yet."</p>
+                                <p style="font-size:0.75rem;color:var(--text-secondary)">"Join a voice channel to start recording."</p>
                             </div>
                         }.into_any()
                     } else {
                         view! {
-                            <div class="space-y-2">
+                            <div class="rec-list">
                                 {recs.iter().map(|rec| {
                                     let id = rec.id.clone();
                                     let username = rec.username.clone();
@@ -105,12 +105,10 @@ pub fn RecordingsSubPanel(
                                     let url = rec.download_url.clone().unwrap_or_default();
 
                                     view! {
-                                        <div class="recording-item flex items-center gap-3 p-3 rounded-lg border border-border/50 hover:bg-accent/5 transition-colors">
-                                            <div class="flex-1 min-w-0">
-                                                <div class="text-sm font-medium text-foreground truncate">
-                                                    {username}
-                                                </div>
-                                                <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                                        <div class="rec-item">
+                                            <div class="rec-info">
+                                                <div class="rec-name">{username}</div>
+                                                <div class="rec-meta">
                                                     <span>{channel_name}</span>
                                                     <span>"·"</span>
                                                     <span>{format_size(rec.size_bytes)}</span>
@@ -118,7 +116,7 @@ pub fn RecordingsSubPanel(
                                                     <span>{created_at}</span>
                                                 </div>
                                             </div>
-                                            <div class="flex items-center" style="gap:0.375rem;flex-shrink:0">
+                                            <div class="rec-actions">
                                                 {has_url.then(|| {
                                                     view! {
                                                         <a
@@ -148,7 +146,7 @@ pub fn RecordingsSubPanel(
                 {move || {
                     (has_more.get() && !loading.get()).then(|| {
                         view! {
-                            <div class="mt-3 text-center">
+                            <div class="rec-footer">
                                 <button
                                     class="btn btn-sm btn-outline"
                                     on:click=move |_| load(false)

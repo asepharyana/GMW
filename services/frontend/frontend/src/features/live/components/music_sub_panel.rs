@@ -18,9 +18,9 @@ pub fn MusicSubPanel(
     };
 
     view! {
-        <div class="music-sub-panel card">
+        <div class="card">
             <div class="card-header">
-                <div class="card-title flex items-center gap-2">
+                <div class="card-title" style="display:flex;align-items:center;gap:var(--space-2)">
                     <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"></circle>
                         <path d="M9 8h6v8h-6z"></path>
@@ -28,19 +28,20 @@ pub fn MusicSubPanel(
                     "Music"
                 </div>
             </div>
-            <div class="card-content space-y-3">
-                <div class="space-y-2">
-                    <label class="text-xs font-medium text-foreground">"YouTube URL or Search"</label>
+            <div class="card-content music-body">
+                <div class="music-body">
+                    <label style="font-size:0.75rem;font-weight:500;color:var(--text-secondary)">"YouTube URL or Search"</label>
                     <input
                         type="text"
-                        class="input w-full text-sm"
+                        class="input"
                         placeholder="youtube.com/watch?v=... or song name"
                         prop:value=url_input
                         on:input=move |ev| set_url_input.set(event_target_value(&ev))
                     />
                 </div>
                 <button
-                    class="btn btn-primary w-full"
+                    class="btn btn-primary"
+                    style="width:100%"
                     on:click=handle_queue_click
                     disabled=move || url_input.get().is_empty()
                 >

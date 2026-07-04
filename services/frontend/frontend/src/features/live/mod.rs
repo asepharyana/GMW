@@ -76,19 +76,19 @@ pub fn LivePanel() -> impl IntoView {
             {move || {
                 if auth.authenticated.get() {
                     view! {
-                        <div class="live-panel space-y-6">
-                            <div class="flex items-center justify-between">
+                        <div class="live-body">
+                            <div class="live-head">
                                 <div>
-                                    <h2 class="text-2xl font-bold tracking-tight">"Voice & Media"</h2>
-                                    <p class="text-sm text-muted-foreground mt-1">
+                                    <h2 class="live-title">"Voice & Media"</h2>
+                                    <p class="live-desc">
                                         "Monitor voice channels, play music, share your screen, and browse recordings."
                                     </p>
                                 </div>
                             </div>
 
                             {/* Top row: Voice connection + speakers + visualizer */}
-                            <div class="grid gap-6 lg:grid-cols-3">
-                                <div class="lg:col-span-2">
+                            <div class="live-grid live-grid-3">
+                                <div class="live-span-2">
                                     <VoiceConnectionCard />
                                 </div>
                                 <div>
@@ -107,7 +107,7 @@ pub fn LivePanel() -> impl IntoView {
                             </div>
 
                             {/* Media controls: Now Playing + Music + Screen */}
-                            <div class="grid gap-6 lg:grid-cols-3">
+                            <div class="live-grid live-grid-3">
                                 <div>
                                     <NowPlaying media_rw=media_state />
                                 </div>

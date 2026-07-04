@@ -1546,3 +1546,109 @@ svg { display: inline-block; vertical-align: middle; }
 
 /* ── Deemphasized text ──────────────────────────── */
 .text-dim { color: var(--text-tertiary); opacity: 0.6; }
+
+/* ================================================================
+   LIVE PANEL
+   ================================================================ */
+.live-body { display: flex; flex-direction: column; gap: var(--space-6); }
+.live-head { display: flex; align-items: center; justify-content: space-between; }
+.live-title { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+.live-desc { font-size: 0.875rem; color: var(--text-secondary); margin-top: var(--space-1); }
+.live-grid { display: grid; gap: var(--space-6); }
+.live-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.live-span-2 { grid-column: span 2; }
+@media (max-width: 1024px) {
+  .live-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .live-span-2 { grid-column: span 2; }
+}
+@media (max-width: 768px) {
+  .live-grid-3 { grid-template-columns: 1fr; }
+  .live-span-2 { grid-column: span 1; }
+}
+
+/* ── Screen Sub Panel ──────────────────────────── */
+.scrn-actions { display: flex; gap: var(--space-2); }
+.scrn-status {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--color-success);
+}
+
+/* ── Now Playing ───────────────────────────────── */
+.np-body { display: flex; flex-direction: column; gap: var(--space-2); }
+.np-meta { display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); }
+.np-tags { display: flex; align-items: center; gap: var(--space-2); }
+.np-sep { border-top: var(--px) solid var(--surface-border); padding-top: var(--space-3); }
+
+/* ── Waveform Player ───────────────────────────── */
+.wave-wrap {
+  border: var(--px) solid var(--surface-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+.wave-progress {
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: var(--space-2);
+}
+.wave-bar { height: 100%; border-radius: var(--radius-full); background: var(--color-primary); transition: width 200ms ease; }
+.wave-info { display: flex; align-items: center; justify-content: space-between; }
+.wave-title { font-size: 0.875rem; font-weight: 500; max-width: 192px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wave-time { display: flex; align-items: center; gap: var(--space-2); font-size: 0.75rem; font-family: monospace; }
+
+/* ── Mic Level Meter ───────────────────────────── */
+.mic-row { display: flex; align-items: center; gap: var(--space-2); }
+.mic-track {
+  position: relative;
+  flex: 1;
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.mic-clip { position: absolute; height: 100%; width: 2px; }
+
+/* ── Recordings Sub Panel ──────────────────────── */
+.rec-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-8); gap: var(--space-2); }
+.rec-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.rec-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: var(--px) solid var(--surface-border);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.rec-item:hover { background: var(--surface-hover); border-color: var(--color-primary); }
+.rec-info { flex: 1; min-width: 0; }
+.rec-name { font-size: 0.875rem; font-weight: 500; }
+.rec-meta { display: flex; align-items: center; gap: var(--space-2); font-size: 0.75rem; color: var(--text-secondary); margin-top: var(--space-1); }
+.rec-actions { display: flex; align-items: center; gap: 0.375rem; flex-shrink: 0; }
+.rec-footer { margin-top: var(--space-3); text-align: center; }
+
+/* ── Active Speakers ───────────────────────────── */
+.speak-list { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* ── Music Sub Panel ───────────────────────────── */
+.music-body { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* ── Dashboard Panel ───────────────────────────── */
+.dash-panel { display: flex; flex-direction: column; gap: var(--space-6); }
+.dash-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.dash-title { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+.dash-desc { font-size: 0.875rem; color: var(--text-secondary); margin-top: var(--space-1); }
+
+/* ── Image Grid ────────────────────────────────── */
+.img-empty { display: flex; align-items: center; justify-content: center; height: 128px; color: var(--text-secondary); font-style: italic; }
+
+/* ── Header (layout) ───────────────────────────── */
+.head-left { display: flex; align-items: center; gap: var(--space-2); }
+.head-right { display: flex; align-items: center; gap: var(--space-4); margin-left: auto; }
+.head-status { display: flex; align-items: center; gap: var(--space-1); font-size: 0.75rem; color: var(--text-secondary); }
+
+/* ── Mascot ────────────────────────────────────── */
+.mascot-controls { display: flex; align-items: center; gap: var(--space-2); }
+.mascot-inline { display: flex; align-items: center; gap: var(--space-1); }

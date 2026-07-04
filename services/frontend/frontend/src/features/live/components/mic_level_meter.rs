@@ -59,23 +59,23 @@ pub fn MicLevelMeter(
     view! {
         <div class="mic-level-meter">
             {label.map(|l| view! {
-                <label class="text-xs font-medium text-foreground mb-1.5">{l}</label>
+                <label style="font-size:0.75rem;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:var(--space-1)">{l}</label>
             })}
-            <div class="flex items-center gap-2">
+            <div class="mic-row">
                 {/* Main level bar */}
-                <div class="relative flex-1 h-2 rounded-full bg-surface border border-border/50 overflow-hidden">
+                <div class="mic-track">
                     <div
                         class=move || format!("h-full {} transition-all", level_color())
                         style=move || format!("width: {}%", level_percent())
                     ></div>
                     {/* Peak indicator */}
                     <div
-                        class="absolute h-full w-0.5 bg-destructive/70"
+                        class="mic-clip"
                         style=move || format!("left: {}%", peak_percent())
                     ></div>
                 </div>
                 {/* Percentage display */}
-                <span class="text-xs font-mono text-muted-foreground w-8 text-right">
+                <span style="font-size:0.75rem;font-family:monospace;width:2rem;text-align:right">
                     {move || format!("{}%", (level_percent() as u8))}
                 </span>
             </div>
