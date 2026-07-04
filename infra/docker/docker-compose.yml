@@ -4,7 +4,7 @@ services:
   # Nginx Reverse Proxy + Frontend Static Files
   # Routes /api and /ws to backend, serves frontend WASM directly
   proxy:
-    image: registry.gitlab.com/mytheclipse-group/gmw/bete-proxy:latest
+    image: registry.gitlab.com/mytheclipse-group/gmw/bete-proxy:${IMAGE_TAG:-latest}
     container_name: imphenbot-proxy
     restart: unless-stopped
     labels:
@@ -29,7 +29,7 @@ services:
 
   # Backend Service (REST API + WebSocket)
   backend:
-    image: registry.gitlab.com/mytheclipse-group/gmw/bete-backend:latest
+    image: registry.gitlab.com/mytheclipse-group/gmw/bete-backend:${IMAGE_TAG:-latest}
     container_name: imphenbot-backend
     restart: unless-stopped
     env_file:
@@ -52,7 +52,7 @@ services:
 
   # Discord Gateway Service (Event capture and processing — no HTTP)
   discord-gateway:
-    image: registry.gitlab.com/mytheclipse-group/gmw/bete-discord-gateway:latest
+    image: registry.gitlab.com/mytheclipse-group/gmw/bete-discord-gateway:${IMAGE_TAG:-latest}
     container_name: imphenbot-discord-gateway
     restart: unless-stopped
     env_file:

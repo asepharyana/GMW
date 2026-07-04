@@ -91,6 +91,7 @@ deploy-vps:
     - ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
   script:
     # Login to GitLab Container Registry, pull images, update docker-compose, restart
+    - scp infra/docker/docker-compose.yml "$SSH_HOST:$APP_DIR/infra/docker/docker-compose.yml"
     - |
       ssh "$SSH_HOST" "
         set -eu
@@ -100,19 +101,18 @@ deploy-vps:
         echo '→ Logging in to GitLab Container Registry...'
         echo '$CI_JOB_TOKEN' | docker login $CI_REGISTRY -u '$CI_REGISTRY_USER' --password-stdin
 
-        echo '→ Updating docker-compose image references...'
-        echo '→ Pulling latest images...'
-        docker compose -f infra/docker/docker-compose.yml pull
+        echo '→ Pulling SHA-pinned images...'
+        IMAGE_TAG=$CI_COMMIT_SHA docker compose -f infra/docker/docker-compose.yml pull
 
         echo '→ Restarting containers (recreates if image changed)...'
-        docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans
+        IMAGE_TAG=$CI_COMMIT_SHA docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans
 
         # Force restart proxy to pick up new upstream DNS IPs.
         # Docker's DNS changes when backend containers are recreated,
         # but nginx only resolves upstream hostnames at startup. Without this,
         # nginx keeps pointing to stale container IPs → 502 Bad Gateway.
         echo '→ Ensuring proxy container is restarted (nginx upstream DNS refresh)...'
-        docker compose -f infra/docker/docker-compose.yml restart proxy
+        IMAGE_TAG=$CI_COMMIT_SHA docker compose -f infra/docker/docker-compose.yml restart proxy
 
         echo '→ Cleaning up...'
         docker image prune -f
