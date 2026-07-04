@@ -4,8 +4,10 @@
 #
 # Deploy manually from your dev machine:
 #   export VPS_HOST=... VPS_USER=... VPS_SSH_KEY=... GITLAB_TOKEN=...
-#   ./deploy.sh                 # deploy :latest
-#   ./deploy.sh <sha>           # deploy specific commit
+#   ./deploy.sh                       # build + deploy all
+#   ./deploy.sh --backend             # backend only
+#   ./deploy.sh --frontend            # frontend only
+#   ./deploy.sh --no-build            # skip build, just copy files
 #
 # ──────────────────────────────────────────────────────────────────────────────
 
