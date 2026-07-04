@@ -1,20 +1,16 @@
-# ─── BETE GitLab CI/CD Pipeline ───────────────────────────────────────────────
-# 1. Build 3 Docker images (backend, discord-gateway, proxy — proxy includes frontend WASM)
-# 2. Push to GitLab Container Registry
-# 3. Deploy to VPS — pull images, docker compose up
+# ─── BETE GitLab CI Pipeline ───────────────────────────────────────────────────
+# Builds 3 Docker images (backend, discord-gateway, proxy) and pushes to
+# GitLab Container Registry with both `:$CI_COMMIT_SHA` and `:latest` tags.
 #
-# Required CI/CD Variables (set in GitLab → Settings → CI/CD → Variables):
-#
-#   VPS_HOST        - VPS IP/hostname
-#   VPS_USERNAME    - SSH user
-#   VPS_SSH_KEY     - SSH private key (type: file)
-#   ENV_FILE        - Full .env file content (type: env_var) — optional if .env already on VPS
+# Deploy manually from your dev machine:
+#   export VPS_HOST=... VPS_USER=... VPS_SSH_KEY=... GITLAB_TOKEN=...
+#   ./deploy.sh                 # deploy :latest
+#   ./deploy.sh <sha>           # deploy specific commit
 #
 # ──────────────────────────────────────────────────────────────────────────────
 
 stages:
   - build
-  - deploy
 
 variables:
   # Submodules — discord.js-selfbot-v13 and discord-video-stream
@@ -72,51 +68,3 @@ build-proxy:
     SERVICE_NAME: proxy
   only:
     - master
-
-# ── Deploy stage ──────────────────────────────────────────────────────────────
-deploy-vps:
-  stage: deploy
-  image: debian:stable-slim
-  only:
-    - master
-  needs:
-    - build-backend
-    - build-discord-gateway
-    - build-proxy
-  before_script:
-    - apt-get update -qq && apt-get install -y -qq openssh-client
-    - mkdir -p ~/.ssh
-    - cp "$VPS_SSH_KEY" ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
-    - ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-  script:
-    # Login to GitLab Container Registry, pull images, update docker-compose, restart
-    - scp infra/docker/docker-compose.yml "$SSH_HOST:$APP_DIR/infra/docker/docker-compose.yml"
-    - |
-      ssh "$SSH_HOST" "
-        set -eu
-
-        cd $APP_DIR
-
-        echo '→ Logging in to GitLab Container Registry...'
-        echo '$CI_JOB_TOKEN' | docker login $CI_REGISTRY -u '$CI_REGISTRY_USER' --password-stdin
-
-        echo '→ Pulling SHA-pinned images...'
-        IMAGE_TAG=$CI_COMMIT_SHA docker compose -f infra/docker/docker-compose.yml pull
-
-        echo '→ Restarting containers (recreates if image changed)...'
-        IMAGE_TAG=$CI_COMMIT_SHA docker compose -f infra/docker/docker-compose.yml up -d --remove-orphans
-
-        # Force restart proxy to pick up new upstream DNS IPs.
-        # Docker's DNS changes when backend containers are recreated,
-        # but nginx only resolves upstream hostnames at startup. Without this,
-        # nginx keeps pointing to stale container IPs → 502 Bad Gateway.
-        echo '→ Ensuring proxy container is restarted (nginx upstream DNS refresh)...'
-        IMAGE_TAG=$CI_COMMIT_SHA docker compose -f infra/docker/docker-compose.yml restart proxy
-
-        echo '→ Cleaning up...'
-        docker image prune -f
-        echo '✓ Deploy complete'
-      "
-  after_script:
-    - rm -f ~/.ssh/id_rsa
