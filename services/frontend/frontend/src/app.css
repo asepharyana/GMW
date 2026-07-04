@@ -587,6 +587,7 @@ svg { display: inline-block; vertical-align: middle; }
   display: flex;
   flex-direction: column;
   height: 100vh;
+  background: color-mix(in srgb, var(--surface-base) 94%, transparent);
 }
 
 .app-header {
