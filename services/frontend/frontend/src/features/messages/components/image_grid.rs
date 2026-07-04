@@ -56,7 +56,7 @@ pub fn ImageGrid(messages: Vec<MessageRecord>) -> impl IntoView {
 
     if urls.is_empty() {
         return view! {
-            <div class="flex items-center justify-center h-32 text-secondary italic">
+            <div class="img-empty">
                 "No images found"
             </div>
         }

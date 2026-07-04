@@ -20,6 +20,7 @@ pub fn Header() -> impl IntoView {
         WsStatus::Disconnected => "var(--text-tertiary)",
         WsStatus::Error(_) => "var(--color-error)",
     });
+    let is_connecting = Memo::new(move |_| matches!(ws_status.get(), WsStatus::Connecting));
 
     view! {
         <header style="
@@ -37,7 +38,7 @@ pub fn Header() -> impl IntoView {
                 <span style="font-weight: 700; font-size: 1.125rem; color: var(--color-primary);">
                     "IMPHNEN"
                 </span>
-                <span style="color: var(--text-secondary); font-size: 0.75rem; padding: 0.125rem 0.375rem; background: var(--surface-overlay); border-radius: var(--radius-sm);">
+                <span style="color: var(--text-secondary); font-size: 0.75rem; padding: 0.125rem 0.5rem; background: var(--surface-overlay); border-radius: var(--radius-full);">
                     "Guild Watcher"
                 </span>
             </div>
@@ -45,7 +46,8 @@ pub fn Header() -> impl IntoView {
             <div class="head-right">
                 <div class="head-status">
                     <span
-                        style="width: 8px; height: 8px; border-radius: 50%;"
+                        class="head-status-dot"
+                        class:is-connecting=is_connecting
                         style:background={move || indicator_color_memo.get()}
                     ></span>
                     <span>{move || indicator_text_memo.get()}</span>

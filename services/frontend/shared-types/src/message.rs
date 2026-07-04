@@ -131,12 +131,16 @@ impl<'de> Deserialize<'de> for EmbedMedia {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ChannelRef {
     pub channel_id: String,
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channel_name: Option<String>,
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thread_id: Option<String>,
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thread_name: Option<String>,
 }
