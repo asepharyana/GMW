@@ -64,23 +64,70 @@ pub struct AttachmentRef {
     pub content_type: Option<String>,
 }
 
+/// Deserialize `EmbedMedia` from either:
+///   - `null` → `None`
+///   - a JSON string → `Some(EmbedMedia { url: <string>, width: None, height: None })`
+///   - a JSON object → standard struct deserialization
+fn deser_embed_media<'de, D: Deserializer<'de>>(d: D) -> Result<Option<EmbedMedia>, D::Error> {
+    let v = Option::<serde_json::Value>::deserialize(d)?;
+    match v {
+        None => Ok(None),
+        Some(serde_json::Value::String(s)) => Ok(Some(EmbedMedia {
+            url: s,
+            width: None,
+            height: None,
+        })),
+        Some(obj) => serde_json::from_value(obj).map(Some).map_err(de::Error::custom),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EmbedInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deser_embed_media",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub image: Option<EmbedMedia>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deser_embed_media",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub thumbnail: Option<EmbedMedia>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct EmbedMedia {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub width: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub height: Option<u32>,
+}
+
+impl<'de> Deserialize<'de> for EmbedMedia {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        // When EmbedMedia appears as a struct member (inside the object branch
+        // of deser_embed_media), serde calls this directly. We delegate to a
+        // derived deserializer on the struct fields.
+        #[derive(serde::Deserialize)]
+        struct Inner {
+            url: String,
+            #[serde(default)]
+            width: Option<u32>,
+            #[serde(default)]
+            height: Option<u32>,
+        }
+        let inner = Inner::deserialize(d)?;
+        Ok(EmbedMedia {
+            url: inner.url,
+            width: inner.width,
+            height: inner.height,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
