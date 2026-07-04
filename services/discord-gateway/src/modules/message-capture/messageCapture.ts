@@ -49,6 +49,22 @@ const EXCLUDED_CHANNEL_IDS = new Set([
   "1508059937031589949",
 ]);
 
+/**
+ * Threads whose messages should be entirely ignored.
+ * Useful when a bot or selfbot is spamming inside a thread and
+ * you only want to ignore that one conversation, not the whole
+ * parent channel.
+ */
+const EXCLUDED_THREAD_IDS = new Set(["1522077685508083893"]);
+
+function isExcludedThread(message: {
+  channel?: { isThread?: () => boolean; id?: string };
+}): boolean {
+  return message.channel?.isThread?.() === true
+    && typeof message.channel.id === "string"
+    && EXCLUDED_THREAD_IDS.has(message.channel.id);
+}
+
 function getParentChannelId(
   message: MessageLocationInput,
 ): string | null | undefined {
@@ -283,6 +299,7 @@ export function registerMessageCapture(client: Client): void {
     if (!shouldCaptureForAnyTarget(message, targets)) return;
     if (message.author?.bot) return;
     if (isAgeRestrictedMessage(message)) return;
+    if (isExcludedThread(message)) return;
 
     try {
       await captureMessage(message, "text");
@@ -301,6 +318,7 @@ export function registerMessageCapture(client: Client): void {
     if (!shouldCaptureForAnyTarget(newMessage, targets)) return;
     if (newMessage.author?.bot) return;
     if (isAgeRestrictedMessage(newMessage as Message)) return;
+    if (isExcludedThread(newMessage)) return;
 
     try {
       const existing = await getMessageById(newMessage.id);
@@ -367,6 +385,7 @@ export function registerMessageCapture(client: Client): void {
   client.on("messageDelete", async (message) => {
     if (!shouldCaptureForAnyTarget(message, targets)) return;
     if (!message.author) return;
+    if (isExcludedThread(message)) return;
 
     try {
       const deletedAt = Date.now();

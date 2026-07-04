@@ -169,6 +169,35 @@ Lihat `.env.example` untuk daftar lengkap. Variabel utama:
 - `AI_ANALYSIS_ENABLED` — aktifkan/nonaktifkan analisis AI.
 - `AI_LLM_API_KEY`, `AI_LLM_BASE_URL`, `AI_LLM_MODEL` — konfigurasi provider LLM.
 
+## Deploy ke VPS
+
+Project menggunakan `deploy.sh` untuk build + deploy manual ke VPS. Script ini
+membangun backend (TypeScript) dan frontend (WASM Leptos) lalu menyalinnya ke
+dalam container Docker yang sudah berjalan di VPS.
+
+```bash
+# Build + deploy semua service
+./deploy.sh
+
+# Deploy frontend saja (setelah perubahan UI)
+./deploy.sh --frontend
+
+# Deploy backend saja
+./deploy.sh --backend
+
+# Deploy tanpa rebuild (file sudah terbuild sebelumnya)
+./deploy.sh --no-build
+```
+
+Credentials diambil otomatis dari GitLab CI variables via `glab`. Atau set manual:
+
+```bash
+export VPS_HOST="your-vps-ip"
+export VPS_USER="root"
+export VPS_SSH_KEY="~/.ssh/id_ed25519"
+./deploy.sh
+```
+
 ## Verifikasi Setelah Perubahan
 
 Sebelum menjalankan lama atau deploy, jalankan:

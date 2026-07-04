@@ -3,6 +3,17 @@ use shared_types::message::{AiStatus, MessageRecord, PageResult};
 use std::sync::Arc;
 use wasm_bindgen_futures::spawn_local;
 
+/// Threads whose messages should be hidden from both the feed and the
+/// Images tab.  A bot or selfbot may be spamming in a thread, polluting
+/// the dashboard — add its thread ID here to keep the view clean.
+const EXCLUDED_THREAD_IDS: &[&str] = &["1522077685508083893"];
+
+fn is_excluded_thread(m: &MessageRecord) -> bool {
+    m.thread_id
+        .as_deref()
+        .is_some_and(|tid| EXCLUDED_THREAD_IDS.contains(&tid))
+}
+
 pub mod components;
 pub mod hooks;
 
@@ -82,6 +93,7 @@ pub fn MessagesPanel() -> impl IntoView {
                 }
                 format!("{:?}", status).to_lowercase() == filter
             })
+            .filter(|m| !is_excluded_thread(m))
             .collect()
     });
 
@@ -174,30 +186,36 @@ pub fn MessagesPanel() -> impl IntoView {
 
     // Fetch image messages when Images tab is selected
     let fetch_images = {
+        let image_messages = image_messages.clone();
         move || {
-            spawn_local({
-                async move {
-                    if let Some(config) = use_context::<crate::app::AppConfig>() {
-                        if let Some(ref guild_id) = config.monitor_guild_id.get() {
-                            match crate::api::messages::get_images(guild_id, Some(100)).await {
-                                Ok(PageResult { data, .. }) => {
-                                    web_sys::console::log_2(
-                                        &"[images] fetch OK".into(),
-                                        &format!("count={}", data.len()).into(),
-                                    );
-                                    image_messages.set(data);
-                                }
-                                Err(e) => {
-                                    web_sys::console::log_2(
-                                        &"[images] fetch ERROR".into(),
-                                        &format!("{}", e).into(),
-                                    );
-                                }
+            let guild_id = use_context::<crate::app::AppConfig>()
+                .and_then(|c| c.monitor_guild_id.get());
+            if let Some(gid) = guild_id {
+                spawn_local({
+                    let image_messages = image_messages.clone();
+                    async move {
+                        match crate::api::messages::get_images(&gid, Some(100)).await {
+                            Ok(PageResult { data, .. }) => {
+                                web_sys::console::log_2(
+                                    &"[images] fetch OK".into(),
+                                    &format!("count={}", data.len()).into(),
+                                );
+                                image_messages.set(
+                                    data.into_iter()
+                                        .filter(|m| !is_excluded_thread(m))
+                                        .collect(),
+                                );
+                            }
+                            Err(e) => {
+                                web_sys::console::log_2(
+                                    &"[images] fetch ERROR".into(),
+                                    &format!("{}", e).into(),
+                                );
                             }
                         }
                     }
-                }
-            });
+                });
+            }
         }
     };
     // Fetch images when tab changes to Images

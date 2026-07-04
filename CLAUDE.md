@@ -415,6 +415,12 @@ pnpm run db:studio     # Open Drizzle Studio
 
 # Install yt-dlp for media download
 pnpm run install:yt-dlp
+
+# Deploy to VPS (build + hot-patch running containers)
+./deploy.sh                    # Build + deploy all services
+./deploy.sh --frontend         # Frontend WASM only
+./deploy.sh --backend          # Backend TypeScript only
+./deploy.sh --no-build         # Skip build, just copy files
 ```
 
 ## Configuration

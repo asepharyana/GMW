@@ -1,7 +1,7 @@
 import type { PageResult } from "@bete/shared";
 import { pgAttachmentsTable, pgMessagesTable } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
-import { and, desc, eq, inArray, like, lt, ne, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, like, lt, ne, notInArray, or, type SQL } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/index.js";
 import { mapMessageRow } from "../../shared/utils/messageMapper.js";
 import type {
@@ -9,6 +9,14 @@ import type {
   MessageQuery,
   MessageUpdate,
 } from "./messages.schema.js";
+
+/**
+ * Thread IDs to exclude from all message queries.
+ * Messages in these threads (e.g. bot/selfbot spam) are skipped
+ * both at capture time (discord-gateway) and when serving data
+ * (backend API).
+ */
+const EXCLUDED_THREAD_IDS = ["1522077685508083893"];
 
 const logger = createChildLogger("messages.repository");
 
@@ -54,6 +62,16 @@ export class MessagesRepository {
       conditions.push(lt(pgMessagesTable.created_at, Number(query.cursor)));
     }
 
+    // Exclude spam threads (NULL-safe: non-thread messages are kept)
+    if (EXCLUDED_THREAD_IDS.length > 0) {
+      conditions.push(
+        or(
+          isNull(pgMessagesTable.thread_id),
+          notInArray(pgMessagesTable.thread_id, EXCLUDED_THREAD_IDS),
+        )!,
+      );
+    }
+
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const rows = await db
       .select()
@@ -94,6 +112,16 @@ export class MessagesRepository {
 
     if (query.cursor) {
       conditions.push(lt(pgMessagesTable.created_at, Number(query.cursor)));
+    }
+
+    // Exclude spam threads (NULL-safe)
+    if (EXCLUDED_THREAD_IDS.length > 0) {
+      conditions.push(
+        or(
+          isNull(pgMessagesTable.thread_id),
+          notInArray(pgMessagesTable.thread_id, EXCLUDED_THREAD_IDS),
+        )!,
+      );
     }
 
     const rows = await db
@@ -304,6 +332,18 @@ export class MessagesRepository {
         and(
           eq(pgAttachmentsTable.guild_id, guildId),
           like(pgAttachmentsTable.type, "image/%"),
+          // Exclude spam threads (NULL-safe for non-thread messages)
+          ...(EXCLUDED_THREAD_IDS.length > 0
+            ? [
+                or(
+                  isNull(pgAttachmentsTable.thread_id),
+                  notInArray(
+                    pgAttachmentsTable.thread_id,
+                    EXCLUDED_THREAD_IDS,
+                  ),
+                )!,
+              ]
+            : []),
         ),
       )
       .orderBy(desc(pgAttachmentsTable.created_at))

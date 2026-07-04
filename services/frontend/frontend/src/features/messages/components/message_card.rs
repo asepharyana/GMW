@@ -44,8 +44,9 @@ fn render_emojis(content: &str) -> Vec<AnyView> {
 }
 
 fn time_ago(ts: i64) -> String {
-    let now = (js_sys::Date::now() / 1000.0) as i64;
-    let secs = if now > ts { now - ts } else { 0 };
+    let now = js_sys::Date::now() as i64;
+    // created_at is in milliseconds (from Discord's message.createdTimestamp)
+    let secs = if now > ts { (now - ts) / 1000 } else { 0 };
     if secs < 60 {
         format!("{}s ago", secs)
     } else if secs < 3600 {
@@ -53,13 +54,13 @@ fn time_ago(ts: i64) -> String {
     } else if secs < 86400 {
         format!("{}h ago", secs / 3600)
     } else {
-        let d = js_sys::Date::new(&JsValue::from_f64((ts as f64) * 1000.0));
+        let d = js_sys::Date::new(&JsValue::from_f64(ts as f64));
         format!("{}", d.to_locale_date_string("en-US", &JsValue::UNDEFINED))
     }
 }
 
 fn fmt_time(ts: i64) -> String {
-    let d = js_sys::Date::new(&JsValue::from_f64((ts as f64) * 1000.0));
+    let d = js_sys::Date::new(&JsValue::from_f64(ts as f64));
     format!("{:02}:{:02}", d.get_hours(), d.get_minutes())
 }
 
