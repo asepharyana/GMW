@@ -84,6 +84,10 @@ pub fn App() -> impl IntoView {
         async move {
             match config_api::get_config().await {
                 Ok(cfg) => {
+                    web_sys::console::log_2(
+                        &"[config] fetched OK".into(),
+                        &format!("monitorGuildId={:?}", cfg.monitor_guild_id).into(),
+                    );
                     config.monitor_guild_id.set(cfg.monitor_guild_id);
                 }
                 Err(e) => {
@@ -166,14 +170,9 @@ fn TabButton(tab: Tab, ui: UiContext, label: &'static str) -> impl IntoView {
 
     view! {
         <button
-            class:btn=true
-            class:btn-ghost=true
-            class:btn-active=move || active_tab.get() == tab1
+            class="sidebar-btn"
+            class:is-active=move || active_tab.get() == tab1
             on:click=move |_| active_tab.set(tab4.clone())
-            style:background=move || if active_tab.get() == tab2 { "var(--surface-overlay)" } else { "" }
-            style:color=move || if active_tab.get() == tab3 { "var(--color-primary)" } else { "" }
-            style:width="100%"
-            style:justify-content="flex-start"
         >
             {label}
         </button>

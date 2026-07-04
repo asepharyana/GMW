@@ -186,10 +186,10 @@ pub fn MessagesPanel() -> impl IntoView {
     view! {
         <div class="messages-panel">
             {/* Header card */}
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">"Messages"</div>
-                    <p class="card-description">
+            <div class="panel-card">
+                <div class="panel-card-head">
+                    <div class="panel-card-title">"Messages"</div>
+                    <p class="panel-card-desc">
                         "Messages are automatically captured from all text channels. Real-time updates arrive via WebSocket."
                     </p>
                 </div>
@@ -197,7 +197,7 @@ pub fn MessagesPanel() -> impl IntoView {
 
             {/* Stats badges */}
             {move || (total() > 0).then(|| view! {
-                <div class="message-stats">
+                <div class="stats-bar">
                     <span class="badge badge-outline text-xs">{total()} " total" {state.has_more.get().then_some("+")}</span>
                     <span class="badge badge-success text-xs">{clean()} " clean"</span>
                     <span class="badge badge-primary text-xs">{flagged()} " flagged"</span>
@@ -213,13 +213,11 @@ pub fn MessagesPanel() -> impl IntoView {
             })}
 
             {/* Search + filters row */}
-            <div class="search-row">
-                <div class="relative flex-1" style="min-width:200px">
-                    {/* Search icon as SVG */}
-                    <svg width="16" height="16" style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);color:var(--color-primary)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
+            <div class="search-bar">
+                <div class="search-wrap">
+                    <svg width="16" height="16" class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
                     <input
-                        class="input"
-                        style="padding-left:2.25rem;border-radius:9999px"
+                        class="search-input"
                         placeholder="Search message content..."
                         prop:value=search_query
                         on:input=move |ev| set_search_query.set(event_target_value(&ev))
@@ -258,20 +256,18 @@ pub fn MessagesPanel() -> impl IntoView {
                                 }
                                 disabled=move || retrying_all.get()
                             >
-                                {/* Rotate CCW icon as SVN */}
-                                <svg class=format!("mr-1.5 h-3.5 w-3.5{}", if retrying_all.get() { " animate-spin" } else { "" }) xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"></path></svg>
+                                <svg class=format!("mr-1.5 h-3.5 w-3.5{}", if retrying_all.get() { " icon-spin" } else { "" }) xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"></path></svg>
                                 {move || if retrying_all.get() { "Retrying...".to_string() } else { format!("Retry All Errors ({})", err_count) }}
                             </button>
                         }
                     })
                 }}
-                <div class="ml-auto flex items-center" style="gap:0.375rem">
-                    {/* Filter icon as SVG since lucide-leptos Filter unavailable */}
+                <div class="filter-group">
                     <svg width="16" height="16" style="color:var(--color-primary)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
                     {FILTERS.iter().map(|f| {
                         let f_ptr: &'static str = f;
                         view! {
-                            <button class="filter-chip" class:active=move || ai_filter.get() == f_ptr on:click=move |_| set_filter(f_ptr) >{*f}</button>
+                            <button class="filter-chip-v2" class:is-active=move || ai_filter.get() == f_ptr on:click=move |_| set_filter(f_ptr) >{*f}</button>
                         }
                     }).collect::<Vec<_>>()}
                 </div>
@@ -281,7 +277,7 @@ pub fn MessagesPanel() -> impl IntoView {
             {move || show_search.get().then(|| {
                 let n = search_results.get().len();
                 view! {
-                    <div class="text-sm text-secondary">
+                    <div class="search-count">
                         "Found " {n} " result" {if n != 1 { "s" } else { "" }}
                     </div>
                 }

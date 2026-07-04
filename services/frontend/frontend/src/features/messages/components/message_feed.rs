@@ -93,7 +93,7 @@ pub fn MessageFeed(
     // Loading state
     if loading {
         return view! {
-            <div class="space-y-4">
+            <div class="flex flex-col gap-4">
                 {std::iter::repeat_with(|| {
                     use super::message_card::MessageCardSkeleton;
                     view! { <MessageCardSkeleton /> }
@@ -105,8 +105,8 @@ pub fn MessageFeed(
 
     if messages.is_empty() {
         return view! {
-            <div class="empty-state">
-                <div class="empty-state-title">
+            <div class="feed-empty">
+                <div class="feed-empty-title">
                     {if empty_text.is_empty() { "No messages" } else { empty_text }}
                 </div>
             </div>
@@ -119,7 +119,7 @@ pub fn MessageFeed(
     let loading_more_val = loading_more;
 
     view! {
-        <div class="space-y-4">
+        <div class="feed-wrap">
             {groups.into_iter().map(|group| {
                 let cb = on_reanalyze.clone();
                 view! {
@@ -131,7 +131,7 @@ pub fn MessageFeed(
             {has_more_val.then(|| {
                 view! {
                     <>
-                        <div node_ref=sentinel_ref class="h-4">
+                        <div node_ref=sentinel_ref class="feed-sentinel">
                             {loading_more_val.then(|| {
                                 use super::message_card::MessageCardSkeleton;
                                 view! { <MessageCardSkeleton /> }
@@ -141,7 +141,7 @@ pub fn MessageFeed(
                         {(!loading_more_val).then(|| {
                             let load_more_cb = on_load_more.clone();
                             view! {
-                                <div class="mt-4 text-center">
+                                <div class="feed-loader">
                                     <button
                                         class="btn btn-outline btn-sm"
                                         on:click=move |_| {

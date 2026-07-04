@@ -189,23 +189,23 @@ pub fn MessageRow(
     let on_click_re = move |_| on_reanalyze(reanalyze_id.clone());
 
     view! {
-        <div class="message-row">
+        <div class="msg-row">
             {/* Header */}
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span class="message-timestamp" title=time_ago(message.created_at)>
+            <div class="msg-row-bar">
+                <span class="msg-row-time" title=time_ago(message.created_at)>
                     {fmt_time(message.created_at)}
                 </span>
                 {message.edited_at.is_some().then(|| view! {
-                    <span class="flex items-center gap-0.5 text-xs text-secondary">
+                    <span class="msg-row-badge edited">
                         "✎ edited"
                     </span>
                 })}
                 {message.deleted_at.is_some().then(|| view! {
-                    <span class="flex items-center gap-0.5 text-xs text-destructive">
+                    <span class="msg-row-badge deleted">
                         "🗑 deleted"
                     </span>
                 })}
-                <div class="ml-auto flex items-center gap-1">
+                <div class="msg-row-status">
                     <StatusBadgeInline status=ai_st.clone() />
                     {message.ai_severity.as_ref().filter(|s| **s != AiSeverity::None).map(|sev| view! {
                         <span class=format!("badge text-xs {}", severity_class(sev))>{format!("{:?}", sev)}</span>
@@ -213,19 +213,11 @@ pub fn MessageRow(
                 </div>
             </div>
 
-            {/* Reply - field removed from MessageRecord */}
-
-            {/* Forward - field removed from MessageRecord */}
-
-            {/* Crosspost - field removed from MessageRecord */}
-
             {/* Content */}
             {show.then(|| {
                 let rendered = render_emojis(display);
-                let cls_str = if message.deleted_at.is_some() { "text-secondary/60" } else { "" };
-                let class_str = format!("whitespace-pre-wrap break-words text-sm leading-6 {}", cls_str);
                 view! {
-                    <p class=class_str>
+                    <p class="msg-row-body" class:is-deleted=message.deleted_at.is_some()>
                         {rendered.into_iter().collect::<Vec<_>>()}
                     </p>
                 }
@@ -233,7 +225,7 @@ pub fn MessageRow(
 
             {/* Stickers */}
             {(!stickers.is_empty()).then(|| view! {
-                <div class="flex flex-wrap gap-2">
+                <div class="msg-media-row">
                     {stickers.iter().map(|s| {
                         let url_owned = s.url.clone().unwrap_or_default();
                         let name_owned = s.name.clone().unwrap_or_default();
@@ -242,11 +234,11 @@ pub fn MessageRow(
                             <div>
                                 {if has_url {
                                     view! {
-                                        <img src=url_owned alt=name_owned class="h-12 w-12 rounded-lg border border-border object-contain bg-surface/50" loading="lazy" />
+                                        <img src=url_owned alt=name_owned class="msg-sticker" loading="lazy" />
                                     }.into_any()
                                 } else {
                                     view! {
-                                        <div class="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-surface/50">
+                                        <div class="msg-sticker-placeholder">
                                             "😊"
                                         </div>
                                     }.into_any()
@@ -265,15 +257,15 @@ pub fn MessageRow(
                     let url2 = a.url.clone();
                     let name1 = a.name.clone();
                     view! {
-                        <a href=url1 target="_blank" class="shrink-0 overflow-hidden rounded-lg border border-border">
-                            <img src=url2 alt=name1 class="h-16 w-16 object-cover hover:scale-105 transition-transform" loading="lazy" />
+                        <a href=url1 target="_blank" class="msg-thumb-link">
+                            <img src=url2 alt=name1 class="msg-thumb" loading="lazy" />
                         </a>
                     }
                 }).collect::<Vec<_>>();
                 let overflow = if imgs.len() > 4 {
                     let extra = imgs.len() - 4;
                     view! {
-                        <div class="flex h-16 w-16 items-center justify-center rounded-lg border border-border bg-surface text-xs text-secondary">
+                        <div class="msg-media-overflow">
                             <span>{"+"} {extra}</span> <span class="ml-0.5">"🖼"</span>
                         </div>
                     }.into_any()
@@ -281,7 +273,7 @@ pub fn MessageRow(
                     ().into_any()
                 };
                 view! {
-                    <div class="flex gap-2 overflow-x-auto">
+                    <div class="msg-media-row is-scroll">
                         {images_view}
                         {overflow}
                     </div>
@@ -296,13 +288,13 @@ pub fn MessageRow(
                 let videos_view = vids_local.iter().take(4).map(|a| {
                     let url = a.url.clone();
                     view! {
-                        <video src=url controls class="h-28 w-48 shrink-0 rounded-lg border border-border object-cover bg-black" preload="metadata"></video>
+                        <video src=url controls class="msg-video" preload="metadata"></video>
                     }
                 }).collect::<Vec<_>>();
                 let overflow = if vids.len() > 4 {
                     let extra = vids.len() - 4;
                     view! {
-                        <div class="flex h-28 w-16 items-center justify-center rounded-lg border border-border bg-surface text-xs text-secondary">
+                        <div class="msg-media-overflow tall">
                             <span>{"+"} {extra}</span> <span class="ml-0.5">"▶"</span>
                         </div>
                     }.into_any()
@@ -310,7 +302,7 @@ pub fn MessageRow(
                     ().into_any()
                 };
                 view! {
-                    <div class="flex gap-2 overflow-x-auto">
+                    <div class="msg-media-row is-scroll">
                         {videos_view}
                         {overflow}
                     </div>
@@ -323,7 +315,7 @@ pub fn MessageRow(
             {if !cats.is_empty() {
                 let cats_local = cats.clone();
                 view! {
-                    <div class="flex flex-wrap gap-1">
+                    <div class="msg-cats">
                         {cats_local.iter().map(|c| view! {
                             <span class="badge badge-secondary text-xs">{c.clone()}</span>
                         }).collect::<Vec<_>>()}
@@ -335,17 +327,17 @@ pub fn MessageRow(
 
             {/* AI Analysis */}
             {message.ai_analysis.as_ref().map(|analysis| {
-                let border_str = if ai_st == AiStatus::Flagged { "border-l-3 bg-warning/5" } else { "border-l-3 bg-success/5" };
+                let f_cls = if ai_st == AiStatus::Flagged { "flagged" } else { "clean" };
                 let icon = if ai_st == AiStatus::Flagged { "🚨" } else { "ℹ️" };
                 let analysis_summary_str = analysis_summary.clone();
                 let analysis_str = analysis.clone();
                 view! {
-                    <div class=format!("rounded-lg px-3 py-2 {}", border_str)>
-                        <div class="flex items-start gap-2 text-xs">
-                            <span class="mt-0.5 shrink-0">{icon}</span>
-                            <div class="min-w-0 flex-1">
-                                <span class="block font-medium mb-1">{analysis_summary_str}</span>
-                                <div class="text-xs leading-relaxed whitespace-pre-wrap">{analysis_str}</div>
+                    <div class=format!("msg-analysis {}", f_cls)>
+                        <div class="msg-analysis-row">
+                            <span class="msg-analysis-icon">{icon}</span>
+                            <div class="msg-analysis-body">
+                                <span class="msg-analysis-summary">{analysis_summary_str}</span>
+                                <div class="msg-analysis-text">{analysis_str}</div>
                             </div>
                         </div>
                     </div>
@@ -356,14 +348,14 @@ pub fn MessageRow(
             {message.ai_error.as_ref().map(|e| {
                 let error_str = e.clone();
                 view! {
-                    <div class="rounded-lg bg-warning/5 px-3 py-2 text-xs text-warning">
+                    <div class="msg-error">
                         <span>"AI error: "{error_str}</span>
                     </div>
                 }
             })}
 
             {/* Re-analyze */}
-            <div class="flex items-center gap-2">
+            <div class="msg-actions">
                 <button
                     class=format!("btn btn-sm {}", if ai_st == AiStatus::Error { "btn-destructive" } else { "btn-outline" })
                     on:click=on_click_re
@@ -373,7 +365,7 @@ pub fn MessageRow(
                     " Re-analyze"
                 </button>
                 {(ai_st == AiStatus::Error).then(|| view! {
-                    <span class="text-xs text-secondary/70">"Click to retry"</span>
+                    <span class="msg-retry-hint">"Click to retry"</span>
                 })}
             </div>
         </div>
@@ -404,39 +396,30 @@ pub fn MessageCard(
                 format!("# {}", c.channel_name.as_deref().unwrap_or("?"))
             }
         });
-    let card_cls = if deleted {
-        "border-destructive/20 opacity-60"
-    } else {
-        ""
-    };
+    let card_cls = if deleted { " is-deleted" } else { "" };
 
     view! {
-        <article class=format!("message-card shadow-sm transition-all {}", card_cls)>
-            <div class="flex gap-3 p-4">
-                <img src=avatar alt="" class="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-primary/30" />
-                <div class="min-w-0 flex-1">
-                    <div class="flex items-baseline gap-2 mb-2">
-                        <span class="font-semibold text-sm">{first.username.clone()}</span>
+        <article class=format!("msg-card{}", card_cls)>
+            <div class="msg-card-inner">
+                <img src=avatar alt="" class="msg-card-avatar" />
+                <div class="msg-card-body">
+                    <div class="msg-card-head">
+                        <span class="msg-card-name">{first.username.clone()}</span>
                         {loc_label.as_ref().map(|l| {
                             let label_str = l.clone();
                             view! {
-                                <span class="flex items-center gap-1 text-xs text-secondary/50 bg-surface/50 px-1.5 py-0.5 rounded-full">
-                                    "#" " " {label_str}
-                                </span>
+                                <span class="msg-card-channel">{label_str}</span>
                             }
                         })}
-                        <span class="text-xs text-secondary/60">
+                        <span class="msg-card-time">
                             {time_ago(first.created_at)}
                             {has_multi.then(|| format!(" · {} msgs", messages.len()))}
                         </span>
                     </div>
-                    <div class=if has_multi { "space-y-2.5" } else { "" }>
+                    <div class="msg-card-messages" class:separated=has_multi>
                         {messages.into_iter().enumerate().map(|(i, msg)| {
-                            let sep = has_multi && i > 0;
                             view! {
-                                <div class=if sep { "pt-2.5 border-t border-border/30" } else { "" }>
-                                    <MessageRow message=msg on_reanalyze=on_reanalyze.clone() />
-                                </div>
+                                <MessageRow message=msg on_reanalyze=on_reanalyze.clone() />
                             }
                         }).collect::<Vec<_>>()}
                     </div>
@@ -450,16 +433,16 @@ pub fn MessageCard(
 #[component]
 pub fn MessageCardSkeleton() -> impl IntoView {
     view! {
-        <article class="message-card">
-            <div class="flex gap-3 p-4">
-                <div class="skeleton skeleton-circular" style="width:40px;height:40px"></div>
-                <div class="min-w-0 flex-1 space-y-3">
-                    <div class="skeleton" style="height:20px;width:192px"></div>
-                    <div class="skeleton" style="height:16px;width:100%"></div>
-                    <div class="skeleton" style="height:16px;width:75%"></div>
-                    <div class="flex gap-2">
-                        <div class="skeleton" style="height:24px;width:64px;border-radius:9999px"></div>
-                        <div class="skeleton" style="height:24px;width:80px;border-radius:9999px"></div>
+        <article class="msg-card">
+            <div class="msg-skel">
+                <div class="msg-skel-avatar"></div>
+                <div class="msg-skel-lines">
+                    <div class="msg-skel-line" style="width:192px"></div>
+                    <div class="msg-skel-line" style="width:100%"></div>
+                    <div class="msg-skel-line" style="width:75%"></div>
+                    <div class="msg-skel-badges">
+                        <div class="msg-skel-badge" style="width:64px"></div>
+                        <div class="msg-skel-badge" style="width:80px"></div>
                     </div>
                 </div>
             </div>

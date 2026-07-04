@@ -80,12 +80,21 @@ pub fn use_messages() -> MessagesState {
 
                 match get_messages(&guild_id, Some(30), None, None).await {
                     Ok(PageResult { data, next_cursor }) => {
+                        web_sys::console::log_3(
+                            &"[messages] fetch OK".into(),
+                            &format!("count={}", data.len()).into(),
+                            &format!("cursor={:?}", next_cursor).into(),
+                        );
                         messages_signal.set(data);
                         cursor_signal.set(next_cursor);
                         current_guild_signal.set(Some(guild_id));
                         set_loading.set(false);
                     }
                     Err(e) => {
+                        web_sys::console::log_2(
+                            &"[messages] fetch ERROR".into(),
+                            &format!("{}", e).into(),
+                        );
                         error_signal.set(Some(format!("Failed to fetch messages: {}", e)));
                         set_loading.set(false);
                     }
