@@ -4,6 +4,7 @@ import express from "express";
 import { asyncHandler } from "../../shared/middlewares/index.js";
 import {
   handleGetAttachmentsByChannel,
+  handleGetImageMessages,
   handleGetMessageById,
   handleGetMessagesByChannel,
   handleListMessages,
@@ -30,6 +31,11 @@ const reanalyzeBatchInFlight = new Set<string>();
 
 export function createMessagesRouter(): Router {
   const router = express.Router();
+
+  // GET /api/messages/images - Get messages with image attachments
+  // MUST be registered BEFORE /messages/:channelId so "images" is not
+  // captured as a channelId param.
+  router.get("/messages/images", handleGetImageMessages);
 
   // GET /api/messages - List messages
   router.get("/messages", handleListMessages);

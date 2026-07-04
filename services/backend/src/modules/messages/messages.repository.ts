@@ -1,7 +1,7 @@
 import type { PageResult } from "@bete/shared";
 import { pgAttachmentsTable, pgMessagesTable } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
-import { and, desc, eq, inArray, lt, ne, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, like, lt, ne, type SQL } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/index.js";
 import { mapMessageRow } from "../../shared/utils/messageMapper.js";
 import type {
@@ -288,6 +288,43 @@ export class MessagesRepository {
       .where(eq(pgMessagesTable.id, id));
 
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async getImageMessages(
+    guildId: string,
+    limit: number = 50,
+  ): Promise<PageResult<ReturnType<typeof mapMessageRow>>> {
+    const db = getDatabase();
+
+    // Subquery: find distinct message_ids from attachments with image MIME type
+    const imageMsgIds = db
+      .select({ id: pgAttachmentsTable.message_id })
+      .from(pgAttachmentsTable)
+      .where(
+        and(
+          eq(pgAttachmentsTable.guild_id, guildId),
+          like(pgAttachmentsTable.type, "image/%"),
+        ),
+      )
+      .orderBy(desc(pgAttachmentsTable.created_at))
+      .limit(limit + 1);
+
+    // Fetch full message rows for those IDs
+    const rows = await db
+      .select()
+      .from(pgMessagesTable)
+      .where(inArray(pgMessagesTable.id, imageMsgIds))
+      .orderBy(desc(pgMessagesTable.created_at))
+      .limit(limit + 1);
+
+    const data = rows
+      .slice(0, limit)
+      .map((r) => mapMessageRow(r as Record<string, unknown>));
+    const nextCursor =
+      rows.length > limit ? String(rows[limit].created_at) : null;
+
+    logger.debug({ count: data.length, nextCursor }, "Found image messages");
+    return { data, nextCursor };
   }
 
   async getAttachmentsByChannel(

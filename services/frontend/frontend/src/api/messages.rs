@@ -41,6 +41,18 @@ pub async fn get_review_messages(
     request("GET", &path, None).await
 }
 
+/// GET /api/messages/images?guildId=&limit=
+pub async fn get_images(
+    guild_id: &str,
+    limit: Option<u32>,
+) -> Result<PageResult<MessageRecord>, ApiError> {
+    let mut path = format!("/api/messages/images?guildId={}", guild_id);
+    if let Some(l) = limit {
+        path.push_str(&format!("&limit={}", l));
+    }
+    request("GET", &path, None).await
+}
+
 /// GET /api/messages/detail/{id}
 pub async fn get_message_detail(id: &str) -> Result<Option<MessageRecord>, ApiError> {
     request("GET", &format!("/api/messages/detail/{}", id), None).await

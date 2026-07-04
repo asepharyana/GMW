@@ -46,6 +46,18 @@ export class MessagesService {
     return messagesRepository.getAttachmentsByChannel(channelId, query);
   }
 
+  async getImageMessages(
+    guildId: string,
+    limit?: number,
+  ): Promise<ReturnType<typeof messagesRepository.getImageMessages>> {
+    if (!guildId) {
+      throw new ValidationError("guildId is required");
+    }
+
+    logger.debug({ guildId, limit }, "Getting image messages");
+    return messagesRepository.getImageMessages(guildId, limit);
+  }
+
   async markForReanalysis(id: string): Promise<void> {
     if (!id) {
       throw new ValidationError("message ID is required");

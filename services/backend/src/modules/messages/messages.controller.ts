@@ -50,6 +50,24 @@ export function handleGetMessageById(
   })(req, res, next);
 }
 
+export function handleGetImageMessages(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const guildId = requireParam(
+      req.query.guildId as string,
+      "query parameter",
+      "guildId",
+    );
+    const limit = Number(req.query.limit) || 50;
+    logger.debug({ guildId, limit }, "Handling get image messages");
+    const result = await messagesService.getImageMessages(guildId, limit);
+    res.json(result);
+  })(req, res, next);
+}
+
 export function handleGetAttachmentsByChannel(
   req: Request,
   res: Response,

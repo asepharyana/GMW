@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use shared_types::message::{AiStatus, MessageRecord};
+use shared_types::message::{AiStatus, MessageRecord, PageResult};
 use std::sync::Arc;
 use wasm_bindgen_futures::spawn_local;
 
@@ -28,6 +28,7 @@ pub fn MessagesPanel() -> impl IntoView {
     let (is_searching, set_is_searching) = signal(false);
     let ai_filter = RwSignal::new("analyzed".to_string());
     let view_tab = RwSignal::new(ViewTab::All);
+    let image_messages = RwSignal::new(Vec::<MessageRecord>::new());
     let (retrying_all, set_retrying_all) = signal(false);
 
     // Stats derived from filtered messages
@@ -168,6 +169,41 @@ pub fn MessagesPanel() -> impl IntoView {
                 let gid = guild_id.clone();
                 (state.fetch_messages)(gid);
             }
+        }
+    });
+
+    // Fetch image messages when Images tab is selected
+    let fetch_images = {
+        move || {
+            spawn_local({
+                async move {
+                    if let Some(config) = use_context::<crate::app::AppConfig>() {
+                        if let Some(ref guild_id) = config.monitor_guild_id.get() {
+                            match crate::api::messages::get_images(guild_id, Some(100)).await {
+                                Ok(PageResult { data, .. }) => {
+                                    web_sys::console::log_2(
+                                        &"[images] fetch OK".into(),
+                                        &format!("count={}", data.len()).into(),
+                                    );
+                                    image_messages.set(data);
+                                }
+                                Err(e) => {
+                                    web_sys::console::log_2(
+                                        &"[images] fetch ERROR".into(),
+                                        &format!("{}", e).into(),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    };
+    // Fetch images when tab changes to Images
+    Effect::new(move |_| {
+        if view_tab.get() == ViewTab::Images {
+            fetch_images();
         }
     });
 
@@ -328,7 +364,7 @@ pub fn MessagesPanel() -> impl IntoView {
                 </div>
                 <div class="tab-content" style:display=move || if view_tab.get() == ViewTab::Images { "block" } else { "none" }>
                     {move || view! {
-                        <ImageGrid messages=filtered_messages.get() />
+                        <ImageGrid messages=image_messages.get() />
                     }}
                 </div>
             </div>
