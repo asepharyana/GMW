@@ -1,5 +1,6 @@
 // services/frontend-leptos/frontend/src/ws/context.rs
-use crate::ws::socket::{WsEvent, WsHandle, WsStatus};
+use crate::ws::connection::WsHandle;
+use crate::ws::handlers::{WsEvent, WsStatus};
 use leptos::prelude::*;
 use shared_types::media::MediaState;
 use shared_types::message::MessageRecord;

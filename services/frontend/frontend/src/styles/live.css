@@ -1,0 +1,300 @@
+/* ── Live Panel (Bento Grid) ──────────────────────────── */
+
+.live-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.live-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.live-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.live-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: var(--space-1);
+}
+
+/* ── Bento Grid ──────────────────────────────────────── */
+.live-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* 2-column bento layout */
+.live-bento {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.live-bento > .live-span-2 {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 768px) {
+  .live-bento { grid-template-columns: 1fr; }
+}
+
+/* ── Voice Connection Card ───────────────────────────── */
+.voice-connection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.voice-connection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.voice-connection-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.875rem;
+}
+
+.voice-connection-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.voice-connection-dot.connected { background: var(--color-success); box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
+.voice-connection-dot.connecting { background: var(--color-warning); animation: pulse-connecting 1s ease-in-out infinite; }
+.voice-connection-dot.disconnected { background: var(--text-tertiary); }
+
+/* ── Active Speakers ─────────────────────────────────── */
+.speak-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.speak-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+.speak-item:hover { background: var(--surface-hover); }
+
+.speak-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-container);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.speak-info { flex: 1; min-width: 0; }
+.speak-name { font-size: 0.8125rem; font-weight: 500; color: var(--text-primary); }
+.speak-status { font-size: 0.6875rem; color: var(--text-tertiary); }
+
+.speak-indicator {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.speak-bar {
+  width: 3px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--color-primary);
+  animation: bar-pulse 0.8s ease-in-out infinite;
+}
+.speak-bar:nth-child(2) { animation-delay: 0.1s; }
+.speak-bar:nth-child(3) { animation-delay: 0.2s; }
+.speak-bar:nth-child(4) { animation-delay: 0.3s; }
+.speak-bar:nth-child(5) { animation-delay: 0.4s; }
+
+@keyframes bar-pulse {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.5); }
+}
+
+/* ── Audio Visualizer ────────────────────────────────── */
+.audio-visualizer-canvas {
+  width: 100%;
+  height: 80px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-container);
+}
+
+/* ── Mic Level Meter ─────────────────────────────────── */
+.mic-level {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.mic-track {
+  position: relative;
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--surface-container);
+}
+.mic-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-primary);
+  transition: width 100ms ease;
+}
+.mic-clip {
+  position: absolute;
+  height: 100%;
+  width: 2px;
+  background: white;
+  right: 0;
+}
+
+/* ── Music Player / Now Playing ──────────────────────── */
+.np-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.np-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.np-tags {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.np-sep {
+  border-top: 1px solid var(--surface-border);
+  padding-top: var(--space-3);
+}
+
+.wave-wrap {
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+.wave-progress {
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--surface-container);
+  margin-bottom: var(--space-2);
+}
+.wave-bar {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-primary);
+  transition: width 200ms ease;
+}
+.wave-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.wave-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  max-width: 192px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wave-time {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
+/* ── Screen Share Panel ──────────────────────────────── */
+.scrn-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.scrn-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--color-success);
+}
+
+/* ── Recordings Panel ────────────────────────────────── */
+.rec-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.rec-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--surface-border);
+  transition: all var(--transition-fast);
+}
+.rec-item:hover {
+  background: var(--surface-hover);
+  border-color: var(--color-primary);
+  transform: translateX(4px);
+}
+.rec-info { flex: 1; min-width: 0; }
+.rec-name { font-size: 0.875rem; font-weight: 500; }
+.rec-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: var(--space-1);
+}
+.rec-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
+}
+.rec-footer { margin-top: var(--space-3); text-align: center; }
+.rec-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  gap: var(--space-2);
+}
+
+.music-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

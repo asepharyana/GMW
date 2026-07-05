@@ -1,4 +1,3 @@
-// services/frontend-leptos/frontend/src/auth.rs
 use crate::api::auth as auth_api;
 use crate::app::AuthContext;
 use crate::app::UiContext;
@@ -36,7 +35,6 @@ pub fn AuthOverlay() -> impl IntoView {
             match auth_api::login(&pwd_clone).await {
                 Ok(true) => {
                     log_info!("Auth login successful");
-                    // Store password in sessionStorage
                     if let Some(storage) = web_sys::window()
                         .and_then(|w| w.local_storage().ok())
                         .flatten()
@@ -71,8 +69,8 @@ pub fn AuthOverlay() -> impl IntoView {
             <div class="modal-content auth-box" on:click=move |ev| ev.stop_propagation()>
                 <div class="modal-body" style="position:relative">
                     <button
+                        class="auth-close-btn"
                         on:click=skip_dismiss
-                        style="position:absolute;top:0;right:0;background:none;border:none;color:var(--text-tertiary);font-size:1.25rem;cursor:pointer;padding:0.25rem;line-height:1"
                         title="Tutup"
                     >"×"</button>
                     <div class="auth-lock">
@@ -104,7 +102,6 @@ pub fn AuthOverlay() -> impl IntoView {
                         <button
                             on:click=skip_dismiss
                             class="btn btn-ghost btn-sm"
-                            style="width:100%"
                         >
                             "Lihat dashboard saja"
                         </button>

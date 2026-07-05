@@ -1,4 +1,5 @@
-// services/frontend-leptos/frontend/src/ws/socket.rs
+// services/frontend-leptos/frontend/src/ws/connection.rs
+use crate::ws::handlers::{WsEvent, WsStatus};
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -6,20 +7,6 @@ use web_sys::{CloseEvent, ErrorEvent, MessageEvent, WebSocket};
 use crate::{log_debug, log_error, log_info, log_trace, log_warn, make_logger};
 
 make_logger!();
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum WsStatus {
-    Disconnected,
-    Connecting,
-    Connected,
-    Error(String),
-}
-
-#[derive(Debug, Clone)]
-pub enum WsEvent {
-    Text(String),
-    Binary(Vec<u8>),
-}
 
 #[allow(clippy::type_complexity)]
 pub struct WsHandle {

@@ -1,0 +1,128 @@
+/* ── Design Tokens — IMPHNEN Neuform Dark ────────────── *
+ *  Dark default (no attribute selector)                   *
+ *  Light: [data-theme="light"]                            *
+ * ──────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Surfaces ──────────────────────────────────── */
+  --surface-base: #050510;
+  --surface-raised: #0a0a1a;
+  --surface-overlay: #12122a;
+  --surface-container: #1a1a35;
+  --surface-border: rgba(255, 255, 255, 0.06);
+  --surface-hover: rgba(59, 130, 246, 0.06);
+  --surface-glass: rgba(5, 5, 16, 0.78);
+
+  /* ── Text ──────────────────────────────────────── */
+  --text-primary: #f1f1f9;
+  --text-secondary: #9d9db5;
+  --text-tertiary: #5c5c78;
+  --text-inverse: #050510;
+
+  /* ── Brand ─────────────────────────────────────── */
+  --color-primary: #3b82f6;
+  --color-primary-hover: #60a5fa;
+  --color-primary-active: #2563eb;
+  --color-primary-muted: rgba(59, 130, 246, 0.12);
+  --gradient-primary: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  --gradient-brand: linear-gradient(135deg, #3b82f6 0%, #5865f2 50%, #6366f1 100%);
+
+  /* ── Semantics ─────────────────────────────────── */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+  --color-destructive: #ef4444;
+
+  /* ── AI Status ─────────────────────────────────── */
+  --color-ai-flagged: #ef4444;
+  --color-ai-clean: #10b981;
+  --color-ai-warn: #f59e0b;
+  --color-ai-pending: #5c5c78;
+  --color-ai-processing: #3b82f6;
+  --color-ai-error: #dc2626;
+  --color-ai-deleted: #6b7280;
+
+  /* ── Shadows ───────────────────────────────────── */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4);
+
+  /* ── Radii ─────────────────────────────────────── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 23px;
+  --radius-pill: 9999px;
+
+  /* ── Spacing ───────────────────────────────────── */
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ── Layout ────────────────────────────────────── */
+  --sidebar-width: 240px;
+  --header-height: 0px;
+
+  /* ── Transitions ───────────────────────────────── */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Z-index ───────────────────────────────────── */
+  --z-sidebar: 30;
+  --z-header: 40;
+  --z-overlay: 50;
+  --z-modal: 60;
+  --z-toast: 70;
+}
+
+/* ── Light Theme ──────────────────────────────────────── */
+[data-theme="light"] {
+  --surface-base: #f4f6fb;
+  --surface-raised: #ffffff;
+  --surface-overlay: #eeeff4;
+  --surface-container: #dde0e8;
+  --surface-border: rgba(0, 0, 0, 0.06);
+  --surface-hover: rgba(37, 99, 235, 0.05);
+  --surface-glass: rgba(255, 255, 255, 0.72);
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --text-inverse: #ffffff;
+
+  --color-primary: #2563eb;
+  --color-primary-hover: #3b82f6;
+  --color-primary-active: #1d4ed8;
+  --color-primary-muted: rgba(37, 99, 235, 0.1);
+  --gradient-primary: linear-gradient(135deg, #2563eb 0%, #6366f1 100%);
+  --gradient-brand: linear-gradient(135deg, #2563eb 0%, #5865f2 50%, #6366f1 100%);
+
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #2563eb;
+  --color-destructive: #ef4444;
+
+  --color-ai-flagged: #ef4444;
+  --color-ai-clean: #10b981;
+  --color-ai-warn: #f59e0b;
+  --color-ai-pending: #94a3b8;
+  --color-ai-processing: #2563eb;
+  --color-ai-error: #dc2626;
+  --color-ai-deleted: #6b7280;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08);
+}

@@ -1,6 +1,6 @@
 // services/frontend-leptos/frontend/src/layout/header.rs
 use crate::ws::context::WsContext;
-use crate::ws::socket::WsStatus;
+use crate::ws::handlers::WsStatus;
 use leptos::prelude::*;
 
 

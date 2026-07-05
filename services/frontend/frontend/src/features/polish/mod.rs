@@ -15,7 +15,7 @@ pub fn initial_theme() -> String {
         .and_then(|window| window.local_storage().ok().flatten())
         .and_then(|storage| storage.get_item("imphnen-theme").ok().flatten())
         .filter(|value| value == "dark" || value == "light")
-        .unwrap_or_else(|| "light".to_string());
+        .unwrap_or_else(|| "dark".to_string());
     log_info!("Initial theme resolved: {}", theme);
     theme
 }
