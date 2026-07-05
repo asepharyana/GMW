@@ -298,3 +298,19 @@
   flex-direction: column;
   gap: var(--space-2);
 }
+
+/* ── Legacy aliases ──────────────────────────────────── */
+.live-panel { display: flex; flex-direction: column; gap: var(--space-6); }
+.live-grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+.recordings-sub-panel { overflow: hidden; }
+
+.audio-visualizer { display: flex; align-items: flex-end; justify-content: center; height: 80px; gap: 2px; padding: var(--space-2); }
+.audio-visualizer-bars { display: flex; align-items: flex-end; gap: 2px; height: 100%; width: 100%; }
+.audio-bar { width: 8px; background: var(--gradient-primary); border-radius: var(--radius-sm) var(--radius-sm) 0 0; transition: height 100ms ease; }
+
+.mic-level-meter { display: flex; flex-direction: column; gap: var(--space-2); }
+.mic-row { display: flex; align-items: center; gap: var(--space-2); }
+
+@media (max-width: 1024px) { .live-grid-3 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 768px) { .live-grid-3 { grid-template-columns: 1fr; } }

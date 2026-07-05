@@ -189,3 +189,16 @@
   .dashboard-stats-grid { grid-template-columns: 1fr; }
   .dashboard-wide-card { grid-column: span 1; }
 }
+
+/* ── Legacy aliases ──────────────────────────────────── */
+.dashboard-stats { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.dashboard-top-channels, .dashboard-summary-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.dashboard-top-channel-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--surface-container); color: var(--text-secondary); font-size: 0.875rem; transition: all var(--transition-fast); }
+.dashboard-top-channel-row:hover { background: var(--surface-overlay); transform: translateX(2px); }
+.dashboard-moderation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.dashboard-queue-value { font-size: 1.75rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.03em; }
+.dashboard-queue-label { margin-top: var(--space-1); color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.dashboard-list-card { overflow: hidden; }
+.dashboard-list-toolbar { margin-bottom: var(--space-4); }
+
+.badge-secondary { background: var(--color-primary-muted); color: var(--color-primary); }

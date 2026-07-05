@@ -1,0 +1,543 @@
+/* ── Animations — Live Dashboard Effects ──────────────── *
+ *  Keyframes, applied animations, and utility classes.    *
+ *  Respects prefers-reduced-motion.                       *
+ * ──────────────────────────────────────────────────────── */
+
+/* ════════════════════════════════════════════════════════
+   1. KEYFRAMES
+   ════════════════════════════════════════════════════════ */
+
+/* ── Entry / Reveal ─────────────────────────────────── */
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-bounce {
+  0%   { opacity: 0; transform: scale(0.85); }
+  60%  { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.8); }
+  70%  { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* ── Status / Alive ─────────────────────────────────── */
+@keyframes breathe {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 4px currentColor; }
+  50%      { opacity: 0.6; transform: scale(1.2); box-shadow: 0 0 14px currentColor; }
+}
+
+@keyframes breathe-soft {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+@keyframes ring-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  70%  { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+@keyframes ring-pulse-success {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  70%  { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes ring-pulse-error {
+  0%   { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70%  { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+@keyframes processing-sweep {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes live-indicator {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+  50%      { opacity: 0.7; box-shadow: 0 0 16px rgba(239, 68, 68, 0.7); }
+}
+
+/* ── Ambient / Decorative ───────────────────────────── */
+/* Slow breathing for background glow layers */
+@keyframes ambient-glow {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+}
+
+/* Dynamic mesh drift — shifts gradient center positions */
+@keyframes bg-mesh-drift {
+  0%   { background-position: 0% 0%, 100% 100%, 50% 50%; }
+  25%  { background-position: 30% 20%, 70% 80%, 20% 60%; }
+  50%  { background-position: 60% 10%, 40% 60%, 80% 30%; }
+  75%  { background-position: 20% 60%, 80% 20%, 40% 80%; }
+  100% { background-position: 0% 0%, 100% 100%, 50% 50%; }
+}
+
+/* Slow hue rotation for orb glow */
+@keyframes hue-rotate-slow {
+  0%   { filter: hue-rotate(0deg); }
+  50%  { filter: hue-rotate(30deg); }
+  100% { filter: hue-rotate(0deg); }
+}
+
+/* Orb size pulsing */
+@keyframes orb-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50%      { transform: scale(1.08); opacity: 0.6; }
+}
+
+/* Expanded orb drift — wider, slower, organic */
+@keyframes orb-drift-enhanced {
+  0%   { transform: translate(0, 0) scale(1); }
+  20%  { transform: translate(80px, -50px) scale(1.1); }
+  40%  { transform: translate(-50px, 70px) scale(0.9); }
+  60%  { transform: translate(100px, 30px) scale(1.05); }
+  80%  { transform: translate(-70px, -60px) scale(0.95); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+/* Grain/noise texture shifting */
+@keyframes grain-shift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  10% { transform: translate(-5%, -5%) rotate(0.5deg); }
+  20% { transform: translate(-10%, 0%) rotate(-0.5deg); }
+  30% { transform: translate(0%, 5%) rotate(1deg); }
+  40% { transform: translate(5%, -3%) rotate(-0.3deg); }
+  50% { transform: translate(-3%, -8%) rotate(0.8deg); }
+  60% { transform: translate(8%, 3%) rotate(-0.6deg); }
+  70% { transform: translate(-6%, 6%) rotate(0.4deg); }
+  80% { transform: translate(4%, -6%) rotate(-0.7deg); }
+  90% { transform: translate(-2%, 2%) rotate(0.2deg); }
+}
+
+@keyframes gradient-shimmer {
+  0%   { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes float-variation {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-8px) rotate(1.5deg); }
+  66% { transform: translateY(-4px) rotate(-1deg); }
+}
+
+@keyframes fade-in-down {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Interactive ────────────────────────────────────── */
+@keyframes glow-border {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+  50%      { box-shadow: 0 0 12px 1px rgba(59, 130, 246, 0.15); }
+}
+
+@keyframes ripple {
+  0%   { transform: scale(0); opacity: 0.6; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+/* ── Bar pulses (audio / visualizer) ────────────────── */
+@keyframes bar-pulse-1 {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.4); }
+}
+@keyframes bar-pulse-2 {
+  0%, 100% { transform: scaleY(0.5); }
+  50% { transform: scaleY(1.2); }
+}
+@keyframes bar-pulse-3 {
+  0%, 100% { transform: scaleY(0.7); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+
+/* ════════════════════════════════════════════════════════
+   2. UTILITY ANIMATION CLASSES
+   Use these in Rust components: class="animate-breathe"
+   ════════════════════════════════════════════════════════ */
+
+.animate-breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+.animate-breathe-soft {
+  animation: breathe-soft 2s ease-in-out infinite;
+}
+
+.animate-ring-pulse {
+  animation: ring-pulse 2s ease-in-out infinite;
+}
+
+.animate-live-indicator {
+  animation: live-indicator 1.5s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float-variation 5s ease-in-out infinite;
+}
+
+.animate-gradient-shimmer {
+  background-size: 200% 100%;
+  animation: gradient-shimmer 4s ease-in-out infinite alternate;
+}
+
+.animate-spin-slow {
+  animation: spin 3s linear infinite;
+}
+
+.animate-pulse-connecting {
+  animation: pulse-connecting 1s ease-in-out infinite;
+}
+
+.animate-scale-bounce {
+  animation: scale-bounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-pop-in {
+  animation: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-fade-in-down {
+  animation: fade-in-down var(--transition-normal) ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left var(--transition-normal) ease-out;
+}
+
+.animate-count-up {
+  animation: count-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-shimmer-sweep {
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(59, 130, 246, 0.08) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: processing-sweep 1.5s ease-in-out infinite;
+}
+
+
+/* ════════════════════════════════════════════════════════
+   3. APPLIED ANIMATIONS — auto-wired to selectors
+   ════════════════════════════════════════════════════════ */
+
+/* ── Ambient animated mesh background ────────────────── */
+.app-shell::before {
+  content: '';
+  position: fixed;
+  inset: -50%;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(59, 130, 246, 0.06) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 70%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
+    radial-gradient(ellipse at 40% 80%, rgba(16, 185, 129, 0.03) 0%, transparent 40%),
+    radial-gradient(ellipse at 60% 20%, rgba(245, 158, 11, 0.02) 0%, transparent 40%);
+  background-size: 200% 200%, 200% 200%, 200% 200%, 200% 200%;
+  animation: bg-mesh-drift 20s ease-in-out infinite alternate;
+  will-change: background-position;
+}
+
+/* ── Subtle noise/grain texture overlay ─────────────── */
+.app-shell::after {
+  content: '';
+  position: fixed;
+  inset: -50%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+  animation: grain-shift 0.5s steps(4) infinite;
+  will-change: transform;
+}
+
+/* ── Light theme mesh adjustment ────────────────────── */
+[data-theme="light"] .app-shell::before {
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(37, 99, 235, 0.04) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 70%, rgba(99, 102, 241, 0.04) 0%, transparent 40%),
+    radial-gradient(ellipse at 40% 80%, rgba(16, 185, 129, 0.03) 0%, transparent 40%),
+    radial-gradient(ellipse at 60% 20%, rgba(245, 158, 11, 0.02) 0%, transparent 40%);
+}
+[data-theme="light"] .app-shell::after {
+  opacity: 0.008;
+}
+
+/* ── Gradient text shimmer (brand elements) ─────────── */
+.sidebar-brand-name,
+.live-title,
+.auth-title {
+  background-size: 200% 100%;
+  animation: gradient-shimmer 6s ease-in-out infinite alternate;
+}
+
+/* ── Connected status dot: alive breath ─────────────── */
+.status-dot,
+.voice-connection-dot.connected {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+/* Keep existing connecting animation (overrides above) */
+.status-dot.is-connecting,
+.voice-connection-dot.connecting {
+  animation: pulse-connecting 1s ease-in-out infinite !important;
+}
+
+.status-dot.disconnected,
+.voice-connection-dot.disconnected {
+  animation: none !important;
+}
+
+/* ── Live indicator (red recording dot) ─────────────── */
+.msg-card-ai-badge.flagged::before,
+.msg-analysis.flagged::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-error);
+  margin-right: 4px;
+  vertical-align: middle;
+  animation: live-indicator 1.5s ease-in-out infinite;
+}
+
+/* ── Particle orbs: ambient breathing overlay ───────── */
+.particle-bg {
+  animation: ambient-glow 6s ease-in-out infinite alternate;
+}
+
+/* ── Live bento grid: staggered entry ───────────────── */
+.live-bento > * {
+  animation: fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.live-bento > :nth-child(1) { animation-delay: 0.03s; }
+.live-bento > :nth-child(2) { animation-delay: 0.06s; }
+.live-bento > :nth-child(3) { animation-delay: 0.09s; }
+.live-bento > :nth-child(4) { animation-delay: 0.12s; }
+.live-bento > :nth-child(5) { animation-delay: 0.15s; }
+.live-bento > :nth-child(6) { animation-delay: 0.18s; }
+
+/* ── Dashboard metric cards: staggered entry ────────── */
+.dashboard-metric-card {
+  animation: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.dashboard-metric-card:nth-child(1) { animation-delay: 0.04s; }
+.dashboard-metric-card:nth-child(2) { animation-delay: 0.08s; }
+.dashboard-metric-card:nth-child(3) { animation-delay: 0.12s; }
+.dashboard-metric-card:nth-child(4) { animation-delay: 0.16s; }
+.dashboard-metric-card:nth-child(5) { animation-delay: 0.20s; }
+.dashboard-metric-card:nth-child(6) { animation-delay: 0.24s; }
+.dashboard-metric-card:nth-child(7) { animation-delay: 0.28s; }
+.dashboard-metric-card:nth-child(8) { animation-delay: 0.32s; }
+
+/* ── Dashboard rows: staggered fade-in ──────────────── */
+.dashboard-summary-row,
+.dashboard-top-channel-row {
+  animation: fade-in 0.4s ease-out both;
+}
+.dashboard-summary-row:nth-child(1), .dashboard-top-channel-row:nth-child(1) { animation-delay: 0.02s; }
+.dashboard-summary-row:nth-child(2), .dashboard-top-channel-row:nth-child(2) { animation-delay: 0.04s; }
+.dashboard-summary-row:nth-child(3), .dashboard-top-channel-row:nth-child(3) { animation-delay: 0.06s; }
+.dashboard-summary-row:nth-child(4), .dashboard-top-channel-row:nth-child(4) { animation-delay: 0.08s; }
+.dashboard-summary-row:nth-child(5), .dashboard-top-channel-row:nth-child(5) { animation-delay: 0.10s; }
+.dashboard-summary-row:nth-child(6), .dashboard-top-channel-row:nth-child(6) { animation-delay: 0.12s; }
+.dashboard-summary-row:nth-child(7), .dashboard-top-channel-row:nth-child(7) { animation-delay: 0.14s; }
+.dashboard-summary-row:nth-child(8), .dashboard-top-channel-row:nth-child(8) { animation-delay: 0.16s; }
+.dashboard-summary-row:nth-child(9), .dashboard-top-channel-row:nth-child(9) { animation-delay: 0.18s; }
+.dashboard-summary-row:nth-child(10),.dashboard-top-channel-row:nth-child(10) { animation-delay: 0.20s; }
+
+/* ── Message cards: staggered entry ─────────────────── */
+.msg-card {
+  animation: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.msg-card:nth-child(1) { animation-delay: 0.02s; }
+.msg-card:nth-child(2) { animation-delay: 0.05s; }
+.msg-card:nth-child(3) { animation-delay: 0.08s; }
+.msg-card:nth-child(4) { animation-delay: 0.11s; }
+.msg-card:nth-child(5) { animation-delay: 0.14s; }
+.msg-card:nth-child(6) { animation-delay: 0.17s; }
+.msg-card:nth-child(7) { animation-delay: 0.20s; }
+.msg-card:nth-child(8) { animation-delay: 0.23s; }
+.msg-card:nth-child(9) { animation-delay: 0.26s; }
+.msg-card:nth-child(10) { animation-delay: 0.29s; }
+
+/* ── Recording items: slide in from left ────────────── */
+.rec-item {
+  animation: slide-in-left 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.rec-item:nth-child(1) { animation-delay: 0.02s; }
+.rec-item:nth-child(2) { animation-delay: 0.06s; }
+.rec-item:nth-child(3) { animation-delay: 0.10s; }
+.rec-item:nth-child(4) { animation-delay: 0.14s; }
+.rec-item:nth-child(5) { animation-delay: 0.18s; }
+
+/* ── Speaker items: pop in ──────────────────────────── */
+.speak-item {
+  animation: fade-in 0.3s ease-out both;
+}
+.speak-item:nth-child(1) { animation-delay: 0.02s; }
+.speak-item:nth-child(2) { animation-delay: 0.05s; }
+.speak-item:nth-child(3) { animation-delay: 0.08s; }
+.speak-item:nth-child(4) { animation-delay: 0.11s; }
+.speak-item:nth-child(5) { animation-delay: 0.14s; }
+
+/* ── Audio visualizer bars: individual timing ───────── */
+.audio-bar {
+  animation: bar-pulse-2 1.2s ease-in-out infinite;
+}
+.audio-bar:nth-child(odd) {
+  animation-name: bar-pulse-1;
+  animation-duration: 0.9s;
+}
+.audio-bar:nth-child(3n) {
+  animation-name: bar-pulse-3;
+  animation-duration: 1.5s;
+}
+
+/* ── Interactive cards: hover glow effect ────────────── */
+.card-interactive:hover {
+  animation: glow-border 0.8s ease-in-out;
+  border-color: var(--color-primary);
+}
+
+/* ── Nav active indicator: continuous subtle glow ───── */
+.sidebar-nav-item.is-active::after {
+  animation: indicator-grow 250ms cubic-bezier(0.16, 1, 0.3, 1) both,
+             breathe-soft 3s ease-in-out 0.3s infinite;
+}
+
+/* ── Filter chip active: pop scale ──────────────────── */
+.filter-chip-v2.is-active {
+  animation: pop-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── AI badge processing: shimmer sweep ─────────────── */
+.msg-card-ai-badge.processing,
+.status-badge-processing {
+  background: linear-gradient(
+    110deg,
+    var(--color-primary-muted) 25%,
+    rgba(59, 130, 246, 0.35) 50%,
+    var(--color-primary-muted) 75%
+  ) !important;
+  background-size: 200% 100% !important;
+  animation: processing-sweep 1.4s ease-in-out infinite;
+}
+.status-badge-processing::before {
+  animation: ring-pulse 1.2s ease-in-out infinite !important;
+}
+
+/* ── Image grid items: reveal ───────────────────────── */
+.image-grid-item {
+  animation: fade-in 0.4s ease-out both;
+}
+.image-grid-item:nth-child(1) { animation-delay: 0.02s; }
+.image-grid-item:nth-child(2) { animation-delay: 0.05s; }
+.image-grid-item:nth-child(3) { animation-delay: 0.08s; }
+.image-grid-item:nth-child(4) { animation-delay: 0.11s; }
+.image-grid-item:nth-child(5) { animation-delay: 0.14s; }
+.image-grid-item:nth-child(6) { animation-delay: 0.17s; }
+.image-grid-item:nth-child(7) { animation-delay: 0.20s; }
+.image-grid-item:nth-child(8) { animation-delay: 0.23s; }
+
+/* ── Dashboard queue value: count-up feel ───────────── */
+.dashboard-queue-value {
+  animation: count-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Voice connection panel: entry ──────────────────── */
+.voice-connection {
+  animation: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Now playing: slide in ──────────────────────────── */
+.np-body {
+  animation: slide-in-left 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Skeleton: enhanced shimmer ─────────────────────── */
+.skeleton,
+.msg-skel-avatar,
+.msg-skel-line,
+.msg-skel-badge,
+.dashboard-skel-avatar,
+.dashboard-skel-line {
+  background: linear-gradient(
+    110deg,
+    var(--surface-container) 28%,
+    rgba(59, 130, 246, 0.06) 48%,
+    var(--surface-container) 68%
+  ) !important;
+  background-size: 200% 100% !important;
+}
+
+/* ── Tab content: stronger entry ────────────────────── */
+.tab-content {
+  animation: fade-in-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Mobile tab active: subtle indicator ────────────── */
+.mobile-tab-item.is-active {
+  animation: pop-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Mascot launcher: enhanced float ────────────────── */
+.mascot-launcher {
+  animation: float-variation 5s ease-in-out infinite;
+}
+.mascot-launcher:hover {
+  animation: none !important;
+}
+
+/* ── Empty state icons: subtle float ────────────────── */
+.empty-state-icon {
+  animation: float-variation 6s ease-in-out infinite;
+}
+
+/* ── Recent message action buttons ──────────────────── */
+.btn-icon-sm:active:not(:disabled),
+.btn-icon:active:not(:disabled) {
+  animation: ripple 0.4s ease-out;
+}
+
+/* ── Small decorative: channel list rows ────────────── */
+.dashboard-top-channel-row:hover {
+  animation: none; /* Keep the existing hover translateX */
+}
+
+
+/* ════════════════════════════════════════════════════════
+   4. RESPECT REDUCED MOTION
+   ════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

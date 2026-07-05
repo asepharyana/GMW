@@ -45,6 +45,29 @@ pub struct MessageMetadata {
     pub embeds: Option<Vec<EmbedInfo>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channel: Option<ChannelRef>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference: Option<ReferenceInfo>,
+}
+
+/// Information about a referenced (replied-to) message.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceInfo {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guild_id: Option<String>,
+    #[serde(rename = "type")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ref_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replied_username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replied_user_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -197,6 +220,8 @@ pub struct MessageRecord {
     pub channel_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thread_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference_message_id: Option<String>,
     pub user_id: String,
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -206,6 +231,10 @@ pub struct MessageRecord {
     pub edited_content: Option<String>,
     #[serde(rename = "type")]
     pub msg_type: String, // "text" | "edited" | "deleted"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_reply: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_forward: Option<bool>,
     pub created_at: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub edited_at: Option<i64>,

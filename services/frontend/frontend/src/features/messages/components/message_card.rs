@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use shared_types::message::{AiSeverity, AiStatus, AttachmentRef, MessageRecord};
+use shared_types::message::{AiSeverity, AiStatus, AttachmentRef, MessageRecord, ReferenceInfo};
 use std::sync::Arc;
 
 use super::message_actions::ReanalyzeButton;
@@ -79,6 +79,39 @@ pub fn MessageRow(
         .cloned()
         .unwrap_or_default();
 
+    // Extract reply info before view! to avoid closure capture issues
+    let reply_el = message.is_reply.unwrap_or(false).then(|| {
+        message
+            .metadata
+            .as_ref()
+            .and_then(|m| m.reference.as_ref())
+            .map(|ref_info| {
+                let r_user = ref_info.replied_username.as_deref().unwrap_or("unknown").to_string();
+                let r_content = ref_info
+                    .content
+                    .as_deref()
+                    .unwrap_or("")
+                    .to_string();
+                (r_user, r_content)
+            })
+    });
+    let reply_user = reply_el.as_ref().map(|r| r.as_ref().map(|(u, _)| u.clone()));
+    let reply_user = reply_user.flatten();
+    let reply_content = reply_el.as_ref().map(|r| r.as_ref().map(|(_, c)| c.clone()));
+    let reply_content = reply_content.flatten();
+    let reply_content_snippet = reply_content.as_ref().map(|c| {
+        if c.len() > 48 {
+            format!("{}…", &c[..48])
+        } else {
+            c.clone()
+        }
+    });
+    let reply_initial = reply_user
+        .as_ref()
+        .and_then(|u| u.chars().next())
+        .map(|c| c.to_uppercase().to_string())
+        .unwrap_or_else(|| "?".to_string());
+
     view! {
         <div class="msg-row">
             {/* Header */}
@@ -103,6 +136,29 @@ pub fn MessageRow(
                     })}
                 </div>
             </div>
+
+            {/* Reply indicator — Discord-style reference block */}
+            {reply_user.as_ref().map(|r_user| {
+                let r_user_cloned = r_user.clone();
+                let snippet = reply_content_snippet.clone();
+                let initial = reply_initial.clone();
+                view! {
+                    <div class="msg-row-reply">
+                        <div class="msg-row-reply-line"></div>
+                        <div class="msg-row-reply-main">
+                            <span class="msg-row-reply-avatar">{initial}</span>
+                            <span class="msg-row-reply-label">"Replying to"</span>
+                            <span class="msg-row-reply-user">"@" {r_user_cloned}</span>
+                            {(!snippet.as_deref().unwrap_or("").is_empty()).then(|| {
+                                let s = snippet.unwrap_or_default();
+                                view! {
+                                    <span class="msg-row-reply-snippet">{s}</span>
+                                }
+                            })}
+                        </div>
+                    </div>
+                }
+            })}
 
             {/* Content */}
             {show.then(|| {

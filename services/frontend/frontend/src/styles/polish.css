@@ -11,50 +11,63 @@
 .particle-orb {
   position: absolute;
   border-radius: 50%;
-  opacity: 0.5;
-  will-change: transform;
+  will-change: transform, filter;
 }
 .particle-orb:nth-child(1) {
   width: 600px; height: 600px;
   top: -200px; right: -150px;
-  background: radial-gradient(circle, var(--color-primary) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.5) 0%, transparent 70%);
   filter: blur(100px);
-  animation: orb-drift 25s ease-in-out infinite;
+  animation: orb-drift-enhanced 30s ease-in-out infinite,
+             hue-rotate-slow 12s ease-in-out infinite,
+             orb-pulse 8s ease-in-out infinite;
 }
 .particle-orb:nth-child(2) {
   width: 500px; height: 500px;
   bottom: -150px; left: -150px;
-  background: radial-gradient(circle, #5865f2 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.5) 0%, transparent 70%);
   filter: blur(100px);
-  animation: orb-drift 30s ease-in-out infinite reverse;
+  animation: orb-drift-enhanced 35s ease-in-out infinite reverse,
+             hue-rotate-slow 14s ease-in-out infinite reverse,
+             orb-pulse 10s ease-in-out infinite;
+  animation-delay: -5s;
 }
 .particle-orb:nth-child(3) {
   width: 350px; height: 350px;
   top: 40%; left: 60%;
-  background: radial-gradient(circle, #6366f1 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%);
   filter: blur(100px);
-  animation: orb-drift 35s ease-in-out infinite;
-  animation-delay: -8s;
+  animation: orb-drift-enhanced 40s ease-in-out infinite,
+             hue-rotate-slow 16s ease-in-out infinite,
+             orb-pulse 6s ease-in-out infinite;
+  animation-delay: -10s;
 }
 .particle-orb:nth-child(4) {
   width: 250px; height: 250px;
   top: 10%; left: 20%;
-  background: radial-gradient(circle, var(--color-success) 0%, transparent 70%);
-  opacity: 0.3;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.4) 0%, transparent 70%);
   filter: blur(100px);
-  animation: orb-drift 20s ease-in-out infinite;
+  animation: orb-drift-enhanced 25s ease-in-out infinite reverse,
+             hue-rotate-slow 18s ease-in-out infinite,
+             orb-pulse 12s ease-in-out infinite;
   animation-delay: -3s;
 }
 
-@keyframes orb-drift {
-  0% { transform: translate(0, 0); }
-  25% { transform: translate(40px, -30px); }
-  50% { transform: translate(-30px, 20px); }
-  75% { transform: translate(20px, -40px); }
-  100% { transform: translate(0, 0); }
+.particle-orb:nth-child(5) {
+  width: 180px; height: 180px;
+  top: 70%; left: 30%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.35) 0%, transparent 70%);
+  filter: blur(80px);
+  animation: orb-drift-enhanced 20s ease-in-out infinite,
+             hue-rotate-slow 10s ease-in-out infinite,
+             orb-pulse 5s ease-in-out infinite;
+  animation-delay: -7s;
 }
 
-@media (max-width: 768px) { .particle-bg { display: none; } }
+@media (max-width: 768px) {
+  .particle-bg { display: none; }
+  .app-shell::after { display: none; }
+}
 
 /* ── Theme Toggle ────────────────────────────────────── */
 .theme-toggle-btn {
