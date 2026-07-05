@@ -122,7 +122,9 @@ if $DO_BUILD; then
 
   if $DO_FRONTEND; then
     log "Building frontend (WASM)..."
-    pnpm --filter frontend run build 2>&1 | tail -5 || die "Frontend build failed"
+    cd services/frontend/frontend
+    trunk build --release 2>&1 | tail -5 || die "Frontend build failed"
+    cd "$REPO_ROOT"
     ok "Frontend built"
   fi
 
