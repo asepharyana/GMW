@@ -20,6 +20,10 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    volumes:
+      # Bind mount for hot-deploy frontend — deploy.sh writes here,
+      # survives container restart. The image default serves as fallback.
+      - ./frontend-dist:/usr/share/nginx/html
     deploy:
       resources:
         limits:
@@ -37,6 +41,10 @@ services:
     environment:
       NODE_ENV: production
       WEBSERVER_PORT: 3000
+    volumes:
+      # Bind mount for hot-deploy backend JS — deploy.sh writes here,
+      # survives container restart.
+      - ./backend-dist:/app/services/backend/dist
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
       interval: 30s
@@ -61,6 +69,9 @@ services:
       NODE_ENV: production
     volumes:
       - ./recordings:/app/recordings
+      # Bind mount for hot-deploy gateway JS — deploy.sh writes here,
+      # survives container restart.
+      - ./gateway-dist:/app/services/discord-gateway/dist
     healthcheck:
       test: ["CMD-SHELL", "kill -0 1 || exit 1"]
       interval: 30s

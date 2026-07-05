@@ -1,22 +1,31 @@
 #!/bin/bash
 # ─── Bete Deploy Script ──────────────────────────────────────────────────────
-# Builds + deploys frontend (WASM) and backend (TypeScript) to VPS containers.
+# Builds all services locally and deploys compiled JS/WASM to the VPS via
+# bind-mounted host directories.  Changes survive container restarts because
+# the Docker containers use bind mounts, not docker exec tar-pipes.
+#
+# Prerequisites:
+#   - GitLab CLI (glab) with active session, OR the env vars below
+#   - SSH access to the VPS
+#   - Docker containers already running with bind mounts from the
+#     latest infra/docker/docker-compose.yml
 #
 # Usage:
-#   ./deploy.sh                       # build + deploy all
-#   ./deploy.sh --frontend            # build + deploy frontend only
-#   ./deploy.sh --backend             # build + deploy backend only
-#   ./deploy.sh --no-build            # deploy without rebuilding
-#   ./deploy.sh --help                # show help
+#   ./deploy.sh                          # build + deploy all services
+#   ./deploy.sh --frontend               # frontend WASM only
+#   ./deploy.sh --backend                # backend JS only
+#   ./deploy.sh --gateway                # discord-gateway JS only
+#   ./deploy.sh --all                    # same as no-flag (default)
+#   ./deploy.sh --no-build               # skip builds, just copy files
+#   ./deploy.sh --help                   # show this message
 #
 # Required env (or auto-fetched from GitLab CI vars via glab):
-#   VPS_HOST              — VPS IP/hostname (default: from GitLab)
-#   VPS_USER              — SSH user (default: from GitLab)
-#   VPS_SSH_KEY           — path to SSH private key (default: from GitLab)
-#   GITLAB_TOKEN          — GitLab PAT (default: $GITLAB_TOKEN)
+#   VPS_HOST              — VPS IP/hostname
+#   VPS_USER              — SSH user (default: root)
+#   VPS_SSH_KEY           — path/contents of SSH private key
 #
-# Optional env:
-#   ADMIN_PASSWORD        — for testing the API after deploy
+# Optional:
+#   ADMIN_PASSWORD        — verify backend health after deploy
 # ──────────────────────────────────────────────────────────────────────────────
 
 set -eu
@@ -24,15 +33,24 @@ set -eu
 # ── Config ────────────────────────────────────────────────────────────────────
 APP_DIR="/opt/imphenbot"
 COMPOSE_FILE="infra/docker/docker-compose.yml"
-FRONTEND_DIR="services/frontend/frontend"
-BACKEND_DIR="services/backend"
-DIST_FRONTEND="${FRONTEND_DIR}/dist"
-DIST_BACKEND="${BACKEND_DIR}/dist/modules/messages"
+
+# Local build output directories (relative to repo root)
+FRONTEND_DIST="services/frontend/frontend/dist"
+BACKEND_DIST="services/backend/dist"
+GATEWAY_DIST="services/discord-gateway/dist"
+
+# Remote bind-mount paths (must match infra/docker/docker-compose.yml volumes)
+REMOTE_BASE="${APP_DIR}/infra/docker"
+REMOTE_FRONTEND="${REMOTE_BASE}/frontend-dist"
+REMOTE_BACKEND="${REMOTE_BASE}/backend-dist"
+REMOTE_GATEWAY="${REMOTE_BASE}/gateway-dist"
 
 # ── Parse args ────────────────────────────────────────────────────────────────
-DO_FRONTEND=true
-DO_BACKEND=true
 DO_BUILD=true
+DO_ALL=false
+DO_FRONTEND=false
+DO_BACKEND=false
+DO_GATEWAY=false
 
 for arg in "$@"; do
   case "$arg" in
@@ -40,13 +58,22 @@ for arg in "$@"; do
       sed -n '2,/^$/ s/^# //p' "$0"
       exit 0
       ;;
-    --frontend) DO_BACKEND=false ;;
-    --backend)  DO_FRONTEND=false ;;
-    --no-build) DO_BUILD=false ;;
+    --all|--full)  DO_ALL=true ;;
+    --frontend)    DO_FRONTEND=true ;;
+    --backend)     DO_BACKEND=true ;;
+    --gateway)     DO_GATEWAY=true ;;
+    --no-build)    DO_BUILD=false ;;
   esac
 done
 
-# ── Auto-fetch credentials from GitLab if not in env ─────────────────────────
+# If no service flag given, or --all, default to all
+if ! $DO_FRONTEND && ! $DO_BACKEND && ! $DO_GATEWAY || $DO_ALL; then
+  DO_FRONTEND=true
+  DO_BACKEND=true
+  DO_GATEWAY=true
+fi
+
+# ── Auto-fetch credentials from GitLab ─────────────────────────────────────
 fetch_ci_var() {
   glab api "projects/mytheclipse-group%2Fgmw/variables/$1" 2>/dev/null \
     | python3 -c "import json,sys; print(json.load(sys.stdin).get('value',''))" 2>/dev/null || true
@@ -73,12 +100,16 @@ SSH_OPTS="-i $VPS_SSH_KEY -o StrictHostKeyChecking=accept-new"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 vps()  { ssh $SSH_OPTS "$SSH_DEST" "$@"; }
-vpscp() { scp $SSH_OPTS "$1" "${SSH_DEST}:${2}"; }
 log()  { echo "→ $*"; }
 ok()   { echo "✓ $*"; }
 die()  { echo "✗ $*"; exit 1; }
 
-# ── 1. Build ──────────────────────────────────────────────────────────────────
+# ── 1. Ensure remote bind-mount directories exist ────────────────────────────
+log "Ensuring remote bind-mount directories exist..."
+vps "mkdir -p '$REMOTE_FRONTEND' '$REMOTE_BACKEND' '$REMOTE_GATEWAY'"
+ok "Remote directories ready"
+
+# ── 2. Build ──────────────────────────────────────────────────────────────────
 if $DO_BUILD; then
   REPO_ROOT=$(cd "$(dirname "$0")" && pwd)
   cd "$REPO_ROOT"
@@ -91,38 +122,61 @@ if $DO_BUILD; then
 
   if $DO_FRONTEND; then
     log "Building frontend (WASM)..."
-    cd "$FRONTEND_DIR"
-    trunk build --release 2>&1 | tail -5 || die "Frontend build failed"
-    cd "$REPO_ROOT"
+    pnpm --filter frontend run build 2>&1 | tail -5 || die "Frontend build failed"
     ok "Frontend built"
+  fi
+
+  if $DO_GATEWAY; then
+    log "Building gateway (TypeScript)..."
+    pnpm --filter '@bete/discord-gateway' run build 2>&1 | tail -3 || die "Gateway build failed"
+    ok "Gateway built"
   fi
 else
   log "Skipping build (--no-build)"
 fi
 
-# ── 2. Deploy Backend ─────────────────────────────────────────────────────────
-if $DO_BACKEND; then
-  log "Deploying backend..."
-  cd "$DIST_BACKEND"
-  tar czf - . | vps "docker exec -i imphenbot-backend sh -c 'cd /app/services/backend/dist/modules/messages && rm -f * && tar xzf -'"
-  vps "docker restart imphenbot-backend" > /dev/null 2>&1
-  cd "$REPO_ROOT"
-  ok "Backend deployed and restarted"
+# ── 3. Deploy to VPS (via tar pipe to remote host directory) ──────────────────
+
+deploy_to_remote() {
+  local src="$1"
+  local remote_dir="$2"
+  local name="$3"
+
+  if [ ! -d "$src" ] || [ -z "$(ls -A "$src" 2>/dev/null)" ]; then
+    log "WARN: $src is empty or missing — skipping $name"
+    return
+  fi
+
+  log "Deploying $name..."
+  # Atomic swap: extract into a temp dir, then rename — avoids partial deploy
+  vps "rm -rf '${remote_dir}.new' && mkdir -p '${remote_dir}.new'"
+  tar czf - -C "$src" . | vps "tar xzf - -C '${remote_dir}.new'"
+  vps "rm -rf '${remote_dir}.old' && mv '${remote_dir}' '${remote_dir}.old' 2>/dev/null; mv '${remote_dir}.new' '${remote_dir}' && rm -rf '${remote_dir}.old'"
+  log "→ $name copied to host — restarting container..."
+}
+
+if $DO_FRONTEND; then
+  deploy_to_remote "$FRONTEND_DIST" "$REMOTE_FRONTEND" "frontend"
+  vps "docker restart imphenbot-proxy" > /dev/null 2>&1
+  ok "Frontend deployed"
 fi
 
-# ── 3. Deploy Frontend ────────────────────────────────────────────────────────
-if $DO_FRONTEND; then
-  log "Deploying frontend..."
-  cd "$DIST_FRONTEND"
-  tar czf - . | vps "docker exec -i imphenbot-proxy sh -c 'cd /usr/share/nginx/html && rm -rf * && tar xzf -'"
-  cd "$REPO_ROOT"
-  ok "Frontend deployed"
+if $DO_BACKEND; then
+  deploy_to_remote "$BACKEND_DIST" "$REMOTE_BACKEND" "backend"
+  vps "docker restart imphenbot-backend" > /dev/null 2>&1
+  ok "Backend deployed"
+fi
+
+if $DO_GATEWAY; then
+  deploy_to_remote "$GATEWAY_DIST" "$REMOTE_GATEWAY" "gateway"
+  vps "docker restart imphenbot-discord-gateway" > /dev/null 2>&1
+  ok "Gateway deployed"
 fi
 
 # ── 4. Verify ─────────────────────────────────────────────────────────────────
 if $DO_BACKEND && [ -n "${ADMIN_PASSWORD:-}" ]; then
   log "Verifying backend..."
-  sleep 2
+  sleep 3
   curl -sf "https://${VPS_HOST}/api/health" -H "X-Admin-Password: $ADMIN_PASSWORD" > /dev/null 2>&1 \
     && ok "Backend health check passed" \
     || log "Backend health check skipped (might need a moment)"
