@@ -2,6 +2,9 @@ use leptos::prelude::*;
 use shared_types::message::{AiStatus, MessageRecord, PageResult};
 use std::sync::Arc;
 use wasm_bindgen_futures::spawn_local;
+use crate::{log_debug, log_error, log_info, log_trace, log_warn, make_logger};
+
+make_logger!();
 
 /// Threads whose messages should be hidden from both the feed and the
 /// Images tab.  A bot or selfbot may be spamming in a thread, polluting
@@ -109,13 +112,16 @@ pub fn MessagesPanel() -> impl IntoView {
             }
             set_is_searching.set(true);
             let q_clone = query.trim().to_string();
+            log_info!("Messages searching for: {}", q_clone);
             spawn_local(async move {
                 match crate::api::messages::search_messages(&q_clone, Some(50)).await {
                     Ok(results) => {
+                        log_info!("Messages search found {} results", results.len());
                         set_search_results.set(results);
                         set_show_search.set(true);
                     }
                     Err(_) => {
+                        log_warn!("Messages search failed");
                         set_search_results.set(Vec::new());
                     }
                 }
@@ -143,10 +149,12 @@ pub fn MessagesPanel() -> impl IntoView {
     // WS event handlers (wire once on mount)
     let ws = use_context::<crate::ws::context::WsContext>();
     if let Some(ref ws) = ws {
+        log_info!("MessagesPanel wiring WS handlers");
         // Subscribe to real-time message events
         {
             let msgs = state.messages;
             *ws.on_message_created.borrow_mut() = Some(Box::new(move |msg| {
+                log_debug!("WS message_created received: {}", msg.id);
                 let current = msgs.get();
                 msgs.set(merge_messages(&current, &[msg]));
             }));
@@ -154,6 +162,7 @@ pub fn MessagesPanel() -> impl IntoView {
         {
             let msgs = state.messages;
             *ws.on_message_updated.borrow_mut() = Some(Box::new(move |msg| {
+                log_debug!("WS message_updated received: {}", msg.id);
                 let current = msgs.get();
                 msgs.set(merge_messages(&current, &[msg]));
             }));
@@ -161,6 +170,7 @@ pub fn MessagesPanel() -> impl IntoView {
         {
             let msgs = state.messages;
             *ws.on_message_deleted.borrow_mut() = Some(Box::new(move |id| {
+                log_debug!("WS message_deleted received: {}", id);
                 let current = msgs.get();
                 msgs.set(current.into_iter().filter(|m| m.id != id).collect());
             }));
@@ -168,6 +178,7 @@ pub fn MessagesPanel() -> impl IntoView {
         {
             let msgs = state.messages;
             *ws.on_message_analyzed.borrow_mut() = Some(Box::new(move |msg| {
+                log_debug!("WS message_analyzed received: {}", msg.id);
                 let current = msgs.get();
                 msgs.set(merge_messages(&current, &[msg]));
             }));
@@ -191,15 +202,13 @@ pub fn MessagesPanel() -> impl IntoView {
             let guild_id = use_context::<crate::app::AppConfig>()
                 .and_then(|c| c.monitor_guild_id.get());
             if let Some(gid) = guild_id {
+                log_info!("Messages fetching images for guild {}", gid);
                 spawn_local({
                     let image_messages = image_messages.clone();
                     async move {
                         match crate::api::messages::get_images(&gid, Some(100)).await {
                             Ok(PageResult { data, .. }) => {
-                                web_sys::console::log_2(
-                                    &"[images] fetch OK".into(),
-                                    &format!("count={}", data.len()).into(),
-                                );
+                                log_info!("Messages images loaded: count={}", data.len());
                                 image_messages.set(
                                     data.into_iter()
                                         .filter(|m| !is_excluded_thread(m))
@@ -207,10 +216,7 @@ pub fn MessagesPanel() -> impl IntoView {
                                 );
                             }
                             Err(e) => {
-                                web_sys::console::log_2(
-                                    &"[images] fetch ERROR".into(),
-                                    &format!("{}", e).into(),
-                                );
+                                log_error!("Messages images error: {}", e);
                             }
                         }
                     }

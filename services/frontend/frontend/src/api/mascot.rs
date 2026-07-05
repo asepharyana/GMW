@@ -1,6 +1,5 @@
 use crate::api::client::{request, ApiError};
 use serde::{Deserialize, Serialize};
-
 #[derive(Debug, Serialize)]
 struct MascotChatRequest<'a> {
     message: &'a str,

@@ -5,6 +5,9 @@ use crate::app::UiContext;
 use leptos::prelude::*;
 use shared_types::ui_state::Tab;
 use wasm_bindgen_futures::spawn_local;
+use crate::{log_error, log_info, log_warn, make_logger};
+
+make_logger!();
 
 #[component]
 pub fn AuthOverlay() -> impl IntoView {
@@ -32,6 +35,7 @@ pub fn AuthOverlay() -> impl IntoView {
         spawn_local(async move {
             match auth_api::login(&pwd_clone).await {
                 Ok(true) => {
+                    log_info!("Auth login successful");
                     // Store password in sessionStorage
                     if let Some(storage) = web_sys::window()
                         .and_then(|w| w.local_storage().ok())
@@ -43,9 +47,11 @@ pub fn AuthOverlay() -> impl IntoView {
                     auth_clone.password.set(pwd_clone);
                 }
                 Ok(false) => {
+                    log_warn!("Auth login failed - wrong password");
                     set_error_clone.set(Some("Login gagal — password salah".to_string()));
                 }
                 Err(e) => {
+                    log_error!("Auth login error: {}", e.message);
                     set_error_clone.set(Some(format!("Error: {}", e.message)));
                 }
             }

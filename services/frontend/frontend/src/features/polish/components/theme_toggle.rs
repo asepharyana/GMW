@@ -1,5 +1,8 @@
 use crate::features::polish::{persist_theme, ThemeContext};
 use leptos::prelude::*;
+use crate::{log_info, make_logger};
+
+make_logger!();
 
 #[component]
 pub fn ThemeToggle() -> impl IntoView {
@@ -21,6 +24,7 @@ pub fn ThemeToggle() -> impl IntoView {
             } else {
                 "dark"
             };
+            log_info!("Theme toggled to {}", next);
             ctx.theme.set(next.to_string());
             persist_theme(next);
         }

@@ -1,6 +1,5 @@
 use crate::api::client::{request, ApiError};
 use serde::Deserialize;
-
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfigResponse {

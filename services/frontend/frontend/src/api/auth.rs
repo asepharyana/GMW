@@ -1,5 +1,8 @@
 use crate::api::client::{request, ApiError};
 use serde::{Deserialize, Serialize};
+use crate::{log_error, log_info, log_warn, make_logger};
+
+make_logger!();
 
 #[derive(Serialize)]
 struct LoginPayload {

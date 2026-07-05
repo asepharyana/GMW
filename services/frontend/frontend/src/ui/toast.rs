@@ -1,6 +1,10 @@
 // services/frontend-leptos/frontend/src/ui/toast.rs
 use leptos::prelude::*;
 use std::sync::{Arc, Mutex};
+use std::fmt;
+use crate::{log_info, make_logger};
+
+make_logger!();
 
 #[derive(Clone)]
 pub enum ToastType {
@@ -8,6 +12,17 @@ pub enum ToastType {
     Success,
     Error,
     Warning,
+}
+
+impl fmt::Display for ToastType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ToastType::Info => write!(f, "info"),
+            ToastType::Success => write!(f, "success"),
+            ToastType::Error => write!(f, "error"),
+            ToastType::Warning => write!(f, "warning"),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -38,6 +53,7 @@ impl ToastContext {
     }
 
     pub fn show(&self, message: &str, toast_type: ToastType) {
+        log_info!("Toast: {} ({})", message, toast_type);
         let id = {
             let mut n = self.next_id.lock().unwrap();
             *n += 1;

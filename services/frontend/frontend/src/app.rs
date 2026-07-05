@@ -8,6 +8,9 @@ use crate::ws::context::WsContext;
 use leptos::prelude::*;
 use shared_types::ui_state::Tab;
 use wasm_bindgen_futures::spawn_local;
+use crate::{log_info, log_warn, make_logger};
+
+make_logger!();
 
 /// Derive WebSocket URL from the page's own origin.
 /// In development (serve on :8080, backend on :3001) use the detected host + /ws path.
@@ -77,6 +80,7 @@ pub fn App() -> impl IntoView {
     provide_context(ws.clone());
 
     ws.connect();
+    log_info!("App mounted, WS connecting to {}", get_ws_url());
 
     // Try to fetch config on startup (works if password is already in localStorage)
     spawn_local({
@@ -84,16 +88,11 @@ pub fn App() -> impl IntoView {
         async move {
             match config_api::get_config().await {
                 Ok(cfg) => {
-                    web_sys::console::log_2(
-                        &"[config] fetched OK".into(),
-                        &format!("monitorGuildId={:?}", cfg.monitor_guild_id).into(),
-                    );
+                    log_info!("[config] fetched OK — monitorGuildId={:?}", cfg.monitor_guild_id);
                     config.monitor_guild_id.set(cfg.monitor_guild_id);
                 }
                 Err(e) => {
-                    web_sys::console::log_1(
-                        &format!("[config] failed to fetch: {}", e).into(),
-                    );
+                    log_warn!("[config] failed to fetch: {}", e);
                 }
             }
         }
@@ -110,9 +109,7 @@ pub fn App() -> impl IntoView {
                             config.monitor_guild_id.set(cfg.monitor_guild_id);
                         }
                         Err(e) => {
-                            web_sys::console::log_1(
-                                &format!("[config] fetch after auth failed: {}", e).into(),
-                            );
+                            log_info!("[config] fetch after auth failed: {}", e);
                         }
                     }
                 }

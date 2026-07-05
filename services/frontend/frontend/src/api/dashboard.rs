@@ -1,8 +1,12 @@
 use crate::api::client::{request, ApiError};
 use shared_types::dashboard::*;
+use crate::{log_debug, make_logger};
+
+make_logger!();
 
 /// GET /api/dashboard/stats
 pub async fn get_dashboard_stats() -> Result<DashboardStats, ApiError> {
+    log_debug!("get_dashboard_stats");
     request("GET", "/api/dashboard/stats", None).await
 }
 
@@ -12,6 +16,7 @@ pub async fn get_dashboard_users(
     cursor: Option<&str>,
     search: Option<&str>,
 ) -> Result<PaginatedUsers, ApiError> {
+    log_debug!("get_dashboard_users: limit={:?}, cursor={:?}, search={:?}", limit, cursor, search);
     let mut path = "/api/dashboard/users".to_string();
     let mut params = vec![];
     if let Some(l) = limit {
@@ -38,6 +43,7 @@ pub struct PaginatedUsers {
 
 /// GET /api/dashboard/users/{userId}
 pub async fn get_dashboard_user_detail(user_id: &str) -> Result<DashboardUserDetail, ApiError> {
+    log_debug!("get_dashboard_user_detail: user_id={}", user_id);
     request("GET", &format!("/api/dashboard/users/{}", user_id), None).await
 }
 
@@ -48,6 +54,7 @@ pub async fn get_dashboard_channels(
     search: Option<&str>,
     guild_id: Option<&str>,
 ) -> Result<PaginatedChannels, ApiError> {
+    log_debug!("get_dashboard_channels: limit={:?}, cursor={:?}, search={:?}, guild_id={:?}", limit, cursor, search, guild_id);
     let mut path = "/api/dashboard/channels".to_string();
     let mut params = vec![];
     if let Some(l) = limit {
@@ -79,6 +86,7 @@ pub struct PaginatedChannels {
 pub async fn get_dashboard_channel_detail(
     channel_id: &str,
 ) -> Result<DashboardChannelDetail, ApiError> {
+    log_debug!("get_dashboard_channel_detail: channel_id={}", channel_id);
     request(
         "GET",
         &format!("/api/dashboard/channels/{}", channel_id),

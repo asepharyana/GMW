@@ -1,6 +1,5 @@
 use crate::api::client::{request, request_no_body, ApiError};
 use shared_types::recording::VoiceRecordingListResponse;
-
 /// GET /api/recordings?limit=&cursor=
 pub async fn get_recordings(
     limit: Option<u32>,

@@ -3,7 +3,6 @@ use serde::Serialize;
 use shared_types::guild::{Channel, Guild};
 use shared_types::media::MediaState;
 use shared_types::voice::VoiceStatus;
-
 /// GET /api/guilds
 pub async fn get_guilds() -> Result<Vec<Guild>, ApiError> {
     request("GET", "/api/guilds", None).await

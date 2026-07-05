@@ -3,6 +3,7 @@ use crate::ws::context::WsContext;
 use crate::ws::socket::WsStatus;
 use leptos::prelude::*;
 
+
 #[component]
 pub fn Header() -> impl IntoView {
     let ws = use_context::<WsContext>().expect("WsContext not provided");

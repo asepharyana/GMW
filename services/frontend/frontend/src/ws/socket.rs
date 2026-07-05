@@ -3,6 +3,9 @@ use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{CloseEvent, ErrorEvent, MessageEvent, WebSocket};
+use crate::{log_debug, log_error, log_info, log_trace, log_warn, make_logger};
+
+make_logger!();
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WsStatus {
@@ -85,6 +88,7 @@ impl WsHandle {
         reconnect_attempt: *const std::cell::Cell<u32>,
     ) {
         let url_owned = url.to_string();
+        let url_close = url_owned.clone();
         let status1 = set_status;
         let status2 = set_status;
         let status3 = set_status;
@@ -98,6 +102,7 @@ impl WsHandle {
                 // onopen
                 let onopen_cb = Closure::<dyn Fn(web_sys::ProgressEvent)>::new(move |_| {
                     status1.set(WsStatus::Connected);
+                    log_info!("WS connected to {}", url_owned);
                     unsafe { (*reconnect_attempt).set(0) };
                 });
                 ws.set_onopen(Some(onopen_cb.as_ref().unchecked_ref()));
@@ -107,6 +112,7 @@ impl WsHandle {
                 let event_for_close = event_clone.clone();
                 let onclose_cb = Closure::<dyn Fn(CloseEvent)>::new(move |_| {
                     status2.set(WsStatus::Disconnected);
+                    log_info!("WS disconnected from {}", url_close);
                     unsafe { *(*ws_holder).borrow_mut() = None };
 
                     let attempt = unsafe { (*reconnect_attempt).get() };
@@ -114,6 +120,7 @@ impl WsHandle {
                         status2.set(WsStatus::Error(
                             "Max reconnect attempts reached".to_string(),
                         ));
+                        log_error!("WS reconnect max attempts reached for {}", url_close);
                         return;
                     }
                     // Full-jitter exponential backoff: min(1000 * 2^attempt, 30000) * (0.5 + random * 0.5)
@@ -122,7 +129,9 @@ impl WsHandle {
                     let delay_ms = (base as f64 * jitter) as u32;
                     unsafe { (*reconnect_attempt).set(attempt + 1) };
 
-                    let url_reconnect = url_owned.clone();
+                    log_info!("WS reconnecting to {} in {}ms (attempt {})", url_close, delay_ms, attempt + 1);
+
+                    let url_reconnect = url_close.clone();
                     let status_rc = status2;
                     let event_rc = event_for_close.clone();
                     let reconnect_fn = Closure::<dyn Fn()>::new(move || {
@@ -148,6 +157,7 @@ impl WsHandle {
 
                 // onerror
                 let onerror_cb = Closure::<dyn Fn(ErrorEvent)>::new(move |e: ErrorEvent| {
+                    log_error!("WS error: {}", e.message());
                     status3.set(WsStatus::Error(e.message()));
                 });
                 ws.set_onerror(Some(onerror_cb.as_ref().unchecked_ref()));
@@ -173,12 +183,12 @@ impl WsHandle {
                 onmsg_cb.forget();
             }
             Err(e) => {
-                set_status.set(WsStatus::Error(
-                    js_sys::Error::from(e)
-                        .to_string()
-                        .as_string()
-                        .unwrap_or_default(),
-                ));
+                let msg = js_sys::Error::from(e)
+                    .to_string()
+                    .as_string()
+                    .unwrap_or_default();
+                log_error!("WS connect failed: {}", msg);
+                set_status.set(WsStatus::Error(msg));
             }
         }
     }

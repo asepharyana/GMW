@@ -3,6 +3,7 @@ use crate::app::UiContext;
 use leptos::prelude::*;
 use shared_types::ui_state::Tab;
 
+
 #[component]
 pub fn TabStrip() -> impl IntoView {
     let ui = use_context::<UiContext>().expect("UiContext not provided");

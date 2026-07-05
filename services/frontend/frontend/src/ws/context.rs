@@ -5,6 +5,9 @@ use shared_types::media::MediaState;
 use shared_types::message::MessageRecord;
 use shared_types::recording::VoiceRecording;
 use shared_types::voice::ActiveSpeaker;
+use crate::{log_debug, log_error, log_info, log_trace, log_warn, make_logger};
+
+make_logger!();
 
 #[derive(Clone)]
 #[allow(clippy::type_complexity)]
@@ -61,6 +64,7 @@ impl WsContext {
 
                     match event_type.as_str() {
                         "message_created" => {
+                            log_debug!("WS event: message_created");
                             if let Some(d) = data.and_then(|v| {
                                 serde_json::from_value::<MessageRecord>(v.clone()).ok()
                             }) {
@@ -70,6 +74,7 @@ impl WsContext {
                             }
                         }
                         "message_updated" => {
+                            log_debug!("WS event: message_updated");
                             if let Some(d) = data.and_then(|v| {
                                 serde_json::from_value::<MessageRecord>(v.clone()).ok()
                             }) {
@@ -79,6 +84,7 @@ impl WsContext {
                             }
                         }
                         "message_deleted" => {
+                            log_debug!("WS event: message_deleted");
                             if let Some(d) = data.and_then(|v| v.as_str().map(String::from)) {
                                 if let Some(cb) = self.on_message_deleted.borrow().as_ref() {
                                     cb(d);
@@ -86,6 +92,7 @@ impl WsContext {
                             }
                         }
                         "message_analyzed" => {
+                            log_debug!("WS event: message_analyzed");
                             if let Some(d) = data.and_then(|v| {
                                 serde_json::from_value::<MessageRecord>(v.clone()).ok()
                             }) {
@@ -95,6 +102,7 @@ impl WsContext {
                             }
                         }
                         "voice_active_user" => {
+                            log_debug!("WS event: voice_active_user");
                             if let Some(d) = data.and_then(|v| {
                                 serde_json::from_value::<ActiveSpeaker>(v.clone()).ok()
                             }) {
@@ -104,6 +112,7 @@ impl WsContext {
                             }
                         }
                         "voice_recording_uploaded" => {
+                            log_debug!("WS event: voice_recording_uploaded");
                             if let Some(d) = data.and_then(|v| {
                                 serde_json::from_value::<VoiceRecording>(v.clone()).ok()
                             }) {
@@ -114,6 +123,7 @@ impl WsContext {
                             }
                         }
                         "media_state" => {
+                            log_debug!("WS event: media_state");
                             // Backend sends initial state with "state" key, live updates with "data"
                             let raw = data.or_else(|| parsed.get("state")).cloned();
                             if let Some(d) =
@@ -126,14 +136,13 @@ impl WsContext {
                         }
                         _ => {
                             // Unknown event type — log and ignore
-                            web_sys::console::log_1(
-                                &format!("[WS] unhandled event: {}", event_type).into(),
-                            );
+                            log_warn!("WS unhandled event type: {}", event_type);
                         }
                     }
                 }
             }
             WsEvent::Binary(data) => {
+                log_debug!("WS event: binary ({} bytes)", data.len());
                 if let Some(cb) = self.on_binary.borrow().as_ref() {
                     cb(data);
                 }

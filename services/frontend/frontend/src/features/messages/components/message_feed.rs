@@ -6,6 +6,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::IntersectionObserver;
 
+
 const GROUP_WINDOW_MS: i64 = 5 * 60 * 1000;
 
 fn group_messages(messages: Vec<MessageRecord>) -> Vec<Vec<MessageRecord>> {

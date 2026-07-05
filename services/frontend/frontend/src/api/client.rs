@@ -2,6 +2,9 @@ use serde::de::DeserializeOwned;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Request, RequestInit, RequestMode, Response};
+use crate::{log_debug, log_error, make_logger};
+
+make_logger!();
 
 #[derive(Debug)]
 pub struct ApiError {
@@ -44,9 +47,13 @@ pub async fn request<T: DeserializeOwned>(
 ) -> Result<T, ApiError> {
     let url = format!("{}{}", get_base_url(), path);
 
-    let headers = Headers::new().map_err(|_| ApiError {
-        message: "Failed to create headers".to_string(),
-        status_code: 0,
+    let headers = Headers::new().map_err(|_| {
+        let msg = "Failed to create headers";
+        log_error!("API {} {} failed: {}", method, path, msg);
+        ApiError {
+            message: msg.to_string(),
+            status_code: 0,
+        }
     })?;
 
     if let Some(password) = get_auth_header() {
@@ -57,6 +64,8 @@ pub async fn request<T: DeserializeOwned>(
         headers.set("Content-Type", "application/json").ok();
     }
 
+    log_debug!("{} {} ->", method, path);
+
     let opts = RequestInit::new();
     opts.set_method(method);
     opts.set_headers(&headers);
@@ -66,67 +75,106 @@ pub async fn request<T: DeserializeOwned>(
         opts.set_body(&JsValue::from_str(json_body));
     }
 
-    let request = Request::new_with_str_and_init(&url, &opts).map_err(|e| ApiError {
-        message: format!("Failed to create request: {:?}", e),
-        status_code: 0,
+    let request = Request::new_with_str_and_init(&url, &opts).map_err(|e| {
+        let msg = format!("Failed to create request: {:?}", e);
+        log_error!("API {} {} failed: {}", method, path, msg);
+        ApiError {
+            message: msg,
+            status_code: 0,
+        }
     })?;
 
-    let window = web_sys::window().ok_or(ApiError {
-        message: "No window".to_string(),
-        status_code: 0,
+    let window = web_sys::window().ok_or_else(|| {
+        let msg = "No window";
+        log_error!("API {} {} failed: {}", method, path, msg);
+        ApiError {
+            message: msg.to_string(),
+            status_code: 0,
+        }
     })?;
 
     let resp_value = JsFuture::from(window.fetch_with_request(&request))
         .await
-        .map_err(|e| ApiError {
-            message: format!("Fetch failed: {:?}", e),
-            status_code: 0,
+        .map_err(|e| {
+            let msg = format!("Fetch failed: {:?}", e);
+            log_error!("API {} {} failed: {}", method, path, msg);
+            ApiError {
+                message: msg,
+                status_code: 0,
+            }
         })?;
 
-    let response: Response = resp_value.dyn_into().map_err(|_| ApiError {
-        message: "Invalid response".to_string(),
-        status_code: 0,
+    let response: Response = resp_value.dyn_into().map_err(|_| {
+        let msg = "Invalid response";
+        log_error!("API {} {} failed: {}", method, path, msg);
+        ApiError {
+            message: msg.to_string(),
+            status_code: 0,
+        }
     })?;
 
     let status = response.status();
     if status >= 400 {
-        let text = JsFuture::from(response.text().map_err(|_| ApiError {
-            message: "Failed to read error body".to_string(),
-            status_code: status,
+        let text = JsFuture::from(response.text().map_err(|_| {
+            let msg = "Failed to read error body";
+            log_error!("API {} {} failed: {}", method, path, msg);
+            ApiError {
+                message: msg.to_string(),
+                status_code: status,
+            }
         })?)
         .await
         .ok()
         .and_then(|v| v.as_string())
         .unwrap_or_default();
 
+        log_error!("API {} {} failed: status={} {}", method, path, status, text);
         return Err(ApiError {
             message: text,
             status_code: status,
         });
     }
 
-    let text = JsFuture::from(response.text().map_err(|_| ApiError {
-        message: "Failed to read response body".to_string(),
-        status_code: status,
+    let text = JsFuture::from(response.text().map_err(|_| {
+        let msg = "Failed to read response body";
+        log_error!("API {} {} failed: {}", method, path, msg);
+        ApiError {
+            message: msg.to_string(),
+            status_code: status,
+        }
     })?)
     .await
-    .map_err(|_| ApiError {
-        message: "Failed to await response".to_string(),
-        status_code: status,
+    .map_err(|_| {
+        let msg = "Failed to await response";
+        log_error!("API {} {} failed: {}", method, path, msg);
+        ApiError {
+            message: msg.to_string(),
+            status_code: status,
+        }
     })?
     .as_string()
-    .ok_or(ApiError {
-        message: "Response is not text".to_string(),
-        status_code: status,
+    .ok_or_else(|| {
+        let msg = "Response is not text";
+        log_error!("API {} {} failed: {}", method, path, msg);
+        ApiError {
+            message: msg.to_string(),
+            status_code: status,
+        }
     })?;
 
-    serde_json::from_str(&text).map_err(|e| ApiError {
-        message: format!(
+    log_debug!("{} {} <- {}", method, path, status);
+
+    serde_json::from_str(&text).map_err(|e| {
+        let msg = format!(
             "JSON parse error: {} — body: {}",
             e,
             &text[..text.len().min(200)]
-        ),
-        status_code: status,
+        );
+        log_error!("API {} {} failed: {}", method, path, msg);
+        ApiError {
+            message: msg,
+            status_code: status,
+        }
     })
 }
 

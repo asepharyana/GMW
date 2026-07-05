@@ -4,6 +4,7 @@ use shared_types::message::{AiSeverity, AiStatus, AttachmentRef, MessageRecord};
 use std::sync::{Arc, OnceLock};
 use wasm_bindgen::prelude::*;
 
+
 // ─── Helpers ──────────────────────────────────────────────
 
 fn custom_emoji_regex() -> &'static Regex {

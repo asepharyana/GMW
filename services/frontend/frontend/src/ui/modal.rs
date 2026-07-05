@@ -2,6 +2,7 @@
 use leptos::prelude::*;
 use std::sync::Arc;
 
+
 #[component]
 pub fn Modal(
     is_open: RwSignal<bool>,

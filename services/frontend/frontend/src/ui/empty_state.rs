@@ -1,6 +1,7 @@
 // services/frontend-leptos/frontend/src/ui/empty_state.rs
 use leptos::prelude::*;
 
+
 #[component]
 pub fn EmptyState(
     #[prop(optional)] icon: Option<AnyView>,

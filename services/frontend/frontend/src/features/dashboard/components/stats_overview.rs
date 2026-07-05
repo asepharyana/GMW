@@ -1,6 +1,5 @@
 use leptos::prelude::*;
 use shared_types::dashboard::{DashboardStats, TopChannel};
-
 #[component]
 pub fn StatsOverview(
     stats: Option<DashboardStats>,

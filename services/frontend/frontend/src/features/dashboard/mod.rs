@@ -5,6 +5,9 @@ use leptos::prelude::*;
 use shared_types::dashboard::{DashboardChannel, DashboardStats, DashboardUser};
 use std::sync::Arc;
 use wasm_bindgen_futures::spawn_local;
+use crate::{log_error, log_info, make_logger};
+
+make_logger!();
 
 #[derive(Clone, PartialEq)]
 enum DashboardTab {
@@ -36,10 +39,17 @@ pub fn DashboardPanel() -> impl IntoView {
     let fetch_stats: Arc<dyn Fn() + Send + Sync + 'static> = Arc::new(move || {
         stats_loading.set(true);
         stats_error.set(None);
+        log_info!("Dashboard fetching stats...");
         spawn_local(async move {
             match crate::api::dashboard::get_dashboard_stats().await {
-                Ok(data) => stats.set(Some(data)),
-                Err(err) => stats_error.set(Some(format!("Failed to load stats: {}", err))),
+                Ok(data) => {
+                    log_info!("Dashboard stats loaded: {} messages", data.total_messages);
+                    stats.set(Some(data));
+                }
+                Err(err) => {
+                    log_error!("Dashboard stats error: {}", err);
+                    stats_error.set(Some(format!("Failed to load stats: {}", err)));
+                }
             }
             stats_loading.set(false);
         });
@@ -51,6 +61,7 @@ pub fn DashboardPanel() -> impl IntoView {
         }
         users_loading.set(true);
         users_error.set(None);
+        log_info!("Dashboard fetching users...");
 
         let cursor = if reset { None } else { users_cursor.get() };
         let search = users_search.get();
@@ -64,6 +75,7 @@ pub fn DashboardPanel() -> impl IntoView {
             .await
             {
                 Ok(page) => {
+                    log_info!("Dashboard users loaded: {} users", page.data.len());
                     if reset {
                         users.set(page.data);
                     } else {
@@ -73,7 +85,10 @@ pub fn DashboardPanel() -> impl IntoView {
                     }
                     users_cursor.set(page.next_cursor);
                 }
-                Err(err) => users_error.set(Some(format!("Failed to load users: {}", err))),
+                Err(err) => {
+                    log_error!("Dashboard users error: {}", err);
+                    users_error.set(Some(format!("Failed to load users: {}", err)));
+                }
             }
             users_loading.set(false);
         });
@@ -85,6 +100,7 @@ pub fn DashboardPanel() -> impl IntoView {
         }
         channels_loading.set(true);
         channels_error.set(None);
+        log_info!("Dashboard fetching channels...");
 
         let cursor = if reset { None } else { channels_cursor.get() };
         let search = channels_search.get();
@@ -99,6 +115,7 @@ pub fn DashboardPanel() -> impl IntoView {
             .await
             {
                 Ok(page) => {
+                    log_info!("Dashboard channels loaded: {} channels", page.data.len());
                     if reset {
                         channels.set(page.data);
                     } else {
@@ -108,7 +125,10 @@ pub fn DashboardPanel() -> impl IntoView {
                     }
                     channels_cursor.set(page.next_cursor);
                 }
-                Err(err) => channels_error.set(Some(format!("Failed to load channels: {}", err))),
+                Err(err) => {
+                    log_error!("Dashboard channels error: {}", err);
+                    channels_error.set(Some(format!("Failed to load channels: {}", err)));
+                }
             }
             channels_loading.set(false);
         });

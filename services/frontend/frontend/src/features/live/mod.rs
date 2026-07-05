@@ -12,6 +12,9 @@ use components::{
 use leptos::prelude::*;
 use shared_types::media::MediaState;
 use shared_types::voice::ActiveSpeaker;
+use crate::{log_debug, log_info, make_logger};
+
+make_logger!();
 
 /// LivePanel — Composition shell for all voice and media components.
 /// Shows an auth overlay if not authenticated, otherwise shows voice controls.
@@ -28,10 +31,12 @@ pub fn LivePanel() -> impl IntoView {
 
     // ── Wire WS events (runs on mount, persists while LivePanel is active) ──
     if let Some(ref ws) = ws {
+        log_info!("LivePanel wiring WS handlers");
         // Voice active user — update speakers list
         *ws.on_voice_active_user.borrow_mut() = Some(Box::new({
             let speakers = speakers.clone();
             move |speaker: ActiveSpeaker| {
+                log_debug!("LivePanel voice_active_user: {}", speaker.user_id);
                 speakers.update(|list| {
                     if let Some(pos) = list.iter().position(|s| s.user_id == speaker.user_id) {
                         list[pos] = speaker;
@@ -46,6 +51,7 @@ pub fn LivePanel() -> impl IntoView {
         *ws.on_media_state.borrow_mut() = Some(Box::new({
             let ms = media_state.clone();
             move |state: MediaState| {
+                log_debug!("LivePanel media_state received");
                 ms.set(Some(state));
             }
         }));
@@ -54,6 +60,7 @@ pub fn LivePanel() -> impl IntoView {
         *ws.on_voice_recording_uploaded.borrow_mut() = Some(Box::new({
             let set_refresh = set_recordings_refresh;
             move |_recording| {
+                log_debug!("LivePanel recording_uploaded received");
                 set_refresh.update(|v| *v = v.wrapping_add(1));
             }
         }));
@@ -62,6 +69,7 @@ pub fn LivePanel() -> impl IntoView {
         *ws.on_binary.borrow_mut() = Some(Box::new({
             let playback = audio_playback.clone();
             move |data: Vec<u8>| {
+                log_debug!("LivePanel binary PCM data received: {} bytes", data.len());
                 hooks::use_audio_playback::process_pcm_data(&playback, data);
                 // Auto-start playback on first PCM data
                 if !playback.active.get_untracked() {
