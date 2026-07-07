@@ -61,6 +61,9 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      - name: Build shared package
+        run: pnpm --filter './packages/shared' run build
+
       - name: Build backend
         run: pnpm run build:backend
 
