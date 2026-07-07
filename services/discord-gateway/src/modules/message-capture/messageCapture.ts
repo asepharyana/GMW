@@ -60,9 +60,11 @@ const EXCLUDED_THREAD_IDS = new Set(["1522077685508083893"]);
 function isExcludedThread(message: {
   channel?: { isThread?: () => boolean; id?: string };
 }): boolean {
-  return message.channel?.isThread?.() === true
-    && typeof message.channel.id === "string"
-    && EXCLUDED_THREAD_IDS.has(message.channel.id);
+  return (
+    message.channel?.isThread?.() === true &&
+    typeof message.channel.id === "string" &&
+    EXCLUDED_THREAD_IDS.has(message.channel.id)
+  );
 }
 
 function getParentChannelId(

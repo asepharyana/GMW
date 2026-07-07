@@ -1,7 +1,19 @@
 import type { PageResult } from "@bete/shared";
 import { pgAttachmentsTable, pgMessagesTable } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
-import { and, desc, eq, inArray, isNull, like, lt, ne, notInArray, or, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  like,
+  lt,
+  ne,
+  notInArray,
+  or,
+  type SQL,
+} from "drizzle-orm";
 import { getDatabase } from "../../shared/database/index.js";
 import { mapMessageRow } from "../../shared/utils/messageMapper.js";
 import type {
@@ -337,10 +349,7 @@ export class MessagesRepository {
             ? [
                 or(
                   isNull(pgAttachmentsTable.thread_id),
-                  notInArray(
-                    pgAttachmentsTable.thread_id,
-                    EXCLUDED_THREAD_IDS,
-                  ),
+                  notInArray(pgAttachmentsTable.thread_id, EXCLUDED_THREAD_IDS),
                 )!,
               ]
             : []),
