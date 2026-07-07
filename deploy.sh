@@ -1,14 +1,11 @@
 #!/bin/bash
 # ─── Bete Deploy Script ──────────────────────────────────────────────────────
-# Builds all services locally and deploys compiled JS/WASM to the VPS via
-# bind-mounted host directories.  Changes survive container restarts because
-# the Docker containers use bind mounts, not docker exec tar-pipes.
+# Builds selected services locally and deploys compiled JS/WASM artifacts to the
+# VPS via bind-mounted host directories. Changes survive container restarts
+# because the Docker containers use bind mounts, not docker exec tar-pipes.
 #
-# Prerequisites:
-#   - GitLab CLI (glab) with active session, OR the env vars below
-#   - SSH access to the VPS
-#   - Docker containers already running with bind mounts from the
-#     latest infra/docker/docker-compose.yml
+# This script is CI-provider neutral. GitHub/GitLab/Gitea workflows and local
+# shells must provide deployment credentials through environment variables.
 #
 # Usage:
 #   ./deploy.sh                          # build + deploy all services
@@ -19,12 +16,12 @@
 #   ./deploy.sh --no-build               # skip builds, just copy files
 #   ./deploy.sh --help                   # show this message
 #
-# Required env (or auto-fetched from GitLab CI vars via glab):
+# Required env:
 #   VPS_HOST              — VPS IP/hostname
-#   VPS_USER              — SSH user (default: root)
-#   VPS_SSH_KEY           — path/contents of SSH private key
+#   VPS_USER              — SSH user
+#   VPS_SSH_KEY           — path to SSH private key or raw private-key contents
 #
-# Optional:
+# Optional env:
 #   ADMIN_PASSWORD        — verify backend health after deploy
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -73,30 +70,30 @@ if ! $DO_FRONTEND && ! $DO_BACKEND && ! $DO_GATEWAY || $DO_ALL; then
   DO_GATEWAY=true
 fi
 
-# ── Auto-fetch credentials from GitLab ─────────────────────────────────────
-fetch_ci_var() {
-  glab api "projects/mytheclipse-group%2Fgmw/variables/$1" 2>/dev/null \
-    | python3 -c "import json,sys; print(json.load(sys.stdin).get('value',''))" 2>/dev/null || true
-}
-
-if [ -z "${VPS_HOST:-}" ]; then VPS_HOST=$(fetch_ci_var VPS_HOST); fi
-if [ -z "${VPS_USER:-}" ]; then VPS_USER=$(fetch_ci_var VPS_USERNAME); fi
-if [ -z "${VPS_SSH_KEY:-}" ]; then
-  KEY=$(fetch_ci_var VPS_SSH_KEY)
-  if [ -n "$KEY" ]; then
-    VPS_SSH_KEY=$(mktemp)
-    echo "$KEY" > "$VPS_SSH_KEY"
-    chmod 600 "$VPS_SSH_KEY"
-  fi
-fi
-
-# ── Validate ──────────────────────────────────────────────────────────────────
-: "${VPS_HOST:?VPS_HOST not set — export it or run 'glab auth login' first}"
+# ── Validate and prepare SSH key ─────────────────────────────────────────────
+: "${VPS_HOST:?VPS_HOST not set}"
 : "${VPS_USER:?VPS_USER not set}"
 : "${VPS_SSH_KEY:?VPS_SSH_KEY not set}"
 
+TEMP_SSH_KEY=""
+cleanup() {
+  if [ -n "$TEMP_SSH_KEY" ]; then
+    rm -f "$TEMP_SSH_KEY"
+  fi
+}
+trap cleanup EXIT
+
+if [ -f "$VPS_SSH_KEY" ]; then
+  SSH_KEY_PATH="$VPS_SSH_KEY"
+else
+  TEMP_SSH_KEY=$(mktemp)
+  printf '%s\n' "$VPS_SSH_KEY" > "$TEMP_SSH_KEY"
+  chmod 600 "$TEMP_SSH_KEY"
+  SSH_KEY_PATH="$TEMP_SSH_KEY"
+fi
+
 SSH_DEST="${VPS_USER}@${VPS_HOST}"
-SSH_OPTS="-i $VPS_SSH_KEY -o StrictHostKeyChecking=accept-new"
+SSH_OPTS="-i $SSH_KEY_PATH -o StrictHostKeyChecking=accept-new"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 vps()  { ssh $SSH_OPTS "$SSH_DEST" "$@"; }
@@ -182,11 +179,6 @@ if $DO_BACKEND && [ -n "${ADMIN_PASSWORD:-}" ]; then
   curl -sf "https://${VPS_HOST}/api/health" -H "X-Admin-Password: $ADMIN_PASSWORD" > /dev/null 2>&1 \
     && ok "Backend health check passed" \
     || log "Backend health check skipped (might need a moment)"
-fi
-
-# ── Cleanup temp SSH key ─────────────────────────────────────────────────────
-if [[ "$VPS_SSH_KEY" == /tmp/* ]]; then
-  rm -f "$VPS_SSH_KEY"
 fi
 
 echo ""
