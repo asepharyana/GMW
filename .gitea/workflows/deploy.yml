@@ -1,0 +1,95 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: |
+          if command -v sudo >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends \
+              build-essential \
+              ca-certificates \
+              curl \
+              libssl-dev \
+              pkg-config \
+              python3
+          else
+            apt-get update
+            apt-get install -y --no-install-recommends \
+              build-essential \
+              ca-certificates \
+              curl \
+              libssl-dev \
+              pkg-config \
+              python3
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.3
+          run_install: false
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install Trunk
+        run: cargo install trunk --version 0.22.0-beta.1 --locked
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Build backend
+        run: pnpm run build:backend
+
+      - name: Build discord gateway
+        run: pnpm run build:discord-gateway
+
+      - name: Build frontend
+        run: pnpm run build:web
+
+      - name: Prepare production environment file
+        env:
+          PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
+        run: |
+          umask 077
+          printf '%s\n' "$PRODUCTION_ENV" | tr -d '\r' > .env
+          chmod 600 .env
+
+      - name: Prepare SSH key
+        env:
+          VPS_SSH_KEY_CONTENT: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          umask 077
+          key_file="${RUNNER_TEMP:-/tmp}/bete-vps-key"
+          printf '%s\n' "$VPS_SSH_KEY_CONTENT" > "$key_file"
+          chmod 600 "$key_file"
+          echo "VPS_SSH_KEY=$key_file" >> "$GITHUB_ENV"
+
+      - name: Deploy
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: ./deploy.sh --no-build
