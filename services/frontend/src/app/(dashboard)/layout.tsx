@@ -5,8 +5,8 @@ import { Suspense } from "react";
 import { Header } from "@/components/layout/header";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { Sidebar } from "@/components/layout/sidebar";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { MascotChatbot } from "@/components/mascot/mascot-chatbot";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { WsProvider } from "@/lib/ws/context";
 
 function LoadingFallback() {

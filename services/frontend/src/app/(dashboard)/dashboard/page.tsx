@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
-
+import { GuildSelector } from "@/components/shared/guild-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +23,6 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GuildSelector } from "@/components/shared/guild-selector";
 import { dashboardApi } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
 import type {
@@ -189,11 +188,7 @@ function StatsView() {
               value={stats.total_messages}
               icon={Hash}
             />
-            <StatCard
-              label="Today"
-              value={stats.today_messages}
-              icon={Clock}
-            />
+            <StatCard label="Today" value={stats.today_messages} icon={Clock} />
             <StatCard label="Users" value={stats.total_users} icon={Users} />
             <StatCard
               label="Active 24h"
@@ -239,19 +234,15 @@ function StatsView() {
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {stats.top_channels.map((ch, i) => {
+                    {stats.top_channels.map((ch, _i) => {
                       const maxCount = stats.top_channels[0].message_count;
                       const pct =
-                        maxCount > 0
-                          ? (ch.message_count / maxCount) * 100
-                          : 0;
+                        maxCount > 0 ? (ch.message_count / maxCount) * 100 : 0;
                       return (
                         <div key={ch.channel_id} className="space-y-1">
                           <div className="flex items-center justify-between text-sm">
                             <span className="truncate font-medium">
-                              #
-                              {ch.channel_name ??
-                                ch.channel_id.slice(0, 8)}
+                              #{ch.channel_name ?? ch.channel_id.slice(0, 8)}
                             </span>
                             <span className="text-muted-foreground tabular-nums">
                               {formatNumber(ch.message_count)}
@@ -279,9 +270,7 @@ function StatsView() {
                     <div className="text-2xl font-bold tabular-nums">
                       {stats.moderation_overview.pending}
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      Pending
-                    </div>
+                    <div className="text-xs text-muted-foreground">Pending</div>
                   </div>
                   <div className="rounded-lg bg-yellow-500/10 p-3 text-center space-y-1.5">
                     <div className="text-2xl font-bold tabular-nums text-yellow-500">

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
-
+import { GuildSelector } from "@/components/shared/guild-selector";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,6 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GuildSelector } from "@/components/shared/guild-selector";
 import { messagesApi, voiceApi } from "@/lib/api";
 import { formatBytes, safeParseJsonArray } from "@/lib/format";
 import type { AttachmentRecord, Channel, MessageRecord } from "@/lib/types";
@@ -244,9 +243,7 @@ export default function MessagesPage() {
         <GuildSelector value={guildId} onChange={setGuildId} />
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <AlertCircle className="size-10 text-destructive mb-3" />
-          <p className="text-sm text-muted-foreground mb-4 max-w-sm">
-            {error}
-          </p>
+          <p className="text-sm text-muted-foreground mb-4 max-w-sm">{error}</p>
           <Button variant="outline" onClick={fetchMessages}>
             <RefreshCw className="size-4 mr-2" />
             Retry
@@ -490,9 +487,7 @@ export default function MessagesPage() {
                           {detailMessage.username}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(
-                            detailMessage.created_at,
-                          ).toLocaleString()}
+                          {new Date(detailMessage.created_at).toLocaleString()}
                         </span>
                         {detailMessage.type === "deleted" && (
                           <Badge variant="destructive" className="text-[10px]">
@@ -787,18 +782,14 @@ function MessageCard({
               </p>
             )}
 
-            {msg.ai_confidence !== undefined &&
-              msg.ai_confidence !== null && (
-                <div className="flex items-center gap-2 max-w-40">
-                  <Progress
-                    value={msg.ai_confidence * 100}
-                    className="h-1.5"
-                  />
-                  <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                    {(msg.ai_confidence * 100).toFixed(0)}%
-                  </span>
-                </div>
-              )}
+            {msg.ai_confidence !== undefined && msg.ai_confidence !== null && (
+              <div className="flex items-center gap-2 max-w-40">
+                <Progress value={msg.ai_confidence * 100} className="h-1.5" />
+                <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                  {(msg.ai_confidence * 100).toFixed(0)}%
+                </span>
+              </div>
+            )}
 
             <div className="flex gap-1.5 pt-0.5">
               <Button

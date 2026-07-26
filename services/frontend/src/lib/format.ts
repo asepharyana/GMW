@@ -17,9 +17,7 @@ export function formatBytes(bytes: number): string {
 /**
  * Safely parse a JSON string into an array.
  */
-export function safeParseJsonArray(
-  value: string | null | undefined,
-): string[] {
+export function safeParseJsonArray(value: string | null | undefined): string[] {
   if (!value) return [];
   try {
     const parsed = JSON.parse(value);

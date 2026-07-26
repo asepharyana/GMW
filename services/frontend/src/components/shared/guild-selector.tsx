@@ -45,9 +45,7 @@ export function GuildSelector({
       .getGuilds()
       .then(setGuilds)
       .catch((err) =>
-        setError(
-          err instanceof Error ? err.message : "Failed to load guilds",
-        ),
+        setError(err instanceof Error ? err.message : "Failed to load guilds"),
       )
       .finally(() => setLoading(false));
   }, []);

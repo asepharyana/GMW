@@ -31,9 +31,7 @@ export default function VoicePage() {
 
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus | null>(null);
   const [speakers, setSpeakers] = useState<ActiveSpeaker[]>([]);
-  const [guilds, setGuilds] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
+  const [guilds, setGuilds] = useState<Array<{ id: string; name: string }>>([]);
   const [voiceChannels, setVoiceChannels] = useState<
     Array<{ id: string; name: string }>
   >([]);
@@ -74,9 +72,7 @@ export default function VoicePage() {
     const unsubSpeaker = ws.on("voice_active_user", (user) => {
       const speaker = user as ActiveSpeaker;
       setSpeakers((prev) => {
-        const existing = prev.findIndex(
-          (s) => s.userId === speaker.userId,
-        );
+        const existing = prev.findIndex((s) => s.userId === speaker.userId);
         if (existing >= 0) {
           const next = [...prev];
           next[existing] = speaker;
@@ -224,9 +220,7 @@ export default function VoicePage() {
             ) : (
               <Button
                 onClick={handleConnect}
-                disabled={
-                  voiceLoading || !selectedGuild || !selectedChannel
-                }
+                disabled={voiceLoading || !selectedGuild || !selectedChannel}
               >
                 {voiceLoading ? (
                   <Loader2 className="size-4 animate-spin mr-1.5" />
@@ -286,9 +280,7 @@ export default function VoicePage() {
                   setMicActive(checked);
                   try {
                     await voiceApi.sendCommand(
-                      checked
-                        ? "voice:transmit:start"
-                        : "voice:transmit:stop",
+                      checked ? "voice:transmit:start" : "voice:transmit:stop",
                     );
                   } catch {
                     setMicActive(!checked);

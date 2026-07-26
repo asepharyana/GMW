@@ -91,9 +91,7 @@ export default function RecordingsPage() {
                       {rec.username}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {rec.channel_name ??
-                        rec.channel_id ??
-                        "Unknown channel"}
+                      {rec.channel_name ?? rec.channel_id ?? "Unknown channel"}
                       {" — "}
                       {new Date(rec.created_at).toLocaleString()}
                     </p>
@@ -108,9 +106,7 @@ export default function RecordingsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() =>
-                        window.open(rec.download_url!, "_blank")
-                      }
+                      onClick={() => window.open(rec.download_url, "_blank")}
                     >
                       <Download className="size-4" />
                     </Button>

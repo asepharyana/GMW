@@ -111,10 +111,8 @@ export default function AnalysisPage() {
                               variant="outline"
                               className={cn(
                                 "text-[10px] px-1.5 py-0 h-4",
-                                msg.ai_status === "clean" &&
-                                  "text-green-500",
-                                msg.ai_status === "flagged" &&
-                                  "text-red-500",
+                                msg.ai_status === "clean" && "text-green-500",
+                                msg.ai_status === "flagged" && "text-red-500",
                               )}
                             >
                               {msg.ai_status}
@@ -127,17 +125,17 @@ export default function AnalysisPage() {
                         {msg.ai_moderation_flags &&
                           msg.ai_moderation_flags !== "[]" && (
                             <div className="flex flex-wrap gap-1">
-                              {safeParseJsonArray(
-                                msg.ai_moderation_flags,
-                              ).map((flag) => (
-                                <Badge
-                                  key={flag}
-                                  variant="destructive"
-                                  className="text-[10px] px-1.5 py-0 h-4"
-                                >
-                                  {flag}
-                                </Badge>
-                              ))}
+                              {safeParseJsonArray(msg.ai_moderation_flags).map(
+                                (flag) => (
+                                  <Badge
+                                    key={flag}
+                                    variant="destructive"
+                                    className="text-[10px] px-1.5 py-0 h-4"
+                                  >
+                                    {flag}
+                                  </Badge>
+                                ),
+                              )}
                             </div>
                           )}
 

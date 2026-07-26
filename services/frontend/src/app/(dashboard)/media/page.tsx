@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  Disc3,
-  Music,
-  Play,
-  SkipForward,
-  Square,
-  Volume2,
-} from "lucide-react";
+import { Disc3, Music, Play, SkipForward, Square, Volume2 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 

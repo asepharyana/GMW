@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  Moon,
-  Server,
-  Shield,
-  Sun,
-  Wifi,
-} from "lucide-react";
+import { Moon, Server, Shield, Sun, Wifi } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -85,9 +79,7 @@ export default function SettingsPage() {
               variant={statusConfig.variant}
               className="gap-1.5 px-2.5 py-1"
             >
-              <span
-                className={cn("size-1.5 rounded-full", statusConfig.dot)}
-              />
+              <span className={cn("size-1.5 rounded-full", statusConfig.dot)} />
               {statusConfig.label}
             </Badge>
           </div>
@@ -159,9 +151,7 @@ export default function SettingsPage() {
               <Separator />
               <ConfigRow
                 label="Auto-Delete Flagged"
-                value={
-                  config.autoDeleteFlaggedEnabled ? "Enabled" : "Disabled"
-                }
+                value={config.autoDeleteFlaggedEnabled ? "Enabled" : "Disabled"}
               />
             </div>
           ) : (
@@ -197,13 +187,7 @@ export default function SettingsPage() {
   );
 }
 
-function ConfigRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function ConfigRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between py-1">
       <span className="text-muted-foreground">{label}</span>

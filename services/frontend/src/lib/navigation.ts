@@ -2,11 +2,11 @@ import {
   BarChart3,
   Headphones,
   LayoutDashboard,
+  type LucideIcon,
   MessageSquare,
   Mic,
   Music,
   Search,
-  type LucideIcon,
 } from "lucide-react";
 
 export interface NavItem {
