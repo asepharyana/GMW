@@ -86,7 +86,7 @@ export async function incrementTextCacheHit(text: string): Promise<void> {
       `UPDATE text_analysis_cache SET hit_count = hit_count + 1 WHERE text = $1`,
       [text],
     );
-  } catch (error) {
+  } catch (_error) {
     // Silent fail — this is just a counter, not critical
   }
 }

@@ -2,7 +2,6 @@ import { pgAttachmentsTable, pgMessagesTable } from "@bete/shared";
 import {
   bigint as pgBigint,
   boolean as pgBoolean,
-  foreignKey as pgForeignKey,
   index as pgIndex,
   integer as pgInteger,
   jsonb as pgJsonb,

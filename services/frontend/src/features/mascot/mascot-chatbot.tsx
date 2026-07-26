@@ -120,9 +120,9 @@ export function MascotChatbot() {
                 Ask me anything about the server!
               </p>
             )}
-            {messages.map((msg, i) => (
+            {messages.map((msg, _i) => (
               <div
-                key={i}
+                key={msg.timestamp + msg.role}
                 className={`flex items-start gap-2 ${
                   msg.role === "user" ? "flex-row-reverse" : ""
                 }`}

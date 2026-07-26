@@ -36,7 +36,8 @@ export interface WsEventMap {
   voice_recording_stopped: unknown;
   voice_recording_uploaded: VoiceRecording;
   voice_active_user: ActiveSpeaker;
-  voice_pcm_data: { userId: string; pcm: string };
+  /** NOT delivered as JSON — arrives only via onPcm() binary handler as PcmChunk */
+  voice_pcm_data: never;
   voice_analyzed: unknown;
   analysis_queue_status: unknown;
   reaction_added: unknown;

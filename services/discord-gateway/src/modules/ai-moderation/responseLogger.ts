@@ -90,7 +90,7 @@ export function logModerationAnalysis(
   },
   parseErrors: string[] = [],
 ): void {
-  const response: ModerationAnalysisResponse = {
+  const _response: ModerationAnalysisResponse = {
     messageIds,
     batchSize: messageIds.length,
     model,
@@ -158,7 +158,7 @@ export function logCacheEvent(
   cacheKey: string,
   source: "text" | "media" | "sticker",
 ): void {
-  const event: CacheHitEvent = {
+  const _event: CacheHitEvent = {
     type,
     cacheKey,
     source,
@@ -260,7 +260,7 @@ export function logAnalysisSummary(
       duration_ms: durationMs,
       per_message_avg_ms: Math.round(durationMs / totalMessages),
       summary,
-      success_rate: ((successCount / totalMessages) * 100).toFixed(1) + "%",
+      success_rate: `${((successCount / totalMessages) * 100).toFixed(1)}%`,
     },
     `Analysis batch complete: ${successCount}/${totalMessages} successful in ${durationMs}ms`,
   );

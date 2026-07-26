@@ -56,7 +56,7 @@ export const handleMascotChat = asyncHandler(
 export const getMascotChatHistory = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = (req as AuthenticatedRequest).userId || "anonymous";
-    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 100);
 
     const history = await mascotChatService.getChatHistory(userId, limit);
 

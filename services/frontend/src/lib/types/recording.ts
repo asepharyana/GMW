@@ -8,10 +8,10 @@ export interface VoiceRecording {
   channel_name?: string | null;
   filename: string;
   size_bytes: number;
+  duration_bytes: number;
   download_url?: string | null;
   upload_status: string;
   upload_error?: string | null;
-  transcription?: string | null;
   created_at: number;
   uploaded_at?: number | null;
 }

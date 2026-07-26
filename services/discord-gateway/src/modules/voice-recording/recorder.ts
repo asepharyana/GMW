@@ -16,7 +16,6 @@ import type { VoicePcmWsClient } from "../voice-pcm-ws/index.js";
 import {
   createRecordingSession,
   type RecordingSession,
-  type SessionRecordingMetadata,
 } from "./recorder/sessionRecording.js";
 import { createSpeakingHandler } from "./recorder/speakingHandler.js";
 
@@ -141,7 +140,7 @@ export async function startRecording(
     activeSessions,
     recordingsDir,
     pcmSender: _pcmWsClient
-      ? (pcm, userId) => _pcmWsClient!.sendPcm(userId, pcm)
+      ? (pcm, userId) => _pcmWsClient?.sendPcm(userId, pcm)
       : undefined,
   });
 

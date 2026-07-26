@@ -1,8 +1,4 @@
-import {
-  COMMAND_VOICE_DISCONNECT_GUILD,
-  type CommandMessage,
-  type CommandReply,
-} from "@bete/shared";
+import type { CommandMessage, CommandReply } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import type { Client } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";

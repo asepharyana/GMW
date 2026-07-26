@@ -1,18 +1,11 @@
 "use client";
 
-import { LayoutDashboard, MessageSquare, Radio } from "lucide-react";
-import { useRouter } from "next/navigation";
-
-const tabs = [
-  { id: "messages", label: "Messages", icon: MessageSquare },
-  { id: "live", label: "Live", icon: Radio },
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-] as const;
-
-type TabId = (typeof tabs)[number]["id"];
+import { useRouter, useSearchParams } from "next/navigation";
+import { type TabId, tabs } from "@/lib/tabs";
 
 export function MobileTabBar({ activeTab }: { activeTab: TabId }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-10 border-t bg-background">
@@ -21,7 +14,11 @@ export function MobileTabBar({ activeTab }: { activeTab: TabId }) {
           <button
             key={id}
             type="button"
-            onClick={() => router.push(`/dashboard?tab=${id}`)}
+            onClick={() => {
+              const params = new URLSearchParams(searchParams.toString());
+              params.set("tab", id);
+              router.push(`/dashboard?${params}`);
+            }}
             data-active={activeTab === id ? "" : undefined}
             className="flex-1 flex flex-col items-center gap-0.5 py-2 text-xs font-medium text-muted-foreground data-[active]:text-primary transition-colors"
           >

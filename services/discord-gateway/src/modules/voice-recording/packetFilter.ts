@@ -1,7 +1,7 @@
 import { Transform, type TransformCallback } from "node:stream";
 import { createChildLogger } from "@bete/shared/logger";
 
-const logger = createChildLogger("packet-filter");
+const _logger = createChildLogger("packet-filter");
 
 /**
  * Transform stream to filter out audio packets that are too small.
@@ -19,7 +19,7 @@ export class PacketFilter extends Transform {
 
   _transform(
     chunk: Buffer,
-    encoding: string,
+    _encoding: string,
     callback: TransformCallback,
   ): void {
     this.totalCount++;

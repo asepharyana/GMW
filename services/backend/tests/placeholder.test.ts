@@ -15,7 +15,7 @@ import {
   pageResult,
   retryWithBackoff,
 } from "@bete/shared/utils";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 // ─── Backend middleware ──────────────────────────────────────────────────────
 import { asyncHandler, requireParam } from "../src/shared/middlewares/index.js";

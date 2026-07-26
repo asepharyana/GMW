@@ -10,7 +10,6 @@ import { delay, retryWithBackoff } from "@bete/shared/utils";
 import type { ChatCompletion } from "openai/resources/chat/completions";
 import { config } from "../../shared/config/config.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
-import { getMessageById } from "../message-capture/messageStore.js";
 import type {
   AnalysisResult,
   AttachmentRecord,
@@ -18,15 +17,7 @@ import type {
 } from "../message-capture/types.js";
 import { getChannelCulture } from "./channelCultureStore.js";
 import { llmChat } from "./llmClient.js";
-import type {
-  MessageImagePart,
-  PreparedMediaMessage,
-} from "./mediaAnalysisClient.js";
-import {
-  analyzeSingleMediaImage,
-  hasMediaContent,
-  prepareMediaMessage,
-} from "./mediaAnalysisClient.js";
+import { hasMediaContent, prepareMediaMessage } from "./mediaAnalysisClient.js";
 import {
   buildReferenceXml,
   escapeXml,
@@ -816,7 +807,7 @@ export async function runSimpleTextFallback(
   const MAX_CONTENT_CHARS = 500;
   const truncatedContent =
     content.length > MAX_CONTENT_CHARS
-      ? content.slice(0, MAX_CONTENT_CHARS) + "..."
+      ? `${content.slice(0, MAX_CONTENT_CHARS)}...`
       : content;
 
   let userProfileCtx = "";
@@ -876,7 +867,7 @@ Jawab HANYA dengan satu kata: clean, warn, atau flagged`;
   let category = "";
 
   if (status === "clean") {
-    analysis = `${message.username ?? "user"}: ${content.length > 200 ? content.slice(0, 200) + "..." : content}. Percakapan normal, tidak ada pelanggaran.`;
+    analysis = `${message.username ?? "user"}: ${content.length > 200 ? `${content.slice(0, 200)}...` : content}. Percakapan normal, tidak ada pelanggaran.`;
   } else {
     category = status === "flagged" ? "harassment" : "spam";
     const categoryOptions =
@@ -958,7 +949,7 @@ Kategori: spam`;
     policyVersion: "default-simple-2026-06",
     evidence:
       status !== "clean"
-        ? [content.length > 120 ? content.slice(0, 120) + "..." : content]
+        ? [content.length > 120 ? `${content.slice(0, 120)}...` : content]
         : [],
   };
 }

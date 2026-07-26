@@ -1,4 +1,3 @@
-import { decodeCursor, encodeCursor } from "@bete/shared";
 import { createChildLogger, type Logger } from "@bete/shared/logger";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { getDatabase } from "../../shared/database/drizzle.js";

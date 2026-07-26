@@ -14,8 +14,7 @@ export interface VoiceStatus {
 }
 
 export interface ActiveSpeaker {
-  id?: string | null;
-  user_id: string;
+  userId: string;
   username: string;
   avatar?: string | null;
   speaking: boolean;

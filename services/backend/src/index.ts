@@ -28,7 +28,7 @@ async function shutdown(signal: string) {
     // 1. Stop accepting new HTTP connections
     if (httpServer) {
       await new Promise<void>((resolve) => {
-        httpServer!.close(() => {
+        httpServer?.close(() => {
           logger.info("HTTP server closed");
           resolve();
         });

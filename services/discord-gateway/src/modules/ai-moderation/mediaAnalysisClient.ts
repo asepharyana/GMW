@@ -550,7 +550,7 @@ async function downloadMediaCandidate(
   imageMap: Map<string, MessageImagePart[]>,
   mediaAnalysisMap: Map<string, string[]>,
 ): Promise<void> {
-  const log = createChildLogger("mediaAnalysis");
+  const _log = createChildLogger("mediaAnalysis");
   if ((imageMap.get(targetId)?.length ?? 0) >= 8) return;
 
   if (candidate.customEmojiId || candidate.stickerName) {
@@ -646,7 +646,7 @@ export async function prepareMediaMessage(
   target: MessageRecord,
   allAttachments: AttachmentRecord[] | undefined,
 ): Promise<PreparedMediaMessage> {
-  const log = createChildLogger("mediaAnalysis");
+  const _log = createChildLogger("mediaAnalysis");
   const targetId = target.id;
   const imageMap = new Map<string, MessageImagePart[]>();
   const webTextMap = new Map<string, string[]>();

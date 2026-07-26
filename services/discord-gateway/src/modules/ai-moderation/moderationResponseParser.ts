@@ -4,8 +4,6 @@ import { extractJson } from "./jsonExtractor.js";
 import { ModerationResponseSchema } from "./moderationSchemas.js";
 import {
   clampScore,
-  DEFERRAL_ANALYSIS_PATTERN,
-  DEFERRAL_EXCEPTION_PATTERN,
   deriveRecommendedAction,
   deriveSeverity,
   hasDeferralAnalysis,
@@ -46,7 +44,7 @@ export function parseModerationResponse(
   let parsed: any;
   try {
     parsed = JSON.parse(content);
-  } catch (e) {
+  } catch (_e) {
     parsed = extractJson(content);
   }
 

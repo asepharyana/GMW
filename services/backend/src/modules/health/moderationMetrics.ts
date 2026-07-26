@@ -4,7 +4,7 @@
  * Prometheus metrics for AI moderation pipeline.
  * Defined in backend (where prom-client is installed + /api/metrics endpoint).
  */
-import { Counter, Histogram, register } from "prom-client";
+import { Counter, Histogram } from "prom-client";
 
 // ── LLM Call Metrics ──
 export const llmCallsTotal = new Counter({

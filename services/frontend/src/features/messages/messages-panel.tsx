@@ -9,6 +9,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { messagesApi, voiceApi } from "@/lib/api";
 import type { AttachmentRecord, Channel, MessageRecord } from "@/lib/types";
@@ -26,7 +27,7 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
   const [searchResults, setSearchResults] = useState<MessageRecord[] | null>(
     null,
   );
-  const [searching, setSearching] = useState(false);
+  const [_searching, setSearching] = useState(false);
   const [viewTab, setViewTab] = useState<"all" | "images" | "review">("all");
   const [imageMessages, setImageMessages] = useState<MessageRecord[]>([]);
   const [reviewMessages, setReviewMessages] = useState<MessageRecord[]>([]);
@@ -42,22 +43,11 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
 
   const ws = useWebSocket();
 
-  // ── Guild placeholder (after all hooks) ───────────────────
-  if (!guildId) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <AlertCircle className="size-8 text-muted-foreground mb-2" />
-        <p className="text-sm text-muted-foreground">
-          No guild selected. Select a guild above to view messages.
-        </p>
-      </div>
-    );
-  }
-
-  // ── Data-fetching side effects (guildId guaranteed non-empty) ──
+  // ── Data-fetching side effects (all hooks before any early return) ──
 
   // Fetch available text channels for filtering
   useEffect(() => {
+    if (!guildId) return;
     voiceApi
       .getTextChannels(guildId)
       .then(setChannels)
@@ -66,6 +56,7 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
 
   // Fetch initial messages
   const fetchMessages = useCallback(async () => {
+    if (!guildId) return;
     setLoading(true);
     setError(null);
     try {
@@ -86,6 +77,7 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
 
   // Fetch image messages
   const fetchImages = useCallback(async () => {
+    if (!guildId) return;
     try {
       const result = await messagesApi.getImages(guildId, 50);
       setImageMessages(result.data);
@@ -118,6 +110,7 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
 
   // WS subscription for real-time message updates
   useEffect(() => {
+    if (!guildId) return;
     const unsubCreated = ws.on("message_created", (msg) => {
       setMessages((prev) => [msg as MessageRecord, ...prev]);
     });
@@ -147,7 +140,7 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
       unsubDeleted();
       unsubAnalyzed();
     };
-  }, [ws]);
+  }, [ws, guildId]);
 
   // Search handler
   const handleSearch = useCallback(async () => {
@@ -326,8 +319,8 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
         <div className="space-y-2">
           {loading ? (
             <div className="space-y-3">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="flex gap-3 rounded-lg border p-4">
+              {Array.from({ length: 8 }, (_, i) => `msg-sk-${i}`).map((key) => (
+                <div key={key} className="flex gap-3 rounded-lg border p-4">
                   <div className="size-8 shrink-0 rounded-full bg-muted animate-pulse" />
                   <div className="flex-1 space-y-2">
                     <div className="h-4 w-32 bg-muted rounded animate-pulse" />
@@ -441,9 +434,11 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                   <div className="flex items-start gap-3">
                     <div className="size-10 shrink-0 rounded-full bg-muted flex items-center justify-center text-sm font-medium overflow-hidden">
                       {detailMessage.avatar_url ? (
-                        <img
+                        <Image
                           src={detailMessage.avatar_url}
                           alt=""
+                          width={40}
+                          height={40}
                           className="size-full object-cover"
                         />
                       ) : (
@@ -649,9 +644,11 @@ function MessageCard({
         {/* Avatar */}
         <div className="size-8 shrink-0 rounded-full bg-muted flex items-center justify-center text-xs font-medium overflow-hidden">
           {msg.avatar_url ? (
-            <img
+            <Image
               src={msg.avatar_url}
               alt=""
+              width={32}
+              height={32}
               className="size-full object-cover"
             />
           ) : (
@@ -735,7 +732,7 @@ function MessageCard({
                 <div
                   className="h-full rounded-full bg-primary"
                   style={{
-                    width: msg.ai_confidence * 100 + "%",
+                    width: `${msg.ai_confidence * 100}%`,
                   }}
                 />
               </div>

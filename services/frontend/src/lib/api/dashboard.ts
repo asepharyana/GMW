@@ -26,6 +26,7 @@ export const dashboardApi = {
     const params = new URLSearchParams();
     if (limit) params.set("limit", String(limit));
     if (search) params.set("search", search);
+    // Backend reads req.query.guild_id (snake_case) — see createDashboardRouter in dashboard.routes.ts
     if (guildId) params.set("guild_id", guildId);
     const qs = params.toString();
     return api.get<PaginatedChannels>(

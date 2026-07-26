@@ -82,12 +82,14 @@ export interface MessageRecord {
   channel_id: string;
   thread_id?: string | null;
   reference_message_id?: string | null;
+  reference_channel_id?: string | null;
+  reference_guild_id?: string | null;
   user_id: string;
   username: string;
   avatar_url?: string | null;
   content: string;
   edited_content?: string | null;
-  type: string; // "text" | "edited" | "deleted"
+  type: "text" | "edited" | "deleted";
   is_reply?: boolean | null;
   is_forward?: boolean | null;
   is_crosspost?: boolean | null;

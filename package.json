@@ -23,7 +23,7 @@
     "install:yt-dlp": "sh scripts/install-yt-dlp.sh"
   },
   "devDependencies": {
-    "@biomejs/biome": "latest",
+    "@biomejs/biome": "^2.5.5",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.22.2",
     "typescript": "^5.9.3"

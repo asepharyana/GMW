@@ -1,6 +1,5 @@
 import http from "node:http";
 import { createChildLogger } from "@bete/shared/logger";
-import type { AppConfig as GatewayConfig } from "../../shared/config/config.js";
 import { config } from "../../shared/config/config.js";
 
 const logger = createChildLogger("gateway-metrics");
@@ -82,7 +81,7 @@ function formatMetrics(): string {
     lines.push(`${fullName} ${metric.value}`);
   }
 
-  return lines.join("\n") + "\n";
+  return `${lines.join("\n")}\n`;
 }
 
 export function startMetricsServer(): void {

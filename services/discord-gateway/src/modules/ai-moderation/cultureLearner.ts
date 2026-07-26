@@ -2,10 +2,7 @@ import { createChildLogger } from "@bete/shared/logger";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { config } from "../../shared/config/config.js";
 import { getDatabase } from "../../shared/database/drizzle.js";
-import {
-  channelCulturesTable,
-  messagesTable,
-} from "../../shared/database/schema.js";
+import { messagesTable } from "../../shared/database/schema.js";
 import { updateChannelCulture } from "./channelCultureStore.js";
 import { llmChat } from "./llmClient.js";
 

@@ -3,7 +3,7 @@ import { isIP } from "node:net";
 import { createChildLogger } from "@bete/shared/logger";
 import { createAbortControllerWithTimeout } from "@bete/shared/utils";
 
-const log = createChildLogger("urlFetcher");
+const _log = createChildLogger("urlFetcher");
 
 export interface FetchedUrlContext {
   url: string;
@@ -53,14 +53,14 @@ async function isSafeUrl(urlStr: string): Promise<boolean> {
             return false;
           }
         }
-      } catch (err) {
+      } catch (_err) {
         // If DNS fails, we can't fetch it anyway
         return false;
       }
     }
 
     return true;
-  } catch (err) {
+  } catch (_err) {
     return false;
   }
 }
@@ -70,7 +70,7 @@ function extractOgImage(html: string): string | null {
   const ogRegex =
     /<meta[^>]*(?:property|name)=["'](?:og:image|twitter:image)["'][^>]*content=["']([^"']+)["']/i;
   const match = html.match(ogRegex);
-  if (match && match[1]) {
+  if (match?.[1]) {
     // Unescape basic HTML entities
     return match[1].replace(/&amp;/g, "&").replace(/&quot;/g, '"');
   }
@@ -79,7 +79,7 @@ function extractOgImage(html: string): string | null {
   const ogRegexRev =
     /<meta[^>]*content=["']([^"']+)["'][^>]*(?:property|name)=["'](?:og:image|twitter:image)["']/i;
   const matchRev = html.match(ogRegexRev);
-  if (matchRev && matchRev[1]) {
+  if (matchRev?.[1]) {
     return matchRev[1].replace(/&amp;/g, "&").replace(/&quot;/g, '"');
   }
 
@@ -164,7 +164,7 @@ export async function fetchUrlSafely(
       // If it's HTML, try to find an og:image first (for Tenor/Giphy etc)
       if (contentType.startsWith("text/html")) {
         const ogImage = extractOgImage(text);
-        if (ogImage && ogImage.startsWith("http")) {
+        if (ogImage?.startsWith("http")) {
           // Fetch the og:image instead
           return fetchUrlSafely(ogImage, depth + 1);
         }

@@ -24,10 +24,7 @@ import { registerReactionCapture } from "../modules/reaction-tracking/index.js";
 import { registerThreadCapture } from "../modules/thread-tracking/index.js";
 import { registerPresenceCapture } from "../modules/user-presence/index.js";
 import { VoicePcmWsClient } from "../modules/voice-pcm-ws/index.js";
-import {
-  startMuxerWorker,
-  stopMuxerWorker,
-} from "../modules/voice-recording/muxer.js";
+import { startMuxerWorker } from "../modules/voice-recording/muxer.js";
 import {
   setPcmWsClient,
   setEventBroadcaster as setRecorderEventBroadcaster,

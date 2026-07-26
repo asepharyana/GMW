@@ -8,6 +8,7 @@ export const messagesApi = {
     channelId?: string,
     cursor?: string,
   ) => {
+    // Backend messageQuerySchema expects camelCase guildId (see messages.schema.ts)
     const params = new URLSearchParams({ guildId });
     if (limit) params.set("limit", String(limit));
     if (channelId) params.set("channelId", channelId);
@@ -31,6 +32,7 @@ export const messagesApi = {
     api.get<MessageRecord>(`/api/messages/detail/${id}`),
 
   getImages: (guildId: string, limit?: number) => {
+    // Backend reads req.query.guildId (camelCase) — see handleGetImageMessages in messages.controller.ts
     const params = new URLSearchParams({ guildId });
     if (limit) params.set("limit", String(limit));
     return api.get<{ data: MessageRecord[]; nextCursor: string | null }>(

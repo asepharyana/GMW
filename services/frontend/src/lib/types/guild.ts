@@ -1,14 +1,13 @@
 export interface Guild {
   id: string;
   name: string;
-  icon?: string | null;
+  icon: string | null;
 }
 
 export interface Channel {
   id: string;
   name: string;
-  type?: string | null; // "voice" | "text"
-  parent_id?: string | null;
+  type: "voice" | "text";
 }
 
 /** Shape of the /api/config response (camelCase keys from backend). */

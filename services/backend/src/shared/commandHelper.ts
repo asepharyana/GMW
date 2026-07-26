@@ -1,6 +1,5 @@
 import type { CommandReply } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
-import { publishCommand, readRedisStatus } from "./redis/index.js";
 
 export { createChildLogger };
 

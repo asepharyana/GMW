@@ -1,6 +1,6 @@
 "use client";
 
-import { Moon, Sun, Wifi, WifiOff } from "lucide-react";
+import { AlertCircle, Moon, Sun, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useWebSocket } from "@/lib/ws/context";
 
@@ -36,6 +36,11 @@ export function Header() {
           <>
             <Wifi className="size-3 text-yellow-500" />
             <span className="hidden sm:inline">Connecting</span>
+          </>
+        ) : status === "error" ? (
+          <>
+            <AlertCircle className="size-3 text-destructive" />
+            <span className="hidden sm:inline">Error</span>
           </>
         ) : (
           <>

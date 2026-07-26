@@ -2,10 +2,7 @@ import { createChildLogger } from "@bete/shared/logger";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { config } from "../../shared/config/config.js";
 import { getDatabase } from "../../shared/database/drizzle.js";
-import {
-  messagesTable,
-  userProfilesTable,
-} from "../../shared/database/schema.js";
+import { messagesTable } from "../../shared/database/schema.js";
 import { llmChat } from "./llmClient.js";
 import { updateUserProfile } from "./userProfileStore.js";
 
@@ -48,7 +45,7 @@ async function learnUserProfile(
   for (const msg of recentMessages) {
     const ch = msg.channelId ?? "unknown";
     if (!channelGroups.has(ch)) channelGroups.set(ch, []);
-    channelGroups.get(ch)!.push(msg);
+    channelGroups.get(ch)?.push(msg);
   }
 
   // Build messages text with channel context

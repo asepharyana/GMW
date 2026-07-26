@@ -225,7 +225,7 @@ export function resolveMediaUrl(
 
     // -- stderr (capture for diagnostics, capped at 4KB) ----------------------------------
 
-    const MAX_STDERR = 4096;
+    const _MAX_STDERR = 4096;
     if (proc.stderr) {
       proc.stderr.on("data", (chunk: Buffer) => {
         stderrBuf += chunk.toString("utf8");

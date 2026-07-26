@@ -14,6 +14,7 @@ import {
   Trash2,
   Volume2,
 } from "lucide-react";
+import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { recordingsApi, voiceApi } from "@/lib/api";
 import type {
@@ -104,7 +105,7 @@ export function LivePanel() {
     const unsubSpeaker = ws.on("voice_active_user", (user) => {
       const speaker = user as ActiveSpeaker;
       setSpeakers((prev) => {
-        const existing = prev.findIndex((s) => s.user_id === speaker.user_id);
+        const existing = prev.findIndex((s) => s.userId === speaker.userId);
         if (existing >= 0) {
           const next = [...prev];
           next[existing] = speaker;
@@ -307,7 +308,7 @@ export function LivePanel() {
               .filter((s) => s.speaking)
               .map((s) => (
                 <div
-                  key={s.user_id}
+                  key={s.userId}
                   className="flex items-center gap-2 rounded-full border bg-muted/50 px-3 py-1.5"
                 >
                   <span className="relative flex size-2">
@@ -354,9 +355,11 @@ export function LivePanel() {
             <p className="text-xs text-muted-foreground">Now Playing</p>
             <div className="flex items-start gap-3">
               {mediaState.current.thumbnailUrl && (
-                <img
+                <Image
                   src={mediaState.current.thumbnailUrl}
                   alt=""
+                  width={48}
+                  height={48}
                   className="size-12 rounded object-cover"
                 />
               )}

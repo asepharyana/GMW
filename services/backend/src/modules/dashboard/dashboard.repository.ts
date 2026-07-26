@@ -2,7 +2,7 @@ import { createChildLogger } from "@bete/shared/logger";
 import { getPool } from "../../shared/database/index.js";
 import type { ListUsersQuery } from "./dashboard.service.js";
 
-const logger = createChildLogger("dashboard.repository");
+const _logger = createChildLogger("dashboard.repository");
 
 export class DashboardRepository {
   async getStats() {

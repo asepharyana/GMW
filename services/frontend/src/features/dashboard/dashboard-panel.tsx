@@ -11,6 +11,7 @@ import {
   Shield,
   Users,
 } from "lucide-react";
+import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { dashboardApi } from "@/lib/api";
 import type {
@@ -123,7 +124,7 @@ export function DashboardPanel({ guildId }: { guildId: string }) {
 
 // ── Stats View ────────────────────────────────────────────
 
-function StatsView({ onNavigate }: { onNavigate: (view: View) => void }) {
+function StatsView(_props: { onNavigate: (view: View) => void }) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -166,8 +167,8 @@ function StatsView({ onNavigate }: { onNavigate: (view: View) => void }) {
       {/* Metric cards */}
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="rounded-lg border p-4 space-y-2">
+          {Array.from({ length: 8 }, (_, i) => `stat-sk-${i}`).map((key) => (
+            <div key={key} className="rounded-lg border p-4 space-y-2">
               <div className="h-3 w-16 bg-muted rounded animate-pulse" />
               <div className="h-8 w-20 bg-muted rounded animate-pulse" />
             </div>
@@ -339,8 +340,8 @@ function UsersView({
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-lg border p-4 space-y-2">
+          {Array.from({ length: 6 }, (_, i) => `user-sk-${i}`).map((key) => (
+            <div key={key} className="rounded-lg border p-4 space-y-2">
               <div className="flex items-center gap-3">
                 <div className="size-10 rounded-full bg-muted animate-pulse" />
                 <div className="flex-1 space-y-1">
@@ -362,9 +363,11 @@ function UsersView({
               <div className="flex items-center gap-3">
                 <div className="size-10 shrink-0 rounded-full bg-muted flex items-center justify-center text-sm font-medium overflow-hidden">
                   {user.avatar_url ? (
-                    <img
+                    <Image
                       src={user.avatar_url}
                       alt=""
+                      width={40}
+                      height={40}
                       className="size-full object-cover"
                     />
                   ) : (
@@ -407,21 +410,24 @@ function ChannelsView({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  const fetchChannels = useCallback(async (searchQuery?: string) => {
-    setLoading(true);
-    try {
-      const result = await dashboardApi.listChannels(
-        20,
-        searchQuery,
-        guildId || undefined,
-      );
-      setChannels(result.data);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, [guildId]);
+  const fetchChannels = useCallback(
+    async (searchQuery?: string) => {
+      setLoading(true);
+      try {
+        const result = await dashboardApi.listChannels(
+          20,
+          searchQuery,
+          guildId || undefined,
+        );
+        setChannels(result.data);
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    },
+    [guildId],
+  );
 
   useEffect(() => {
     fetchChannels();
@@ -450,8 +456,8 @@ function ChannelsView({
 
       {loading ? (
         <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-lg border p-4 space-y-2">
+          {Array.from({ length: 6 }, (_, i) => `ch-sk-${i}`).map((key) => (
+            <div key={key} className="rounded-lg border p-4 space-y-2">
               <div className="h-4 w-32 bg-muted rounded animate-pulse" />
               <div className="h-3 w-24 bg-muted rounded animate-pulse" />
             </div>
@@ -517,9 +523,11 @@ function UserDetailView({
         <div className="flex items-center gap-4">
           <div className="size-16 rounded-full bg-muted flex items-center justify-center text-xl font-medium overflow-hidden">
             {user.avatar_url ? (
-              <img
+              <Image
                 src={user.avatar_url}
                 alt=""
+                width={64}
+                height={64}
                 className="size-full object-cover"
               />
             ) : (
@@ -541,7 +549,10 @@ function UserDetailView({
             value={user.flagged_count}
             variant="destructive"
           />
-          <DetailStat label="Clean Streak" value={user.clean_message_streak} />
+          <DetailStat
+            label="Clean Streak"
+            value={user.clean_message_streak ?? 0}
+          />
           <DetailStat
             label="Trust Score"
             value={user.trust_score ?? 0}

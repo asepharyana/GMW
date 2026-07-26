@@ -19,7 +19,6 @@ import {
 } from "./batchProcessor.js";
 import { scheduleConversationAnalysis } from "./batchScheduler.js";
 import {
-  _redisEventBroadcaster,
   broadcastAnalysisCompleted,
   conversationConsecutiveErrors,
   conversationDebounceTimers,

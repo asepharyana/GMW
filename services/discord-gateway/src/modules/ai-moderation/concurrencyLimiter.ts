@@ -16,13 +16,13 @@ let activeCount = 0;
 let pendingCount = 0;
 
 // Track queue state changes for logging
-function updateCounts(): void {
+function _updateCounts(): void {
   // p-limit exposes queueSize and activeCount via constructor internals,
   // but we track via our wrapper to avoid depending on internals.
 }
 
 export async function withLlmConcurrency<T>(fn: () => Promise<T>): Promise<T> {
-  const queuedAt = activeCount + pendingCount;
+  const _queuedAt = activeCount + pendingCount;
   pendingCount++;
   logger.debug(
     { activeCount, pendingCount, maxConcurrent: config.AI_LLM_MAX_CONCURRENT },

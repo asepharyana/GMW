@@ -23,7 +23,6 @@ export class VoiceTransmitter {
   private readonly TRANSMIT_CHANNEL = BACKEND_VOICE_TRANSMIT;
   /** Queue for PCM chunks when backpressure is active */
   private backpressureQueue: Buffer[] = [];
-  private draining = false;
   /** Serialise start/stop to prevent races between rapid toggle commands */
   private gate = Promise.resolve();
   /** Set true before sending SIGTERM so exit handler knows it's intentional */
@@ -176,7 +175,7 @@ export class VoiceTransmitter {
 
       logger.info("Voice transmitter started");
     } finally {
-      release!();
+      release?.();
     }
   }
 
@@ -227,7 +226,7 @@ export class VoiceTransmitter {
       discordPlayer.stop("browser-bridge");
       logger.info("Voice transmitter stopped");
     } finally {
-      release!();
+      release?.();
     }
   }
 

@@ -795,7 +795,7 @@ export function sanitizeAiContent(
   // 3. Cap length
   const capped =
     escaped.length > maxLen
-      ? escaped.slice(0, maxLen) + "…[truncated]"
+      ? `${escaped.slice(0, maxLen)}…[truncated]`
       : escaped;
 
   // 4. Wrap in CDATA unless the caller opts out (e.g. plain-text contexts)

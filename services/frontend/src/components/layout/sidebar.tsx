@@ -1,21 +1,17 @@
 "use client";
 
-import { LayoutDashboard, MessageSquare, Radio } from "lucide-react";
-import { useRouter } from "next/navigation";
-
-const tabs = [
-  { id: "messages", label: "Messages", icon: MessageSquare },
-  { id: "live", label: "Live", icon: Radio },
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-] as const;
-
-type TabId = (typeof tabs)[number]["id"];
+import { Radio } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { type TabId, tabs } from "@/lib/tabs";
 
 export function Sidebar({ activeTab }: { activeTab: TabId }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const handleTabClick = (tabId: TabId) => {
-    router.push(`/dashboard?tab=${tabId}`);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tabId);
+    router.push(`/dashboard?${params}`);
   };
 
   return (

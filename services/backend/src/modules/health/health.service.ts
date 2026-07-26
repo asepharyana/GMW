@@ -1,7 +1,7 @@
 import { createChildLogger } from "@bete/shared/logger";
 import { healthRepository } from "./health.repository.js";
 
-const logger = createChildLogger("health.service");
+const _logger = createChildLogger("health.service");
 
 export class HealthService {
   async getHealth(verbose = false) {

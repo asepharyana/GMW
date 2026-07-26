@@ -1,14 +1,14 @@
 "use client";
 
 import { Loader2, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { voiceApi } from "@/lib/api";
-import { useAppConfig } from "@/lib/hooks/use-config";
-import type { Guild } from "@/lib/types";
+import { useCallback, useEffect, useState } from "react";
 import { DashboardPanel } from "@/features/dashboard/dashboard-panel";
 import { LivePanel } from "@/features/live/live-panel";
 import { MessagesPanel } from "@/features/messages/messages-panel";
+import { voiceApi } from "@/lib/api";
+import { useAppConfig } from "@/lib/hooks/use-config";
+import type { Guild } from "@/lib/types";
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
@@ -45,12 +45,17 @@ export default function DashboardPage() {
         if (!cancelled) setGuilds(g);
       })
       .catch((err) => {
-        if (!cancelled) setGuildsError(err instanceof Error ? err.message : "Failed to load guilds");
+        if (!cancelled)
+          setGuildsError(
+            err instanceof Error ? err.message : "Failed to load guilds",
+          );
       })
       .finally(() => {
         if (!cancelled) setGuildsLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Resolve guild ID once config and guilds are loaded
@@ -80,9 +85,15 @@ export default function DashboardPage() {
         onRetry={() => {
           setGuildsLoading(true);
           setGuildsError(null);
-          voiceApi.getGuilds().then(setGuilds).catch(
-            (err) => setGuildsError(err instanceof Error ? err.message : "Failed to load guilds"),
-          ).finally(() => setGuildsLoading(false));
+          voiceApi
+            .getGuilds()
+            .then(setGuilds)
+            .catch((err) =>
+              setGuildsError(
+                err instanceof Error ? err.message : "Failed to load guilds",
+              ),
+            )
+            .finally(() => setGuildsLoading(false));
         }}
       />
 
@@ -90,12 +101,8 @@ export default function DashboardPage() {
       {isReady ? (
         <>
           {tab === "live" && <LivePanel />}
-          {tab === "dashboard" && (
-            <DashboardPanel guildId={selectedGuildId} />
-          )}
-          {tab === "messages" && (
-            <MessagesPanel guildId={selectedGuildId} />
-          )}
+          {tab === "dashboard" && <DashboardPanel guildId={selectedGuildId} />}
+          {tab === "messages" && <MessagesPanel guildId={selectedGuildId} />}
         </>
       ) : (
         <div className="flex items-center justify-center py-16">
@@ -165,7 +172,10 @@ function GuildBar({
 
   return (
     <div className="flex items-center gap-2 rounded-lg border p-3">
-      <label htmlFor="guild-select" className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+      <label
+        htmlFor="guild-select"
+        className="text-sm font-medium text-muted-foreground whitespace-nowrap"
+      >
         Guild:
       </label>
       <select

@@ -1,7 +1,6 @@
 import { createChildLogger } from "@bete/shared/logger";
 import { eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { config } from "../../shared/config/config.js";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import type * as schema from "../../shared/database/schema.js";
 import { muxerJobsTable } from "../../shared/database/schema.js";

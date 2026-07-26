@@ -66,7 +66,7 @@ function normalizeMediaState(raw: Record<string, unknown>): MediaState {
 
 type MediaReplyData = Record<string, unknown> | MediaState;
 
-function fromReply(data: MediaReplyData): MediaState {
+function _fromReply(data: MediaReplyData): MediaState {
   return normalizeMediaState(data as Record<string, unknown>);
 }
 

@@ -1,5 +1,4 @@
 import { createChildLogger } from "@bete/shared/logger";
-import type { AppConfig as GatewayConfig } from "../../shared/config/config.js";
 import { config } from "../../shared/config/config.js";
 
 const logger = createChildLogger("webhook-notifier");
