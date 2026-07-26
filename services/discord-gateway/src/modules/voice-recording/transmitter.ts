@@ -27,6 +27,8 @@ export class VoiceTransmitter {
   private gate = Promise.resolve();
   /** Set true before sending SIGTERM so exit handler knows it's intentional */
   private _expectedExit = false;
+  /** True while the underlying stream is in a drain state (backpressure) */
+  private draining = false;
 
   /**
    * Start listening for PCM audio data from Redis and stream to Discord
