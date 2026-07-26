@@ -370,18 +370,47 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
         </div>
       ) : viewTab === "images" ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {imageMessages.map((msg) => (
-            <div
-              key={msg.id}
-              className="aspect-square rounded-lg border bg-muted overflow-hidden"
-            >
-              {msg.content && (
-                <div className="p-2 text-xs text-muted-foreground truncate">
-                  {msg.username}: {msg.content}
-                </div>
-              )}
-            </div>
-          ))}
+          {imageMessages.map((msg) => {
+            // Extract image URLs from metadata
+            let imageUrl: string | null = null;
+            try {
+              const meta = JSON.parse(msg.metadata ?? "{}");
+              const attachments: Array<{ url: string; contentType?: string }> =
+                meta.attachments ?? [];
+              const img = attachments.find((a) =>
+                a.contentType?.startsWith("image/"),
+              );
+              imageUrl = img?.url ?? null;
+            } catch {
+              // metadata is malformed
+            }
+
+            return (
+              <div
+                key={msg.id}
+                className="group relative aspect-square rounded-lg border bg-muted overflow-hidden"
+              >
+                {imageUrl ? (
+                  <Image
+                    src={imageUrl}
+                    alt={msg.content || "Image"}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 50vw, 25vw"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center size-full text-muted-foreground text-xs">
+                    No image
+                  </div>
+                )}
+                {msg.content && (
+                  <div className="absolute bottom-0 left-0 right-0 p-2 text-xs text-white bg-gradient-to-t from-black/70 to-transparent truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                    {msg.username}: {msg.content}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         /* Review tab */
