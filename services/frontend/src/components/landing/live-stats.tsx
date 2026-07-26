@@ -43,8 +43,8 @@ export function LiveStats() {
           guildCount: guilds.length,
           wsConnected: false,
         });
-      } catch {
-        // ignore
+      } catch (err) {
+        console.error("live-stats:", err);
       } finally {
         if (!cancelled) setLoading(false);
       }

@@ -59,8 +59,8 @@ export function useUsers(): UseUsersReturn {
     try {
       const result = await dashboardApi.listUsers(20, undefined, q);
       setUsers(result.data);
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error("useUsers:", err);
     } finally {
       setLoading(false);
     }
@@ -104,8 +104,8 @@ export function useChannels(guildId: string): UseChannelsReturn {
           guildId || undefined,
         );
         setChannels(result.data);
-      } catch {
-        // silently fail
+      } catch (err) {
+        console.error("useChannels:", err);
       } finally {
         setLoading(false);
       }
@@ -137,8 +137,8 @@ export function useUserDetail() {
     try {
       const detail = await dashboardApi.getUserDetail(userId);
       setUser(detail);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("useUserDetail:", err);
     } finally {
       setLoading(false);
     }
@@ -158,8 +158,8 @@ export function useChannelDetail() {
     try {
       const detail = await dashboardApi.getChannelDetail(channelId);
       setChannel(detail);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("useChannelDetail:", err);
     } finally {
       setLoading(false);
     }

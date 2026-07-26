@@ -27,8 +27,8 @@ export function useMediaState(): UseMediaStateReturn {
     try {
       const state = await voiceApi.getMediaStatus();
       setMediaState(state);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("useMediaState/refresh:", err);
     }
   }, []);
 
@@ -36,8 +36,8 @@ export function useMediaState(): UseMediaStateReturn {
     try {
       const state = await voiceApi.mediaQueue(url, "music");
       setMediaState(state);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("useMediaState/queue:", err);
     }
   }, []);
 
@@ -45,8 +45,8 @@ export function useMediaState(): UseMediaStateReturn {
     try {
       const state = await voiceApi.mediaSkip();
       setMediaState(state);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("useMediaState/skip:", err);
     }
   }, []);
 
@@ -54,8 +54,8 @@ export function useMediaState(): UseMediaStateReturn {
     try {
       const state = await voiceApi.mediaStop();
       setMediaState(state);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("useMediaState/stop:", err);
     }
   }, []);
 
@@ -64,8 +64,8 @@ export function useMediaState(): UseMediaStateReturn {
     try {
       const state = await voiceApi.mediaVolume(vol);
       setMediaState(state);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("useMediaState/setVolume:", err);
     }
   }, []);
 

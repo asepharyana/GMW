@@ -70,8 +70,8 @@ export function useMessages(
       setMessages((prev) => [...prev, ...result.data]);
       setCursor(result.nextCursor);
       setHasMore(result.nextCursor !== null);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("useMessages/loadMore:", err);
     } finally {
       setLoadingMore(false);
     }
@@ -119,7 +119,7 @@ export function useTextChannels(guildId: string): UseTextChannelsReturn {
     voiceApi
       .getTextChannels(guildId)
       .then(setChannels)
-      .catch(() => {})
+      .catch((err) => console.error("useTextChannels:", err))
       .finally(() => setLoading(false));
   }, [guildId]);
 
@@ -147,7 +147,8 @@ export function useSearch(): UseSearchReturn {
     try {
       const result = await messagesApi.search(query, 50);
       setResults(result.results);
-    } catch {
+    } catch (err) {
+      console.error("useSearch:", err);
       setResults([]);
     } finally {
       setSearching(false);
@@ -167,8 +168,8 @@ export function useImages(guildId: string) {
     try {
       const result = await messagesApi.getImages(guildId, 50);
       setImages(result.data);
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error("useImages:", err);
     }
   }, [guildId]);
 
@@ -184,8 +185,8 @@ export function useReview(channelId?: string) {
     try {
       const result = await messagesApi.getReview(50, channelId || undefined);
       setReviews(result.results);
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error("useReview:", err);
     }
   }, [channelId]);
 
@@ -217,9 +218,10 @@ export function useMessageDetail(): UseMessageDetailReturn {
         messagesApi
           .getAttachments(detail.channel_id, 10)
           .then((res) => setAttachments(res.data))
-          .catch(() => {});
+          .catch((err) => console.error("useMessageDetail/attachments:", err));
       }
-    } catch {
+    } catch (err) {
+      console.error("useMessageDetail:", err);
       setMessage(null);
     } finally {
       setLoading(false);

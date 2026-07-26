@@ -51,8 +51,8 @@ export function Chatbot() {
     try {
       await chatbotApi.clearHistory();
       setMessages([]);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("chatbot/clearHistory:", err);
     }
   }, []);
 
@@ -78,7 +78,8 @@ export function Chatbot() {
           timestamp: resp.timestamp,
         },
       ]);
-    } catch {
+    } catch (err) {
+      console.error("chatbot/send:", err);
       setMessages((prev) => [
         ...prev,
         {

@@ -121,8 +121,8 @@ export default function MessagesPage() {
     const { messagesApi } = await import("@/lib/api");
     try {
       await messagesApi.reanalyze(id);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("messages/reanalyze:", err);
     }
   }, []);
 
@@ -131,8 +131,8 @@ export default function MessagesPage() {
     const { messagesApi } = await import("@/lib/api");
     try {
       await messagesApi.reanalyzeBatch(guildId);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("messages/reanalyzeBatch:", err);
     }
   }, [guildId]);
 

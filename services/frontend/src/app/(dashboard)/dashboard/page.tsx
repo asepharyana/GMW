@@ -82,8 +82,8 @@ export default function DashboardPage() {
               const detail = await dashboardApi.getUserDetail(userId);
               setActiveUser(detail);
               setView("user-detail");
-            } catch {
-              /* ignore */
+            } catch (err) {
+              console.error("dashboard/userDetail:", err);
             }
           }}
         />
@@ -97,8 +97,8 @@ export default function DashboardPage() {
               const detail = await dashboardApi.getChannelDetail(chId);
               setActiveChannel(detail);
               setView("channel-detail");
-            } catch {
-              /* ignore */
+            } catch (err) {
+              console.error("dashboard/channelDetail:", err);
             }
           }}
         />

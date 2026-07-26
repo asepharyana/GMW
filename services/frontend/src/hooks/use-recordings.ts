@@ -28,8 +28,8 @@ export function useRecordings(): UseRecordingsReturn {
     try {
       const result = await recordingsApi.list(50);
       setRecordings(result.items);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("useRecordings/refresh:", err);
     } finally {
       setLoading(false);
     }
@@ -39,8 +39,8 @@ export function useRecordings(): UseRecordingsReturn {
     try {
       await recordingsApi.delete(id);
       setRecordings((prev) => prev.filter((r) => r.id !== id));
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("useRecordings/remove:", err);
     }
   }, []);
 

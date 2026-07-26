@@ -23,8 +23,8 @@ export function useVoiceStatus(): UseVoiceStatusReturn {
     try {
       const status = await voiceApi.getStatus();
       setVoiceStatus(status);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("useVoiceStatus:", err);
     }
   }, []);
 
@@ -48,7 +48,8 @@ export function useVoiceChannels(): UseVoiceChannelsReturn {
     try {
       const ch = await voiceApi.getVoiceChannels(guildId);
       setChannels(ch);
-    } catch {
+    } catch (err) {
+      console.error("useVoiceChannels:", err);
       setChannels([]);
     } finally {
       setLoading(false);

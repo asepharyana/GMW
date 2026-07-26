@@ -238,7 +238,8 @@ export default function VoicePage() {
                     await voiceApi.sendCommand(
                       checked ? "voice:transmit:start" : "voice:transmit:stop",
                     );
-                  } catch {
+                  } catch (err) {
+                    console.error("voice/mic:", err);
                     setMicActive(!checked);
                   }
                 }}

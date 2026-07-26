@@ -29,8 +29,8 @@ export default function AnalysisPage() {
     const { messagesApi } = await import("@/lib/api");
     try {
       await messagesApi.reanalyze(id);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("analysis/reanalyze:", err);
     }
   }, []);
 
