@@ -9,7 +9,7 @@
 #
 # Usage:
 #   ./deploy.sh                          # build + deploy all services
-#   ./deploy.sh --frontend               # frontend WASM only
+#   ./deploy.sh --frontend               # frontend (Next.js) only
 #   ./deploy.sh --backend                # backend JS only
 #   ./deploy.sh --gateway                # discord-gateway JS only
 #   ./deploy.sh --all                    # same as no-flag (default)
@@ -32,7 +32,7 @@ APP_DIR="/opt/imphenbot"
 COMPOSE_FILE="infra/docker/docker-compose.yml"
 
 # Local build output directories (relative to repo root)
-FRONTEND_DIST="services/frontend/frontend/dist"
+FRONTEND_DIST="services/frontend/out"
 BACKEND_DIST="services/backend/dist"
 GATEWAY_DIST="services/discord-gateway/dist"
 
@@ -118,9 +118,9 @@ if $DO_BUILD; then
   fi
 
   if $DO_FRONTEND; then
-    log "Building frontend (WASM)..."
-    cd services/frontend/frontend
-    trunk build --release 2>&1 | tail -5 || die "Frontend build failed"
+    log "Building frontend (Next.js)..."
+    cd services/frontend
+    bun run build 2>&1 | tail -5 || die "Frontend build failed"
     cd "$REPO_ROOT"
     ok "Frontend built"
   fi

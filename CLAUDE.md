@@ -12,7 +12,7 @@ Built with **pnpm workspace monorepo** with 3 services and 1 shared library:
 |---------|------|-------------|
 | `discord-moderation-backend` | `services/backend` | Express HTTP/WS server, REST API, Redis bridge |
 | `@bete/discord-gateway` | `services/discord-gateway` | Discord client, voice recording, message capture, AI moderation |
-| `frontend` | `services/frontend/frontend` | Leptos 0.7 CSR WASM dashboard |
+| `frontend` | `services/frontend` | Next.js 16 (React 19) static dashboard, Tailwind v4, shadcn/ui |
 | `@bete/shared` | `packages/shared` | Shared types, errors, logger, utilities |
 
 **Database:** PostgreSQL (Drizzle ORM) — NOT SQLite.
@@ -28,7 +28,7 @@ Discord
    |
    v
 discord-gateway ---- Redis ---- backend ---- WebSocket ---- frontend
-   |                 pub/sub      (broadcast)                (Leptos WASM)
+   |                 pub/sub      (broadcast)                (Next.js static)
    |                   |
    |                   |
    <------------------+
@@ -194,43 +194,22 @@ The core service that connects to Discord using `discord.js-selfbot-v13`.
 - `src/shared/database/voiceRecordingRepo.ts` — Voice recording queries
 - `src/shared/discord/clientOptions.ts` — Discord client configuration
 
-### frontend (`services/frontend/frontend`)
+### frontend (`services/frontend`)
 
-Leptos 0.7 CSR WASM + TypeScript + CSS dashboard.
+Next.js 16 (React 19) static export dashboard, built with TypeScript + Tailwind v4 + shadcn/ui + base-ui.
 
 **Tech stack:**
-- Leptos 0.7 CSR (WASM via `#[wasm_bindgen(start)]`)
-- Trunk for bundling
-- Plain CSS with design tokens
-- Canvas 2D via `web-sys` for audio visualization
-- CSS animations (GSAP/Framer Motion dihapus — unused)
-- `web-sys` primitives (WebSocket, AudioContext, IntersectionObserver)
-- `lucide-leptos` 3 for icons
+- Next.js 16 (App Router, static export)
+- React 19 with React Compiler
+- TypeScript strict
+- Tailwind v4 + shadcn/ui + base-ui components
+- lucide-react icons
 
-**Feature structure (entity + feature slices):**
-- `entities/` — Type exports re-exported from shared API client
-  - `guild/types.ts` — Guild, Channel
-  - `message/types.ts` — MessageRecord, PageResult
-  - `voice/types.ts` — ActiveSpeaker, VoiceStatus
-  - `media/types.ts` — MediaItem, MediaMode, MediaState
-  - `ui/types.ts` — UIState, DashboardTab
-- `features/`
-  - `live/` — Voice connection, music player, screenshare, recordings
-    - Components: ActiveSpeakers, AudioVisualizer, MusicSubPanel, NowPlaying, RecordingsSubPanel, ScreenSubPanel, VoiceConnectionCard
-    - Hooks: `useVoiceControl`, `useMediaControl`
-  - `messages/` — Message list with filters
-    - Hooks: `useMessages`
-- `shared/`
-  - `api/client.ts` — All HTTP API calls + types
-  - `ws/socket.ts` — WebSocket singleton with `useDashboardSocket` hook
-  - `ws/events.ts` — Typed event map
-  - `hooks/` — useAudioPlayback, useAudioTransmit, useUIState, useMascotChat, useMascotSummary, useFramerStagger, useGsapTransition, useLocalStorage
-  - `ui/` — Reusable UI components (Badge, Button, Card, Input, Select, Skeleton, Tabs, Toast, ScrollArea)
-  - `lib/utils.ts` — `cn()` and other utilities
-
-**WebSocket protocol:**
-- Binary: PCM audio data (24kHz mono s16le)
-- JSON events: message_*, voice_*, attachment_*, user_state, ui_state, media_state, heartbeat
+**Feature structure:**
+- `src/app/` — App Router pages (login, dashboard with tabs)
+- `src/features/` — Feature components (dashboard, messages, live, mascot)
+- `src/lib/` — Shared utilities (types, API client, WebSocket, hooks)
+- `src/components/` — Shared UI components (layout, ui)
 
 ### shared (`packages/shared`)
 
@@ -388,16 +367,16 @@ pnpm install
 # Run each service in development mode (separate terminal each)
 pnpm run dev:backend          # Backend on port 3001
 pnpm run dev:discord-gateway  # Discord client + all features
-pnpm run dev:web              # Frontend via trunk serve
+pnpm run dev:web              # Frontend via next dev (port 3000)
 
 # Build
 pnpm run build:backend
 pnpm run build:discord-gateway
-pnpm run build:web            # trunk build --release
+pnpm run build:web            # next build (static export)
 
 # Type checking
 pnpm run typecheck            # Node services (pnpm -r)
-pnpm run typecheck:web        # Leptos frontend (cargo check)
+pnpm run typecheck:web        # Frontend typecheck (next build)
 
 # Lint (Biome)
 pnpm run lint
