@@ -23,7 +23,7 @@ import type {
 
 type View = "stats" | "users" | "channels" | "user-detail" | "channel-detail";
 
-export function DashboardPanel() {
+export function DashboardPanel({ guildId }: { guildId: string }) {
   const [view, setView] = useState<View>("stats");
   const [activeUser, setActiveUser] = useState<DashboardUserDetail | null>(
     null,
@@ -52,6 +52,7 @@ export function DashboardPanel() {
       case "channels":
         return (
           <ChannelsView
+            guildId={guildId}
             onSelectChannel={async (channelId) => {
               try {
                 const detail = await dashboardApi.getChannelDetail(channelId);
@@ -76,7 +77,7 @@ export function DashboardPanel() {
             onBack={() => setView("channels")}
           />
         ) : (
-          <ChannelsView onSelectChannel={() => {}} />
+          <ChannelsView guildId={guildId} onSelectChannel={() => {}} />
         );
     }
   };
@@ -397,8 +398,10 @@ function UsersView({
 
 function ChannelsView({
   onSelectChannel,
+  guildId,
 }: {
   onSelectChannel: (channelId: string) => void;
+  guildId: string;
 }) {
   const [channels, setChannels] = useState<DashboardChannel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -407,14 +410,18 @@ function ChannelsView({
   const fetchChannels = useCallback(async (searchQuery?: string) => {
     setLoading(true);
     try {
-      const result = await dashboardApi.listChannels(20, searchQuery);
+      const result = await dashboardApi.listChannels(
+        20,
+        searchQuery,
+        guildId || undefined,
+      );
       setChannels(result.data);
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [guildId]);
 
   useEffect(() => {
     fetchChannels();

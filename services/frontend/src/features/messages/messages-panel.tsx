@@ -2,7 +2,6 @@
 
 import {
   AlertCircle,
-  Download,
   ExternalLink,
   Flag,
   Loader2,
@@ -12,14 +11,11 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { messagesApi, voiceApi } from "@/lib/api";
-import { useAppConfig } from "@/lib/hooks/use-config";
 import type { AttachmentRecord, Channel, MessageRecord } from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
 
-export function MessagesPanel() {
-  const { config } = useAppConfig();
-  const guildId = config?.monitorGuildId ?? "";
-
+export function MessagesPanel({ guildId }: { guildId: string }) {
+  // All hooks must be called unconditionally — before the early return.
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -46,9 +42,22 @@ export function MessagesPanel() {
 
   const ws = useWebSocket();
 
+  // ── Guild placeholder (after all hooks) ───────────────────
+  if (!guildId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <AlertCircle className="size-8 text-muted-foreground mb-2" />
+        <p className="text-sm text-muted-foreground">
+          No guild selected. Select a guild above to view messages.
+        </p>
+      </div>
+    );
+  }
+
+  // ── Data-fetching side effects (guildId guaranteed non-empty) ──
+
   // Fetch available text channels for filtering
   useEffect(() => {
-    if (!guildId) return;
     voiceApi
       .getTextChannels(guildId)
       .then(setChannels)
@@ -208,16 +217,16 @@ export function MessagesPanel() {
 
   const handleReanalyzeBatch = useCallback(async () => {
     try {
-      await messagesApi.reanalyzeBatch();
+      await messagesApi.reanalyzeBatch(guildId);
     } catch {
       // ignore
     }
-  }, []);
+  }, [guildId]);
 
   const displayMessages = searchResults ?? messages;
   const isEmpty = !loading && displayMessages.length === 0;
 
-  // Render
+  // Render error state
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">

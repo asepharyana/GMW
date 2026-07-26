@@ -11,6 +11,19 @@ export interface Channel {
   parent_id?: string | null;
 }
 
+/** Shape of the /api/config response (camelCase keys from backend). */
 export interface AppConfig {
-  monitor_guild_id?: string | null;
+  monitorGuildId: string | null;
+  webserverPort?: number;
+  nodeEnv?: string;
+  backlogSyncHours?: number;
+  backlogSyncBatchSize?: number;
+  retentionMessagesDays?: number;
+  retentionAttachmentsDays?: number;
+  retentionVoiceDays?: number;
+  autoDeleteFlaggedEnabled?: boolean;
+  aiAnalysisEnabled?: boolean;
+  voiceGuildId?: string | null;
+  voiceChannelId?: string | null;
+  logLevel?: string;
 }
