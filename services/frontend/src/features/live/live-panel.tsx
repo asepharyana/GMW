@@ -489,9 +489,7 @@ export function LivePanel() {
               setMicActive(!micActive);
               try {
                 await voiceApi.sendCommand(
-                  micActive
-                    ? "voice:transmit:stop"
-                    : "voice:transmit:start",
+                  micActive ? "voice:transmit:stop" : "voice:transmit:start",
                 );
               } catch {
                 setMicActive(micActive);

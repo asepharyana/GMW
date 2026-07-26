@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import {
   messagesTable,
-  UserReputation,
+  type UserReputation,
   userReputationsTable,
 } from "../../shared/database/schema.js";
 

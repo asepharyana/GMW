@@ -1,6 +1,14 @@
 "use client";
 
-import { Bot, Loader2, MessageCircle, Send, Trash2, User, X } from "lucide-react";
+import {
+  Bot,
+  Loader2,
+  MessageCircle,
+  Send,
+  Trash2,
+  User,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { mascotApi } from "@/lib/api";
 import type { ChatHistoryMessage } from "@/lib/types";
@@ -20,6 +28,7 @@ export function MascotChatbot() {
       .catch(() => {});
   }, [open]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scrollRef doesn't need messages in deps
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

@@ -2,7 +2,7 @@ import { createChildLogger } from "@bete/shared/logger";
 import { eq } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import {
-  ChannelCulture,
+  type ChannelCulture,
   channelCulturesTable,
 } from "../../shared/database/schema.js";
 

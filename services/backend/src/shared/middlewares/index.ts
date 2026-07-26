@@ -1,7 +1,4 @@
-import {
-  AppError,
-  ValidationError,
-} from "@bete/shared/errors";
+import { AppError, ValidationError } from "@bete/shared/errors";
 import { createChildLogger } from "@bete/shared/logger";
 import type { NextFunction, Request, Response } from "express";
 

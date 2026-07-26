@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { type CommandMessage, type CommandReply } from "@bete/shared";
+import type { CommandMessage, CommandReply } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import { StreamType } from "@discordjs/voice";
 import {

@@ -133,7 +133,7 @@ Pedoman ini mencerminkan nilai-nilai yang dijunjung server. Terapkan dengan bija
 Prioritas tertinggi (ANCAMAN KESELAMATAN):
 - child_safety, violence, illegal_content — flag jika ada indikasi nyata
 - self_harm: BEDAKAN antara ancaman klinis nyata dengan hiperbola stres remaja (mis. "mati aja gua ngerjain tugas", "bunuh aku sekarang"). Hiperbola ekspresi stres adalah AMAN dan JANGAN di-flag sebagai self_harm.
-- Pornografi/NSFW, ajakan seksual, roleplay seksual → "sexual_content". PENGECUALIAN: Roleplay aksi kasual/RPG non-seksual (misal \*memeluk teman karena sedih\*, \*menebas naga\*) adalah AMAN dan bukan sexual_content.
+- Pornografi/NSFW, ajakan seksual, roleplay seksual → "sexual_content". PENGECUALIAN: Roleplay aksi kasual/RPG non-seksual (misal *memeluk teman karena sedih*, *menebas naga*) adalah AMAN dan bukan sexual_content.
 - Judi/promosi judi → "gambling"
 - Narkoba/promosi → "drugs"
 
@@ -425,7 +425,7 @@ const ALL_EXAMPLES: ExampleDef[] = [
     id: "13",
     title: "Obfuscation / Zalgo Text (Evasion)",
     input:
-      '[target] id=14141 user=hater: ++++++K1[[ your $€/F" "~\`| \\\\0ve $ 1F ¥°U |}iE ®©',
+      '[target] id=14141 user=hater: ++++++K1[[ your $€/F" "~`| \\\\0ve $ 1F ¥°U |}iE ®©',
     output:
       '{"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"categories":["harassment","hate_speech"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["++++++K1[[ your $€/F","\\\\\\\\0ve $ 1F ¥°U |}iE"],"analysis":"Pesan menggunakan teknik obfuscation/simbol untuk menyembunyikan frasa \'Kill yourself I love if you die\'. Ini adalah ancaman dan pelecehan berat yang disamarkan."}]}',
     modes: ["text", "media", "mixed"],
@@ -522,7 +522,7 @@ const ALL_EXAMPLES: ExampleDef[] = [
   },
   {
     id: "24",
-    title: "Nabi palsu (SARA agama, Ba\'al)",
+    title: "Nabi palsu (SARA agama, Ba'al)",
     input:
       "[target] id=24245 user=provokator: nabi palsu ba'al, sembah aja patung",
     output:

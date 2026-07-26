@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { PassThrough, Readable } from "node:stream";
+import { PassThrough, type Readable } from "node:stream";
 import { createChildLogger } from "@bete/shared/logger";
 import { StreamType } from "@discordjs/voice";
 

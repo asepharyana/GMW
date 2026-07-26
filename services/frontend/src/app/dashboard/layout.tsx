@@ -2,11 +2,11 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
-import { uiStateApi } from "@/lib/api";
 import { Header } from "@/components/layout/header";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MascotChatbot } from "@/features/mascot/mascot-chatbot";
+import { uiStateApi } from "@/lib/api";
 import { WsProvider } from "@/lib/ws/context";
 
 function DashboardShell({ children }: { children: React.ReactNode }) {

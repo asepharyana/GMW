@@ -153,8 +153,8 @@ export function getCustomEmojiMetadata(
 ): RichMessageMetadata["customEmojis"] {
   const CUSTOM_EMOJI_PATTERN = /<(a)?:([a-zA-Z0-9_]+):(\d+)>/g;
   const emojis: CustomEmojiEvidence[] = [];
-  let match;
-  while ((match = CUSTOM_EMOJI_PATTERN.exec(message.content)) !== null) {
+  const matches = [...message.content.matchAll(CUSTOM_EMOJI_PATTERN)];
+  for (const match of matches) {
     const [, animated, name, id] = match;
     const ext = animated ? "gif" : "png";
     emojis.push({

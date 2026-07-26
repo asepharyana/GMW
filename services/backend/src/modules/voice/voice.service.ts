@@ -4,7 +4,7 @@ import {
   COMMAND_VOICE_CHANNELS,
   COMMAND_VOICE_CONNECT,
   COMMAND_VOICE_DISCONNECT,
-  CommandReply,
+  type CommandReply,
   VOICE_STATUS_KEY,
 } from "@bete/shared";
 import {

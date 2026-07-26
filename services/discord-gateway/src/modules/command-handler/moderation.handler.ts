@@ -1,4 +1,4 @@
-import { type CommandMessage, type CommandReply } from "@bete/shared";
+import type { CommandMessage, CommandReply } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import type { Client } from "discord.js-selfbot-v13";
 import { createModerationAction } from "../message-capture/messageStore.js";

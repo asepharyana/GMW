@@ -1,6 +1,6 @@
 import { createChildLogger } from "@bete/shared/logger";
 import type { z } from "zod";
-import {
+import type {
   RecommendedActionSchema,
   SeveritySchema,
 } from "./moderationSchemas.js";

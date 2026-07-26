@@ -1,20 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { messagesApi, voiceApi } from "@/lib/api";
-import type { MessageRecord, Channel, AttachmentRecord } from "@/lib/types";
-import { useWebSocket } from "@/lib/ws/context";
 import {
-  Search,
-  RefreshCw,
-  Loader2,
   AlertCircle,
-  Flag,
-  X,
   Download,
   ExternalLink,
+  Flag,
+  Loader2,
+  RefreshCw,
+  Search,
+  X,
 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { messagesApi, voiceApi } from "@/lib/api";
 import { useAppConfig } from "@/lib/hooks/use-config";
+import type { AttachmentRecord, Channel, MessageRecord } from "@/lib/types";
+import { useWebSocket } from "@/lib/ws/context";
 
 export function MessagesPanel() {
   const { config } = useAppConfig();
@@ -27,14 +27,20 @@ export function MessagesPanel() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<MessageRecord[] | null>(null);
+  const [searchResults, setSearchResults] = useState<MessageRecord[] | null>(
+    null,
+  );
   const [searching, setSearching] = useState(false);
   const [viewTab, setViewTab] = useState<"all" | "images" | "review">("all");
   const [imageMessages, setImageMessages] = useState<MessageRecord[]>([]);
   const [reviewMessages, setReviewMessages] = useState<MessageRecord[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [detailMessage, setDetailMessage] = useState<MessageRecord | null>(null);
-  const [detailAttachments, setDetailAttachments] = useState<AttachmentRecord[]>([]);
+  const [detailMessage, setDetailMessage] = useState<MessageRecord | null>(
+    null,
+  );
+  const [detailAttachments, setDetailAttachments] = useState<
+    AttachmentRecord[]
+  >([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState("");
 
@@ -43,7 +49,10 @@ export function MessagesPanel() {
   // Fetch available text channels for filtering
   useEffect(() => {
     if (!guildId) return;
-    voiceApi.getTextChannels(guildId).then(setChannels).catch(() => {});
+    voiceApi
+      .getTextChannels(guildId)
+      .then(setChannels)
+      .catch(() => {});
   }, [guildId]);
 
   // Fetch initial messages
@@ -51,7 +60,11 @@ export function MessagesPanel() {
     setLoading(true);
     setError(null);
     try {
-      const result = await messagesApi.list(guildId, 50, selectedChannel || undefined);
+      const result = await messagesApi.list(
+        guildId,
+        50,
+        selectedChannel || undefined,
+      );
       setMessages(result.data);
       setCursor(result.nextCursor);
       setHasMore(result.nextCursor !== null);
@@ -75,7 +88,10 @@ export function MessagesPanel() {
   // Fetch review (flagged) messages
   const fetchReview = useCallback(async () => {
     try {
-      const result = await messagesApi.getReview(50, selectedChannel || undefined);
+      const result = await messagesApi.getReview(
+        50,
+        selectedChannel || undefined,
+      );
       setReviewMessages(result.results);
     } catch {
       // silently fail
@@ -146,7 +162,12 @@ export function MessagesPanel() {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const result = await messagesApi.list(guildId, 50, selectedChannel || undefined, cursor);
+      const result = await messagesApi.list(
+        guildId,
+        50,
+        selectedChannel || undefined,
+        cursor,
+      );
       setMessages((prev) => [...prev, ...result.data]);
       setCursor(result.nextCursor);
       setHasMore(result.nextCursor !== null);
@@ -506,7 +527,9 @@ export function MessagesPanel() {
                     {detailMessage.ai_recommended_action &&
                       detailMessage.ai_recommended_action !== "none" && (
                         <div className="rounded-lg border p-2">
-                          <p className="text-xs text-muted-foreground">Action</p>
+                          <p className="text-xs text-muted-foreground">
+                            Action
+                          </p>
                           <p className="text-sm font-medium">
                             {detailMessage.ai_recommended_action}
                           </p>
@@ -602,13 +625,14 @@ function MessageCard({
   const timeStr = date.toLocaleString();
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: complex nested content prevents using button
     <div
       role="button"
       tabIndex={0}
       onClick={() => onClick(msg.id)}
       onKeyDown={(e) => e.key === "Enter" && onClick(msg.id)}
       className={`rounded-lg border p-4 space-y-2 transition-colors cursor-pointer hover:bg-muted/50 ${
-        msg.ai_severity ? severityColor[msg.ai_severity] ?? "" : ""
+        msg.ai_severity ? (severityColor[msg.ai_severity] ?? "") : ""
       } ${msg.ai_severity && msg.ai_severity !== "none" ? "border-l-2" : ""}`}
     >
       {/* Header */}
@@ -676,21 +700,18 @@ function MessageCard({
           </p>
 
           {/* AI Details */}
-          {msg.ai_moderation_flags &&
-            msg.ai_moderation_flags !== "[]" && (
-              <div className="flex flex-wrap gap-1 mt-1">
-                {safeParseJsonArray(msg.ai_moderation_flags).map(
-                  (flag) => (
-                    <span
-                      key={flag}
-                      className="inline-flex items-center rounded-md bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive"
-                    >
-                      {flag}
-                    </span>
-                  ),
-                )}
-              </div>
-            )}
+          {msg.ai_moderation_flags && msg.ai_moderation_flags !== "[]" && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {safeParseJsonArray(msg.ai_moderation_flags).map((flag) => (
+                <span
+                  key={flag}
+                  className="inline-flex items-center rounded-md bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive"
+                >
+                  {flag}
+                </span>
+              ))}
+            </div>
+          )}
 
           {msg.ai_analysis && (
             <p className="text-xs text-muted-foreground mt-1 italic line-clamp-2">
@@ -699,22 +720,21 @@ function MessageCard({
           )}
 
           {/* Confidence score */}
-          {msg.ai_confidence !== undefined &&
-            msg.ai_confidence !== null && (
-              <div className="flex items-center gap-2 mt-1">
-                <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden max-w-24">
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{
-                      width: msg.ai_confidence * 100 + "%",
-                    }}
-                  />
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {(msg.ai_confidence * 100).toFixed(0)}%
-                </span>
+          {msg.ai_confidence !== undefined && msg.ai_confidence !== null && (
+            <div className="flex items-center gap-2 mt-1">
+              <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden max-w-24">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{
+                    width: msg.ai_confidence * 100 + "%",
+                  }}
+                />
               </div>
-            )}
+              <span className="text-xs text-muted-foreground">
+                {(msg.ai_confidence * 100).toFixed(0)}%
+              </span>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2 mt-2">
@@ -755,9 +775,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function safeParseJsonArray(
-  value: string | null | undefined,
-): string[] {
+function safeParseJsonArray(value: string | null | undefined): string[] {
   if (!value) return [];
   try {
     const parsed = JSON.parse(value);

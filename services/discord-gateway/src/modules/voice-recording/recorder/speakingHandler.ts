@@ -121,7 +121,7 @@ export function createSpeakingHandler(
 
       // Step 4: Open the first segment
       const activeSession = activeSessions.get(channel.guild.id);
-      let currentSegment = segmentManager.open(oggPacketStream);
+      const currentSegment = segmentManager.open(oggPacketStream);
 
       // Step 5: Handle segment file completion
       currentSegment.out.on("finish", () => {

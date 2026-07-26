@@ -2,7 +2,7 @@ import type { createChildLogger } from "@bete/shared/logger";
 import type { Client } from "discord.js-selfbot-v13";
 import type { CommandHandler } from "../modules/command-handler/commandHandler.js";
 import type { EventBroadcaster } from "../modules/event-broadcaster/index.js";
-import { stopMetricsServer } from "../modules/gateway-metrics/index.js";
+import type { stopMetricsServer } from "../modules/gateway-metrics/index.js";
 import type { VoicePcmWsClient } from "../modules/voice-pcm-ws/index.js";
 import { stopMuxerWorker } from "../modules/voice-recording/muxer.js";
 import type { VoiceController } from "../modules/voice-recording/voiceController.js";

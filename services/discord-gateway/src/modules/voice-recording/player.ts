@@ -1,13 +1,13 @@
-import { Readable } from "node:stream";
+import type { Readable } from "node:stream";
 import { createChildLogger } from "@bete/shared/logger";
 import {
-  AudioPlayer,
+  type AudioPlayer,
   AudioPlayerStatus,
   type AudioResource,
   createAudioPlayer,
   createAudioResource,
   StreamType,
-  VoiceConnection,
+  type VoiceConnection,
 } from "@discordjs/voice";
 import type { DiscordPlayerOwner, DiscordPlayOptions } from "./mediaTypes.js";
 
