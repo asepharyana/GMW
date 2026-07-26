@@ -1,8 +1,7 @@
 "use client";
 
-import { LayoutDashboard, LogOut, MessageSquare, Radio } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Radio } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/hooks/use-auth";
 
 const tabs = [
   { id: "messages", label: "Messages", icon: MessageSquare },
@@ -13,7 +12,6 @@ const tabs = [
 type TabId = (typeof tabs)[number]["id"];
 
 export function Sidebar({ activeTab }: { activeTab: TabId }) {
-  const { logout } = useAuth();
   const router = useRouter();
 
   const handleTabClick = (tabId: TabId) => {
@@ -43,17 +41,6 @@ export function Sidebar({ activeTab }: { activeTab: TabId }) {
           </button>
         ))}
       </nav>
-
-      <div className="border-t p-3">
-        <button
-          type="button"
-          onClick={logout}
-          className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-        >
-          <LogOut className="size-4 shrink-0" />
-          Sign out
-        </button>
-      </div>
     </aside>
   );
 }

@@ -1,4 +1,3 @@
-export { login } from "./auth";
 export { ApiError, api, apiRequest } from "./client";
 export { configApi } from "./config";
 export { dashboardApi } from "./dashboard";

@@ -7,31 +7,7 @@ import { Header } from "@/components/layout/header";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MascotChatbot } from "@/features/mascot/mascot-chatbot";
-import { AuthProvider, useAuth } from "@/lib/hooks/use-auth";
 import { WsProvider } from "@/lib/ws/context";
-
-function DashboardGuard({ children }: { children: React.ReactNode }) {
-  const { authenticated, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && !authenticated) {
-      router.push("/");
-    }
-  }, [authenticated, loading, router]);
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (!authenticated) return null;
-
-  return <>{children}</>;
-}
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
@@ -49,7 +25,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     const tabParam = searchParams.get("tab");
     if (tabParam) {
       restored.current = true;
-      return; // explicit tab in URL — don't override
+      return;
     }
     uiStateApi
       .get()
@@ -89,21 +65,17 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AuthProvider>
-      <DashboardGuard>
-        <WsProvider>
-          <Suspense
-            fallback={
-              <div className="flex min-h-screen items-center justify-center">
-                <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              </div>
-            }
-          >
-            <DashboardShell>{children}</DashboardShell>
-          </Suspense>
-          <MascotChatbot />
-        </WsProvider>
-      </DashboardGuard>
-    </AuthProvider>
+    <WsProvider>
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center">
+            <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        }
+      >
+        <DashboardShell>{children}</DashboardShell>
+      </Suspense>
+      <MascotChatbot />
+    </WsProvider>
   );
 }

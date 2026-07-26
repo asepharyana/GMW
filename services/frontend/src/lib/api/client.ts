@@ -12,13 +12,7 @@ function getBaseUrl(): string {
   if (typeof window === "undefined") return "";
   const protocol = window.location.protocol.replace(":", "");
   const host = window.location.host;
-  // In dev, Next.js proxy can be configured, but default to same-host assumption
   return `${protocol}://${host}`;
-}
-
-function getAuthHeader(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("admin-password");
 }
 
 export async function apiRequest<T>(
@@ -27,12 +21,8 @@ export async function apiRequest<T>(
   body?: unknown,
 ): Promise<T> {
   const url = `${getBaseUrl()}${path}`;
-  const password = getAuthHeader();
 
   const headers: Record<string, string> = {};
-  if (password) {
-    headers["X-Admin-Password"] = password;
-  }
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
   }
