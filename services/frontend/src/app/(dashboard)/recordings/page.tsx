@@ -106,7 +106,9 @@ export default function RecordingsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => window.open(rec.download_url, "_blank")}
+                      onClick={() => {
+                        if (rec.download_url) window.open(rec.download_url, "_blank");
+                      }}
                     >
                       <Download className="size-4" />
                     </Button>
