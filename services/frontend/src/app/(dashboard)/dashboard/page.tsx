@@ -121,8 +121,6 @@ export default function DashboardPage() {
 function StatsSection() {
   const { stats, loading, error, refetch } = useStats();
 
-  if (error) return <ErrorState message={error} onRetry={refetch} />;
-
   if (loading || !stats) {
     return (
       <div className="space-y-5 animate-fade-in-up">

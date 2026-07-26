@@ -77,6 +77,11 @@ export function useMessages(
     }
   }, [cursor, loadingMore, guildId, channelId]);
 
+  // Auto-fetch when guildId/channelId changes
+  useEffect(() => {
+    fetch();
+  }, [fetch]);
+
   const prepend = useCallback((msg: MessageRecord) => {
     setMessages((prev) => [msg, ...prev]);
   }, []);

@@ -13,11 +13,7 @@ import { useWebSocket } from "@/lib/ws/context";
 
 export default function RecordingsPage() {
   const ws = useWebSocket();
-  const { recordings, loading, refresh, remove, prepend } = useRecordings();
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const { recordings, loading, remove, prepend } = useRecordings();
 
   // WS subscription for real-time updates
   useEffect(() => {

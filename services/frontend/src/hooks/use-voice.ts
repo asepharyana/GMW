@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { voiceApi } from "@/lib/api";
 import type { ActiveSpeaker, VoiceStatus } from "@/lib/types";
@@ -27,6 +27,10 @@ export function useVoiceStatus(): UseVoiceStatusReturn {
       console.error("useVoiceStatus:", err);
     }
   }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   return { voiceStatus, refresh };
 }

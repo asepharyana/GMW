@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { dashboardApi } from "@/lib/api";
 import type {
@@ -35,6 +35,10 @@ export function useStats(): UseStatsReturn {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    fetch();
+  }, [fetch]);
 
   return { stats, loading, error, refetch: fetch };
 }

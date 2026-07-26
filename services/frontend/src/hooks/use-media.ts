@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { voiceApi } from "@/lib/api";
 import type { MediaState } from "@/lib/types";
@@ -68,6 +68,10 @@ export function useMediaState(): UseMediaStateReturn {
       console.error("useMediaState/setVolume:", err);
     }
   }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   return { mediaState, refresh, queue, skip, stop, setVolume };
 }

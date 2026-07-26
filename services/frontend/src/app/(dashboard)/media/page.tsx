@@ -16,10 +16,6 @@ export default function MediaPage() {
   const { mediaState, refresh, queue, skip, stop, setVolume } = useMediaState();
   const [queueUrl, setQueueUrl] = useState("");
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
   // WS subscription for real-time media state
   useEffect(() => {
     const unsub = ws.on("media_state", () => refresh());

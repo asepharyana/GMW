@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { recordingsApi } from "@/lib/api";
 import type { VoiceRecording } from "@/lib/types";
@@ -34,6 +34,10 @@ export function useRecordings(): UseRecordingsReturn {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   const remove = useCallback(async (id: string) => {
     try {
