@@ -15,7 +15,7 @@ services/backend/
 │   │   ├── logger/
 │   │   │   └── index.ts                 # Pino logger with child context support
 │   │   ├── middlewares/
-│   │   │   └── index.ts                 # Express middleware (errorHandler, asyncHandler, adminAuth)
+│   │   │   └── index.ts                 # Express middleware (errorHandler, asyncHandler, rateLimit)
 │   │   └── utils/                       # Utility functions (placeholder)
 │   │
 │   ├── modules/                         # Feature modules (Modular MVC pattern)

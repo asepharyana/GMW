@@ -68,9 +68,8 @@ AI Moderation:
 
 Express 5 + Helmet HTTP server with WebSocket (ws) on port 3001 (default).
 
-**REST API endpoints:**
+**REST API endpoints (all public):**
 - `GET /api/health` — Health check with optional `?verbose=true`
-- `POST /api/auth/login` — Admin authentication
 - `GET /api/config` — App configuration
 - `GET /api/messages` — List messages (cursor pagination)
 - `GET /api/messages/:channelId` — Messages by channel
@@ -102,7 +101,6 @@ Express 5 + Helmet HTTP server with WebSocket (ws) on port 3001 (default).
 
 **Modules (feature-based, under `src/modules/`):**
 - `health/` — Database connectivity check
-- `auth/` — Admin password auth
 - `messages/` — Message + attachment CRUD, review, reanalyze
 - `voice/` — Voice connection, guilds, channels
 - `media/` — Music/screenshare player control
@@ -397,7 +395,7 @@ pnpm run install:yt-dlp
 
 # Deploy to VPS (build + hot-patch running containers)
 ./deploy.sh                    # Build + deploy all services
-./deploy.sh --frontend         # Frontend WASM only
+./deploy.sh --frontend         # Frontend (Next.js) only
 ./deploy.sh --backend          # Backend TypeScript only
 ./deploy.sh --no-build         # Skip build, just copy files
 ```
@@ -463,7 +461,7 @@ Configuration via `.env` (see `.env.example`). Managed by Zod schemas:
 - `OPENAI_MODERATION_API_KEY`, `OPENAI_MODERATION_BASE_URL`, `OPENAI_MODERATION_MODEL`
 
 ### Backend
-- `WEBSERVER_PORT` (3001), `ADMIN_PASSWORD` (admin123)
+- `WEBSERVER_PORT` (3001)
 - `BACKLOG_SYNC_HOURS` (24), `BACKLOG_SYNC_BATCH_SIZE` (100)
 
 ### Retention
@@ -552,9 +550,9 @@ discord-gateway handles SIGINT/SIGTERM/uncaughtException/unhandledRejection:
 5. Destroy Discord client
 6. Exit process
 
-### Admin Authentication
+### Public API
 
-Backend endpoints are protected by `X-Admin-Password` header matching `ADMIN_PASSWORD` env var. The frontend stores the password in `localStorage`.
+All backend endpoints are publicly accessible — no authentication required.
 
 ## Recording Structure
 

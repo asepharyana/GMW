@@ -1,5 +1,10 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# Bete Frontend — Project Overview
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
+Next.js 16 (App Router), React 19, TypeScript strict, Tailwind v4, shadcn/ui, base-ui.
+
+Key points:
+- **All pages** are `"use client"` — the dashboard is fully client-rendered
+- **API client** at `src/lib/api/` — fetch-based, covers all 30+ backend endpoints
+- **WebSocket** at `src/lib/ws/` — auto-reconnecting client with typed event subscriptions
+- **Static export**: `output: "export"` in next.config.ts, served via nginx
+- **No authentication**: all endpoints are public
