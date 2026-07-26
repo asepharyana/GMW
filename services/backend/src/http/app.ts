@@ -7,7 +7,6 @@ import express, {
 } from "express";
 import helmet from "helmet";
 import { createAnalysisRouter } from "../modules/analysis/analysis.routes.js";
-import { createAuthRouter } from "../modules/auth/auth.routes.js";
 import { createConfigRouter } from "../modules/config/config.routes.js";
 import { createDashboardRouter } from "../modules/dashboard/dashboard.routes.js";
 import { createHealthRouter } from "../modules/health/health.routes.js";
@@ -18,10 +17,9 @@ import { createRecordingsRouter } from "../modules/recordings/recordings.routes.
 import { createUiStateRouter } from "../modules/ui-state/ui-state.routes.js";
 import { createGuildsRouter } from "../modules/voice/guilds.routes.js";
 import { createVoiceRouter } from "../modules/voice/voice.routes.js";
-import { config } from "../shared/config/index.js";
-import { adminAuth, errorHandler } from "../shared/middlewares/index.js";
+import { errorHandler } from "../shared/middlewares/index.js";
 
-const ADMIN_PASSWORD = config.ADMIN_PASSWORD || "admin";
+// Auth removed — dashboard is public
 
 const logger = createChildLogger("http.app");
 
@@ -61,13 +59,8 @@ export function createHttpApp(): Express {
     next();
   });
 
-  // Health check (no auth required)
+  // All routes are public
   app.use("/api", createHealthRouter());
-
-  // Auth (no auth required)
-  app.use("/api", createAuthRouter());
-
-  // Public read-only endpoints
   app.use("/api", createConfigRouter());
   app.use("/api", createDashboardRouter());
   app.use("/api", createMessagesRouter());
@@ -77,11 +70,8 @@ export function createHttpApp(): Express {
   app.use("/api", createUiStateRouter());
   app.use("/api/guilds", createGuildsRouter());
 
-  // Protected routes — require admin authentication (X-Admin-Password header)
-  // Only voice and media control endpoints need auth
-  const adminAuthMiddleware = adminAuth(ADMIN_PASSWORD);
-  app.use("/api", adminAuthMiddleware, createMediaRouter());
-  app.use("/api", adminAuthMiddleware, createVoiceRouter());
+  app.use("/api", createMediaRouter());
+  app.use("/api", createVoiceRouter());
 
   // 404 handler
   app.use((_req: Request, res: Response) => {

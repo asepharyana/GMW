@@ -62,16 +62,6 @@ describe("API Config", () => {
   });
 });
 
-describe("API Auth", () => {
-  it("POST /auth/login with wrong password returns 401", async () => {
-    const { status } = await api("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ password: "wrong" }),
-    });
-    expect(status).toBe(401);
-  });
-});
-
 describe("API Voice", () => {
   it("GET /guilds returns 200", async () => {
     const { status } = await api("/guilds");

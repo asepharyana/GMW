@@ -1,6 +1,5 @@
 import {
   AppError,
-  UnauthorizedError,
   ValidationError,
 } from "@bete/shared/errors";
 import { createChildLogger } from "@bete/shared/logger";
@@ -28,18 +27,6 @@ export function errorHandler(
     error: "INTERNAL_SERVER_ERROR",
     message: "An unexpected error occurred",
   });
-}
-
-export function adminAuth(adminPassword: string) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const password = req.headers["x-admin-password"] as string;
-
-    if (!password || password !== adminPassword) {
-      throw new UnauthorizedError("Invalid admin password");
-    }
-
-    next();
-  };
 }
 
 export function asyncHandler(
