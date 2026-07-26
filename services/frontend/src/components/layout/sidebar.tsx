@@ -1,7 +1,8 @@
 "use client";
 
-import { type LucideIcon, Radio } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Radio } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+
 import {
   SidebarContent,
   SidebarFooter,
@@ -14,21 +15,20 @@ import {
   Sidebar as SidebarPrimitive,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { type TabId, tabs } from "@/lib/tabs";
+import { navItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
-export function Sidebar({ activeTab }: { activeTab: TabId }) {
+export function Sidebar() {
+  const pathname = usePathname();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { state } = useSidebar();
   const { status } = useWebSocket();
   const collapsed = state === "collapsed";
 
-  const handleTabClick = (tabId: TabId) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", tabId);
-    router.push(`/dashboard?${params}`);
+  const isActive = (matchPrefix: string) => {
+    if (matchPrefix === "/dashboard") return pathname === "/dashboard";
+    return pathname.startsWith(matchPrefix);
   };
 
   const connectionLabel = {
@@ -53,6 +53,7 @@ export function Sidebar({ activeTab }: { activeTab: TabId }) {
             <SidebarMenuButton
               size="lg"
               className="group-data-[collapsible=icon]:!p-0"
+              onClick={() => router.push("/dashboard")}
             >
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-cyan-400 text-sidebar-primary-foreground">
                 <Radio className="size-4" />
@@ -79,28 +80,28 @@ export function Sidebar({ activeTab }: { activeTab: TabId }) {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {tabs.map(({ id, label, icon: Icon }) => {
-                const isActive = activeTab === id;
+              {navItems.map(({ href, label, icon: Icon, matchPrefix }) => {
+                const active = isActive(matchPrefix);
                 return (
-                  <SidebarMenuItem key={id}>
+                  <SidebarMenuItem key={href}>
                     <SidebarMenuButton
-                      isActive={isActive}
-                      onClick={() => handleTabClick(id)}
+                      isActive={active}
                       tooltip={collapsed ? label : undefined}
                       className={cn(
                         "relative transition-all duration-200",
-                        isActive &&
+                        active &&
                           "bg-sidebar-accent/80 text-sidebar-accent-foreground font-medium",
                       )}
+                      onClick={() => router.push(href)}
                     >
                       <Icon
                         className={cn(
                           "size-4 transition-all duration-200",
-                          isActive && "text-sky-400 scale-110",
+                          active && "text-sky-400 scale-110",
                         )}
                       />
                       <span>{label}</span>
-                      {isActive && (
+                      {active && (
                         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-gradient-to-b from-sky-400 to-cyan-400" />
                       )}
                     </SidebarMenuButton>

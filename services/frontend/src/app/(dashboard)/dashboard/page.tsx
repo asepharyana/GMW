@@ -15,14 +15,17 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GuildSelector } from "@/components/shared/guild-selector";
 import { dashboardApi } from "@/lib/api";
+import { formatNumber } from "@/lib/format";
 import type {
   DashboardChannel,
   DashboardChannelDetail,
@@ -31,16 +34,21 @@ import type {
   DashboardUserDetail,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useWebSocket } from "@/lib/ws/context";
 
 type View = "stats" | "users" | "channels" | "user-detail" | "channel-detail";
 
-export function DashboardPanel({ guildId }: { guildId: string }) {
+export default function DashboardPage() {
   const [view, setView] = useState<View>("stats");
+  const [guildId, setGuildId] = useState("");
   const [activeUser, setActiveUser] = useState<DashboardUserDetail | null>(
     null,
   );
   const [activeChannel, setActiveChannel] =
     useState<DashboardChannelDetail | null>(null);
+
+  // WS connection for real-time awareness
+  useWebSocket();
 
   const renderView = () => {
     switch (view) {
@@ -95,7 +103,8 @@ export function DashboardPanel({ guildId }: { guildId: string }) {
 
   return (
     <div className="space-y-5">
-      {/* Sub-navigation using shadcn Tabs */}
+      <GuildSelector value={guildId} onChange={setGuildId} />
+
       <Tabs
         value={
           view === "user-detail"
@@ -166,7 +175,6 @@ function StatsView() {
 
   return (
     <div className="space-y-5 animate-fade-in-up">
-      {/* Metric cards */}
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {Array.from({ length: 8 }, (_, i) => (
@@ -181,7 +189,11 @@ function StatsView() {
               value={stats.total_messages}
               icon={Hash}
             />
-            <StatCard label="Today" value={stats.today_messages} icon={Clock} />
+            <StatCard
+              label="Today"
+              value={stats.today_messages}
+              icon={Clock}
+            />
             <StatCard label="Users" value={stats.total_users} icon={Users} />
             <StatCard
               label="Active 24h"
@@ -212,7 +224,6 @@ function StatsView() {
             />
           </div>
 
-          {/* Top Channels + Moderation Queue */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
@@ -231,12 +242,16 @@ function StatsView() {
                     {stats.top_channels.map((ch, i) => {
                       const maxCount = stats.top_channels[0].message_count;
                       const pct =
-                        maxCount > 0 ? (ch.message_count / maxCount) * 100 : 0;
+                        maxCount > 0
+                          ? (ch.message_count / maxCount) * 100
+                          : 0;
                       return (
                         <div key={ch.channel_id} className="space-y-1">
                           <div className="flex items-center justify-between text-sm">
                             <span className="truncate font-medium">
-                              #{ch.channel_name ?? ch.channel_id.slice(0, 8)}
+                              #
+                              {ch.channel_name ??
+                                ch.channel_id.slice(0, 8)}
                             </span>
                             <span className="text-muted-foreground tabular-nums">
                               {formatNumber(ch.message_count)}
@@ -264,7 +279,9 @@ function StatsView() {
                     <div className="text-2xl font-bold tabular-nums">
                       {stats.moderation_overview.pending}
                     </div>
-                    <div className="text-xs text-muted-foreground">Pending</div>
+                    <div className="text-xs text-muted-foreground">
+                      Pending
+                    </div>
                   </div>
                   <div className="rounded-lg bg-yellow-500/10 p-3 text-center space-y-1.5">
                     <div className="text-2xl font-bold tabular-nums text-yellow-500">
@@ -552,7 +569,7 @@ function ChannelsView({
                   </div>
                   {ch.culture_summary && (
                     <p className="text-xs text-muted-foreground/70 mt-2 italic line-clamp-2 border-t border-border/50 pt-2">
-                      "{ch.culture_summary}"
+                      &ldquo;{ch.culture_summary}&rdquo;
                     </p>
                   )}
                 </CardContent>
@@ -720,7 +737,7 @@ function ChannelDetailView({
                 </p>
               </div>
               <p className="text-sm leading-relaxed italic">
-                "{channel.culture_summary}"
+                &ldquo;{channel.culture_summary}&rdquo;
               </p>
             </div>
           )}
@@ -787,10 +804,4 @@ function DetailStat({
       </CardContent>
     </Card>
   );
-}
-
-// ── Helpers ─────────────────────────────────────
-
-function formatNumber(n: number): string {
-  return n.toLocaleString();
 }

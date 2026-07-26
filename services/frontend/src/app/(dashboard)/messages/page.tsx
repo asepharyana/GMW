@@ -4,15 +4,15 @@ import {
   AlertCircle,
   ExternalLink,
   Flag,
-  Hash,
   Loader2,
+  MessageSquare,
   RefreshCw,
   Search,
   Sparkles,
-  X,
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,13 +34,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GuildSelector } from "@/components/shared/guild-selector";
 import { messagesApi, voiceApi } from "@/lib/api";
+import { formatBytes, safeParseJsonArray } from "@/lib/format";
 import type { AttachmentRecord, Channel, MessageRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
-export function MessagesPanel({ guildId }: { guildId: string }) {
+export default function MessagesPage() {
+  const [guildId, setGuildId] = useState("");
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -67,8 +70,7 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
 
   const ws = useWebSocket();
 
-  // ── Data fetching ──
-
+  // Fetch channels when guild changes
   useEffect(() => {
     if (!guildId) return;
     voiceApi
@@ -238,19 +240,26 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <AlertCircle className="size-10 text-destructive mb-3" />
-        <p className="text-sm text-muted-foreground mb-4 max-w-sm">{error}</p>
-        <Button variant="outline" onClick={fetchMessages}>
-          <RefreshCw className="size-4 mr-2" />
-          Retry
-        </Button>
+      <div className="space-y-5">
+        <GuildSelector value={guildId} onChange={setGuildId} />
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <AlertCircle className="size-10 text-destructive mb-3" />
+          <p className="text-sm text-muted-foreground mb-4 max-w-sm">
+            {error}
+          </p>
+          <Button variant="outline" onClick={fetchMessages}>
+            <RefreshCw className="size-4 mr-2" />
+            Retry
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
+      <GuildSelector value={guildId} onChange={setGuildId} />
+
       {/* Search + toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
@@ -265,7 +274,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
           />
         </div>
 
-        {/* Channel filter */}
         {channels.length > 0 && (
           <Select
             value={selectedChannel}
@@ -291,7 +299,7 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
         </Button>
       </div>
 
-      {/* Tab bar using shadcn Tabs */}
+      {/* Tab bar */}
       <Tabs
         value={viewTab}
         onValueChange={(v) => setViewTab(v as "all" | "images" | "review")}
@@ -408,7 +416,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                         No image
                       </div>
                     )}
-                    {/* Hover overlay */}
                     {msg.content && (
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end p-3">
                         <p className="text-xs text-white/90 line-clamp-2">
@@ -468,7 +475,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                 </div>
               ) : detailMessage ? (
                 <>
-                  {/* Message info */}
                   <div className="flex items-start gap-3">
                     <Avatar className="size-10">
                       <AvatarImage
@@ -484,7 +490,9 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                           {detailMessage.username}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(detailMessage.created_at).toLocaleString()}
+                          {new Date(
+                            detailMessage.created_at,
+                          ).toLocaleString()}
                         </span>
                         {detailMessage.type === "deleted" && (
                           <Badge variant="destructive" className="text-[10px]">
@@ -503,7 +511,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                     </div>
                   </div>
 
-                  {/* AI Analysis */}
                   {detailMessage.ai_analysis && (
                     <div className="rounded-lg bg-gradient-to-br from-primary/5 to-primary/[0.02] border border-primary/10 p-4">
                       <div className="flex items-center gap-2 mb-2">
@@ -518,7 +525,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                     </div>
                   )}
 
-                  {/* AI flags */}
                   {detailMessage.ai_moderation_flags &&
                     detailMessage.ai_moderation_flags !== "[]" && (
                       <div className="space-y-2">
@@ -541,7 +547,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                       </div>
                     )}
 
-                  {/* AI Scores */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {detailMessage.ai_status && (
                       <Card>
@@ -595,7 +600,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                       )}
                   </div>
 
-                  {/* Attachments */}
                   {detailAttachments.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-xs text-muted-foreground font-medium">
@@ -625,7 +629,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                     </div>
                   )}
 
-                  {/* Raw metadata */}
                   {detailMessage.metadata &&
                     detailMessage.metadata !== "{}" && (
                       <div className="space-y-1">
@@ -634,7 +637,7 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                         </p>
                         <pre className="text-xs bg-muted/50 rounded-lg p-3 overflow-x-auto max-h-32 border border-border/50">
                           {JSON.stringify(
-                            safeParseJsonObject(detailMessage.metadata),
+                            safeParseObject(detailMessage.metadata),
                             null,
                             2,
                           )}
@@ -705,18 +708,16 @@ function MessageCard({
           </Avatar>
 
           <div className="flex-1 min-w-0 space-y-2">
-            {/* Username + time + badges */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium">{msg.username}</span>
               <span className="text-xs text-muted-foreground">
                 {new Date(msg.created_at).toLocaleString()}
               </span>
               <span className="text-xs text-muted-foreground">
-                <Hash className="size-3 inline mr-0.5" />
+                <HashIcon className="size-3 inline mr-0.5" />
                 {msg.channel_id.slice(0, 8)}
               </span>
 
-              {/* AI Status badge */}
               {msg.ai_status && aiStatusColor[msg.ai_status] && (
                 <Badge
                   variant="outline"
@@ -729,7 +730,6 @@ function MessageCard({
                 </Badge>
               )}
 
-              {/* Severity badge */}
               {msg.ai_severity && msg.ai_severity !== "none" && (
                 <Badge
                   variant="destructive"
@@ -739,7 +739,6 @@ function MessageCard({
                 </Badge>
               )}
 
-              {/* Deleted/edited badges */}
               {msg.type === "deleted" && (
                 <Badge
                   variant="destructive"
@@ -758,7 +757,6 @@ function MessageCard({
               )}
             </div>
 
-            {/* Content */}
             <p
               className={cn(
                 "text-sm leading-relaxed",
@@ -769,7 +767,6 @@ function MessageCard({
               {msg.content}
             </p>
 
-            {/* AI flags */}
             {msg.ai_moderation_flags && msg.ai_moderation_flags !== "[]" && (
               <div className="flex flex-wrap gap-1">
                 {safeParseJsonArray(msg.ai_moderation_flags).map((flag) => (
@@ -784,24 +781,25 @@ function MessageCard({
               </div>
             )}
 
-            {/* AI analysis snippet */}
             {msg.ai_analysis && (
               <p className="text-xs text-muted-foreground italic line-clamp-2 leading-relaxed">
                 {msg.ai_analysis}
               </p>
             )}
 
-            {/* Confidence bar */}
-            {msg.ai_confidence !== undefined && msg.ai_confidence !== null && (
-              <div className="flex items-center gap-2 max-w-40">
-                <Progress value={msg.ai_confidence * 100} className="h-1.5" />
-                <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                  {(msg.ai_confidence * 100).toFixed(0)}%
-                </span>
-              </div>
-            )}
+            {msg.ai_confidence !== undefined &&
+              msg.ai_confidence !== null && (
+                <div className="flex items-center gap-2 max-w-40">
+                  <Progress
+                    value={msg.ai_confidence * 100}
+                    className="h-1.5"
+                  />
+                  <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                    {(msg.ai_confidence * 100).toFixed(0)}%
+                  </span>
+                </div>
+              )}
 
-            {/* Actions */}
             <div className="flex gap-1.5 pt-0.5">
               <Button
                 variant="ghost"
@@ -824,7 +822,7 @@ function MessageCard({
 
 // ── Helpers ─────────────────────────────────────
 
-function safeParseJsonObject(
+function safeParseObject(
   value: string | null | undefined,
 ): Record<string, unknown> {
   if (!value) return {};
@@ -837,24 +835,31 @@ function safeParseJsonObject(
   }
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+function HashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      role="img"
+      aria-label="Hash"
+    >
+      <title>Hash</title>
+      <line x1="4" x2="20" y1="9" y2="9" />
+      <line x1="4" x2="20" y1="15" y2="15" />
+      <line x1="10" x2="8" y1="3" y2="21" />
+      <line x1="16" x2="14" y1="3" y2="21" />
+    </svg>
+  );
 }
 
-function safeParseJsonArray(value: string | null | undefined): string[] {
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    if (Array.isArray(parsed)) return parsed;
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-// Inline icon components to avoid missing imports
 function ImageIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -875,28 +880,6 @@ function ImageIcon({ className }: { className?: string }) {
       <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
       <circle cx="9" cy="9" r="2" />
       <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-    </svg>
-  );
-}
-
-function MessageSquare({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      role="img"
-      aria-label="Message"
-    >
-      <title>Message</title>
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
 }

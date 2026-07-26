@@ -1,7 +1,9 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -10,11 +12,32 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { navItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
+function usePageTitle(): string {
+  const pathname = usePathname();
+
+  // Exact match first, then prefix match
+  const item = navItems.find((n) => {
+    if (n.matchPrefix === "/dashboard") return pathname === "/dashboard";
+    return pathname.startsWith(n.matchPrefix);
+  });
+
+  if (item) return item.label;
+
+  // Fallback: derive from pathname
+  const segment = pathname.split("/").filter(Boolean)[0];
+  if (segment) {
+    return segment.charAt(0).toUpperCase() + segment.slice(1);
+  }
+  return "Dashboard";
+}
+
 export function Header() {
   const { status } = useWebSocket();
+  const pageTitle = usePageTitle();
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
@@ -49,6 +72,8 @@ export function Header() {
   return (
     <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border/50 bg-background/60 backdrop-blur-lg px-4 md:px-6">
       <SidebarTrigger className="-ml-1 size-8 text-muted-foreground hover:text-foreground" />
+
+      <h1 className="text-sm font-semibold hidden sm:block">{pageTitle}</h1>
 
       <div className="flex-1" />
 
