@@ -124,7 +124,9 @@ export function GuildSelector({
       </Badge>
       <Select value={value} onValueChange={(v) => v && onChange(v)}>
         <SelectTrigger className="h-8 w-full max-w-xs">
-          <SelectValue placeholder="Select a guild…" />
+          <SelectValue placeholder="Select a guild…">
+            {guilds.find((g) => g.id === value)?.name}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {guilds.map((g) => (
