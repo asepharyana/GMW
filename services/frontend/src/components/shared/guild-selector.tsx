@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { voiceApi } from "@/lib/api";
+import { configApi, voiceApi } from "@/lib/api";
 import type { Guild } from "@/lib/types";
 
 export interface GuildSelectorProps {
@@ -38,17 +38,38 @@ export function GuildSelector({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const initDone = useRef(false);
+
   const fetchGuilds = useCallback(() => {
     setLoading(true);
     setError(null);
+
+    const tryAutoSelect = (list: Guild[]) => {
+      if (value || list.length === 0 || initDone.current) return;
+      initDone.current = true;
+      // Try config's monitorGuildId first, then fall back to first guild
+      configApi
+        .get()
+        .then((cfg) => {
+          const preferred = cfg.monitorGuildId ?? list[0].id;
+          if (preferred) onChange(preferred);
+        })
+        .catch(() => {
+          onChange(list[0].id);
+        });
+    };
+
     voiceApi
       .getGuilds()
-      .then(setGuilds)
+      .then((list) => {
+        setGuilds(list);
+        tryAutoSelect(list);
+      })
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load guilds"),
       )
       .finally(() => setLoading(false));
-  }, []);
+  }, [value, onChange]);
 
   useEffect(() => {
     fetchGuilds();
