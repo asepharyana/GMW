@@ -814,7 +814,7 @@ export async function runSimpleTextFallback(
   try {
     const profile = await getUserProfile(message.user_id);
     if (profile?.profile_summary) {
-      userProfileCtx = `\n\nProfil pengirim pesan:\n${sanitizeAiContent(profile.profile_summary, 2000, false)}\n`;
+      userProfileCtx = `\n\nProfil pengirim pesan:\n${sanitizeAiContent(profile.profile_summary, 3000, false)}\n`;
     }
   } catch {
     /* non-fatal */

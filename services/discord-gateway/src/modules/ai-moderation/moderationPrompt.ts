@@ -774,11 +774,11 @@ CRITICAL:
  * - Escapes XML special chars (< → &lt;, > → &gt;)
  * - Strips markdown code-block fences that might confuse the LLM
  * - Wraps in CDATA section so the content is treated as data, not markup
- * - Caps at `maxLen` chars (default 2000)
+ * - Caps at `maxLen` chars (default 3000)
  */
 export function sanitizeAiContent(
   raw: string,
-  maxLen = 2000,
+  maxLen = 3000,
   wrapInCdata = true,
 ): string {
   // 1. Strip markdown code fences (``` … ```) — prevents the AI summary

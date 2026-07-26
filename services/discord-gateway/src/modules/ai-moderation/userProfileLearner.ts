@@ -113,7 +113,7 @@ atau konten SARA, itu akan SANGAT tidak sesuai dengan karakternya dan patut dicu
   try {
     const completion = await llmChat({
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 500,
+      max_tokens: 2000,
       temperature: 0.7, // Higher temp for summarization
       retries: 2,
     });
