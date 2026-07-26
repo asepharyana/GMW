@@ -2,9 +2,11 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
+
 import { Header } from "@/components/layout/header";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { Sidebar } from "@/components/layout/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { MascotChatbot } from "@/features/mascot/mascot-chatbot";
 import { uiStateApi } from "@/lib/api";
 import { WsProvider } from "@/lib/ws/context";
@@ -48,12 +50,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   }, [activeTab]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background">
       <Sidebar activeTab={activeTab} />
-      <div className="md:pl-56 flex flex-col min-h-screen">
+      <SidebarInset className="flex flex-col">
         <Header />
-        <main className="flex-1 p-4 md:p-6 pb-20 md:pb-6">{children}</main>
-      </div>
+        <main className="flex-1 p-4 md:p-6 pb-20 md:pb-6 animate-fade-in-up">
+          {children}
+        </main>
+      </SidebarInset>
       <MobileTabBar activeTab={activeTab} />
     </div>
   );
@@ -66,15 +70,17 @@ export default function DashboardLayout({
 }) {
   return (
     <WsProvider>
-      <Suspense
-        fallback={
-          <div className="flex min-h-screen items-center justify-center">
-            <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          </div>
-        }
-      >
-        <DashboardShell>{children}</DashboardShell>
-      </Suspense>
+      <SidebarProvider defaultOpen={true}>
+        <Suspense
+          fallback={
+            <div className="flex min-h-screen items-center justify-center">
+              <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          }
+        >
+          <DashboardShell>{children}</DashboardShell>
+        </Suspense>
+      </SidebarProvider>
       <MascotChatbot />
     </WsProvider>
   );

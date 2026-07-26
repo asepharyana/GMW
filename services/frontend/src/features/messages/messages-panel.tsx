@@ -4,19 +4,43 @@ import {
   AlertCircle,
   ExternalLink,
   Flag,
+  Hash,
   Loader2,
   RefreshCw,
   Search,
+  Sparkles,
   X,
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { messagesApi, voiceApi } from "@/lib/api";
 import type { AttachmentRecord, Channel, MessageRecord } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
 export function MessagesPanel({ guildId }: { guildId: string }) {
-  // All hooks must be called unconditionally — before the early return.
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -43,9 +67,8 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
 
   const ws = useWebSocket();
 
-  // ── Data-fetching side effects (all hooks before any early return) ──
+  // ── Data fetching ──
 
-  // Fetch available text channels for filtering
   useEffect(() => {
     if (!guildId) return;
     voiceApi
@@ -54,7 +77,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
       .catch(() => {});
   }, [guildId]);
 
-  // Fetch initial messages
   const fetchMessages = useCallback(async () => {
     if (!guildId) return;
     setLoading(true);
@@ -75,7 +97,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
     }
   }, [guildId, selectedChannel]);
 
-  // Fetch image messages
   const fetchImages = useCallback(async () => {
     if (!guildId) return;
     try {
@@ -86,7 +107,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
     }
   }, [guildId]);
 
-  // Fetch review (flagged) messages
   const fetchReview = useCallback(async () => {
     try {
       const result = await messagesApi.getReview(
@@ -108,7 +128,7 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
     if (viewTab === "review") fetchReview();
   }, [viewTab, fetchReview]);
 
-  // WS subscription for real-time message updates
+  // WS subscriptions
   useEffect(() => {
     if (!guildId) return;
     const unsubCreated = ws.on("message_created", (msg) => {
@@ -142,7 +162,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
     };
   }, [ws, guildId]);
 
-  // Search handler
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) {
       setSearchResults(null);
@@ -159,7 +178,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
     }
   }, [searchQuery]);
 
-  // Load more (cursor pagination)
   const handleLoadMore = useCallback(async () => {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
@@ -186,7 +204,6 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
     try {
       const detail = await messagesApi.getDetail(id);
       setDetailMessage(detail);
-      // Try to fetch attachments too
       if (detail.channel_id && id) {
         messagesApi
           .getAttachments(detail.channel_id, 10)
@@ -219,96 +236,83 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
   const displayMessages = searchResults ?? messages;
   const isEmpty = !loading && displayMessages.length === 0;
 
-  // Render error state
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <AlertCircle className="size-8 text-destructive mb-2" />
-        <p className="text-sm text-muted-foreground mb-4">{error}</p>
-        <button
-          onClick={fetchMessages}
-          className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
-        >
-          <RefreshCw className="size-4" />
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <AlertCircle className="size-10 text-destructive mb-3" />
+        <p className="text-sm text-muted-foreground mb-4 max-w-sm">{error}</p>
+        <Button variant="outline" onClick={fetchMessages}>
+          <RefreshCw className="size-4 mr-2" />
           Retry
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Search + toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <input
+          <Input
             type="text"
             placeholder="Search messages…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="w-full h-9 rounded-lg border border-input bg-background pl-9 pr-3 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="pl-9 h-9"
           />
         </div>
 
         {/* Channel filter */}
         {channels.length > 0 && (
-          <select
+          <Select
             value={selectedChannel}
-            onChange={(e) => setSelectedChannel(e.target.value)}
-            className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
+            onValueChange={(v) => v && setSelectedChannel(v)}
           >
-            <option value="">All channels</option>
-            {channels.map((ch) => (
-              <option key={ch.id} value={ch.id}>
-                #{ch.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="h-9 w-full sm:w-44">
+              <SelectValue placeholder="All channels" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value=" ">All channels</SelectItem>
+              {channels.map((ch) => (
+                <SelectItem key={ch.id} value={ch.id}>
+                  # {ch.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
 
-        <button
-          onClick={handleReanalyzeBatch}
-          className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
-        >
-          <RefreshCw className="size-4" />
+        <Button variant="outline" size="sm" onClick={handleReanalyzeBatch}>
+          <RefreshCw className="size-4 mr-1.5" />
           Reanalyze Errors
-        </button>
+        </Button>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex gap-1 rounded-lg border p-1 w-fit">
-        <button
-          type="button"
-          onClick={() => setViewTab("all")}
-          data-active={viewTab === "all" ? "" : undefined}
-          className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors data-[active]:bg-primary data-[active]:text-primary-foreground hover:bg-muted"
-        >
-          All ({messages.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setViewTab("images")}
-          data-active={viewTab === "images" ? "" : undefined}
-          className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors data-[active]:bg-primary data-[active]:text-primary-foreground hover:bg-muted"
-        >
-          Images
-        </button>
-        <button
-          type="button"
-          onClick={() => setViewTab("review")}
-          data-active={viewTab === "review" ? "" : undefined}
-          className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors data-[active]:bg-primary data-[active]:text-primary-foreground hover:bg-muted"
-        >
-          <Flag className="size-3.5 inline mr-1" />
-          Review ({reviewMessages.length})
-        </button>
-      </div>
+      {/* Tab bar using shadcn Tabs */}
+      <Tabs
+        value={viewTab}
+        onValueChange={(v) => setViewTab(v as "all" | "images" | "review")}
+      >
+        <TabsList>
+          <TabsTrigger value="all" onClick={() => setViewTab("all")}>
+            All ({messages.length})
+          </TabsTrigger>
+          <TabsTrigger value="images" onClick={() => setViewTab("images")}>
+            Images ({imageMessages.length})
+          </TabsTrigger>
+          <TabsTrigger value="review" onClick={() => setViewTab("review")}>
+            <Flag className="size-3.5 mr-1" />
+            Review ({reviewMessages.length})
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Search results count */}
       {searchResults !== null && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground animate-fade-in-up">
           Found {searchResults.length} result
           {searchResults.length !== 1 ? "s" : ""}
         </p>
@@ -316,22 +320,16 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
 
       {/* Messages feed */}
       {viewTab === "all" ? (
-        <div className="space-y-2">
+        <div className="space-y-2 animate-fade-in-up">
           {loading ? (
             <div className="space-y-3">
-              {Array.from({ length: 8 }, (_, i) => `msg-sk-${i}`).map((key) => (
-                <div key={key} className="flex gap-3 rounded-lg border p-4">
-                  <div className="size-8 shrink-0 rounded-full bg-muted animate-pulse" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-32 bg-muted rounded animate-pulse" />
-                    <div className="h-3 w-full bg-muted rounded animate-pulse" />
-                    <div className="h-3 w-3/4 bg-muted rounded animate-pulse" />
-                  </div>
-                </div>
+              {Array.from({ length: 8 }, (_, i) => (
+                <Skeleton key={i} className="h-28 rounded-xl" />
               ))}
             </div>
           ) : isEmpty ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <Search className="size-10 text-muted-foreground/40 mb-3" />
               <p className="text-sm text-muted-foreground">
                 {searchResults !== null
                   ? "No messages found matching your search."
@@ -349,75 +347,87 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                 />
               ))}
 
-              {/* Load more */}
               {hasMore && searchResults === null && (
-                <div className="flex justify-center py-4">
-                  <button
-                    type="button"
+                <div className="flex justify-center py-6">
+                  <Button
+                    variant="outline"
                     onClick={handleLoadMore}
                     disabled={loadingMore}
-                    className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
                   >
-                    {loadingMore ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : null}
+                    {loadingMore && (
+                      <Loader2 className="size-4 animate-spin mr-2" />
+                    )}
                     {loadingMore ? "Loading…" : "Load more"}
-                  </button>
+                  </Button>
                 </div>
               )}
             </>
           )}
         </div>
       ) : viewTab === "images" ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {imageMessages.map((msg) => {
-            // Extract image URLs from metadata
-            let imageUrl: string | null = null;
-            try {
-              const meta = JSON.parse(msg.metadata ?? "{}");
-              const attachments: Array<{ url: string; contentType?: string }> =
-                meta.attachments ?? [];
-              const img = attachments.find((a) =>
-                a.contentType?.startsWith("image/"),
-              );
-              imageUrl = img?.url ?? null;
-            } catch {
-              // metadata is malformed
-            }
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 animate-fade-in-up">
+          {imageMessages.length === 0 ? (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
+              <ImageIcon className="size-10 text-muted-foreground/40 mb-3" />
+              <p className="text-sm text-muted-foreground">No images yet.</p>
+            </div>
+          ) : (
+            imageMessages.map((msg) => {
+              let imageUrl: string | null = null;
+              try {
+                const meta = JSON.parse(msg.metadata ?? "{}");
+                const attachments: Array<{
+                  url: string;
+                  contentType?: string;
+                }> = meta.attachments ?? [];
+                const img = attachments.find((a) =>
+                  a.contentType?.startsWith("image/"),
+                );
+                imageUrl = img?.url ?? null;
+              } catch {
+                // metadata malformed
+              }
 
-            return (
-              <div
-                key={msg.id}
-                className="group relative aspect-square rounded-lg border bg-muted overflow-hidden"
-              >
-                {imageUrl ? (
-                  <Image
-                    src={imageUrl}
-                    alt={msg.content || "Image"}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 768px) 50vw, 25vw"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center size-full text-muted-foreground text-xs">
-                    No image
+              return (
+                <Card
+                  key={msg.id}
+                  className="group relative overflow-hidden cursor-pointer"
+                  onClick={() => handleMessageClick(msg.id)}
+                >
+                  <div className="aspect-square relative bg-muted">
+                    {imageUrl ? (
+                      <Image
+                        src={imageUrl}
+                        alt={msg.content || "Image"}
+                        fill
+                        className="object-cover transition-transform duration-300 group-hover:scale-105"
+                        sizes="(max-width: 768px) 50vw, 25vw"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center size-full text-muted-foreground text-xs">
+                        No image
+                      </div>
+                    )}
+                    {/* Hover overlay */}
+                    {msg.content && (
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end p-3">
+                        <p className="text-xs text-white/90 line-clamp-2">
+                          {msg.username}: {msg.content}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
-                {msg.content && (
-                  <div className="absolute bottom-0 left-0 right-0 p-2 text-xs text-white bg-gradient-to-t from-black/70 to-transparent truncate opacity-0 group-hover:opacity-100 transition-opacity">
-                    {msg.username}: {msg.content}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                </Card>
+              );
+            })
+          )}
         </div>
       ) : (
         /* Review tab */
-        <div className="space-y-2">
+        <div className="space-y-2 animate-fade-in-up">
           {reviewMessages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Flag className="size-8 text-muted-foreground mb-2" />
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <Flag className="size-10 text-muted-foreground/40 mb-3" />
               <p className="text-sm text-muted-foreground">
                 No flagged messages to review.
               </p>
@@ -435,45 +445,39 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
         </div>
       )}
 
-      {/* Message Detail Modal */}
-      {detailMessage && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-12 px-4">
-          <div className="w-full max-w-2xl rounded-lg border bg-background shadow-xl overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b p-4">
-              <h3 className="text-sm font-semibold">Message Detail</h3>
-              <button
-                type="button"
-                onClick={() => setDetailMessage(null)}
-                className="inline-flex size-7 items-center justify-center rounded-md hover:bg-muted transition-colors"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
+      {/* Message Detail Dialog */}
+      <Dialog
+        open={detailMessage !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetailMessage(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl max-h-[85vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="size-4" />
+              Message Detail
+            </DialogTitle>
+          </DialogHeader>
 
-            {/* Content */}
-            <div className="max-h-[70vh] overflow-y-auto p-4 space-y-4">
+          <ScrollArea className="max-h-[70vh] pr-1">
+            <div className="space-y-5">
               {detailLoading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="size-6 animate-spin" />
+                <div className="flex justify-center py-12">
+                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
                 </div>
-              ) : (
+              ) : detailMessage ? (
                 <>
                   {/* Message info */}
                   <div className="flex items-start gap-3">
-                    <div className="size-10 shrink-0 rounded-full bg-muted flex items-center justify-center text-sm font-medium overflow-hidden">
-                      {detailMessage.avatar_url ? (
-                        <Image
-                          src={detailMessage.avatar_url}
-                          alt=""
-                          width={40}
-                          height={40}
-                          className="size-full object-cover"
-                        />
-                      ) : (
-                        detailMessage.username.charAt(0).toUpperCase()
-                      )}
-                    </div>
+                    <Avatar className="size-10">
+                      <AvatarImage
+                        src={detailMessage.avatar_url ?? undefined}
+                      />
+                      <AvatarFallback>
+                        {detailMessage.username.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-medium">
@@ -483,44 +487,55 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                           {new Date(detailMessage.created_at).toLocaleString()}
                         </span>
                         {detailMessage.type === "deleted" && (
-                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-500/10 text-red-500">
+                          <Badge variant="destructive" className="text-[10px]">
                             deleted
-                          </span>
+                          </Badge>
+                        )}
+                        {detailMessage.type === "edited" && (
+                          <Badge variant="outline" className="text-[10px]">
+                            edited
+                          </Badge>
                         )}
                       </div>
-                      <p className="text-sm mt-1 whitespace-pre-wrap break-words">
+                      <p className="text-sm mt-2 whitespace-pre-wrap break-words leading-relaxed">
                         {detailMessage.content}
                       </p>
                     </div>
                   </div>
 
-                  {/* AI Analysis section */}
+                  {/* AI Analysis */}
                   {detailMessage.ai_analysis && (
-                    <div className="rounded-lg bg-muted/50 p-3">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        AI Analysis
+                    <div className="rounded-lg bg-gradient-to-br from-primary/5 to-primary/[0.02] border border-primary/10 p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className="size-4 text-primary" />
+                        <p className="text-xs text-muted-foreground font-medium">
+                          AI Analysis
+                        </p>
+                      </div>
+                      <p className="text-sm leading-relaxed">
+                        {detailMessage.ai_analysis}
                       </p>
-                      <p className="text-sm">{detailMessage.ai_analysis}</p>
                     </div>
                   )}
 
                   {/* AI flags */}
                   {detailMessage.ai_moderation_flags &&
                     detailMessage.ai_moderation_flags !== "[]" && (
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground font-medium">
                           Moderation Flags
                         </p>
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {safeParseJsonArray(
                             detailMessage.ai_moderation_flags,
                           ).map((flag) => (
-                            <span
+                            <Badge
                               key={flag}
-                              className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+                              variant="destructive"
+                              className="text-[11px]"
                             >
                               {flag}
-                            </span>
+                            </Badge>
                           ))}
                         </div>
                       </div>
@@ -529,51 +544,61 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                   {/* AI Scores */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {detailMessage.ai_status && (
-                      <div className="rounded-lg border p-2">
-                        <p className="text-xs text-muted-foreground">Status</p>
-                        <p className="text-sm font-medium">
-                          {detailMessage.ai_status}
-                        </p>
-                      </div>
+                      <Card>
+                        <CardContent className="p-3">
+                          <p className="text-xs text-muted-foreground">
+                            Status
+                          </p>
+                          <p className="text-sm font-medium mt-0.5 capitalize">
+                            {detailMessage.ai_status}
+                          </p>
+                        </CardContent>
+                      </Card>
                     )}
                     {detailMessage.ai_severity &&
                       detailMessage.ai_severity !== "none" && (
-                        <div className="rounded-lg border p-2">
-                          <p className="text-xs text-muted-foreground">
-                            Severity
-                          </p>
-                          <p className="text-sm font-medium text-destructive">
-                            {detailMessage.ai_severity}
-                          </p>
-                        </div>
+                        <Card>
+                          <CardContent className="p-3">
+                            <p className="text-xs text-muted-foreground">
+                              Severity
+                            </p>
+                            <p className="text-sm font-medium mt-0.5 text-destructive capitalize">
+                              {detailMessage.ai_severity}
+                            </p>
+                          </CardContent>
+                        </Card>
                       )}
                     {detailMessage.ai_confidence != null && (
-                      <div className="rounded-lg border p-2">
-                        <p className="text-xs text-muted-foreground">
-                          Confidence
-                        </p>
-                        <p className="text-sm font-medium">
-                          {(detailMessage.ai_confidence * 100).toFixed(0)}%
-                        </p>
-                      </div>
+                      <Card>
+                        <CardContent className="p-3">
+                          <p className="text-xs text-muted-foreground">
+                            Confidence
+                          </p>
+                          <p className="text-sm font-medium mt-0.5 tabular-nums">
+                            {(detailMessage.ai_confidence * 100).toFixed(0)}%
+                          </p>
+                        </CardContent>
+                      </Card>
                     )}
                     {detailMessage.ai_recommended_action &&
                       detailMessage.ai_recommended_action !== "none" && (
-                        <div className="rounded-lg border p-2">
-                          <p className="text-xs text-muted-foreground">
-                            Action
-                          </p>
-                          <p className="text-sm font-medium">
-                            {detailMessage.ai_recommended_action}
-                          </p>
-                        </div>
+                        <Card>
+                          <CardContent className="p-3">
+                            <p className="text-xs text-muted-foreground">
+                              Action
+                            </p>
+                            <p className="text-sm font-medium mt-0.5 capitalize">
+                              {detailMessage.ai_recommended_action}
+                            </p>
+                          </CardContent>
+                        </Card>
                       )}
                   </div>
 
                   {/* Attachments */}
                   {detailAttachments.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground font-medium">
                         Attachments ({detailAttachments.length})
                       </p>
                       <div className="grid grid-cols-2 gap-2">
@@ -583,17 +608,17 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                             href={att.uploaded_url ?? att.discord_url}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex items-center gap-2 rounded-lg border p-2 hover:bg-muted transition-colors"
+                            className="flex items-center gap-2 rounded-lg border border-border/50 p-2 hover:bg-muted transition-colors group"
                           >
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-medium truncate">
                                 {att.filename}
                               </p>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-[11px] text-muted-foreground">
                                 {att.type} · {formatBytes(att.size)}
                               </p>
                             </div>
-                            <ExternalLink className="size-3 shrink-0 text-muted-foreground" />
+                            <ExternalLink className="size-3 shrink-0 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
                           </a>
                         ))}
                       </div>
@@ -604,10 +629,10 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                   {detailMessage.metadata &&
                     detailMessage.metadata !== "{}" && (
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground font-medium">
                           Metadata (raw)
                         </p>
-                        <pre className="text-xs bg-muted rounded-lg p-3 overflow-x-auto max-h-32">
+                        <pre className="text-xs bg-muted/50 rounded-lg p-3 overflow-x-auto max-h-32 border border-border/50">
                           {JSON.stringify(
                             safeParseJsonObject(detailMessage.metadata),
                             null,
@@ -617,16 +642,16 @@ export function MessagesPanel({ guildId }: { guildId: string }) {
                       </div>
                     )}
                 </>
-              )}
+              ) : null}
             </div>
-          </div>
-        </div>
-      )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-// ── Message Card ──────────────────────────────────────────
+// ── Message Card ────────────────────────────────
 
 function MessageCard({
   message: msg,
@@ -638,158 +663,166 @@ function MessageCard({
   onReanalyze: (id: string) => void;
 }) {
   const aiStatusColor: Record<string, string> = {
-    clean: "bg-green-500/15 text-green-600 dark:text-green-400",
-    warn: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
-    flagged: "bg-red-500/15 text-red-600 dark:text-red-400",
-    error: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
-    pending: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-    processing: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+    clean:
+      "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/20",
+    warn: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-500/20",
+    flagged: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/20",
+    error: "bg-gray-500/15 text-gray-600 dark:text-gray-400 border-gray-500/20",
+    pending:
+      "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20",
+    processing:
+      "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20",
   };
 
-  const severityColor: Record<string, string> = {
-    none: "",
-    low: "border-l-green-400",
+  const severityLeftBorder: Record<string, string> = {
+    low: "border-l-sky-400",
     medium: "border-l-yellow-400",
     high: "border-l-orange-400",
     critical: "border-l-red-500",
   };
 
-  const date = new Date(msg.created_at);
-  const timeStr = date.toLocaleString();
+  const hasSeverity =
+    msg.ai_severity &&
+    msg.ai_severity !== "none" &&
+    severityLeftBorder[msg.ai_severity];
 
   return (
-    // biome-ignore lint/a11y/useSemanticElements: complex nested content prevents using button
-    <div
-      role="button"
-      tabIndex={0}
+    <Card
+      className={cn(
+        "cursor-pointer transition-all duration-200 hover:bg-accent/5 hover:shadow-sm",
+        hasSeverity && "border-l-2",
+        hasSeverity && severityLeftBorder[msg.ai_severity as string],
+      )}
       onClick={() => onClick(msg.id)}
-      onKeyDown={(e) => e.key === "Enter" && onClick(msg.id)}
-      className={`rounded-lg border p-4 space-y-2 transition-colors cursor-pointer hover:bg-muted/50 ${
-        msg.ai_severity ? (severityColor[msg.ai_severity] ?? "") : ""
-      } ${msg.ai_severity && msg.ai_severity !== "none" ? "border-l-2" : ""}`}
     >
-      {/* Header */}
-      <div className="flex items-start gap-3">
-        {/* Avatar */}
-        <div className="size-8 shrink-0 rounded-full bg-muted flex items-center justify-center text-xs font-medium overflow-hidden">
-          {msg.avatar_url ? (
-            <Image
-              src={msg.avatar_url}
-              alt=""
-              width={32}
-              height={32}
-              className="size-full object-cover"
-            />
-          ) : (
-            msg.username.charAt(0).toUpperCase()
-          )}
-        </div>
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <Avatar className="size-8 shrink-0 mt-0.5">
+            <AvatarImage src={msg.avatar_url ?? undefined} />
+            <AvatarFallback className="text-xs">
+              {msg.username.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
 
-        <div className="flex-1 min-w-0">
-          {/* Username + time + badges */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium">{msg.username}</span>
-            <span className="text-xs text-muted-foreground">{timeStr}</span>
-            <span className="text-xs text-muted-foreground">
-              #{msg.channel_id.slice(0, 8)}
-            </span>
-
-            {/* AI Status badge */}
-            {msg.ai_status && aiStatusColor[msg.ai_status] && (
-              <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${aiStatusColor[msg.ai_status]}`}
-              >
-                {msg.ai_status}
-              </span>
-            )}
-
-            {/* Severity badge */}
-            {msg.ai_severity && msg.ai_severity !== "none" && (
-              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-destructive/10 text-destructive">
-                {msg.ai_severity}
-              </span>
-            )}
-
-            {/* Message type badge */}
-            {msg.type === "deleted" && (
-              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-500/10 text-red-500">
-                deleted
-              </span>
-            )}
-            {msg.type === "edited" && (
-              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-blue-500/10 text-blue-500">
-                edited
-              </span>
-            )}
-          </div>
-
-          {/* Content */}
-          <p className="text-sm mt-1 whitespace-pre-wrap break-words">
-            {msg.type === "deleted" ? (
-              <span className="italic text-muted-foreground line-through">
-                {msg.content}
-              </span>
-            ) : (
-              msg.content
-            )}
-          </p>
-
-          {/* AI Details */}
-          {msg.ai_moderation_flags && msg.ai_moderation_flags !== "[]" && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {safeParseJsonArray(msg.ai_moderation_flags).map((flag) => (
-                <span
-                  key={flag}
-                  className="inline-flex items-center rounded-md bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive"
-                >
-                  {flag}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {msg.ai_analysis && (
-            <p className="text-xs text-muted-foreground mt-1 italic line-clamp-2">
-              {msg.ai_analysis}
-            </p>
-          )}
-
-          {/* Confidence score */}
-          {msg.ai_confidence !== undefined && msg.ai_confidence !== null && (
-            <div className="flex items-center gap-2 mt-1">
-              <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden max-w-24">
-                <div
-                  className="h-full rounded-full bg-primary"
-                  style={{
-                    width: `${msg.ai_confidence * 100}%`,
-                  }}
-                />
-              </div>
+          <div className="flex-1 min-w-0 space-y-2">
+            {/* Username + time + badges */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium">{msg.username}</span>
               <span className="text-xs text-muted-foreground">
-                {(msg.ai_confidence * 100).toFixed(0)}%
+                {new Date(msg.created_at).toLocaleString()}
               </span>
-            </div>
-          )}
+              <span className="text-xs text-muted-foreground">
+                <Hash className="size-3 inline mr-0.5" />
+                {msg.channel_id.slice(0, 8)}
+              </span>
 
-          {/* Actions */}
-          <div className="flex gap-2 mt-2">
-            <button
-              type="button"
-              onClick={() => onReanalyze(msg.id)}
-              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium hover:bg-muted transition-colors"
-              title="Re-analyze this message"
+              {/* AI Status badge */}
+              {msg.ai_status && aiStatusColor[msg.ai_status] && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px] px-1.5 py-0 h-4 font-medium",
+                    aiStatusColor[msg.ai_status],
+                  )}
+                >
+                  {msg.ai_status}
+                </Badge>
+              )}
+
+              {/* Severity badge */}
+              {msg.ai_severity && msg.ai_severity !== "none" && (
+                <Badge
+                  variant="destructive"
+                  className="text-[10px] px-1.5 py-0 h-4"
+                >
+                  {msg.ai_severity}
+                </Badge>
+              )}
+
+              {/* Deleted/edited badges */}
+              {msg.type === "deleted" && (
+                <Badge
+                  variant="destructive"
+                  className="text-[10px] px-1.5 py-0 h-4"
+                >
+                  deleted
+                </Badge>
+              )}
+              {msg.type === "edited" && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 h-4"
+                >
+                  edited
+                </Badge>
+              )}
+            </div>
+
+            {/* Content */}
+            <p
+              className={cn(
+                "text-sm leading-relaxed",
+                msg.type === "deleted" &&
+                  "italic text-muted-foreground line-through",
+              )}
             >
-              <RefreshCw className="size-3" />
-              Reanalyze
-            </button>
+              {msg.content}
+            </p>
+
+            {/* AI flags */}
+            {msg.ai_moderation_flags && msg.ai_moderation_flags !== "[]" && (
+              <div className="flex flex-wrap gap-1">
+                {safeParseJsonArray(msg.ai_moderation_flags).map((flag) => (
+                  <Badge
+                    key={flag}
+                    variant="destructive"
+                    className="text-[10px] px-1.5 py-0 h-4"
+                  >
+                    {flag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {/* AI analysis snippet */}
+            {msg.ai_analysis && (
+              <p className="text-xs text-muted-foreground italic line-clamp-2 leading-relaxed">
+                {msg.ai_analysis}
+              </p>
+            )}
+
+            {/* Confidence bar */}
+            {msg.ai_confidence !== undefined && msg.ai_confidence !== null && (
+              <div className="flex items-center gap-2 max-w-40">
+                <Progress value={msg.ai_confidence * 100} className="h-1.5" />
+                <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                  {(msg.ai_confidence * 100).toFixed(0)}%
+                </span>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-1.5 pt-0.5">
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReanalyze(msg.id);
+                }}
+              >
+                <RefreshCw className="size-3 mr-1" />
+                Reanalyze
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────
 
 function safeParseJsonObject(
   value: string | null | undefined,
@@ -819,4 +852,51 @@ function safeParseJsonArray(value: string | null | undefined): string[] {
   } catch {
     return [];
   }
+}
+
+// Inline icon components to avoid missing imports
+function ImageIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      role="img"
+      aria-label="Image"
+    >
+      <title>Image</title>
+      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+    </svg>
+  );
+}
+
+function MessageSquare({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      role="img"
+      aria-label="Message"
+    >
+      <title>Message</title>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
 }

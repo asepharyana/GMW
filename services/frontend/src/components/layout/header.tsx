@@ -1,7 +1,16 @@
 "use client";
 
-import { AlertCircle, Moon, Sun, Wifi, WifiOff } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
 export function Header() {
@@ -21,48 +30,82 @@ export function Header() {
     document.documentElement.classList.add(next);
   };
 
+  const statusVariant =
+    status === "connected"
+      ? "default"
+      : status === "connecting"
+        ? "secondary"
+        : "destructive";
+
+  const statusLabel =
+    status === "connected"
+      ? "Connected"
+      : status === "connecting"
+        ? "Connecting"
+        : status === "error"
+          ? "Error"
+          : "Disconnected";
+
   return (
-    <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 md:px-6">
+    <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border/50 bg-background/60 backdrop-blur-lg px-4 md:px-6">
+      <SidebarTrigger className="-ml-1 size-8 text-muted-foreground hover:text-foreground" />
+
       <div className="flex-1" />
 
       {/* Connection status */}
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        {status === "connected" ? (
-          <>
-            <Wifi className="size-3 text-green-500" />
-            <span className="hidden sm:inline">Connected</span>
-          </>
-        ) : status === "connecting" ? (
-          <>
-            <Wifi className="size-3 text-yellow-500" />
-            <span className="hidden sm:inline">Connecting</span>
-          </>
-        ) : status === "error" ? (
-          <>
-            <AlertCircle className="size-3 text-destructive" />
-            <span className="hidden sm:inline">Error</span>
-          </>
-        ) : (
-          <>
-            <WifiOff className="size-3 text-destructive" />
-            <span className="hidden sm:inline">Disconnected</span>
-          </>
-        )}
-      </div>
+      <Tooltip>
+        <TooltipTrigger>
+          <span>
+            <Badge
+              variant={statusVariant}
+              className="gap-1.5 px-2.5 py-1 cursor-default select-none"
+            >
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  status === "connected" &&
+                    "bg-green-500 shadow-[0_0_6px] shadow-green-500/60",
+                  status === "connecting" && "bg-yellow-500 animate-pulse",
+                  (status === "disconnected" || status === "error") &&
+                    "bg-destructive",
+                )}
+              />
+              <span className="hidden sm:inline text-xs">{statusLabel}</span>
+            </Badge>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          <p>WebSocket: {statusLabel}</p>
+        </TooltipContent>
+      </Tooltip>
 
       {/* Theme toggle */}
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={toggleTheme}
-        className="inline-flex size-8 items-center justify-center rounded-lg border hover:bg-muted transition-colors"
         aria-label="Toggle theme"
+        className="size-8"
       >
-        {theme === "dark" ? (
-          <Sun className="size-4" />
-        ) : (
-          <Moon className="size-4" />
-        )}
-      </button>
+        <div className="relative size-4">
+          <Sun
+            className={cn(
+              "absolute inset-0 size-4 transition-all duration-300",
+              theme === "dark"
+                ? "opacity-0 rotate-90 scale-75"
+                : "opacity-100 rotate-0 scale-100",
+            )}
+          />
+          <Moon
+            className={cn(
+              "absolute inset-0 size-4 transition-all duration-300",
+              theme === "dark"
+                ? "opacity-100 rotate-0 scale-100"
+                : "opacity-0 -rotate-90 scale-75",
+            )}
+          />
+        </div>
+      </Button>
     </header>
   );
 }

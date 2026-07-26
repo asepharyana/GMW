@@ -3,19 +3,35 @@
 import {
   Disc3,
   Download,
+  Headphones,
   Loader2,
   Mic,
-  MicOff,
+  Music,
   Play,
   Radio,
   RadioOff,
   SkipForward,
   Square,
   Trash2,
+  UserCheck,
   Volume2,
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { recordingsApi, voiceApi } from "@/lib/api";
 import type {
   ActiveSpeaker,
@@ -23,6 +39,7 @@ import type {
   VoiceRecording,
   VoiceStatus,
 } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
 export function LivePanel() {
@@ -86,7 +103,6 @@ export function LivePanel() {
     fetchRecordings();
   }, [fetchVoiceStatus, fetchGuilds, fetchRecordings]);
 
-  // Media status
   const fetchMediaStatus = useCallback(async () => {
     try {
       const state = await voiceApi.getMediaStatus();
@@ -130,14 +146,14 @@ export function LivePanel() {
     };
   }, [ws]);
 
-  // Voice connect handler
-  const handleGuildChange = useCallback(async (guildId: string) => {
-    setSelectedGuild(guildId);
-    setSelectedChannel("");
+  const handleGuildChange = useCallback(async (guildId: string | null) => {
     if (!guildId) {
+      setSelectedGuild("");
       setVoiceChannels([]);
       return;
     }
+    setSelectedGuild(guildId);
+    setSelectedChannel("");
     try {
       const channels = await voiceApi.getVoiceChannels(guildId);
       setVoiceChannels(channels);
@@ -145,6 +161,7 @@ export function LivePanel() {
       setVoiceChannels([]);
     }
   }, []);
+
   const handleConnect = useCallback(async () => {
     if (!selectedGuild || !selectedChannel) return;
     setVoiceLoading(true);
@@ -166,7 +183,6 @@ export function LivePanel() {
     }
   }, []);
 
-  // Media handlers
   const handleQueueMedia = useCallback(async () => {
     if (!queueUrl.trim()) return;
     try {
@@ -196,16 +212,19 @@ export function LivePanel() {
     }
   }, []);
 
-  const handleVolume = useCallback(async (volume: number) => {
-    try {
-      const state = await voiceApi.mediaVolume(volume);
-      setMediaState(state);
-    } catch {
-      // ignore
-    }
-  }, []);
+  const handleVolume = useCallback(
+    async (value: number | readonly number[]) => {
+      const vol = Array.isArray(value) ? value[0] : value;
+      try {
+        const state = await voiceApi.mediaVolume(vol);
+        setMediaState(state);
+      } catch {
+        // ignore
+      }
+    },
+    [],
+  );
 
-  // Delete recording
   const handleDeleteRecording = useCallback(async (id: string) => {
     try {
       await recordingsApi.delete(id);
@@ -216,315 +235,357 @@ export function LivePanel() {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 animate-fade-in-up">
       {/* Voice Connection */}
-      <div className="rounded-lg border p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold flex items-center gap-2">
-            <Radio className="size-4" />
-            Voice Connection
-          </h2>
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-              voiceStatus?.connected
-                ? "bg-green-500/15 text-green-600 dark:text-green-400"
-                : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {voiceStatus?.connected ? "Connected" : "Disconnected"}
-          </span>
-        </div>
-
-        {voiceStatus?.connected && voiceStatus.activeChannelName && (
-          <p className="text-sm text-muted-foreground">
-            Connected to{" "}
-            <span className="font-medium text-foreground">
-              {voiceStatus.activeChannelName}
-            </span>
-          </p>
-        )}
-
-        <div className="flex flex-col sm:flex-row gap-2">
-          <select
-            value={selectedGuild}
-            onChange={(e) => handleGuildChange(e.target.value)}
-            className="flex-1 h-9 rounded-lg border border-input bg-background px-3 text-sm"
-          >
-            <option value="">Select guild…</option>
-            {guilds.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={selectedChannel}
-            onChange={(e) => setSelectedChannel(e.target.value)}
-            className="flex-1 h-9 rounded-lg border border-input bg-background px-3 text-sm"
-          >
-            <option value="">Select channel…</option>
-            {voiceChannels.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          {voiceStatus?.connected ? (
-            <button
-              onClick={handleDisconnect}
-              disabled={voiceLoading}
-              className="inline-flex items-center gap-2 rounded-lg bg-destructive px-4 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
-            >
-              {voiceLoading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <RadioOff className="size-4" />
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Radio className="size-4 text-primary" />
+              Voice Connection
+            </div>
+            <Badge
+              variant={voiceStatus?.connected ? "default" : "secondary"}
+              className={cn(
+                voiceStatus?.connected &&
+                  "bg-green-500/15 text-green-600 dark:text-green-400 hover:bg-green-500/20",
               )}
-              Disconnect
-            </button>
-          ) : (
-            <button
-              onClick={handleConnect}
-              disabled={voiceLoading || !selectedGuild || !selectedChannel}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {voiceLoading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Radio className="size-4" />
-              )}
-              Connect
-            </button>
+              <span
+                className={cn(
+                  "size-1.5 rounded-full mr-1.5 inline-block",
+                  voiceStatus?.connected
+                    ? "bg-green-500 shadow-[0_0_6px] shadow-green-500/60"
+                    : "bg-muted-foreground",
+                )}
+              />
+              {voiceStatus?.connected ? "Connected" : "Disconnected"}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {voiceStatus?.connected && voiceStatus.activeChannelName && (
+            <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+              <Headphones className="size-4" />
+              Connected to{" "}
+              <span className="font-medium text-foreground">
+                {voiceStatus.activeChannelName}
+              </span>
+            </p>
           )}
-        </div>
-      </div>
+
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Select value={selectedGuild} onValueChange={handleGuildChange}>
+              <SelectTrigger className="flex-1 h-9">
+                <SelectValue placeholder="Select guild…" />
+              </SelectTrigger>
+              <SelectContent>
+                {guilds.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={selectedChannel}
+              onValueChange={(v) => v && setSelectedChannel(v)}
+            >
+              <SelectTrigger className="flex-1 h-9">
+                <SelectValue placeholder="Select channel…" />
+              </SelectTrigger>
+              <SelectContent>
+                {voiceChannels.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {voiceStatus?.connected ? (
+              <Button
+                variant="destructive"
+                onClick={handleDisconnect}
+                disabled={voiceLoading}
+              >
+                {voiceLoading ? (
+                  <Loader2 className="size-4 animate-spin mr-1.5" />
+                ) : (
+                  <RadioOff className="size-4 mr-1.5" />
+                )}
+                Disconnect
+              </Button>
+            ) : (
+              <Button
+                onClick={handleConnect}
+                disabled={voiceLoading || !selectedGuild || !selectedChannel}
+              >
+                {voiceLoading ? (
+                  <Loader2 className="size-4 animate-spin mr-1.5" />
+                ) : (
+                  <Radio className="size-4 mr-1.5" />
+                )}
+                Connect
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Active Speakers */}
       {speakers.filter((s) => s.speaking).length > 0 && (
-        <div className="rounded-lg border p-4 space-y-3">
-          <h3 className="text-sm font-semibold">Active Speakers</h3>
-          <div className="flex flex-wrap gap-2">
-            {speakers
-              .filter((s) => s.speaking)
-              .map((s) => (
-                <div
-                  key={s.userId}
-                  className="flex items-center gap-2 rounded-full border bg-muted/50 px-3 py-1.5"
-                >
-                  <span className="relative flex size-2">
-                    <span className="animate-ping absolute inline-flex size-full rounded-full bg-green-400 opacity-75" />
-                    <span className="relative inline-flex size-2 rounded-full bg-green-500" />
-                  </span>
-                  <span className="text-sm">{s.username}</span>
-                </div>
-              ))}
-          </div>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+              <UserCheck className="size-4 text-primary" />
+              Active Speakers
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {speakers
+                .filter((s) => s.speaking)
+                .map((s) => (
+                  <div
+                    key={s.userId}
+                    className="flex items-center gap-2 rounded-full border border-border/50 bg-card px-3 py-1.5 shadow-sm"
+                  >
+                    <span className="relative flex size-2">
+                      <span className="absolute inline-flex size-full rounded-full bg-green-400 opacity-75 live-pulse-ring" />
+                      <span className="relative inline-flex size-2 rounded-full bg-green-500" />
+                    </span>
+                    <span className="text-sm">{s.username}</span>
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Music Player */}
-      <div className="rounded-lg border p-4 space-y-4">
-        <h2 className="text-sm font-semibold flex items-center gap-2">
-          <Disc3 className="size-4" />
-          Music Player
-        </h2>
-
-        {/* Queue URL */}
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Queue a URL (YouTube, audio file…)"
-            value={queueUrl}
-            onChange={(e) => setQueueUrl(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleQueueMedia()}
-            className="flex-1 h-9 rounded-lg border border-input bg-background px-3 text-sm"
-          />
-          <button
-            onClick={handleQueueMedia}
-            disabled={!queueUrl.trim()}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            <Play className="size-4" />
-            Queue
-          </button>
-        </div>
-
-        {/* Now Playing */}
-        {mediaState?.current && (
-          <div className="rounded-lg bg-muted/50 p-3 space-y-2">
-            <p className="text-xs text-muted-foreground">Now Playing</p>
-            <div className="flex items-start gap-3">
-              {mediaState.current.thumbnailUrl && (
-                <Image
-                  src={mediaState.current.thumbnailUrl}
-                  alt=""
-                  width={48}
-                  height={48}
-                  className="size-12 rounded object-cover"
-                />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {mediaState.current.title ?? mediaState.current.source}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {mediaState.current.durationMs
-                    ? `${Math.floor(mediaState.current.durationMs / 60000)}:${String(
-                        Math.floor(
-                          (mediaState.current.durationMs % 60000) / 1000,
-                        ),
-                      ).padStart(2, "0")}`
-                    : "Live"}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Controls */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleStop}
-            className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
-          >
-            <Square className="size-4" />
-            Stop
-          </button>
-          <button
-            onClick={handleSkip}
-            className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
-          >
-            <SkipForward className="size-4" />
-            Skip
-          </button>
-          <div className="flex items-center gap-2 ml-auto">
-            <Volume2 className="size-4 text-muted-foreground" />
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={mediaState?.musicVolume ?? 0.5}
-              onChange={(e) => handleVolume(Number(e.target.value))}
-              className="w-24 h-2"
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+            <Music className="size-4 text-primary" />
+            Music Player
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Queue URL */}
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="Queue a URL (YouTube, audio file…)"
+              value={queueUrl}
+              onChange={(e) => setQueueUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleQueueMedia()}
+              className="flex-1 h-9"
             />
+            <Button onClick={handleQueueMedia} disabled={!queueUrl.trim()}>
+              <Play className="size-4 mr-1.5" />
+              Queue
+            </Button>
           </div>
-        </div>
 
-        {/* Queue */}
-        {mediaState && mediaState.queue.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">
-              Queue ({mediaState.queue.length})
-            </p>
-            {mediaState.queue.map((item, i) => (
-              <div
-                key={item.id ?? i}
-                className="flex items-center gap-2 rounded-md bg-muted/30 px-3 py-2"
-              >
-                <span className="text-xs text-muted-foreground w-4">
-                  {i + 1}.
-                </span>
-                <span className="text-sm truncate flex-1">
-                  {item.title ?? item.source}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Recordings */}
-      <div className="rounded-lg border p-4 space-y-3">
-        <h2 className="text-sm font-semibold">Voice Recordings</h2>
-        {recordings.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No recordings yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {recordings.map((rec) => (
-              <div
-                key={rec.id}
-                className="flex items-center gap-3 rounded-lg border p-3"
-              >
+          {/* Now Playing */}
+          {mediaState?.current && (
+            <div className="rounded-lg bg-gradient-to-br from-primary/5 to-primary/[0.02] border border-primary/10 p-4 space-y-2">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5">
+                <Disc3 className="size-3" />
+                Now Playing
+              </p>
+              <div className="flex items-start gap-3">
+                {mediaState.current.thumbnailUrl && (
+                  <Image
+                    src={mediaState.current.thumbnailUrl}
+                    alt=""
+                    width={56}
+                    height={56}
+                    className="size-14 rounded-lg object-cover shadow-sm"
+                  />
+                )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{rec.username}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {rec.channel_name ?? rec.channel_id ?? "Unknown channel"}
-                    {" — "}
-                    {new Date(rec.created_at).toLocaleString()}
+                  <p className="text-sm font-medium truncate">
+                    {mediaState.current.title ?? mediaState.current.source}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {mediaState.current.durationMs
+                      ? `${Math.floor(mediaState.current.durationMs / 60000)}:${String(
+                          Math.floor(
+                            (mediaState.current.durationMs % 60000) / 1000,
+                          ),
+                        ).padStart(2, "0")}`
+                      : "Live"}
                   </p>
                 </div>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {formatBytes(rec.size_bytes)}
-                </span>
-                {rec.download_url && (
-                  <a
-                    href={rec.download_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center rounded-md border p-1.5 hover:bg-muted transition-colors"
-                  >
-                    <Download className="size-4" />
-                  </a>
-                )}
-                <button
-                  onClick={() => handleDeleteRecording(rec.id)}
-                  className="inline-flex items-center rounded-md border p-1.5 hover:bg-destructive/10 hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="size-4" />
-                </button>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
 
-      {/* Microphone Transmit */}
-      <div className="rounded-lg border p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold flex items-center gap-2">
-            <Mic className="size-4" />
-            Microphone
-          </h2>
-          <button
-            type="button"
-            onClick={async () => {
-              setMicActive(!micActive);
-              try {
-                await voiceApi.sendCommand(
-                  micActive ? "voice:transmit:stop" : "voice:transmit:start",
-                );
-              } catch {
-                setMicActive(micActive);
-              }
-            }}
-            disabled={!voiceStatus?.connected}
-            data-active={micActive ? "" : undefined}
-            className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors data-[active]:bg-destructive data-[active]:text-destructive-foreground hover:bg-muted disabled:opacity-50"
-          >
-            {micActive ? (
-              <MicOff className="size-4" />
-            ) : (
-              <Mic className="size-4" />
-            )}
-            {micActive ? "Stop" : "Start"}
-          </button>
-        </div>
-        {!voiceStatus?.connected && (
-          <p className="text-xs text-muted-foreground">
-            Connect to a voice channel first.
-          </p>
-        )}
-        {micActive && (
+          {/* Controls */}
           <div className="flex items-center gap-2">
-            <span className="relative flex size-2">
-              <span className="animate-ping absolute inline-flex size-full rounded-full bg-red-400 opacity-75" />
-              <span className="relative inline-flex size-2 rounded-full bg-red-500" />
-            </span>
-            <span className="text-sm text-muted-foreground">Transmitting…</span>
+            <Button variant="outline" size="sm" onClick={handleStop}>
+              <Square className="size-4 mr-1" />
+              Stop
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleSkip}>
+              <SkipForward className="size-4 mr-1" />
+              Skip
+            </Button>
+            <div className="flex items-center gap-2 ml-auto">
+              <Volume2 className="size-4 text-muted-foreground" />
+              <Slider
+                className="w-24"
+                defaultValue={[mediaState?.musicVolume ?? 0.5]}
+                value={[mediaState?.musicVolume ?? 0.5]}
+                onValueChange={handleVolume}
+                min={0}
+                max={1}
+                step={0.05}
+              />
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* Queue */}
+          {mediaState && mediaState.queue.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground font-medium">
+                Queue ({mediaState.queue.length})
+              </p>
+              <div className="space-y-1">
+                {mediaState.queue.map((item, i) => (
+                  <div
+                    key={item.id ?? i}
+                    className="flex items-center gap-2 rounded-md bg-muted/30 px-3 py-2 text-sm"
+                  >
+                    <span className="text-xs text-muted-foreground font-mono w-5 text-right">
+                      {i + 1}.
+                    </span>
+                    <span className="truncate flex-1">
+                      {item.title ?? item.source}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Microphone */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Mic className="size-4 text-primary" />
+              Microphone
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {micActive ? "On" : "Off"}
+              </span>
+              <Switch
+                checked={micActive}
+                onCheckedChange={async (checked) => {
+                  setMicActive(checked);
+                  try {
+                    await voiceApi.sendCommand(
+                      checked ? "voice:transmit:start" : "voice:transmit:stop",
+                    );
+                  } catch {
+                    setMicActive(!checked);
+                  }
+                }}
+                disabled={!voiceStatus?.connected}
+              />
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!voiceStatus?.connected && (
+            <p className="text-xs text-muted-foreground">
+              Connect to a voice channel first.
+            </p>
+          )}
+          {micActive && (
+            <div className="flex items-center gap-2 mt-1">
+              <span className="relative flex size-2">
+                <span className="absolute inline-flex size-full rounded-full bg-red-400 opacity-75 live-pulse-ring" />
+                <span className="relative inline-flex size-2 rounded-full bg-red-500" />
+              </span>
+              <span className="text-sm text-muted-foreground">
+                Transmitting…
+              </span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Recordings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+            <Headphones className="size-4 text-primary" />
+            Voice Recordings
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recordings.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              No recordings yet.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {recordings.map((rec) => (
+                <div
+                  key={rec.id}
+                  className="flex items-center gap-3 rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors"
+                >
+                  <Avatar className="size-8">
+                    <AvatarImage src={rec.avatar_url ?? undefined} />
+                    <AvatarFallback>
+                      {(rec.username ?? "?").charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {rec.username}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {rec.channel_name ?? rec.channel_id ?? "Unknown channel"}
+                      {" — "}
+                      {new Date(rec.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-mono shrink-0"
+                  >
+                    {formatBytes(rec.size_bytes)}
+                  </Badge>
+                  {rec.download_url && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => window.open(rec.download_url!, "_blank")}
+                    >
+                      <Download className="size-4" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteRecording(rec.id)}
+                    className="hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

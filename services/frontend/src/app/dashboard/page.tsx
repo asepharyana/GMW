@@ -1,8 +1,18 @@
 "use client";
 
-import { Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardPanel } from "@/features/dashboard/dashboard-panel";
 import { LivePanel } from "@/features/live/live-panel";
 import { MessagesPanel } from "@/features/messages/messages-panel";
@@ -67,14 +77,28 @@ export default function DashboardPage() {
     }
   }, [configLoading, guildsLoading, resolveGuild, selectedGuildId]);
 
-  const handleGuildChange = useCallback((guildId: string) => {
-    setSelectedGuildId(guildId);
+  const handleGuildChange = useCallback((guildId: string | null) => {
+    if (guildId) setSelectedGuildId(guildId);
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    setGuildsLoading(true);
+    setGuildsError(null);
+    voiceApi
+      .getGuilds()
+      .then(setGuilds)
+      .catch((err) =>
+        setGuildsError(
+          err instanceof Error ? err.message : "Failed to load guilds",
+        ),
+      )
+      .finally(() => setGuildsLoading(false));
   }, []);
 
   const isReady = !configLoading && !guildsLoading;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Guild selector bar */}
       <GuildBar
         guilds={guilds}
@@ -82,31 +106,22 @@ export default function DashboardPage() {
         error={guildsError}
         selectedGuildId={selectedGuildId}
         onChange={handleGuildChange}
-        onRetry={() => {
-          setGuildsLoading(true);
-          setGuildsError(null);
-          voiceApi
-            .getGuilds()
-            .then(setGuilds)
-            .catch((err) =>
-              setGuildsError(
-                err instanceof Error ? err.message : "Failed to load guilds",
-              ),
-            )
-            .finally(() => setGuildsLoading(false));
-        }}
+        onRetry={handleRetry}
       />
 
       {/* Main panel */}
       {isReady ? (
-        <>
+        <div className="animate-fade-in-up">
           {tab === "live" && <LivePanel />}
           {tab === "dashboard" && <DashboardPanel guildId={selectedGuildId} />}
           {tab === "messages" && <MessagesPanel guildId={selectedGuildId} />}
-        </>
+        </div>
       ) : (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <div className="flex items-center justify-center py-24">
+          <div className="flex flex-col items-center gap-3">
+            <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm text-muted-foreground">Loading dashboard…</p>
+          </div>
         </div>
       )}
     </div>
@@ -127,7 +142,7 @@ function GuildBar({
   loading: boolean;
   error: string | null;
   selectedGuildId: string;
-  onChange: (id: string) => void;
+  onChange: (id: string | null) => void;
   onRetry: () => void;
 }) {
   // No guild bar if there's only one guild and it's already selected
@@ -135,61 +150,60 @@ function GuildBar({
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border p-3">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Loading guilds…</span>
+      <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-card p-3">
+        <Skeleton className="h-8 w-36" />
+        <Skeleton className="h-8 w-8 rounded-full" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-        <p className="text-sm text-muted-foreground">
-          Could not load guilds: {error}
-        </p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium hover:bg-muted transition-colors"
-        >
-          <RefreshCw className="size-3" />
+      <div className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/5 p-3">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="size-4 text-destructive shrink-0" />
+          <p className="text-sm text-muted-foreground">
+            Could not load guilds: {error}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <RefreshCw className="size-3 mr-1" />
           Retry
-        </button>
+        </Button>
       </div>
     );
   }
 
   if (guilds.length === 0) {
     return (
-      <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
-        <p className="text-sm text-muted-foreground">
-          No guilds available. Make sure the Discord gateway is connected.
-        </p>
+      <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="size-4 text-yellow-500 shrink-0" />
+          <p className="text-sm text-muted-foreground">
+            No guilds available. Make sure the Discord gateway is connected.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border p-3">
-      <label
-        htmlFor="guild-select"
-        className="text-sm font-medium text-muted-foreground whitespace-nowrap"
-      >
-        Guild:
-      </label>
-      <select
-        id="guild-select"
-        value={selectedGuildId}
-        onChange={(e) => onChange(e.target.value)}
-        className="flex-1 h-8 rounded-md border border-input bg-background px-2 text-sm"
-      >
-        {guilds.map((g) => (
-          <option key={g.id} value={g.id}>
-            {g.name}
-          </option>
-        ))}
-      </select>
+    <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-card p-3">
+      <Badge variant="outline" className="shrink-0 text-xs font-normal">
+        Guild
+      </Badge>
+      <Select value={selectedGuildId} onValueChange={onChange}>
+        <SelectTrigger className="h-8 w-full max-w-xs">
+          <SelectValue placeholder="Select a guild…" />
+        </SelectTrigger>
+        <SelectContent>
+          {guilds.map((g) => (
+            <SelectItem key={g.id} value={g.id}>
+              {g.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
