@@ -55,7 +55,10 @@ jobs:
         run: pnpm run build:discord-gateway
 
       - name: Build frontend
-        run: pnpm run build:web
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm run build
+        working-directory: services/frontend
 
       - name: Prepare production environment file
         env:
