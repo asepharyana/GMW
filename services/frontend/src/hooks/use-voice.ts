@@ -1,3 +1,4 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 
 import { voiceApi } from "@/lib/api";
@@ -11,37 +12,15 @@ type WsHook = {
   ) => () => void;
 };
 
-interface UseVoiceStatusReturn {
-  voiceStatus: VoiceStatus | null;
-  refresh: () => void;
+export function useVoiceStatus() {
+  return useQuery<VoiceStatus>({
+    queryKey: ["voice-status"],
+    queryFn: () => voiceApi.getStatus(),
+    retry: false,
+  });
 }
 
-export function useVoiceStatus(): UseVoiceStatusReturn {
-  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus | null>(null);
-
-  const refresh = useCallback(async () => {
-    try {
-      const status = await voiceApi.getStatus();
-      setVoiceStatus(status);
-    } catch (err) {
-      console.error("useVoiceStatus:", err);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  return { voiceStatus, refresh };
-}
-
-interface UseVoiceChannelsReturn {
-  channels: Array<{ id: string; name: string }>;
-  loading: boolean;
-  fetch: (guildId: string) => void;
-}
-
-export function useVoiceChannels(): UseVoiceChannelsReturn {
+export function useVoiceChannels() {
   const [channels, setChannels] = useState<Array<{ id: string; name: string }>>(
     [],
   );
@@ -63,12 +42,7 @@ export function useVoiceChannels(): UseVoiceChannelsReturn {
   return { channels, loading, fetch };
 }
 
-interface UseSpeakersReturn {
-  speakers: ActiveSpeaker[];
-  subscribe: (ws: WsHook) => () => void;
-}
-
-export function useSpeakers(): UseSpeakersReturn {
+export function useSpeakers() {
   const [speakers, setSpeakers] = useState<ActiveSpeaker[]>([]);
 
   const subscribe = useCallback((ws: WsHook) => {
@@ -91,4 +65,35 @@ export function useSpeakers(): UseSpeakersReturn {
   }, []);
 
   return { speakers, subscribe };
+}
+
+export function useVoiceConnect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      guildId,
+      channelId,
+    }: {
+      guildId: string;
+      channelId: string;
+    }) => voiceApi.connect(guildId, channelId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["voice-status"] }),
+  });
+}
+
+export function useVoiceDisconnect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => voiceApi.disconnect(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["voice-status"] }),
+  });
+}
+
+export function useMicTransmit() {
+  return useMutation({
+    mutationFn: (active: boolean) =>
+      voiceApi.sendCommand(
+        active ? "voice:transmit:start" : "voice:transmit:stop",
+      ),
+  });
 }

@@ -12,7 +12,7 @@ import { useWebSocket } from "@/lib/ws/context";
 
 export default function SettingsPage() {
   const { status } = useWebSocket();
-  const { config, loading: configLoading } = useConfig();
+  const { data: config, isLoading: configLoading } = useConfig();
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
@@ -28,7 +28,7 @@ export default function SettingsPage() {
     document.documentElement.classList.add(next);
   };
 
-  const statusConfig = {
+  const statusCfg = {
     connected: {
       label: "Connected",
       variant: "default" as const,
@@ -56,19 +56,15 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-            <Wifi className="size-4 text-primary" />
-            Connection
+            <Wifi className="size-4 text-primary" /> Connection
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm">WebSocket</span>
-            <Badge
-              variant={statusConfig.variant}
-              className="gap-1.5 px-2.5 py-1"
-            >
-              <span className={cn("size-1.5 rounded-full", statusConfig.dot)} />
-              {statusConfig.label}
+            <Badge variant={statusCfg.variant} className="gap-1.5 px-2.5 py-1">
+              <span className={cn("size-1.5 rounded-full", statusCfg.dot)} />
+              {statusCfg.label}
             </Badge>
           </div>
         </CardContent>
@@ -81,7 +77,7 @@ export default function SettingsPage() {
               <Moon className="size-4 text-primary" />
             ) : (
               <Sun className="size-4 text-primary" />
-            )}
+            )}{" "}
             Appearance
           </CardTitle>
         </CardHeader>
@@ -102,8 +98,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-            <Server className="size-4 text-primary" />
-            Server Configuration
+            <Server className="size-4 text-primary" /> Server Configuration
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -111,27 +106,27 @@ export default function SettingsPage() {
             <LoadingSkeleton count={6} height="h-6" />
           ) : config ? (
             <div className="space-y-2 text-sm">
-              <ConfigRow
+              <CfgRow
                 label="Monitor Guild"
                 value={config.monitorGuildId ?? "Not configured"}
               />
               <Separator />
-              <ConfigRow
+              <CfgRow
                 label="Voice Guild"
                 value={config.voiceGuildId ?? "Not configured"}
               />
               <Separator />
-              <ConfigRow
+              <CfgRow
                 label="Voice Channel"
                 value={config.voiceChannelId ?? "Not configured"}
               />
               <Separator />
-              <ConfigRow
+              <CfgRow
                 label="AI Analysis"
                 value={config.aiAnalysisEnabled ? "Enabled" : "Disabled"}
               />
               <Separator />
-              <ConfigRow
+              <CfgRow
                 label="Auto-Delete Flagged"
                 value={config.autoDeleteFlaggedEnabled ? "Enabled" : "Disabled"}
               />
@@ -147,8 +142,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-            <Shield className="size-4 text-primary" />
-            About
+            <Shield className="size-4 text-primary" /> About
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -168,7 +162,7 @@ export default function SettingsPage() {
   );
 }
 
-function ConfigRow({ label, value }: { label: string; value: string }) {
+function CfgRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between py-1">
       <span className="text-muted-foreground">{label}</span>

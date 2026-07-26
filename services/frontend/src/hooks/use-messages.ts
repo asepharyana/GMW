@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect } from "react";
 
 import { messagesApi, voiceApi } from "@/lib/api";
 import type { AttachmentRecord, Channel, MessageRecord } from "@/lib/types";
@@ -11,262 +12,210 @@ type WsHook = {
   ) => () => void;
 };
 
-// ── Messages list ───────────────────────────────
+// ── Query keys factory ───────────────────────────
 
-interface UseMessagesReturn {
-  messages: MessageRecord[];
-  loading: boolean;
-  loadingMore: boolean;
-  error: string | null;
-  hasMore: boolean;
-  refetch: () => void;
-  loadMore: () => void;
-  prepend: (msg: MessageRecord) => void;
-  update: (msg: MessageRecord) => void;
-  remove: (id: string) => void;
-}
+const msgKeys = {
+  list: (guildId: string, channelId?: string) =>
+    ["messages", guildId, channelId ?? "__all__"] as const,
+  images: (guildId: string) => ["messages-images", guildId] as const,
+  review: (channelId?: string) =>
+    ["messages-review", channelId ?? "__all__"] as const,
+  detail: (id: string) => ["message-detail", id] as const,
+};
 
-export function useMessages(
-  guildId: string,
-  channelId?: string,
-): UseMessagesReturn {
-  const [messages, setMessages] = useState<MessageRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(true);
+// ── Messages list (paginated, cursor-based) ──────
 
-  const fetch = useCallback(async () => {
-    if (!guildId) return;
-    setLoading(true);
-    setError(null);
-    try {
+export function useMessages(guildId: string, channelId?: string) {
+  return useQuery<MessageRecord[]>({
+    queryKey: msgKeys.list(guildId, channelId),
+    queryFn: async () => {
       const result = await messagesApi.list(
         guildId,
         50,
         channelId || undefined,
       );
-      setMessages(result.data);
-      setCursor(result.nextCursor);
-      setHasMore(result.nextCursor !== null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load messages");
-    } finally {
-      setLoading(false);
-    }
-  }, [guildId, channelId]);
+      return result.data;
+    },
+    enabled: !!guildId,
+  });
+}
 
-  const loadMore = useCallback(async () => {
-    if (!cursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
+export function useMessagesHasMore(guildId: string, channelId?: string) {
+  return useQuery({
+    queryKey: [...msgKeys.list(guildId, channelId), "cursor"],
+    queryFn: async () => {
+      const result = await messagesApi.list(
+        guildId,
+        50,
+        channelId || undefined,
+      );
+      return { cursor: result.nextCursor, hasMore: result.nextCursor !== null };
+    },
+    enabled: !!guildId,
+  });
+}
+
+export function useLoadMore() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      guildId,
+      channelId,
+      cursor,
+    }: {
+      guildId: string;
+      channelId?: string;
+      cursor: string;
+    }) => {
       const result = await messagesApi.list(
         guildId,
         50,
         channelId || undefined,
         cursor,
       );
-      setMessages((prev) => [...prev, ...result.data]);
-      setCursor(result.nextCursor);
-      setHasMore(result.nextCursor !== null);
-    } catch (err) {
-      console.error("useMessages/loadMore:", err);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [cursor, loadingMore, guildId, channelId]);
+      return { data: result.data, cursor: result.nextCursor };
+    },
+    onSuccess: (data, vars) => {
+      const key = msgKeys.list(vars.guildId, vars.channelId);
+      qc.setQueryData<MessageRecord[]>(key, (old) =>
+        old ? [...old, ...data.data] : data.data,
+      );
+      qc.setQueryData([...key, "cursor"], {
+        cursor: data.cursor,
+        hasMore: data.cursor !== null,
+      });
+    },
+  });
+}
 
-  // Auto-fetch when guildId/channelId changes
-  useEffect(() => {
-    fetch();
-  }, [fetch]);
+// ── Channels list ────────────────────────────────
 
-  const prepend = useCallback((msg: MessageRecord) => {
-    setMessages((prev) => [msg, ...prev]);
-  }, []);
+export function useTextChannels(guildId: string) {
+  return useQuery<Channel[]>({
+    queryKey: ["text-channels", guildId],
+    queryFn: () => voiceApi.getTextChannels(guildId),
+    enabled: !!guildId,
+  });
+}
 
-  const update = useCallback((msg: MessageRecord) => {
-    setMessages((prev) => prev.map((m) => (m.id === msg.id ? msg : m)));
-  }, []);
+// ── Search ───────────────────────────────────────
 
-  const remove = useCallback((id: string) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-  }, []);
+export function useSearch() {
+  return useQuery<MessageRecord[]>({
+    queryKey: ["messages-search"],
+    queryFn: () => Promise.resolve([]),
+    enabled: false,
+  });
+}
 
+// ── Images ───────────────────────────────────────
+
+export function useImages(guildId: string) {
+  return useQuery<MessageRecord[]>({
+    queryKey: msgKeys.images(guildId),
+    queryFn: async () => {
+      const result = await messagesApi.getImages(guildId, 50);
+      return result.data;
+    },
+    enabled: !!guildId,
+  });
+}
+
+// ── Review ───────────────────────────────────────
+
+export function useReview(channelId?: string) {
+  return useQuery<MessageRecord[]>({
+    queryKey: msgKeys.review(channelId),
+    queryFn: async () => {
+      const result = await messagesApi.getReview(50, channelId || undefined);
+      return result.results;
+    },
+  });
+}
+
+// ── Detail ───────────────────────────────────────
+
+export function useMessageDetail(id: string | null) {
+  const detail = useQuery<MessageRecord>({
+    queryKey: msgKeys.detail(id ?? ""),
+    queryFn: () => messagesApi.getDetail(id!),
+    enabled: !!id,
+  });
+  const attachments = useQuery<AttachmentRecord[]>({
+    queryKey: [...msgKeys.detail(id ?? ""), "attachments"],
+    queryFn: async () => {
+      if (!id) return [];
+      const res = await messagesApi.getAttachments(
+        detail.data?.channel_id ?? "",
+        10,
+      );
+      return res.data;
+    },
+    enabled: !!id && !!detail.data?.channel_id,
+  });
   return {
-    messages,
-    loading,
-    loadingMore,
-    error,
-    hasMore,
-    refetch: fetch,
-    loadMore,
-    prepend,
-    update,
-    remove,
+    message: detail.data ?? null,
+    attachments: attachments.data ?? [],
+    loading: detail.isLoading || attachments.isLoading,
+    error: detail.error,
   };
 }
 
-// ── Channels list ───────────────────────────────
+// ── Mutations ────────────────────────────────────
 
-interface UseTextChannelsReturn {
-  channels: Channel[];
-  loading: boolean;
+export function useReanalyze() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => messagesApi.reanalyze(id),
+  });
 }
 
-export function useTextChannels(guildId: string): UseTextChannelsReturn {
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [loading, setLoading] = useState(true);
+export function useReanalyzeBatch() {
+  return useMutation({
+    mutationFn: (guildId: string) => messagesApi.reanalyzeBatch(guildId),
+  });
+}
 
+// ── WS sync helpers ──────────────────────────────
+
+export function useMessagesWsSync(ws: WsHook, guildId: string) {
+  const qc = useQueryClient();
   useEffect(() => {
     if (!guildId) return;
-    voiceApi
-      .getTextChannels(guildId)
-      .then(setChannels)
-      .catch((err) => console.error("useTextChannels:", err))
-      .finally(() => setLoading(false));
-  }, [guildId]);
-
-  return { channels, loading };
-}
-
-// ── Search ──────────────────────────────────────
-
-interface UseSearchReturn {
-  results: MessageRecord[] | null;
-  searching: boolean;
-  search: (query: string) => void;
-}
-
-export function useSearch(): UseSearchReturn {
-  const [results, setResults] = useState<MessageRecord[] | null>(null);
-  const [searching, setSearching] = useState(false);
-
-  const search = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setResults(null);
-      return;
-    }
-    setSearching(true);
-    try {
-      const result = await messagesApi.search(query, 50);
-      setResults(result.results);
-    } catch (err) {
-      console.error("useSearch:", err);
-      setResults([]);
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
-  return { results, searching, search };
-}
-
-// ── Images ──────────────────────────────────────
-
-export function useImages(guildId: string) {
-  const [images, setImages] = useState<MessageRecord[]>([]);
-
-  const fetch = useCallback(async () => {
-    if (!guildId) return;
-    try {
-      const result = await messagesApi.getImages(guildId, 50);
-      setImages(result.data);
-    } catch (err) {
-      console.error("useImages:", err);
-    }
-  }, [guildId]);
-
-  return { images, refetch: fetch };
-}
-
-// ── Review ──────────────────────────────────────
-
-export function useReview(channelId?: string) {
-  const [reviews, setReviews] = useState<MessageRecord[]>([]);
-
-  const fetch = useCallback(async () => {
-    try {
-      const result = await messagesApi.getReview(50, channelId || undefined);
-      setReviews(result.results);
-    } catch (err) {
-      console.error("useReview:", err);
-    }
-  }, [channelId]);
-
-  return { reviews, refetch: fetch };
-}
-
-// ── Detail ──────────────────────────────────────
-
-interface UseMessageDetailReturn {
-  message: MessageRecord | null;
-  attachments: AttachmentRecord[];
-  loading: boolean;
-  open: (id: string) => void;
-  close: () => void;
-}
-
-export function useMessageDetail(): UseMessageDetailReturn {
-  const [message, setMessage] = useState<MessageRecord | null>(null);
-  const [attachments, setAttachments] = useState<AttachmentRecord[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const open = useCallback(async (id: string) => {
-    setLoading(true);
-    setAttachments([]);
-    try {
-      const detail = await messagesApi.getDetail(id);
-      setMessage(detail);
-      if (detail.channel_id && id) {
-        messagesApi
-          .getAttachments(detail.channel_id, 10)
-          .then((res) => setAttachments(res.data))
-          .catch((err) => console.error("useMessageDetail/attachments:", err));
-      }
-    } catch (err) {
-      console.error("useMessageDetail:", err);
-      setMessage(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const close = useCallback(() => setMessage(null), []);
-
-  return { message, attachments, loading, open, close };
-}
-
-// ── WS Subscription helper ──────────────────────
-
-export function useMessageWsSubscription(
-  ws: WsHook | undefined,
-  guildId: string,
-  onCreated: (msg: MessageRecord) => void,
-  onUpdated: (msg: MessageRecord) => void,
-  onDeleted: (id: string) => void,
-  onAnalyzed: (msg: MessageRecord) => void,
-) {
-  useEffect(() => {
-    if (!ws || !guildId) return;
-    const unsub1 = ws.on("message_created", (data) =>
-      onCreated(data as MessageRecord),
-    );
-    const unsub2 = ws.on("message_updated", (data) =>
-      onUpdated(data as MessageRecord),
-    );
-    const unsub3 = ws.on("message_deleted", (data) =>
-      onDeleted(data as unknown as string),
-    );
-    const unsub4 = ws.on("message_analyzed", (data) =>
-      onAnalyzed(data as MessageRecord),
-    );
+    const key = msgKeys.list(guildId);
+    const unsub1 = ws.on("message_created", (data) => {
+      qc.setQueryData<MessageRecord[]>(key, (old) =>
+        old ? [data as MessageRecord, ...old] : [data as MessageRecord],
+      );
+    });
+    const unsub2 = ws.on("message_updated", (data) => {
+      qc.setQueryData<MessageRecord[]>(key, (old) =>
+        old
+          ? old.map((m) =>
+              m.id === (data as MessageRecord).id ? (data as MessageRecord) : m,
+            )
+          : old,
+      );
+    });
+    const unsub3 = ws.on("message_deleted", (data) => {
+      qc.setQueryData<MessageRecord[]>(key, (old) =>
+        old ? old.filter((m) => m.id !== (data as unknown as string)) : old,
+      );
+    });
+    const unsub4 = ws.on("message_analyzed", (data) => {
+      qc.setQueryData<MessageRecord[]>(key, (old) =>
+        old
+          ? old.map((m) =>
+              m.id === (data as MessageRecord).id ? (data as MessageRecord) : m,
+            )
+          : old,
+      );
+    });
     return () => {
       unsub1();
       unsub2();
       unsub3();
       unsub4();
     };
-  }, [ws, guildId, onCreated, onUpdated, onDeleted, onAnalyzed]);
+  }, [ws, guildId, qc]);
 }

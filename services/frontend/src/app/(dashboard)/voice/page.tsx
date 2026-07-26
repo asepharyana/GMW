@@ -23,27 +23,30 @@ import {
 import { Switch } from "@/components/ui/switch";
 import {
   useGuilds,
+  useMicTransmit,
   useSpeakers,
   useVoiceChannels,
+  useVoiceConnect,
+  useVoiceDisconnect,
   useVoiceStatus,
 } from "@/hooks";
-import { voiceApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
 export default function VoicePage() {
   const ws = useWebSocket();
-  const { voiceStatus, refresh: refreshStatus } = useVoiceStatus();
-  const { guilds } = useGuilds();
+  const { data: voiceStatus } = useVoiceStatus();
+  const { data: guilds = [] } = useGuilds();
   const { channels: voiceChannels, fetch: fetchChannels } = useVoiceChannels();
   const { speakers, subscribe } = useSpeakers();
+  const connectMut = useVoiceConnect();
+  const disconnectMut = useVoiceDisconnect();
+  const micMut = useMicTransmit();
 
   const [selectedGuild, setSelectedGuild] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("");
-  const [voiceLoading, setVoiceLoading] = useState(false);
   const [micActive, setMicActive] = useState(false);
 
-  // Subscribe to WS speaker events
   useEffect(() => {
     const unsub = subscribe(ws);
     return () => unsub();
@@ -63,30 +66,8 @@ export default function VoicePage() {
     [fetchChannels],
   );
 
-  const handleConnect = useCallback(async () => {
-    if (!selectedGuild || !selectedChannel) return;
-    setVoiceLoading(true);
-    try {
-      const _status = await voiceApi.connect(selectedGuild, selectedChannel);
-      // voiceStatus will be refreshed
-      setVoiceLoading(false);
-      refreshStatus();
-    } finally {
-      setVoiceLoading(false);
-    }
-  }, [selectedGuild, selectedChannel, refreshStatus]);
-
-  const handleDisconnect = useCallback(async () => {
-    setVoiceLoading(true);
-    try {
-      await voiceApi.disconnect();
-      refreshStatus();
-    } finally {
-      setVoiceLoading(false);
-    }
-  }, [refreshStatus]);
-
   const activeSpeakers = speakers.filter((s) => s.speaking);
+  const connected = voiceStatus?.connected;
 
   return (
     <div className="space-y-5 animate-fade-in-up">
@@ -98,26 +79,26 @@ export default function VoicePage() {
               Voice Connection
             </div>
             <Badge
-              variant={voiceStatus?.connected ? "default" : "secondary"}
+              variant={connected ? "default" : "secondary"}
               className={cn(
-                voiceStatus?.connected &&
+                connected &&
                   "bg-green-500/15 text-green-600 dark:text-green-400 hover:bg-green-500/20",
               )}
             >
               <span
                 className={cn(
                   "size-1.5 rounded-full mr-1.5 inline-block",
-                  voiceStatus?.connected
+                  connected
                     ? "bg-green-500 shadow-[0_0_6px] shadow-green-500/60"
                     : "bg-muted-foreground",
                 )}
               />
-              {voiceStatus?.connected ? "Connected" : "Disconnected"}
+              {connected ? "Connected" : "Disconnected"}
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {voiceStatus?.connected && voiceStatus.activeChannelName && (
+          {connected && voiceStatus?.activeChannelName && (
             <p className="text-sm text-muted-foreground flex items-center gap-1.5">
               <Headphones className="size-4" />
               Connected to{" "}
@@ -149,26 +130,20 @@ export default function VoicePage() {
                 <SelectValue placeholder="Select channel…" />
               </SelectTrigger>
               <SelectContent>
-                {voiceChannels.length === 0 ? (
-                  <SelectItem value="_none" disabled>
-                    No channels loaded
+                {voiceChannels.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
                   </SelectItem>
-                ) : (
-                  voiceChannels.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))
-                )}
+                ))}
               </SelectContent>
             </Select>
-            {voiceStatus?.connected ? (
+            {connected ? (
               <Button
                 variant="destructive"
-                onClick={handleDisconnect}
-                disabled={voiceLoading}
+                onClick={() => disconnectMut.mutate()}
+                disabled={disconnectMut.isPending}
               >
-                {voiceLoading ? (
+                {disconnectMut.isPending ? (
                   <Loader2 className="size-4 animate-spin mr-1.5" />
                 ) : (
                   <RadioOff className="size-4 mr-1.5" />
@@ -177,10 +152,17 @@ export default function VoicePage() {
               </Button>
             ) : (
               <Button
-                onClick={handleConnect}
-                disabled={voiceLoading || !selectedGuild || !selectedChannel}
+                onClick={() =>
+                  connectMut.mutate({
+                    guildId: selectedGuild,
+                    channelId: selectedChannel,
+                  })
+                }
+                disabled={
+                  connectMut.isPending || !selectedGuild || !selectedChannel
+                }
               >
-                {voiceLoading ? (
+                {connectMut.isPending ? (
                   <Loader2 className="size-4 animate-spin mr-1.5" />
                 ) : (
                   <Radio className="size-4 mr-1.5" />
@@ -235,21 +217,18 @@ export default function VoicePage() {
                 onCheckedChange={async (checked) => {
                   setMicActive(checked);
                   try {
-                    await voiceApi.sendCommand(
-                      checked ? "voice:transmit:start" : "voice:transmit:stop",
-                    );
-                  } catch (err) {
-                    console.error("voice/mic:", err);
+                    await micMut.mutateAsync(checked);
+                  } catch {
                     setMicActive(!checked);
                   }
                 }}
-                disabled={!voiceStatus?.connected}
+                disabled={!connected}
               />
             </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {!voiceStatus?.connected && (
+          {!connected && (
             <p className="text-xs text-muted-foreground">
               Connect to a voice channel first.
             </p>

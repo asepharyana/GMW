@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import { recordingsApi } from "@/lib/api";
 import type { VoiceRecording } from "@/lib/types";
@@ -11,55 +12,33 @@ type WsHook = {
   ) => () => void;
 };
 
-interface UseRecordingsReturn {
-  recordings: VoiceRecording[];
-  loading: boolean;
-  refresh: () => void;
-  remove: (id: string) => void;
-  prepend: (rec: VoiceRecording) => void;
+export function useRecordings() {
+  return useQuery<VoiceRecording[]>({
+    queryKey: ["recordings"],
+    queryFn: async () => {
+      const res = await recordingsApi.list(50);
+      return res.items;
+    },
+  });
 }
 
-export function useRecordings(): UseRecordingsReturn {
-  const [recordings, setRecordings] = useState<VoiceRecording[]>([]);
-  const [loading, setLoading] = useState(true);
+export function useDeleteRecording() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => recordingsApi.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["recordings"] }),
+  });
+}
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await recordingsApi.list(50);
-      setRecordings(result.items);
-    } catch (err) {
-      console.error("useRecordings/refresh:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+export function useRecordingsWsSync(ws: WsHook) {
+  const qc = useQueryClient();
   useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  const remove = useCallback(async (id: string) => {
-    try {
-      await recordingsApi.delete(id);
-      setRecordings((prev) => prev.filter((r) => r.id !== id));
-    } catch (err) {
-      console.error("useRecordings/remove:", err);
-    }
-  }, []);
-
-  const prepend = useCallback((rec: VoiceRecording) => {
-    setRecordings((prev) => [rec, ...prev]);
-  }, []);
-
-  return { recordings, loading, refresh, remove, prepend };
-}
-
-export function useRecordingsWsSubscription(
-  ws: WsHook,
-  onUploaded: (rec: VoiceRecording) => void,
-) {
-  return ws.on("voice_recording_uploaded", (data) =>
-    onUploaded(data as VoiceRecording),
-  );
+    const unsub = ws.on("voice_recording_uploaded", (data) => {
+      const rec = data as VoiceRecording;
+      qc.setQueryData<VoiceRecording[]>(["recordings"], (old) =>
+        old ? [rec, ...old] : [rec],
+      );
+    });
+    return unsub;
+  }, [ws, qc]);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { voiceApi } from "@/lib/api";
 import type { MediaState } from "@/lib/types";
@@ -11,74 +11,60 @@ type WsHook = {
   ) => () => void;
 };
 
-interface UseMediaStateReturn {
-  mediaState: MediaState | null;
-  refresh: () => void;
-  queue: (url: string) => void;
-  skip: () => void;
-  stop: () => void;
-  setVolume: (value: number | readonly number[]) => void;
+export function useMediaState() {
+  return useQuery<MediaState>({
+    queryKey: ["media-state"],
+    queryFn: () => voiceApi.getMediaStatus(),
+    retry: false,
+    refetchInterval: 10_000,
+  });
 }
 
-export function useMediaState(): UseMediaStateReturn {
-  const [mediaState, setMediaState] = useState<MediaState | null>(null);
+export function useMediaQueue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (url: string) => voiceApi.mediaQueue(url, "music"),
+    onSuccess: (data) => qc.setQueryData(["media-state"], data),
+  });
+}
 
-  const refresh = useCallback(async () => {
-    try {
-      const state = await voiceApi.getMediaStatus();
-      setMediaState(state);
-    } catch (err) {
-      console.error("useMediaState/refresh:", err);
-    }
-  }, []);
+export function useMediaSkip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => voiceApi.mediaSkip(),
+    onSuccess: (data) => qc.setQueryData(["media-state"], data),
+  });
+}
 
-  const queue = useCallback(async (url: string) => {
-    try {
-      const state = await voiceApi.mediaQueue(url, "music");
-      setMediaState(state);
-    } catch (err) {
-      console.error("useMediaState/queue:", err);
-    }
-  }, []);
+export function useMediaStop() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => voiceApi.mediaStop(),
+    onSuccess: (data) => qc.setQueryData(["media-state"], data),
+  });
+}
 
-  const skip = useCallback(async () => {
-    try {
-      const state = await voiceApi.mediaSkip();
-      setMediaState(state);
-    } catch (err) {
-      console.error("useMediaState/skip:", err);
-    }
-  }, []);
+export function useMediaVolume() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (volume: number) => voiceApi.mediaVolume(volume),
+    onSuccess: (data) => qc.setQueryData(["media-state"], data),
+  });
+}
 
-  const stop = useCallback(async () => {
-    try {
-      const state = await voiceApi.mediaStop();
-      setMediaState(state);
-    } catch (err) {
-      console.error("useMediaState/stop:", err);
-    }
-  }, []);
+/** Subscribe to WS media_state events to keep cache fresh */
+export function useMediaWsSync(ws: WsHook) {
+  const qc = useQueryClient();
+  useEffectFn(ws, qc);
+}
 
-  const setVolume = useCallback(async (value: number | readonly number[]) => {
-    const vol = Array.isArray(value) ? value[0] : value;
-    try {
-      const state = await voiceApi.mediaVolume(vol);
-      setMediaState(state);
-    } catch (err) {
-      console.error("useMediaState/setVolume:", err);
-    }
-  }, []);
+import { useEffect } from "react";
 
+function useEffectFn(ws: WsHook, qc: ReturnType<typeof useQueryClient>) {
   useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  return { mediaState, refresh, queue, skip, stop, setVolume };
-}
-
-export function useMediaWsSubscription(
-  ws: WsHook,
-  onState: (state: MediaState) => void,
-) {
-  return ws.on("media_state", (data) => onState(data as MediaState));
+    const unsub = ws.on("media_state", (data) => {
+      qc.setQueryData(["media-state"], data as MediaState);
+    });
+    return unsub;
+  }, [ws, qc]);
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import {
   ExternalLink,
   Flag,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ErrorState, LoadingSkeleton } from "@/components/shared";
+import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/shared";
 import { GuildSelector } from "@/components/shared/guild-selector";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -37,13 +38,17 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useImages,
+  useLoadMore,
   useMessageDetail,
   useMessages,
-  useMessageWsSubscription,
+  useMessagesHasMore,
+  useMessagesWsSync,
+  useReanalyze,
+  useReanalyzeBatch,
   useReview,
-  useSearch,
   useTextChannels,
 } from "@/hooks";
+import { messagesApi } from "@/lib/api";
 import { formatBytes, safeParseJsonArray } from "@/lib/format";
 import type { MessageRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -52,98 +57,77 @@ import { useWebSocket } from "@/lib/ws/context";
 export default function MessagesPage() {
   const [guildId, setGuildId] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("");
+  const [viewTab, setViewTab] = useState<"all" | "images" | "review">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const ws = useWebSocket();
-  const { channels } = useTextChannels(guildId);
+  const { data: channels = [] } = useTextChannels(guildId);
   const {
-    messages,
-    loading,
-    loadingMore,
+    data: messages,
+    isLoading,
     error,
-    hasMore,
     refetch,
-    loadMore,
-    prepend,
-    update,
-    remove,
   } = useMessages(guildId, selectedChannel || undefined);
-  const { images, refetch: refetchImages } = useImages(guildId);
-  const { reviews, refetch: refetchReviews } = useReview(
+  const { data: cursorData, refetch: refetchCursor } = useMessagesHasMore(
+    guildId,
     selectedChannel || undefined,
   );
-  const { results: searchResults, searching, search } = useSearch();
+  const loadMoreMut = useLoadMore();
+  const { data: images } = useImages(guildId);
+  const { data: reviews } = useReview(selectedChannel || undefined);
+  const reanalyzeMut = useReanalyze();
+  const reanalyzeBatchMut = useReanalyzeBatch();
+
+  // Sync WS events into the TanStack Query cache
+  useMessagesWsSync(ws, guildId);
+
+  // Detail dialog
   const {
     message: detailMessage,
     attachments: detailAttachments,
     loading: detailLoading,
-    open: openDetail,
-    close: closeDetail,
-  } = useMessageDetail();
+  } = useMessageDetail(detailId);
 
-  const [viewTab, setViewTab] = useState<"all" | "images" | "review">("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  // Images fetch is managed by the query hook (enabled when guildId is set)
+  // Review fetch is managed by the query hook
 
-  // WS real-time subscriptions
-  const handleCreated = useCallback(
-    (msg: MessageRecord) => prepend(msg),
-    [prepend],
-  );
-  const handleUpdated = useCallback(
-    (msg: MessageRecord) => update(msg),
-    [update],
-  );
-  const handleDeleted = useCallback((id: string) => remove(id), [remove]);
-  const handleAnalyzed = useCallback(
-    (msg: MessageRecord) => update(msg),
-    [update],
-  );
+  // Search query (manual trigger)
+  const [searchEnabled, setSearchEnabled] = useState(false);
+  const { data: searchResults, isFetching: searching } = useQuery<
+    MessageRecord[]
+  >({
+    queryKey: ["messages-search", guildId, searchQuery],
+    queryFn: async () => {
+      const result = await messagesApi.search(searchQuery, 50);
+      return result.results;
+    },
+    enabled: searchEnabled && !!searchQuery && !!guildId,
+  });
 
-  useMessageWsSubscription(
-    ws,
-    guildId,
-    handleCreated,
-    handleUpdated,
-    handleDeleted,
-    handleAnalyzed,
-  );
+  const handleSearch = useCallback(() => {
+    if (!searchQuery.trim()) return;
+    setSearchEnabled(true);
+  }, [searchQuery]);
 
-  // Fetch images on mount and when guild changes
-  useEffect(() => {
-    refetchImages();
-  }, [refetchImages]);
+  const handleLoadMore = useCallback(() => {
+    if (!cursorData?.cursor || loadMoreMut.isPending) return;
+    loadMoreMut.mutate({
+      guildId,
+      channelId: selectedChannel || undefined,
+      cursor: cursorData.cursor,
+    });
+  }, [cursorData, loadMoreMut, guildId, selectedChannel]);
 
-  // Fetch reviews when tab switches
-  useEffect(() => {
-    if (viewTab === "review") refetchReviews();
-  }, [viewTab, refetchReviews]);
-
-  const handleReanalyze = useCallback(async (id: string) => {
-    const { messagesApi } = await import("@/lib/api");
-    try {
-      await messagesApi.reanalyze(id);
-    } catch (err) {
-      console.error("messages/reanalyze:", err);
-    }
-  }, []);
-
-  const handleReanalyzeBatch = useCallback(async () => {
-    if (!guildId) return;
-    const { messagesApi } = await import("@/lib/api");
-    try {
-      await messagesApi.reanalyzeBatch(guildId);
-    } catch (err) {
-      console.error("messages/reanalyzeBatch:", err);
-    }
-  }, [guildId]);
-
-  const displayMessages = searchResults ?? messages;
-  const _isEmpty = !loading && displayMessages.length === 0;
+  const displayMessages = searchResults ?? messages ?? [];
+  const hasMore = cursorData?.hasMore ?? false;
+  const isEmpty = !isLoading && displayMessages.length === 0;
 
   if (error) {
     return (
       <div className="space-y-5">
         <GuildSelector value={guildId} onChange={setGuildId} />
-        <ErrorState message={error} onRetry={refetch} />
+        <ErrorState message={error.message} onRetry={refetch} />
       </div>
     );
   }
@@ -152,7 +136,6 @@ export default function MessagesPage() {
     <div className="space-y-5">
       <GuildSelector value={guildId} onChange={setGuildId} />
 
-      {/* Search + toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -160,11 +143,10 @@ export default function MessagesPage() {
             placeholder="Search messages…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && search(searchQuery)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             className="pl-9 h-9"
           />
         </div>
-
         {channels.length > 0 && (
           <Select
             value={selectedChannel}
@@ -183,78 +165,174 @@ export default function MessagesPage() {
             </SelectContent>
           </Select>
         )}
-
-        <Button variant="outline" size="sm" onClick={handleReanalyzeBatch}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => reanalyzeBatchMut.mutate(guildId)}
+        >
           <RefreshCw className="size-4 mr-1.5" />
           Reanalyze Errors
         </Button>
       </div>
 
-      {/* Tabs */}
       <Tabs
         value={viewTab}
-        onValueChange={(v) => setViewTab(v as "all" | "images" | "review")}
+        onValueChange={(v) => setViewTab(v as typeof viewTab)}
       >
         <TabsList>
-          <TabsTrigger value="all">All ({messages.length})</TabsTrigger>
-          <TabsTrigger value="images">Images ({images.length})</TabsTrigger>
+          <TabsTrigger value="all">
+            All ({(searchResults ?? messages)?.length ?? 0})
+          </TabsTrigger>
+          <TabsTrigger value="images">
+            Images ({images?.length ?? 0})
+          </TabsTrigger>
           <TabsTrigger value="review">
-            <Flag className="size-3.5 mr-1" />
-            Review ({reviews.length})
+            <Flag className="size-3.5 mr-1" /> Review ({reviews?.length ?? 0})
           </TabsTrigger>
         </TabsList>
       </Tabs>
 
-      {searchResults !== null && (
+      {searchResults && (
         <p className="text-sm text-muted-foreground animate-fade-in-up">
           Found {searchResults.length} result
           {searchResults.length !== 1 ? "s" : ""}
         </p>
       )}
 
+      {/* ── ALL tab ── */}
       {viewTab === "all" && (
-        <MessageFeed
-          messages={displayMessages}
-          searchResult={searchResults !== null}
-          loading={loading}
-          hasMore={hasMore && searchResults === null}
-          loadingMore={loadingMore}
-          onLoadMore={loadMore}
-          onMessageClick={openDetail}
-          onReanalyze={handleReanalyze}
-        />
+        <div className="space-y-2 animate-fade-in-up">
+          {isLoading ? (
+            <LoadingSkeleton count={8} height="h-28" />
+          ) : isEmpty ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <Search className="size-10 text-muted-foreground/40 mb-3" />
+              <p className="text-sm text-muted-foreground">
+                {searchResults
+                  ? "No messages found matching your search."
+                  : "No captures yet."}
+              </p>
+            </div>
+          ) : (
+            <>
+              {displayMessages.map((msg) => (
+                <MessageCard
+                  key={msg.id}
+                  message={msg}
+                  onClick={setDetailId}
+                  onReanalyze={(id) => reanalyzeMut.mutate(id)}
+                />
+              ))}
+              {hasMore && (
+                <div className="flex justify-center py-6">
+                  <Button
+                    variant="outline"
+                    onClick={handleLoadMore}
+                    disabled={loadMoreMut.isPending}
+                  >
+                    {loadMoreMut.isPending && (
+                      <Loader2 className="size-4 animate-spin mr-2" />
+                    )}
+                    {loadMoreMut.isPending ? "Loading…" : "Load more"}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       )}
 
+      {/* ── IMAGES tab ── */}
       {viewTab === "images" && (
-        <ImageGrid images={images} onImageClick={(id) => openDetail(id)} />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 animate-fade-in-up">
+          {!images || images.length === 0 ? (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
+              <ImageIcon className="size-10 text-muted-foreground/40 mb-3" />
+              <p className="text-sm text-muted-foreground">No images yet.</p>
+            </div>
+          ) : (
+            images.map((msg) => {
+              const imgUrl = extractImage(msg.metadata);
+              return (
+                <Card
+                  key={msg.id}
+                  className="group relative overflow-hidden cursor-pointer"
+                  onClick={() => setDetailId(msg.id)}
+                >
+                  <div className="aspect-square relative bg-muted">
+                    {imgUrl ? (
+                      <Image
+                        src={imgUrl}
+                        alt={msg.content || "Image"}
+                        fill
+                        className="object-cover transition-transform duration-300 group-hover:scale-105"
+                        sizes="(max-width: 768px) 50vw, 25vw"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center size-full text-muted-foreground text-xs">
+                        No image
+                      </div>
+                    )}
+                    {msg.content && (
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end p-3">
+                        <p className="text-xs text-white/90 line-clamp-2">
+                          {msg.username}: {msg.content}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              );
+            })
+          )}
+        </div>
       )}
 
+      {/* ── REVIEW tab ── */}
       {viewTab === "review" && (
-        <ReviewFeed
-          messages={reviews}
-          onMessageClick={openDetail}
-          onReanalyze={handleReanalyze}
-        />
+        <div className="space-y-2 animate-fade-in-up">
+          {!reviews || reviews.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <Flag className="size-10 text-muted-foreground/40 mb-3" />
+              <p className="text-sm text-muted-foreground">
+                No flagged messages to review.
+              </p>
+            </div>
+          ) : (
+            reviews.map((msg) => (
+              <MessageCard
+                key={msg.id}
+                message={msg}
+                onClick={setDetailId}
+                onReanalyze={(id) => reanalyzeMut.mutate(id)}
+              />
+            ))
+          )}
+        </div>
       )}
 
       {/* Detail dialog */}
       <Dialog
-        open={detailMessage !== null}
-        onOpenChange={(o) => !o && closeDetail()}
+        open={detailId !== null}
+        onOpenChange={(o) => !o && setDetailId(null)}
       >
         <DialogContent className="sm:max-w-2xl max-h-[85vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <MessageSquare className="size-4" />
-              Message Detail
+              <MessageSquare className="size-4" /> Message Detail
             </DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] pr-1">
-            <MessageDetail
-              message={detailMessage}
-              attachments={detailAttachments}
-              loading={detailLoading}
-            />
+            {detailLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : detailMessage ? (
+              <DetailView
+                message={detailMessage}
+                attachments={detailAttachments}
+              />
+            ) : null}
           </ScrollArea>
         </DialogContent>
       </Dialog>
@@ -262,165 +340,7 @@ export default function MessagesPage() {
   );
 }
 
-// ── Feed Sub-components ─────────────────────────
-
-function MessageFeed({
-  messages,
-  searchResult,
-  loading,
-  hasMore,
-  loadingMore,
-  onLoadMore,
-  onMessageClick,
-  onReanalyze,
-}: {
-  messages: MessageRecord[];
-  searchResult: boolean;
-  loading: boolean;
-  hasMore: boolean;
-  loadingMore: boolean;
-  onLoadMore: () => void;
-  onMessageClick: (id: string) => void;
-  onReanalyze: (id: string) => void;
-}) {
-  if (loading) return <LoadingSkeleton count={8} height="h-28" />;
-
-  if (messages.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Search className="size-10 text-muted-foreground/40 mb-3" />
-        <p className="text-sm text-muted-foreground">
-          {searchResult
-            ? "No messages found matching your search."
-            : "No captures yet."}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2 animate-fade-in-up">
-      {messages.map((msg) => (
-        <MessageCard
-          key={msg.id}
-          message={msg}
-          onClick={onMessageClick}
-          onReanalyze={onReanalyze}
-        />
-      ))}
-
-      {hasMore && (
-        <div className="flex justify-center py-6">
-          <Button variant="outline" onClick={onLoadMore} disabled={loadingMore}>
-            {loadingMore && <Loader2 className="size-4 animate-spin mr-2" />}
-            {loadingMore ? "Loading…" : "Load more"}
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ImageGrid({
-  images,
-  onImageClick,
-}: {
-  images: MessageRecord[];
-  onImageClick: (id: string) => void;
-}) {
-  if (images.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <ImageIcon className="size-10 text-muted-foreground/40 mb-3" />
-        <p className="text-sm text-muted-foreground">No images yet.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 animate-fade-in-up">
-      {images.map((msg) => (
-        <ImageCard key={msg.id} message={msg} onClick={onImageClick} />
-      ))}
-    </div>
-  );
-}
-
-function ImageCard({
-  message: msg,
-  onClick,
-}: {
-  message: MessageRecord;
-  onClick: (id: string) => void;
-}) {
-  const imageUrl = useMemo(() => extractImageUrl(msg.metadata), [msg.metadata]);
-
-  return (
-    <Card
-      className="group relative overflow-hidden cursor-pointer"
-      onClick={() => onClick(msg.id)}
-    >
-      <div className="aspect-square relative bg-muted">
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={msg.content || "Image"}
-            fill
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
-            sizes="(max-width: 768px) 50vw, 25vw"
-          />
-        ) : (
-          <div className="flex items-center justify-center size-full text-muted-foreground text-xs">
-            No image
-          </div>
-        )}
-        {msg.content && (
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end p-3">
-            <p className="text-xs text-white/90 line-clamp-2">
-              {msg.username}: {msg.content}
-            </p>
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-}
-
-function ReviewFeed({
-  messages,
-  onMessageClick,
-  onReanalyze,
-}: {
-  messages: MessageRecord[];
-  onMessageClick: (id: string) => void;
-  onReanalyze: (id: string) => void;
-}) {
-  if (messages.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Flag className="size-10 text-muted-foreground/40 mb-3" />
-        <p className="text-sm text-muted-foreground">
-          No flagged messages to review.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2 animate-fade-in-up">
-      {messages.map((msg) => (
-        <MessageCard
-          key={msg.id}
-          message={msg}
-          onClick={onMessageClick}
-          onReanalyze={onReanalyze}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ── Message Card ────────────────────────────────
+// ── Message Card ────────────────────────────────────────────────
 
 function MessageCard({
   message: msg,
@@ -431,7 +351,7 @@ function MessageCard({
   onClick: (id: string) => void;
   onReanalyze: (id: string) => void;
 }) {
-  const severityBorder = (
+  const severity = (
     {
       low: "border-l-sky-400",
       medium: "border-l-yellow-400",
@@ -439,14 +359,13 @@ function MessageCard({
       critical: "border-l-red-500",
     } as Record<string, string>
   )[msg.ai_severity ?? ""];
-  const hasSeverity = !!severityBorder;
 
   return (
     <Card
       className={cn(
         "cursor-pointer transition-all duration-200 hover:bg-accent/5 hover:shadow-sm",
-        hasSeverity && "border-l-2",
-        hasSeverity && severityBorder,
+        severity && "border-l-2",
+        severity,
       )}
       onClick={() => onClick(msg.id)}
     >
@@ -458,7 +377,6 @@ function MessageCard({
               {msg.username.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium">{msg.username}</span>
@@ -469,7 +387,7 @@ function MessageCard({
                 <Hash className="size-3 inline mr-0.5" />
                 {msg.channel_id.slice(0, 8)}
               </span>
-              <AiBadge status={msg.ai_status} />
+              <AiStatusBadge status={msg.ai_status} />
               {msg.ai_severity && msg.ai_severity !== "none" && (
                 <Badge
                   variant="destructive"
@@ -495,7 +413,6 @@ function MessageCard({
                 </Badge>
               )}
             </div>
-
             <p
               className={cn(
                 "text-sm leading-relaxed",
@@ -505,27 +422,24 @@ function MessageCard({
             >
               {msg.content}
             </p>
-
             {msg.ai_moderation_flags && msg.ai_moderation_flags !== "[]" && (
               <div className="flex flex-wrap gap-1">
-                {safeParseJsonArray(msg.ai_moderation_flags).map((flag) => (
+                {safeParseJsonArray(msg.ai_moderation_flags).map((f) => (
                   <Badge
-                    key={flag}
+                    key={f}
                     variant="destructive"
                     className="text-[10px] px-1.5 py-0 h-4"
                   >
-                    {flag}
+                    {f}
                   </Badge>
                 ))}
               </div>
             )}
-
             {msg.ai_analysis && (
               <p className="text-xs text-muted-foreground italic line-clamp-2 leading-relaxed">
                 {msg.ai_analysis}
               </p>
             )}
-
             {msg.ai_confidence != null && (
               <div className="flex items-center gap-2 max-w-40">
                 <Progress value={msg.ai_confidence * 100} className="h-1.5" />
@@ -534,7 +448,6 @@ function MessageCard({
                 </span>
               </div>
             )}
-
             <Button
               variant="ghost"
               size="xs"
@@ -543,8 +456,7 @@ function MessageCard({
                 onReanalyze(msg.id);
               }}
             >
-              <RefreshCw className="size-3 mr-1" />
-              Reanalyze
+              <RefreshCw className="size-3 mr-1" /> Reanalyze
             </Button>
           </div>
         </div>
@@ -553,39 +465,39 @@ function MessageCard({
   );
 }
 
-function AiBadge({ status }: { status?: string | null }) {
-  const colors: Record<string, string> = {
-    clean:
-      "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/20",
-    warn: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-500/20",
-    flagged: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/20",
-    error: "bg-gray-500/15 text-gray-600 dark:text-gray-400 border-gray-500/20",
-    pending:
-      "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20",
-    processing:
-      "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20",
-  };
-
-  if (!status || !colors[status]) return null;
-
+function AiStatusBadge({ status }: { status?: string | null }) {
+  const c = (
+    {
+      clean:
+        "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/20",
+      warn: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-500/20",
+      flagged: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/20",
+      error:
+        "bg-gray-500/15 text-gray-600 dark:text-gray-400 border-gray-500/20",
+      pending:
+        "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20",
+      processing:
+        "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20",
+    } as Record<string, string>
+  )[status ?? ""];
+  if (!c) return null;
   return (
     <Badge
       variant="outline"
-      className={cn("text-[10px] px-1.5 py-0 h-4 font-medium", colors[status])}
+      className={cn("text-[10px] px-1.5 py-0 h-4 font-medium", c)}
     >
       {status}
     </Badge>
   );
 }
 
-// ── Message Detail ──────────────────────────────
+// ── Detail View ──────────────────────────────────────────────────
 
-function MessageDetail({
+function DetailView({
   message,
   attachments,
-  loading,
 }: {
-  message: MessageRecord | null;
+  message: MessageRecord;
   attachments: {
     id: string;
     filename: string;
@@ -594,18 +506,7 @@ function MessageDetail({
     uploaded_url?: string | null;
     discord_url?: string | null;
   }[];
-  loading: boolean;
 }) {
-  if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (!message) return null;
-
   return (
     <div className="space-y-5">
       <div className="flex items-start gap-3">
@@ -637,7 +538,6 @@ function MessageDetail({
           </p>
         </div>
       </div>
-
       {message.ai_analysis && (
         <div className="rounded-lg bg-gradient-to-br from-primary/5 to-primary/[0.02] border border-primary/10 p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -649,84 +549,65 @@ function MessageDetail({
           <p className="text-sm leading-relaxed">{message.ai_analysis}</p>
         </div>
       )}
-
       {message.ai_moderation_flags && message.ai_moderation_flags !== "[]" && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground font-medium">
             Moderation Flags
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {safeParseJsonArray(message.ai_moderation_flags).map((flag) => (
-              <Badge key={flag} variant="destructive" className="text-[11px]">
-                {flag}
+            {safeParseJsonArray(message.ai_moderation_flags).map((f) => (
+              <Badge key={f} variant="destructive" className="text-[11px]">
+                {f}
               </Badge>
             ))}
           </div>
         </div>
       )}
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {message.ai_status && (
-          <Card>
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">Status</p>
-              <p className="text-sm font-medium mt-0.5 capitalize">
-                {message.ai_status}
-              </p>
-            </CardContent>
-          </Card>
+          <MiniStat label="Status" value={message.ai_status} capitalize />
         )}
         {message.ai_severity && message.ai_severity !== "none" && (
-          <Card>
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">Severity</p>
-              <p className="text-sm font-medium mt-0.5 text-destructive capitalize">
-                {message.ai_severity}
-              </p>
-            </CardContent>
-          </Card>
+          <MiniStat
+            label="Severity"
+            value={message.ai_severity}
+            destructive
+            capitalize
+          />
         )}
         {message.ai_confidence != null && (
-          <Card>
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">Confidence</p>
-              <p className="text-sm font-medium mt-0.5 tabular-nums">
-                {(message.ai_confidence * 100).toFixed(0)}%
-              </p>
-            </CardContent>
-          </Card>
+          <MiniStat
+            label="Confidence"
+            value={`${(message.ai_confidence * 100).toFixed(0)}%`}
+          />
         )}
         {message.ai_recommended_action &&
           message.ai_recommended_action !== "none" && (
-            <Card>
-              <CardContent className="p-3">
-                <p className="text-xs text-muted-foreground">Action</p>
-                <p className="text-sm font-medium mt-0.5 capitalize">
-                  {message.ai_recommended_action}
-                </p>
-              </CardContent>
-            </Card>
+            <MiniStat
+              label="Action"
+              value={message.ai_recommended_action}
+              capitalize
+            />
           )}
       </div>
-
       {attachments.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground font-medium">
             Attachments ({attachments.length})
           </p>
           <div className="grid grid-cols-2 gap-2">
-            {attachments.map((att) => (
+            {attachments.map((a) => (
               <a
-                key={att.id}
-                href={att.uploaded_url ?? att.discord_url ?? "#"}
+                key={a.id}
+                href={a.uploaded_url ?? a.discord_url ?? "#"}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2 rounded-lg border border-border/50 p-2 hover:bg-muted transition-colors group"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate">{att.filename}</p>
+                  <p className="text-xs font-medium truncate">{a.filename}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {att.type} · {formatBytes(att.size)}
+                    {a.type} · {formatBytes(a.size)}
                   </p>
                 </div>
                 <ExternalLink className="size-3 shrink-0 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
@@ -739,16 +620,44 @@ function MessageDetail({
   );
 }
 
-// ── Helpers ─────────────────────────────────────
+function MiniStat({
+  label,
+  value,
+  destructive,
+  capitalize,
+}: {
+  label: string;
+  value: string;
+  destructive?: boolean;
+  capitalize?: boolean;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-3">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p
+          className={cn(
+            "text-sm font-medium mt-0.5",
+            capitalize && "capitalize",
+            destructive && "text-destructive",
+          )}
+        >
+          {value}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
 
-function extractImageUrl(metadata: string | null | undefined): string | null {
+// ── Helpers ──────────────────────────────────────────────────────
+
+function extractImage(metadata: string | null | undefined): string | null {
   if (!metadata) return null;
   try {
-    const meta = JSON.parse(metadata);
-    const attachments: Array<{ url: string; contentType?: string }> =
-      meta.attachments ?? [];
-    const img = attachments.find((a) => a.contentType?.startsWith("image/"));
-    return img?.url ?? null;
+    const m = JSON.parse(metadata);
+    const atts: Array<{ url: string; contentType?: string }> =
+      m.attachments ?? [];
+    return atts.find((a) => a.contentType?.startsWith("image/"))?.url ?? null;
   } catch {
     return null;
   }

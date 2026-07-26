@@ -1,27 +1,25 @@
 "use client";
 
 import { Download, Headphones, Trash2 } from "lucide-react";
-import { useEffect } from "react";
 import { EmptyState, LoadingSkeleton } from "@/components/shared";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useRecordings } from "@/hooks";
+import {
+  useDeleteRecording,
+  useRecordings,
+  useRecordingsWsSync,
+} from "@/hooks";
 import { formatBytes } from "@/lib/format";
 import { useWebSocket } from "@/lib/ws/context";
 
 export default function RecordingsPage() {
   const ws = useWebSocket();
-  const { recordings, loading, remove, prepend } = useRecordings();
+  const { data: recordings, isLoading } = useRecordings();
+  const deleteMut = useDeleteRecording();
 
-  // WS subscription for real-time updates
-  useEffect(() => {
-    const unsub = ws.on("voice_recording_uploaded", (data) => {
-      prepend(data as import("@/lib/types").VoiceRecording);
-    });
-    return unsub;
-  }, [ws, prepend]);
+  useRecordingsWsSync(ws);
 
   return (
     <div className="space-y-5 animate-fade-in-up">
@@ -33,9 +31,9 @@ export default function RecordingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {isLoading ? (
             <LoadingSkeleton count={5} height="h-16" />
-          ) : recordings.length === 0 ? (
+          ) : !recordings || recordings.length === 0 ? (
             <EmptyState icon={Headphones} title="No recordings yet." />
           ) : (
             <div className="space-y-2">
@@ -55,9 +53,8 @@ export default function RecordingsPage() {
                       {rec.username}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {rec.channel_name ?? rec.channel_id ?? "Unknown channel"}
-                      {" — "}
-                      {new Date(rec.created_at).toLocaleString()}
+                      {rec.channel_name ?? rec.channel_id ?? "Unknown channel"}{" "}
+                      — {new Date(rec.created_at).toLocaleString()}
                     </p>
                   </div>
                   <Badge
@@ -81,7 +78,7 @@ export default function RecordingsPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => remove(rec.id)}
+                    onClick={() => deleteMut.mutate(rec.id)}
                     className="hover:text-destructive hover:bg-destructive/10"
                   >
                     <Trash2 className="size-4" />

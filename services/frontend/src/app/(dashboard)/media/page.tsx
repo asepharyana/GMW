@@ -2,31 +2,47 @@
 
 import { Disc3, Music, Play, SkipForward, Square, Volume2 } from "lucide-react";
 import Image from "next/image";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { useMediaState } from "@/hooks";
+import {
+  useMediaQueue,
+  useMediaSkip,
+  useMediaState,
+  useMediaStop,
+  useMediaVolume,
+  useMediaWsSync,
+} from "@/hooks";
 import { useWebSocket } from "@/lib/ws/context";
 
 export default function MediaPage() {
   const ws = useWebSocket();
-  const { mediaState, refresh, queue, skip, stop, setVolume } = useMediaState();
+  const { data: mediaState } = useMediaState();
+  const queueMut = useMediaQueue();
+  const skipMut = useMediaSkip();
+  const stopMut = useMediaStop();
+  const volumeMut = useMediaVolume();
   const [queueUrl, setQueueUrl] = useState("");
 
-  // WS subscription for real-time media state
-  useEffect(() => {
-    const unsub = ws.on("media_state", () => refresh());
-    return unsub;
-  }, [ws, refresh]);
+  // Sync WS media_state into the query cache
+  useMediaWsSync(ws);
 
   const handleQueue = useCallback(() => {
     if (!queueUrl.trim()) return;
-    queue(queueUrl.trim());
+    queueMut.mutate(queueUrl.trim());
     setQueueUrl("");
-  }, [queueUrl, queue]);
+  }, [queueUrl, queueMut]);
+
+  const handleVolume = useCallback(
+    (value: number | readonly number[]) => {
+      const vol = Array.isArray(value) ? value[0] : value;
+      volumeMut.mutate(vol);
+    },
+    [volumeMut],
+  );
 
   return (
     <div className="space-y-5 animate-fade-in-up">
@@ -46,13 +62,16 @@ export default function MediaPage() {
               onKeyDown={(e) => e.key === "Enter" && handleQueue()}
               className="flex-1 h-9"
             />
-            <Button onClick={handleQueue} disabled={!queueUrl.trim()}>
+            <Button
+              onClick={handleQueue}
+              disabled={!queueUrl.trim() || queueMut.isPending}
+            >
               <Play className="size-4 mr-1.5" />
               Queue
             </Button>
           </div>
 
-          {mediaState?.current && (
+          {mediaState?.current ? (
             <div className="rounded-lg bg-gradient-to-br from-primary/5 to-primary/[0.02] border border-primary/10 p-4 space-y-2">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1.5">
                 <Disc3 className="size-3" />
@@ -74,30 +93,34 @@ export default function MediaPage() {
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {mediaState.current.durationMs
-                      ? `${Math.floor(mediaState.current.durationMs / 60000)}:${String(
-                          Math.floor(
-                            (mediaState.current.durationMs % 60000) / 1000,
-                          ),
-                        ).padStart(2, "0")}`
+                      ? `${Math.floor(mediaState.current.durationMs / 60000)}:${String(Math.floor((mediaState.current.durationMs % 60000) / 1000)).padStart(2, "0")}`
                       : "Live"}
                   </p>
                 </div>
               </div>
             </div>
-          )}
-
-          {!mediaState?.current && !mediaState?.queue?.length && (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              No media queued. Paste a URL above to start playing.
-            </p>
+          ) : (
+            !mediaState?.queue?.length && (
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                No media queued. Paste a URL above to start playing.
+              </p>
+            )
           )}
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={stop}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => stopMut.mutate()}
+            >
               <Square className="size-4 mr-1" />
               Stop
             </Button>
-            <Button variant="outline" size="sm" onClick={skip}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => skipMut.mutate()}
+            >
               <SkipForward className="size-4 mr-1" />
               Skip
             </Button>
@@ -107,7 +130,7 @@ export default function MediaPage() {
                 className="w-24"
                 defaultValue={[mediaState?.musicVolume ?? 0.5]}
                 value={[mediaState?.musicVolume ?? 0.5]}
-                onValueChange={setVolume}
+                onValueChange={handleVolume}
                 min={0}
                 max={1}
                 step={0.05}
