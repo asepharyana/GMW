@@ -1,9 +1,9 @@
-import type { ChatHistoryMessage, MascotChatResponse } from "@/lib/types";
+import type { ChatbotResponse, ChatHistoryMessage } from "@/lib/types";
 import { api } from "./client";
 
-export const mascotApi = {
+export const chatbotApi = {
   send: (message: string) =>
-    api.post<MascotChatResponse>("/api/mascot/chat", { message }),
+    api.post<ChatbotResponse>("/api/mascot/chat", { message }),
 
   getHistory: () => api.get<ChatHistoryMessage[]>("/api/mascot/chat/history"),
 

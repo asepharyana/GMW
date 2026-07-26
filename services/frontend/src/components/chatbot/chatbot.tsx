@@ -22,11 +22,11 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { mascotApi } from "@/lib/api";
+import { chatbotApi } from "@/lib/api";
 import type { ChatHistoryMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function MascotChatbot() {
+export function Chatbot() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatHistoryMessage[]>([]);
   const [input, setInput] = useState("");
@@ -35,7 +35,7 @@ export function MascotChatbot() {
 
   useEffect(() => {
     if (!open) return;
-    mascotApi
+    chatbotApi
       .getHistory()
       .then(setMessages)
       .catch(() => {});
@@ -49,7 +49,7 @@ export function MascotChatbot() {
 
   const handleClear = useCallback(async () => {
     try {
-      await mascotApi.clearHistory();
+      await chatbotApi.clearHistory();
       setMessages([]);
     } catch {
       // ignore
@@ -69,7 +69,7 @@ export function MascotChatbot() {
     ]);
 
     try {
-      const resp = await mascotApi.send(text);
+      const resp = await chatbotApi.send(text);
       setMessages((prev) => [
         ...prev,
         {
@@ -115,7 +115,7 @@ export function MascotChatbot() {
               <div className="flex size-6 items-center justify-center rounded-full bg-primary/10">
                 <Bot className="size-3.5 text-primary" />
               </div>
-              Mascot
+              Chatbot
               <Sparkles className="size-3 text-primary/60 ml-0.5" />
               <div className="flex-1" />
               {messages.length > 0 && (

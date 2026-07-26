@@ -28,9 +28,6 @@ export class VoiceTransmitter {
   /** Set true before sending SIGTERM so exit handler knows it's intentional */
   private _expectedExit = false;
 
-  /** True while backpressure drain is in progress */
-  private draining = false;
-
   /**
    * Start listening for PCM audio data from Redis and stream to Discord
    */

@@ -21,115 +21,75 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import {
+  useGuilds,
+  useSpeakers,
+  useVoiceChannels,
+  useVoiceStatus,
+} from "@/hooks";
 import { voiceApi } from "@/lib/api";
-import type { ActiveSpeaker, VoiceStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
 export default function VoicePage() {
   const ws = useWebSocket();
+  const { voiceStatus, refresh: refreshStatus } = useVoiceStatus();
+  const { guilds } = useGuilds();
+  const { channels: voiceChannels, fetch: fetchChannels } = useVoiceChannels();
+  const { speakers, subscribe } = useSpeakers();
 
-  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus | null>(null);
-  const [speakers, setSpeakers] = useState<ActiveSpeaker[]>([]);
-  const [guilds, setGuilds] = useState<Array<{ id: string; name: string }>>([]);
-  const [voiceChannels, setVoiceChannels] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
   const [selectedGuild, setSelectedGuild] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("");
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [micActive, setMicActive] = useState(false);
-  const [guildsLoading, setGuildsLoading] = useState(true);
 
-  const fetchVoiceStatus = useCallback(async () => {
-    try {
-      const status = await voiceApi.getStatus();
-      setVoiceStatus(status);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const fetchGuilds = useCallback(async () => {
-    setGuildsLoading(true);
-    try {
-      const g = await voiceApi.getGuilds();
-      setGuilds(g);
-    } catch {
-      // ignore
-    } finally {
-      setGuildsLoading(false);
-    }
-  }, []);
-
+  // Subscribe to WS speaker events
   useEffect(() => {
-    fetchVoiceStatus();
-    fetchGuilds();
-  }, [fetchVoiceStatus, fetchGuilds]);
+    const unsub = subscribe(ws);
+    return () => unsub();
+  }, [ws, subscribe]);
 
-  // WS subscriptions
-  useEffect(() => {
-    const unsubSpeaker = ws.on("voice_active_user", (user) => {
-      const speaker = user as ActiveSpeaker;
-      setSpeakers((prev) => {
-        const existing = prev.findIndex((s) => s.userId === speaker.userId);
-        if (existing >= 0) {
-          const next = [...prev];
-          next[existing] = speaker;
-          return next;
-        }
-        return [...prev, speaker];
-      });
-    });
-
-    return () => {
-      unsubSpeaker();
-    };
-  }, [ws]);
-
-  const handleGuildChange = useCallback(async (guildId: string | null) => {
-    if (!guildId) {
-      setSelectedGuild("");
-      setVoiceChannels([]);
-      return;
-    }
-    setSelectedGuild(guildId);
-    setSelectedChannel("");
-    try {
-      const channels = await voiceApi.getVoiceChannels(guildId);
-      setVoiceChannels(channels);
-    } catch {
-      setVoiceChannels([]);
-    }
-  }, []);
+  const handleGuildChange = useCallback(
+    (guildId: string | null) => {
+      if (!guildId) {
+        setSelectedGuild("");
+        setSelectedChannel("");
+        return;
+      }
+      setSelectedGuild(guildId);
+      setSelectedChannel("");
+      fetchChannels(guildId);
+    },
+    [fetchChannels],
+  );
 
   const handleConnect = useCallback(async () => {
     if (!selectedGuild || !selectedChannel) return;
     setVoiceLoading(true);
     try {
-      const status = await voiceApi.connect(selectedGuild, selectedChannel);
-      setVoiceStatus(status);
+      const _status = await voiceApi.connect(selectedGuild, selectedChannel);
+      // voiceStatus will be refreshed
+      setVoiceLoading(false);
+      refreshStatus();
     } finally {
       setVoiceLoading(false);
     }
-  }, [selectedGuild, selectedChannel]);
+  }, [selectedGuild, selectedChannel, refreshStatus]);
 
   const handleDisconnect = useCallback(async () => {
     setVoiceLoading(true);
     try {
-      const status = await voiceApi.disconnect();
-      setVoiceStatus(status);
-      setSpeakers([]);
+      await voiceApi.disconnect();
+      refreshStatus();
     } finally {
       setVoiceLoading(false);
     }
-  }, []);
+  }, [refreshStatus]);
 
   const activeSpeakers = speakers.filter((s) => s.speaking);
 
   return (
     <div className="space-y-5 animate-fade-in-up">
-      {/* Voice Connection */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -168,17 +128,9 @@ export default function VoicePage() {
           )}
 
           <div className="flex flex-col sm:flex-row gap-2">
-            <Select
-              value={selectedGuild}
-              onValueChange={handleGuildChange}
-              disabled={guildsLoading}
-            >
+            <Select value={selectedGuild} onValueChange={handleGuildChange}>
               <SelectTrigger className="flex-1 h-9">
-                <SelectValue
-                  placeholder={
-                    guildsLoading ? "Loading guilds…" : "Select guild…"
-                  }
-                />
+                <SelectValue placeholder="Select guild…" />
               </SelectTrigger>
               <SelectContent>
                 {guilds.map((g) => (
@@ -197,11 +149,17 @@ export default function VoicePage() {
                 <SelectValue placeholder="Select channel…" />
               </SelectTrigger>
               <SelectContent>
-                {voiceChannels.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
+                {voiceChannels.length === 0 ? (
+                  <SelectItem value="_none" disabled>
+                    No channels loaded
                   </SelectItem>
-                ))}
+                ) : (
+                  voiceChannels.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             {voiceStatus?.connected ? (
@@ -234,7 +192,6 @@ export default function VoicePage() {
         </CardContent>
       </Card>
 
-      {/* Active Speakers */}
       {activeSpeakers.length > 0 && (
         <Card>
           <CardHeader>
@@ -262,7 +219,6 @@ export default function VoicePage() {
         </Card>
       )}
 
-      {/* Microphone */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">

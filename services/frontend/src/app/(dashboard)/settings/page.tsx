@@ -2,33 +2,22 @@
 
 import { Moon, Server, Shield, Sun, Wifi } from "lucide-react";
 import { useEffect, useState } from "react";
-
+import { LoadingSkeleton } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
-import { configApi } from "@/lib/api";
-import type { AppConfig } from "@/lib/types";
+import { useConfig } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
 export default function SettingsPage() {
   const { status } = useWebSocket();
-  const [config, setConfig] = useState<AppConfig | null>(null);
-  const [configLoading, setConfigLoading] = useState(true);
+  const { config, loading: configLoading } = useConfig();
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
     const stored = localStorage.getItem("theme") as "light" | "dark" | null;
     if (stored) setTheme(stored);
-  }, []);
-
-  useEffect(() => {
-    configApi
-      .get()
-      .then(setConfig)
-      .catch(() => {})
-      .finally(() => setConfigLoading(false));
   }, []);
 
   const toggleTheme = () => {
@@ -64,7 +53,6 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-5 animate-fade-in-up max-w-2xl">
-      {/* Connection Status */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
@@ -86,7 +74,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Appearance */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
@@ -112,7 +99,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Server Config */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
@@ -122,11 +108,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           {configLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 6 }, (_, i) => (
-                <Skeleton key={i} className="h-6 w-full" />
-              ))}
-            </div>
+            <LoadingSkeleton count={6} height="h-6" />
           ) : config ? (
             <div className="space-y-2 text-sm">
               <ConfigRow
@@ -162,7 +144,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* About */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
@@ -173,8 +154,8 @@ export default function SettingsPage() {
         <CardContent>
           <div className="text-sm space-y-1">
             <p>
-              <span className="text-gradient font-bold">Bete</span> — Discord
-              Moderation Watcher
+              <span className="text-gradient font-bold">DC Automod</span> —
+              Discord Moderation Watcher
             </p>
             <p className="text-xs text-muted-foreground">
               AI-powered message moderation, voice recording, and real-time

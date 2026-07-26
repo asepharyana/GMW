@@ -11,7 +11,7 @@ export interface UiState {
   is_streaming?: boolean | null;
 }
 
-export interface MascotChatResponse {
+export interface ChatbotResponse {
   response: string;
   timestamp: string;
 }

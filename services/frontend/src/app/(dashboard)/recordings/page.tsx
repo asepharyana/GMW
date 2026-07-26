@@ -1,54 +1,31 @@
 "use client";
 
 import { Download, Headphones, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-
+import { useEffect } from "react";
+import { EmptyState, LoadingSkeleton } from "@/components/shared";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { recordingsApi } from "@/lib/api";
+import { useRecordings } from "@/hooks";
 import { formatBytes } from "@/lib/format";
-import type { VoiceRecording } from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
 
 export default function RecordingsPage() {
   const ws = useWebSocket();
-  const [recordings, setRecordings] = useState<VoiceRecording[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchRecordings = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await recordingsApi.list(50);
-      setRecordings(result.items);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { recordings, loading, refresh, remove, prepend } = useRecordings();
 
   useEffect(() => {
-    fetchRecordings();
-  }, [fetchRecordings]);
+    refresh();
+  }, [refresh]);
 
-  // WS subscription for live updates
+  // WS subscription for real-time updates
   useEffect(() => {
-    const unsub = ws.on("voice_recording_uploaded", (rec) => {
-      setRecordings((prev) => [rec as VoiceRecording, ...prev]);
+    const unsub = ws.on("voice_recording_uploaded", (data) => {
+      prepend(data as import("@/lib/types").VoiceRecording);
     });
-    return () => unsub();
-  }, [ws]);
-
-  const handleDelete = useCallback(async (id: string) => {
-    try {
-      await recordingsApi.delete(id);
-      setRecordings((prev) => prev.filter((r) => r.id !== id));
-    } catch {
-      // ignore
-    }
-  }, []);
+    return unsub;
+  }, [ws, prepend]);
 
   return (
     <div className="space-y-5 animate-fade-in-up">
@@ -61,18 +38,9 @@ export default function RecordingsPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 5 }, (_, i) => (
-                <div
-                  key={i}
-                  className="h-16 rounded-lg bg-muted/30 animate-pulse"
-                />
-              ))}
-            </div>
+            <LoadingSkeleton count={5} height="h-16" />
           ) : recordings.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              No recordings yet.
-            </p>
+            <EmptyState icon={Headphones} title="No recordings yet." />
           ) : (
             <div className="space-y-2">
               {recordings.map((rec) => (
@@ -117,7 +85,7 @@ export default function RecordingsPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleDelete(rec.id)}
+                    onClick={() => remove(rec.id)}
                     className="hover:text-destructive hover:bg-destructive/10"
                   >
                     <Trash2 className="size-4" />

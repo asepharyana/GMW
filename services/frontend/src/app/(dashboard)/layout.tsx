@@ -2,23 +2,11 @@
 
 import { Suspense } from "react";
 
-import { Header } from "@/components/layout/header";
-import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
-import { Sidebar } from "@/components/layout/sidebar";
-import { MascotChatbot } from "@/components/mascot/mascot-chatbot";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { Chatbot } from "@/components/chatbot/chatbot";
+import { AppHeader } from "@/components/layout/app-header";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { MobileNav } from "@/components/layout/mobile-nav";
 import { WsProvider } from "@/lib/ws/context";
-
-function LoadingFallback() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-3">
-        <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <p className="text-sm text-muted-foreground">Loading dashboard…</p>
-      </div>
-    </div>
-  );
-}
 
 export default function DashboardLayout({
   children,
@@ -27,19 +15,25 @@ export default function DashboardLayout({
 }) {
   return (
     <WsProvider>
-      <SidebarProvider defaultOpen={true}>
-        <div className="flex min-h-screen bg-background">
-          <Sidebar />
-          <SidebarInset className="flex flex-col">
-            <Header />
-            <main className="flex-1 p-4 md:p-6 pb-20 md:pb-6 animate-fade-in-up">
-              <Suspense fallback={<LoadingFallback />}>{children}</Suspense>
-            </main>
-          </SidebarInset>
-          <MobileTabBar />
+      <div className="flex h-screen overflow-hidden bg-background">
+        <AppSidebar />
+        <div className="flex flex-1 flex-col min-w-0">
+          <AppHeader />
+          <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
+            <Suspense
+              fallback={
+                <div className="flex h-full items-center justify-center">
+                  <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                </div>
+              }
+            >
+              {children}
+            </Suspense>
+          </main>
         </div>
-      </SidebarProvider>
-      <MascotChatbot />
+        <MobileNav />
+      </div>
+      <Chatbot />
     </WsProvider>
   );
 }

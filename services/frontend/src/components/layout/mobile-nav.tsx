@@ -6,12 +6,12 @@ import { usePathname } from "next/navigation";
 import { mobileNavItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
-export function MobileTabBar() {
+export function MobileNav() {
   const pathname = usePathname();
 
-  const isActive = (matchPrefix: string) => {
-    if (matchPrefix === "/dashboard") return pathname === "/dashboard";
-    return pathname.startsWith(matchPrefix);
+  const isActive = (prefix: string) => {
+    if (prefix === "/dashboard") return pathname === "/dashboard";
+    return pathname.startsWith(prefix);
   };
 
   return (
@@ -24,10 +24,8 @@ export function MobileTabBar() {
               key={href}
               href={href}
               className={cn(
-                "flex-1 flex flex-col items-center gap-0.5 py-2 text-xs font-medium transition-all duration-200 relative",
-                active
-                  ? "text-sky-400"
-                  : "text-muted-foreground hover:text-foreground",
+                "flex-1 flex flex-col items-center gap-0.5 py-2 text-xs font-medium transition-all relative",
+                active ? "text-sky-400" : "text-muted-foreground",
               )}
             >
               <Icon className="size-5" />

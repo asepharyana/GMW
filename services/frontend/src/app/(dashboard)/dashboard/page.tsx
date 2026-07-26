@@ -7,33 +7,30 @@ import {
   ChevronRight,
   Clock,
   Hash,
-  RefreshCw,
   Search,
   Shield,
   Sparkles,
   Users,
 } from "lucide-react";
 import Image from "next/image";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  DetailStat,
+  EmptyState,
+  ErrorState,
+  LoadingSkeleton,
+  StatCard,
+} from "@/components/shared";
 import { GuildSelector } from "@/components/shared/guild-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { dashboardApi } from "@/lib/api";
+import { useChannels, useStats, useUsers } from "@/hooks";
 import { formatNumber } from "@/lib/format";
-import type {
-  DashboardChannel,
-  DashboardChannelDetail,
-  DashboardStats,
-  DashboardUser,
-  DashboardUserDetail,
-} from "@/lib/types";
-import { cn } from "@/lib/utils";
-import { useWebSocket } from "@/lib/ws/context";
+import type { DashboardChannelDetail, DashboardUserDetail } from "@/lib/types";
 
 type View = "stats" | "users" | "channels" | "user-detail" | "channel-detail";
 
@@ -45,60 +42,6 @@ export default function DashboardPage() {
   );
   const [activeChannel, setActiveChannel] =
     useState<DashboardChannelDetail | null>(null);
-
-  // WS connection for real-time awareness
-  useWebSocket();
-
-  const renderView = () => {
-    switch (view) {
-      case "stats":
-        return <StatsView />;
-      case "users":
-        return (
-          <UsersView
-            onSelectUser={async (userId) => {
-              try {
-                const detail = await dashboardApi.getUserDetail(userId);
-                setActiveUser(detail);
-                setView("user-detail");
-              } catch {
-                // ignore
-              }
-            }}
-          />
-        );
-      case "channels":
-        return (
-          <ChannelsView
-            guildId={guildId}
-            onSelectChannel={async (channelId) => {
-              try {
-                const detail = await dashboardApi.getChannelDetail(channelId);
-                setActiveChannel(detail);
-                setView("channel-detail");
-              } catch {
-                // ignore
-              }
-            }}
-          />
-        );
-      case "user-detail":
-        return activeUser ? (
-          <UserDetailView user={activeUser} onBack={() => setView("users")} />
-        ) : (
-          <UsersView onSelectUser={() => {}} />
-        );
-      case "channel-detail":
-        return activeChannel ? (
-          <ChannelDetailView
-            channel={activeChannel}
-            onBack={() => setView("channels")}
-          />
-        ) : (
-          <ChannelsView guildId={guildId} onSelectChannel={() => {}} />
-        );
-    }
-  };
 
   return (
     <div className="space-y-5">
@@ -130,260 +73,221 @@ export default function DashboardPage() {
         </TabsList>
       </Tabs>
 
-      {renderView()}
+      {view === "stats" && <StatsSection />}
+      {view === "users" && (
+        <UsersSection
+          onSelect={async (userId) => {
+            try {
+              const { dashboardApi } = await import("@/lib/api");
+              const detail = await dashboardApi.getUserDetail(userId);
+              setActiveUser(detail);
+              setView("user-detail");
+            } catch {
+              /* ignore */
+            }
+          }}
+        />
+      )}
+      {view === "channels" && (
+        <ChannelsSection
+          guildId={guildId}
+          onSelect={async (chId) => {
+            try {
+              const { dashboardApi } = await import("@/lib/api");
+              const detail = await dashboardApi.getChannelDetail(chId);
+              setActiveChannel(detail);
+              setView("channel-detail");
+            } catch {
+              /* ignore */
+            }
+          }}
+        />
+      )}
+      {view === "user-detail" && activeUser && (
+        <UserDetailView user={activeUser} onBack={() => setView("users")} />
+      )}
+      {view === "channel-detail" && activeChannel && (
+        <ChannelDetailView
+          channel={activeChannel}
+          onBack={() => setView("channels")}
+        />
+      )}
     </div>
   );
 }
 
-// ── Stats View ──────────────────────────────────
+// ── Stats Section ───────────────────────────────
 
-function StatsView() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+function StatsSection() {
+  const { stats, loading, error, refetch } = useStats();
 
-  const fetchStats = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await dashboardApi.getStats();
-      setStats(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load stats");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  if (error) return <ErrorState message={error} onRetry={refetch} />;
 
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
-
-  if (error) {
+  if (loading || !stats) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <AlertCircle className="size-10 text-destructive mb-3" />
-        <p className="text-sm text-muted-foreground mb-4 max-w-sm">{error}</p>
-        <Button variant="outline" onClick={fetchStats}>
-          <RefreshCw className="size-4 mr-2" />
-          Retry
-        </Button>
+      <div className="space-y-5 animate-fade-in-up">
+        <LoadingSkeleton count={8} height="h-28" columns={4} />
       </div>
     );
   }
 
   return (
     <div className="space-y-5 animate-fade-in-up">
-      {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {Array.from({ length: 8 }, (_, i) => (
-            <Skeleton key={i} className="h-28 rounded-xl" />
-          ))}
-        </div>
-      ) : stats ? (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard
-              label="Total Messages"
-              value={stats.total_messages}
-              icon={Hash}
-            />
-            <StatCard label="Today" value={stats.today_messages} icon={Clock} />
-            <StatCard label="Users" value={stats.total_users} icon={Users} />
-            <StatCard
-              label="Active 24h"
-              value={stats.active_users_24h}
-              icon={Sparkles}
-            />
-            <StatCard
-              label="Flagged"
-              value={stats.total_flagged}
-              variant="danger"
-              icon={AlertCircle}
-            />
-            <StatCard
-              label="Clean"
-              value={stats.total_clean}
-              variant="success"
-              icon={Shield}
-            />
-            <StatCard
-              label="Voice Recordings"
-              value={stats.total_voice_recordings}
-              icon={Hash}
-            />
-            <StatCard
-              label="AI Profiles"
-              value={stats.total_profiles}
-              icon={Sparkles}
-            />
-          </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard
+          label="Total Messages"
+          value={stats.total_messages}
+          icon={Hash}
+        />
+        <StatCard label="Today" value={stats.today_messages} icon={Clock} />
+        <StatCard label="Users" value={stats.total_users} icon={Users} />
+        <StatCard
+          label="Active 24h"
+          value={stats.active_users_24h}
+          icon={Sparkles}
+        />
+        <StatCard
+          label="Flagged"
+          value={stats.total_flagged}
+          icon={AlertCircle}
+          variant="danger"
+        />
+        <StatCard
+          label="Clean"
+          value={stats.total_clean}
+          icon={Shield}
+          variant="success"
+        />
+        <StatCard
+          label="Voice Recordings"
+          value={stats.total_voice_recordings}
+          icon={Hash}
+        />
+        <StatCard
+          label="AI Profiles"
+          value={stats.total_profiles}
+          icon={Sparkles}
+        />
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                  <Hash className="size-4 text-muted-foreground" />
-                  Top Channels
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {stats.top_channels.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center">
-                    No channel data yet.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {stats.top_channels.map((ch, _i) => {
-                      const maxCount = stats.top_channels[0].message_count;
-                      const pct =
-                        maxCount > 0 ? (ch.message_count / maxCount) * 100 : 0;
-                      return (
-                        <div key={ch.channel_id} className="space-y-1">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="truncate font-medium">
-                              #{ch.channel_name ?? ch.channel_id.slice(0, 8)}
-                            </span>
-                            <span className="text-muted-foreground tabular-nums">
-                              {formatNumber(ch.message_count)}
-                            </span>
-                          </div>
-                          <Progress value={pct} className="h-1.5" />
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+              <Hash className="size-4 text-muted-foreground" />
+              Top Channels
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.top_channels.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">
+                No channel data yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {stats.top_channels.map((ch) => {
+                  const max = stats.top_channels[0].message_count;
+                  const pct = max > 0 ? (ch.message_count / max) * 100 : 0;
+                  return (
+                    <div key={ch.channel_id} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="truncate font-medium">
+                          #{ch.channel_name ?? ch.channel_id.slice(0, 8)}
+                        </span>
+                        <span className="text-muted-foreground tabular-nums">
+                          {formatNumber(ch.message_count)}
+                        </span>
+                      </div>
+                      <Progress value={pct} className="h-1.5" />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                  <Shield className="size-4 text-muted-foreground" />
-                  Moderation Queue
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="rounded-lg bg-muted/50 p-3 text-center space-y-1.5">
-                    <div className="text-2xl font-bold tabular-nums">
-                      {stats.moderation_overview.pending}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Pending</div>
-                  </div>
-                  <div className="rounded-lg bg-yellow-500/10 p-3 text-center space-y-1.5">
-                    <div className="text-2xl font-bold tabular-nums text-yellow-500">
-                      {stats.moderation_overview.processing}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Processing
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-destructive/10 p-3 text-center space-y-1.5">
-                    <div className="text-2xl font-bold tabular-nums text-destructive">
-                      {stats.moderation_overview.error}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Errors</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </>
-      ) : null}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+              <Shield className="size-4 text-muted-foreground" />
+              Moderation Queue
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-3">
+              <QueueStat
+                label="Pending"
+                value={stats.moderation_overview.pending}
+              />
+              <QueueStat
+                label="Processing"
+                value={stats.moderation_overview.processing}
+                variant="warning"
+              />
+              <QueueStat
+                label="Errors"
+                value={stats.moderation_overview.error}
+                variant="danger"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
 
-function StatCard({
+function QueueStat({
   label,
   value,
   variant,
-  icon: Icon,
 }: {
   label: string;
   value: number;
-  variant?: "default" | "danger" | "success";
-  icon: React.ComponentType<{ className?: string }>;
+  variant?: "default" | "warning" | "danger";
 }) {
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1.5">
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <p
-              className={cn(
-                "text-2xl font-bold tabular-nums tracking-tight",
-                variant === "danger" && "text-destructive",
-                variant === "success" && "text-green-500",
-              )}
-            >
-              {formatNumber(value)}
-            </p>
-          </div>
-          <div
-            className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-lg",
-              variant === "danger"
-                ? "bg-destructive/10 text-destructive"
-                : variant === "success"
-                  ? "bg-green-500/10 text-green-500"
-                  : "bg-primary/10 text-primary",
-            )}
-          >
-            <Icon className="size-4" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div
+      className={`rounded-lg p-3 text-center space-y-1.5 ${
+        variant === "danger"
+          ? "bg-destructive/10"
+          : variant === "warning"
+            ? "bg-yellow-500/10"
+            : "bg-muted/50"
+      }`}
+    >
+      <div
+        className={`text-2xl font-bold tabular-nums ${
+          variant === "danger"
+            ? "text-destructive"
+            : variant === "warning"
+              ? "text-yellow-500"
+              : ""
+        }`}
+      >
+        {value}
+      </div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+    </div>
   );
 }
 
-// ── Users View ──────────────────────────────────
+// ── Users Section ───────────────────────────────
 
-function UsersView({
-  onSelectUser,
-}: {
-  onSelectUser: (userId: string) => void;
-}) {
-  const [users, setUsers] = useState<DashboardUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [_cursor, setCursor] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-
-  const fetchUsers = useCallback(async (searchQuery?: string) => {
-    setLoading(true);
-    try {
-      const result = await dashboardApi.listUsers(20, undefined, searchQuery);
-      setUsers(result.data);
-      setCursor(result.nextCursor);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+function UsersSection({ onSelect }: { onSelect: (id: string) => void }) {
+  const { users, loading, search, setSearch, refetch } = useUsers();
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (search) fetchUsers(search);
-      else fetchUsers();
-    }, 300);
+    const timer = setTimeout(refetch, 300);
     return () => clearTimeout(timer);
-  }, [search, fetchUsers]);
+  }, [refetch]);
 
   return (
     <div className="space-y-4 animate-fade-in-up">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input
-          type="text"
           placeholder="Search users…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -392,118 +296,81 @@ function UsersView({
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
-          ))}
-        </div>
+        <LoadingSkeleton count={6} height="h-20" columns={2} />
+      ) : users.length === 0 ? (
+        <EmptyState icon={Users} title="No users found." />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {users.length === 0 ? (
-            <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
-              <Users className="size-10 text-muted-foreground/40 mb-3" />
-              <p className="text-sm text-muted-foreground">No users found.</p>
-            </div>
-          ) : (
-            users.map((user) => (
-              <Card
-                key={user.user_id}
-                className="cursor-pointer hover:bg-accent/5 transition-colors"
-                onClick={() => onSelectUser(user.user_id)}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="size-10 shrink-0 rounded-full bg-muted flex items-center justify-center text-sm font-medium overflow-hidden ring-1 ring-border">
-                      {user.avatar_url ? (
-                        <Image
-                          src={user.avatar_url}
-                          alt=""
-                          width={40}
-                          height={40}
-                          className="size-full object-cover"
-                        />
-                      ) : (
-                        (user.username ?? "?").charAt(0).toUpperCase()
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {user.username ?? "Unknown"}
-                      </p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-2">
-                        <span>{user.total_messages} messages</span>
-                        {user.flagged_count > 0 && (
-                          <Badge
-                            variant="destructive"
-                            className="text-[10px] px-1.5 py-0 h-4"
-                          >
-                            {user.flagged_count} flagged
-                          </Badge>
-                        )}
-                      </p>
-                    </div>
-                    <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+          {users.map((user) => (
+            <Card
+              key={user.user_id}
+              className="cursor-pointer hover:bg-accent/5 transition-colors"
+              onClick={() => onSelect(user.user_id)}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center gap-3">
+                  <div className="size-10 shrink-0 rounded-full bg-muted flex items-center justify-center text-sm font-medium overflow-hidden ring-1 ring-border">
+                    {user.avatar_url ? (
+                      <Image
+                        src={user.avatar_url}
+                        alt=""
+                        width={40}
+                        height={40}
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      (user.username ?? "?").charAt(0).toUpperCase()
+                    )}
                   </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {user.username ?? "Unknown"}
+                    </p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-2">
+                      <span>{user.total_messages} messages</span>
+                      {user.flagged_count > 0 && (
+                        <Badge
+                          variant="destructive"
+                          className="text-[10px] px-1.5 py-0 h-4"
+                        >
+                          {user.flagged_count} flagged
+                        </Badge>
+                      )}
+                    </p>
+                  </div>
+                  <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// ── Channels View ───────────────────────────────
+// ── Channels Section ────────────────────────────
 
-function ChannelsView({
-  onSelectChannel,
+function ChannelsSection({
   guildId,
+  onSelect,
 }: {
-  onSelectChannel: (channelId: string) => void;
   guildId: string;
+  onSelect: (id: string) => void;
 }) {
-  const [channels, setChannels] = useState<DashboardChannel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-
-  const fetchChannels = useCallback(
-    async (searchQuery?: string) => {
-      setLoading(true);
-      try {
-        const result = await dashboardApi.listChannels(
-          20,
-          searchQuery,
-          guildId || undefined,
-        );
-        setChannels(result.data);
-      } catch {
-        // ignore
-      } finally {
-        setLoading(false);
-      }
-    },
-    [guildId],
-  );
+  const { channels, loading, search, setSearch, refetch } =
+    useChannels(guildId);
 
   useEffect(() => {
-    fetchChannels();
-  }, [fetchChannels]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (search) fetchChannels(search);
-      else fetchChannels();
-    }, 300);
+    const timer = setTimeout(refetch, 300);
     return () => clearTimeout(timer);
-  }, [search, fetchChannels]);
+  }, [refetch]);
 
   return (
     <div className="space-y-4 animate-fade-in-up">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input
-          type="text"
           placeholder="Search channels…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -512,59 +379,48 @@ function ChannelsView({
       </div>
 
       {loading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
-          ))}
-        </div>
+        <LoadingSkeleton count={6} height="h-20" />
+      ) : channels.length === 0 ? (
+        <EmptyState icon={Hash} title="No channels found." />
       ) : (
         <div className="space-y-2">
-          {channels.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Hash className="size-10 text-muted-foreground/40 mb-3" />
-              <p className="text-sm text-muted-foreground">
-                No channels found.
-              </p>
-            </div>
-          ) : (
-            channels.map((ch) => (
-              <Card
-                key={ch.channel_id}
-                className="cursor-pointer hover:bg-accent/5 transition-colors"
-                onClick={() => onSelectChannel(ch.channel_id)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <Hash className="size-3.5 text-muted-foreground shrink-0" />
-                        <p className="text-sm font-medium truncate">
-                          {ch.channel_name ?? ch.channel_id.slice(0, 8)}
-                        </p>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
-                        <span>{ch.total_messages} messages</span>
-                        {ch.flagged_count > 0 && (
-                          <Badge
-                            variant="destructive"
-                            className="text-[10px] px-1.5 py-0 h-4"
-                          >
-                            {ch.flagged_count} flagged
-                          </Badge>
-                        )}
+          {channels.map((ch) => (
+            <Card
+              key={ch.channel_id}
+              className="cursor-pointer hover:bg-accent/5 transition-colors"
+              onClick={() => onSelect(ch.channel_id)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Hash className="size-3.5 text-muted-foreground shrink-0" />
+                      <p className="text-sm font-medium truncate">
+                        {ch.channel_name ?? ch.channel_id.slice(0, 8)}
                       </p>
                     </div>
-                    <ChevronRight className="size-4 text-muted-foreground shrink-0 ml-2" />
-                  </div>
-                  {ch.culture_summary && (
-                    <p className="text-xs text-muted-foreground/70 mt-2 italic line-clamp-2 border-t border-border/50 pt-2">
-                      &ldquo;{ch.culture_summary}&rdquo;
+                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
+                      <span>{ch.total_messages} messages</span>
+                      {ch.flagged_count > 0 && (
+                        <Badge
+                          variant="destructive"
+                          className="text-[10px] px-1.5 py-0 h-4"
+                        >
+                          {ch.flagged_count} flagged
+                        </Badge>
+                      )}
                     </p>
-                  )}
-                </CardContent>
-              </Card>
-            ))
-          )}
+                  </div>
+                  <ChevronRight className="size-4 text-muted-foreground shrink-0 ml-2" />
+                </div>
+                {ch.culture_summary && (
+                  <p className="text-xs text-muted-foreground/70 mt-2 italic line-clamp-2 border-t border-border/50 pt-2">
+                    &ldquo;{ch.culture_summary}&rdquo;
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </div>
@@ -582,12 +438,10 @@ function UserDetailView({
 }) {
   return (
     <div className="space-y-5 animate-fade-in-up">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="size-4 mr-1" />
-          Back
-        </Button>
-      </div>
+      <Button variant="ghost" size="sm" onClick={onBack}>
+        <ArrowLeft className="size-4 mr-1" />
+        Back
+      </Button>
 
       <Card>
         <CardContent className="p-6 space-y-5">
@@ -609,7 +463,7 @@ function UserDetailView({
               <h2 className="text-lg font-semibold">
                 {user.username ?? "Unknown"}
               </h2>
-              <p className="text-sm text-muted-foreground font-mono text-xs">
+              <p className="text-xs text-muted-foreground font-mono">
                 {user.user_id}
               </p>
             </div>
@@ -684,12 +538,10 @@ function ChannelDetailView({
 }) {
   return (
     <div className="space-y-5 animate-fade-in-up">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="size-4 mr-1" />
-          Back
-        </Button>
-      </div>
+      <Button variant="ghost" size="sm" onClick={onBack}>
+        <ArrowLeft className="size-4 mr-1" />
+        Back
+      </Button>
 
       <Card>
         <CardContent className="p-6 space-y-5">
@@ -698,7 +550,7 @@ function ChannelDetailView({
               <Hash className="size-5 text-muted-foreground" />
               {channel.channel_name ?? channel.channel_id.slice(0, 8)}
             </h2>
-            <p className="text-xs text-muted-foreground font-mono mt-0.5">
+            <p className="text-xs text-muted-foreground font-mono">
               {channel.channel_id}
             </p>
           </div>
@@ -760,37 +612,5 @@ function ChannelDetailView({
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-// ── Shared Components ───────────────────────────
-
-function DetailStat({
-  label,
-  value,
-  variant,
-  suffix,
-}: {
-  label: string;
-  value: number;
-  variant?: "default" | "danger" | "success";
-  suffix?: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-3">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p
-          className={cn(
-            "text-lg font-bold tabular-nums",
-            variant === "danger" && "text-destructive",
-            variant === "success" && "text-green-500",
-          )}
-        >
-          {formatNumber(value)}
-          {suffix}
-        </p>
-      </CardContent>
-    </Card>
   );
 }
