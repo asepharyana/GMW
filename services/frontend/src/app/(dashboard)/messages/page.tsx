@@ -5,14 +5,14 @@ import {
   ExternalLink,
   Flag,
   Hash,
+  ImageIcon,
   Loader2,
   MessageSquare,
   RefreshCw,
   Search,
   Sparkles,
 } from "lucide-react";
-import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/shared";
 import { GuildSelector } from "@/components/shared/guild-selector";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -247,7 +247,10 @@ export default function MessagesPage() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 animate-fade-in-up">
           {!images || images.length === 0 ? (
             <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
-              <ImageIcon className="size-10 text-muted-foreground/40 mb-3" />
+              <ImageIcon
+                className="size-10 text-muted-foreground/40 mb-3"
+                aria-label="No images"
+              />
               <p className="text-sm text-muted-foreground">No images yet.</p>
             </div>
           ) : (
@@ -261,12 +264,10 @@ export default function MessagesPage() {
                 >
                   <div className="aspect-square relative bg-muted">
                     {imgUrl ? (
-                      <Image
+                      <img
                         src={imgUrl}
                         alt={msg.content || "Image"}
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-105"
-                        sizes="(max-width: 768px) 50vw, 25vw"
+                        className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
                       <div className="flex items-center justify-center size-full text-muted-foreground text-xs">
@@ -422,6 +423,17 @@ function MessageCard({
             >
               {msg.content}
             </p>
+            {(() => {
+              const u = extractFirstImage(msg.metadata);
+              if (!u) return null;
+              return (
+                <img
+                  src={u}
+                  alt=""
+                  className="mt-2 max-h-48 rounded-lg border border-border/50 object-cover"
+                />
+              );
+            })()}
             {msg.ai_moderation_flags && msg.ai_moderation_flags !== "[]" && (
               <div className="flex flex-wrap gap-1">
                 {safeParseJsonArray(msg.ai_moderation_flags).map((f) => (
@@ -651,7 +663,7 @@ function MiniStat({
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-function extractImage(metadata: string | null | undefined): string | null {
+function extractFirstImage(metadata: string | null | undefined): string | null {
   if (!metadata) return null;
   try {
     const m = JSON.parse(metadata);
@@ -663,26 +675,14 @@ function extractImage(metadata: string | null | undefined): string | null {
   }
 }
 
-function ImageIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      role="img"
-      aria-label="Image"
-    >
-      <title>Image</title>
-      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-      <circle cx="9" cy="9" r="2" />
-      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-    </svg>
-  );
+function extractImage(metadata: string | null | undefined): string | null {
+  if (!metadata) return null;
+  try {
+    const m = JSON.parse(metadata);
+    const atts: Array<{ url: string; contentType?: string }> =
+      m.attachments ?? [];
+    return atts.find((a) => a.contentType?.startsWith("image/"))?.url ?? null;
+  } catch {
+    return null;
+  }
 }
