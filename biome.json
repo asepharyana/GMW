@@ -1,4 +1,10 @@
 {
+  "$schema": "https://biomejs.dev/schemas/2.2.0/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "files": {
     "includes": [
       "src/**/*.ts",
@@ -11,7 +17,9 @@
       "!vendor/**",
       "!.claude/**",
       "!services/**/dist/**",
-      "!packages/**/dist/**"
+      "!packages/**/dist/**",
+      "!services/**/.next/**",
+      "!services/**/out/**"
     ]
   },
   "formatter": {
@@ -22,10 +30,40 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": false,
+      "recommended": true,
       "style": {
         "noNonNullAssertion": "warn",
         "useNodejsImportProtocol": "warn"
+      },
+      "suspicious": {
+        "noUnknownAtRules": "off",
+        "useIterableCallbackReturn": "off",
+        "noArrayIndexKey": "warn"
+      },
+      "a11y": {
+        "useButtonType": "off",
+        "noAutofocus": "off"
+      },
+      "performance": {
+        "noImgElement": "warn"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "warn"
+      },
+      "correctness": {
+        "noInvalidUseBeforeDeclaration": "off",
+        "noUnusedFunctionParameters": "warn"
+      }
+    },
+    "domains": {
+      "next": "recommended",
+      "react": "recommended"
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
       }
     }
   }
