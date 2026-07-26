@@ -1,7 +1,6 @@
 packages:
-  - services/backend
-  - services/discord-gateway
-  - packages/shared
+  - services/*
+  - packages/*
 
 allowBuilds:
   '@discordjs/opus': true

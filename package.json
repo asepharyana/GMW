@@ -7,9 +7,9 @@
   "scripts": {
     "dev:backend": "pnpm --filter './services/backend' run dev",
     "dev:discord-gateway": "pnpm --filter './services/discord-gateway' run dev",
-    "dev:web": "cd services/frontend && pnpm run dev",
-    "build:web": "cd services/frontend && pnpm run build",
-    "typecheck:web": "cd services/frontend && pnpm run build",
+    "dev:web": "pnpm --filter './services/frontend' run dev",
+    "build:web": "pnpm --filter './services/frontend' run build",
+    "typecheck:web": "pnpm --filter './services/frontend' run build",
     "build:backend": "pnpm --filter './services/backend' run build",
     "build:discord-gateway": "pnpm --filter './services/discord-gateway' run build",
     "typecheck": "pnpm -r run typecheck",

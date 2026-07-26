@@ -40,7 +40,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Lint
         run: pnpm run lint
@@ -55,10 +55,7 @@ jobs:
         run: pnpm run build:discord-gateway
 
       - name: Build frontend
-        run: |
-          pnpm install --no-frozen-lockfile
-          pnpm run build
-        working-directory: services/frontend
+        run: pnpm run build:web
 
       - name: Prepare production environment file
         env:
