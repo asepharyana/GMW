@@ -47,25 +47,21 @@ jobs:
           docker push $IMG:${{ github.sha }}
           docker push $IMG:latest
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Install SSH
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq --no-install-recommends openssh-client ca-certificates
-      - name: Deploy
+      - name: Deploy (proxy only — after all pushes)
+        if: matrix.service == 'proxy' && github.ref == 'refs/heads/main'
         env:
           ENV_FILE: ${{ secrets.ENV_FILE }}
           SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           set -eu
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends openssh-client ca-certificates
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ENV_B64=$(echo "$ENV_FILE" | base64 -w0)
           ssh -o StrictHostKeyChecking=accept-new \
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "$VPS_USER@$VPS_HOST" \
             "cd /opt/imphenbot/infra/docker && echo '$ENV_B64' | base64 -d > .env && docker compose pull && docker compose up -d --remove-orphans && docker image prune -f"
