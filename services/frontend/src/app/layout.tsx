@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DC Automod — Discord Moderation Dashboard",
+  title: "Discord Automod — Moderation Dashboard",
   description: "Live Discord monitoring and AI moderation dashboard",
 };
 

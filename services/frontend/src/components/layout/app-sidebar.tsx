@@ -39,7 +39,7 @@ export function AppSidebar() {
         </div>
         <div>
           <div className="text-sm font-bold tracking-tight">
-            <span className="text-gradient">DC Automod</span>
+            <span className="text-gradient">Discord Automod</span>
           </div>
           <div className="text-[10px] text-muted-foreground tracking-widest uppercase leading-none">
             Dashboard

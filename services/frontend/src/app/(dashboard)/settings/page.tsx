@@ -148,7 +148,7 @@ export default function SettingsPage() {
         <CardContent>
           <div className="text-sm space-y-1">
             <p>
-              <span className="text-gradient font-bold">DC Automod</span> —
+              <span className="text-gradient font-bold">Discord Automod</span> —
               Discord Moderation Watcher
             </p>
             <p className="text-xs text-muted-foreground">
