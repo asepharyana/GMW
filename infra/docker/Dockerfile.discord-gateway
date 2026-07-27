@@ -34,7 +34,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm --filter './services/discord-gateway' run build
 
 # Create production-only deployment (no devDeps)
-RUN pnpm deploy --filter '@bete/discord-gateway' /tmp/deploy \
+RUN pnpm deploy --legacy --filter '@bete/discord-gateway' /tmp/deploy \
     && rm -rf /tmp/deploy/node_modules/.pnpm/@biomejs+biome@* \
            /tmp/deploy/node_modules/.pnpm/@biomejs+cli-linux-x64@* \
            /tmp/deploy/node_modules/.pnpm/typescript@* \
