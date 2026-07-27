@@ -3,14 +3,7 @@ import { useEffect } from "react";
 
 import { recordingsApi } from "@/lib/api";
 import type { VoiceRecording } from "@/lib/types";
-import type { WsEventType } from "@/lib/ws/types";
-
-type WsHook = {
-  on: <E extends WsEventType>(
-    eventType: E,
-    handler: (data: unknown) => void,
-  ) => () => void;
-};
+import type { WsHook } from "@/lib/ws-hook";
 
 export function useRecordings() {
   return useQuery<VoiceRecording[]>({

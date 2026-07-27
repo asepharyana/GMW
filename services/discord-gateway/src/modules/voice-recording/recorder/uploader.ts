@@ -8,7 +8,7 @@ import {
   updateVoiceRecordingAsUploaded,
   updateVoiceRecordingTranscription,
 } from "../../../shared/database/voiceRecordingRepo.js";
-import { uploadToTele } from "../teleUpload.js";
+import { uploadToTele } from "../../../shared/uploader.js";
 import { transcribeRecording } from "../voiceTranscriber.js";
 
 const logger = createChildLogger("recording-uploader");

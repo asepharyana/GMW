@@ -1,20 +1,22 @@
 import { createChildLogger } from "@bete/shared/logger";
 import { config } from "../../shared/config/config.js";
 import { isAgeRestrictedMetadata } from "../message-capture/messageMetadata.js";
-import { updateMessagesAIAnalysisBulk } from "../message-capture/messageStore.js";
+import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
+import { workerPool } from "./circuitBreaker.js";
+import { estimateTokens } from "./conversationContext.js";
 import {
-  broadcastAnalysisCompleted,
   conversationErrorCooldown,
   conversationProcessing,
-  LAST_ERROR,
   recordConversationBatchFailure,
   resetConversationBatchFailures,
-  scheduleAutoDelete,
-  workerPool,
-} from "./circuitBreaker.js";
-import { estimateTokens } from "./conversationContext.js";
+} from "./conversationState.js";
 import { enqueueIndividualFallbacks } from "./individualFallbackProcessor.js";
+import {
+  broadcastAnalysisCompleted,
+  LAST_ERROR,
+  scheduleAutoDelete,
+} from "./moderationState.js";
 
 const logger = createChildLogger("batch-processor");
 
@@ -105,7 +107,7 @@ export async function skipAgeRestrictedMessages(
     return messages;
   }
 
-  const skippedRows = await updateMessagesAIAnalysisBulk(
+  const skippedRows = await messageStore.updateMessagesAIAnalysisBulk(
     ageRestrictedMessages.map((message) => ({
       messageId: message.id,
       result: buildAgeRestrictedSkipResult(),
@@ -300,29 +302,31 @@ export async function processBatch(
       );
 
       // Revert to pending so they are picked up again
-      const revertedRows = await updateMessagesAIAnalysisBulk(
-        apiFailedMessages.map((msg) => ({
-          messageId: msg.id,
-          result: {
-            status: "pending",
-            flags: null,
-            score: null,
-            analysis: null,
-            categories: null,
-            severity: null,
-            confidence: null,
-            recommendedAction: null,
-            analyzedAt: null,
-            error: null,
-          },
-        })),
-      ).catch((err) => {
-        logger.error(
-          { error: String(err) },
-          "Failed to revert API failures to pending",
-        );
-        return [];
-      });
+      const revertedRows = await messageStore
+        .updateMessagesAIAnalysisBulk(
+          apiFailedMessages.map((msg) => ({
+            messageId: msg.id,
+            result: {
+              status: "pending",
+              flags: null,
+              score: null,
+              analysis: null,
+              categories: null,
+              severity: null,
+              confidence: null,
+              recommendedAction: null,
+              analyzedAt: null,
+              error: null,
+            },
+          })),
+        )
+        .catch((err) => {
+          logger.error(
+            { error: String(err) },
+            "Failed to revert API failures to pending",
+          );
+          return [];
+        });
 
       for (const row of revertedRows) {
         broadcastAnalysisCompleted(row);

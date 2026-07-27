@@ -1,7 +1,8 @@
 import { createChildLogger } from "@bete/shared/logger";
 import type { Request, Response, Router } from "express";
 import express from "express";
-import { asyncHandler } from "../../shared/middlewares/index.js";
+import { asyncHandler, validateBody } from "../../shared/middlewares/index.js";
+import { mediaQueueSchema, mediaVolumeSchema } from "./media.schema.js";
 import { getStatus, queue, setVolume, skip, stop } from "./media.service.js";
 
 const logger = createChildLogger("media.routes");
@@ -22,16 +23,12 @@ export function createMediaRouter(): Router {
   // POST /api/media/queue
   router.post(
     "/media/queue",
+    validateBody(mediaQueueSchema),
     asyncHandler(async (req: Request, res: Response) => {
-      const source = req.body?.source as string | undefined;
-      if (!source) {
-        res.status(400).json({
-          error: "VALIDATION_ERROR",
-          message: "source is required",
-        });
-        return;
-      }
-      const mode = (req.body?.mode as "music" | "screen") ?? "music";
+      const { source, mode } = req.body as {
+        source: string;
+        mode: "music" | "screen";
+      };
       logger.debug({ source, mode }, "Media queue requested");
       const state = await queue(source, mode);
       res.json(state);
@@ -61,15 +58,9 @@ export function createMediaRouter(): Router {
   // POST /api/media/volume
   router.post(
     "/media/volume",
+    validateBody(mediaVolumeSchema),
     asyncHandler(async (req: Request, res: Response) => {
-      const volume = Number(req.body?.volume ?? 1.0);
-      if (Number.isNaN(volume) || volume < 0 || volume > 1) {
-        res.status(400).json({
-          error: "VALIDATION_ERROR",
-          message: "volume must be a number between 0 and 1",
-        });
-        return;
-      }
+      const { volume } = req.body as { volume: number };
       logger.debug({ volume }, "Media volume requested");
       const state = await setVolume(volume);
       res.json(state);

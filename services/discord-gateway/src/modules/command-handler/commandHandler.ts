@@ -53,7 +53,13 @@ export class CommandHandler {
   private moderationHandler!: ModerationHandler;
 
   constructor() {
-    this.redisSub = new Redis(config.REDIS_URL);
+    // Dedicated Redis connection needed because: Redis requires a dedicated
+    // connection for SUBSCRIBE mode — a subscribed connection cannot perform
+    // publish/set operations. This connection listens on backend:command for
+    // inbound requests from the backend.
+    this.redisSub = new Redis(config.REDIS_URL); // Dedicated Redis connection needed because: Redis requires a dedicated
+    // PUBLISH connection (cannot share with redisSub which is in SUBSCRIBE mode).
+    // Handles command reply publishing and voice/media status key updates.
     this.redisPub = new Redis(config.REDIS_URL);
 
     this.redisSub.on("error", (err) => {

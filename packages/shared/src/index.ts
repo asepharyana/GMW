@@ -1,4 +1,6 @@
 export * from "./config/index.js";
+export * from "./database/init.js";
+export * from "./database/pool.js";
 export * from "./database/schema.js";
 export * from "./errors/index.js";
 export * from "./logger/index.js";

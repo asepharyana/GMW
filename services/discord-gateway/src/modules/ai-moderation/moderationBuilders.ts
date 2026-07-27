@@ -5,7 +5,7 @@
  * Used by both mediaAnalysisClient.ts and moderationOrchestrator.ts.
  */
 
-import { getMessageById } from "../message-capture/messageStore.js";
+import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
 
 /** Simple XML-escaping for content text. */
@@ -51,7 +51,9 @@ export async function buildReferenceXml(msg: MessageRecord): Promise<string> {
   if (msg.reference_message_id) {
     // 1. Try DB first — works for messages captured in the same server
     try {
-      const parent = await getMessageById(msg.reference_message_id);
+      const parent = await messageStore.getMessageById(
+        msg.reference_message_id,
+      );
       if (parent) {
         const parentText = parent.edited_content ?? parent.content;
         parentContent = parentText.slice(0, 500);

@@ -15,3 +15,6 @@ worktrees/
 .worktrees/
 services/frontend/frontend/dist/
 target/
+
+# Gitea CI runner logs
+.gitea/workflows/*.log

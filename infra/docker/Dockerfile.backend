@@ -2,6 +2,12 @@ FROM node:22-slim
 
 WORKDIR /app
 
+# Build args for frontend API URLs
+ARG VITE_BE_API_URL
+ARG VITE_BE_WS_URL
+ENV VITE_BE_API_URL=${VITE_BE_API_URL}
+ENV VITE_BE_WS_URL=${VITE_BE_WS_URL}
+
 # Install pnpm
 RUN npm install -g pnpm
 

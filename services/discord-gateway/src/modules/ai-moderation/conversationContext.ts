@@ -28,7 +28,7 @@ function formatTimestamp(ms: number): string {
 }
 
 /**
- * Estimates token count for a string (pessimistic approximation for Indonesian slang & JSON overhead)
+ * Estimates token count for a string using tiktoken for accurate counting
  */
 export function estimateTokens(text: string): number {
   // Use tiktoken for accurate token counting (+15 overhead for JSON structure)

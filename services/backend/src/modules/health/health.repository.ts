@@ -1,5 +1,6 @@
 import { createChildLogger } from "@bete/shared/logger";
-import { getPool } from "../../shared/database/index.js";
+import { sql } from "drizzle-orm";
+import { getDatabase } from "../../shared/database/index.js";
 
 const logger = createChildLogger("health.repository");
 
@@ -7,8 +8,8 @@ export class HealthRepository {
   async checkDatabaseConnection() {
     try {
       logger.debug("Running database health check");
-      const pool = getPool();
-      await pool.query("SELECT 1 AS result");
+      const db = getDatabase();
+      await db.execute(sql`SELECT 1 AS result`);
       logger.debug("Database health check passed");
       return { connected: true };
     } catch (err: unknown) {

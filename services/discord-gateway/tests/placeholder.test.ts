@@ -257,7 +257,7 @@ describe("Config validation", () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // 5. Pure function modules
 // ═══════════════════════════════════════════════════════════════════════════════
-import { sniffImageMimeType } from "../src/modules/ai-moderation/imageMimeSniffer.js";
+import { sniffImageMimeType } from "../src/modules/ai-moderation/mediaAnalysisClient.js";
 
 describe("sniffImageMimeType", () => {
   function buf(...bytes: number[]): Buffer {
@@ -320,7 +320,7 @@ import {
   deriveRecommendedAction,
   deriveSeverity,
   hasDeferralAnalysis,
-} from "../src/modules/ai-moderation/severityDeriver.js";
+} from "../src/modules/ai-moderation/moderationResponseParser.js";
 
 describe("severityDeriver", () => {
   describe("clampScore", () => {
@@ -411,7 +411,7 @@ describe("severityDeriver", () => {
   });
 });
 
-import { extractJson } from "../src/modules/ai-moderation/jsonExtractor.js";
+import { extractJson } from "../src/modules/ai-moderation/moderationResponseParser.js";
 
 describe("extractJson", () => {
   it("extracts from plain JSON string", () => {

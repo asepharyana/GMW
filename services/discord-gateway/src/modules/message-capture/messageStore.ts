@@ -11,27 +11,13 @@ import type {
   PageResult,
   RetentionPolicy,
 } from "../message-capture/types.js";
-import { AttachmentsDb } from "./attachments.db.js";
-import { type AIAnalysisUpdate, MessagesDb } from "./messages.db.js";
-import { ModerationActionsDb } from "./moderation-actions.db.js";
-import { RetentionDb } from "./retention.db.js";
-import { ReviewsDb } from "./reviews.db.js";
+import { AttachmentsDb } from "./attachmentsDb.js";
+import { type AIAnalysisUpdate, MessagesDb } from "./messagesDb.js";
+import { ModerationActionsDb } from "./moderationActionsDb.js";
+import { RetentionDb } from "./retentionDb.js";
+import { ReviewsDb } from "./reviewsDb.js";
 
-export { decodeCursor, encodeCursor } from "@bete/shared";
-export type { AIAnalysisUpdate } from "./messages.db.js";
-
-// ─── Lazy singleton ────────────────────────────────────────────────────────
-
-let _instance: MessageStore | null = null;
-
-function getInstance(): MessageStore {
-  if (!_instance) {
-    const database = getDatabase() as unknown as NodePgDatabase<typeof schema>;
-    const logger = createChildLogger("message-store");
-    _instance = new MessageStore(database, logger);
-  }
-  return _instance;
-}
+export type { AIAnalysisUpdate } from "./messagesDb.js";
 
 // ─── MessageStore Facade ────────────────────────────────────────────────────
 
@@ -297,8 +283,11 @@ export class MessageStore {
 
   // ── Retention ──────────────────────────────────────────────────────────
 
-  getRetentionPolicy(guildId: string): Promise<RetentionPolicy | null> {
-    return this.retention.getRetentionPolicy(guildId);
+  getRetentionPolicy(
+    guildId: string,
+    channelId?: string,
+  ): Promise<RetentionPolicy | null> {
+    return this.retention.getRetentionPolicy(guildId, channelId);
   }
 
   upsertRetentionPolicy(
@@ -308,208 +297,38 @@ export class MessageStore {
   }
 }
 
-// ─── Backward-compatible function exports ──────────────────────────────────
-// These delegate to a lazy singleton MessageStore instance so existing
-// code that imports individual functions continues to work unchanged.
+// ─── Singleton instance ─────────────────────────────────────────────────────
 
-export const insertMessageEdit = (
-  messageId: string,
-  oldContent: string,
-  editedAt: number,
-): Promise<void> =>
-  getInstance().insertMessageEdit(messageId, oldContent, editedAt);
+const singletonLogger = createChildLogger("message-store");
 
-// Messages
-export const insertMessage = (message: MessageRecord): Promise<void> =>
-  getInstance().insertMessage(message);
+/**
+ * Lazily-initialized singleton via Proxy.
+ *
+ * `messageStore` is imported at module level across ~30 files, long before
+ * `initializeDatabase()` has been called in bootstrap.  Instead of making every
+ * caller async-aware, we export a Proxy that defers MessageStore construction
+ * until the first method call.
+ *
+ * Once created, the real store is cached — subsequent calls resolve properties
+ * directly from the cached instance without re-binding or re-resolving.
+ */
+let _store: MessageStore | null = null;
 
-export const upsertMessageForCapture = (
-  message: MessageRecord,
-): Promise<boolean> => getInstance().upsertMessageForCapture(message);
+function resolveStore(): MessageStore {
+  if (!_store) {
+    const db = getDatabase() as unknown as NodePgDatabase<typeof schema>;
+    _store = new MessageStore(db, singletonLogger);
+  }
+  return _store;
+}
 
-export const updateMessageAsEdited = (
-  messageId: string,
-  editedContent: string,
-  editedAt: number,
-): Promise<void> =>
-  getInstance().updateMessageAsEdited(messageId, editedContent, editedAt);
-
-export const updateMessageAsDeleted = (
-  messageId: string,
-  deletedAt: number,
-): Promise<void> => getInstance().updateMessageAsDeleted(messageId, deletedAt);
-
-export const getMessagesByChannel = (
-  channelId: string,
-  limit?: number,
-  offset?: number,
-  guildId?: string,
-): Promise<MessageRecord[]> =>
-  getInstance().getMessagesByChannel(channelId, limit, offset, guildId);
-
-export const updateMessageAIAnalysis = (
-  messageId: string,
-  result: AIAnalysisUpdate,
-): Promise<MessageRecord | null> =>
-  getInstance().updateMessageAIAnalysis(messageId, result);
-
-export const updateMessagesAIAnalysisBulk = (
-  updates: Array<{ messageId: string; result: AIAnalysisUpdate }>,
-): Promise<MessageRecord[]> =>
-  getInstance().updateMessagesAIAnalysisBulk(updates);
-
-export const getPendingAIAnalysisMessages = (
-  limit?: number,
-): Promise<MessageRecord[]> =>
-  getInstance().getPendingAIAnalysisMessages(limit);
-
-export const getMessageById = (
-  messageId: string,
-): Promise<MessageRecord | null> => getInstance().getMessageById(messageId);
-
-export const listMessages = (
-  query: MessageQuery,
-): Promise<PageResult<MessageRecord>> => getInstance().listMessages(query);
-
-export const listReviewMessages = (
-  query: Omit<MessageQuery, "status">,
-): Promise<PageResult<MessageRecord>> =>
-  getInstance().listReviewMessages(query);
-
-export const getConversationContextBefore = (input: {
-  channelId: string;
-  threadId: string | null;
-  beforeCreatedAt: number;
-  limit: number;
-}): Promise<MessageRecord[]> =>
-  getInstance().getConversationContextBefore(input);
-
-export const getPendingMessagesByConversation = (
-  conversationKey: string,
-  limit?: number,
-): Promise<MessageRecord[]> =>
-  getInstance().getPendingMessagesByConversation(conversationKey, limit);
-
-export const getPendingConversationKeys = (limit?: number): Promise<string[]> =>
-  getInstance().getPendingConversationKeys(limit);
-
-export const getConversationKeysWithIncompleteAnalysis = (
-  limit?: number,
-): Promise<string[]> =>
-  getInstance().getConversationKeysWithIncompleteAnalysis(limit);
-
-export const getIncompleteMessagesByConversation = (
-  conversationKey: string,
-  limit?: number,
-): Promise<MessageRecord[]> =>
-  getInstance().getIncompleteMessagesByConversation(conversationKey, limit);
-
-export const searchMessages = (input: {
-  query: string;
-  channelId?: string;
-  guildId?: string;
-  limit?: number;
-}): Promise<MessageRecord[]> => getInstance().searchMessages(input);
-
-export const getExpiredMessages = (
-  retentionDays: number,
-): Promise<MessageRecord[]> => getInstance().getExpiredMessages(retentionDays);
-
-export const revertStuckProcessingMessages = (
-  timeoutMs?: number,
-): Promise<number> => getInstance().revertStuckProcessingMessages(timeoutMs);
-
-// Attachments
-export const insertAttachment = (attachment: AttachmentRecord): Promise<void> =>
-  getInstance().insertAttachment(attachment);
-
-export const getAttachmentsByChannel = (
-  channelId: string,
-  limit?: number,
-  offset?: number,
-  guildId?: string,
-): Promise<AttachmentRecord[]> =>
-  getInstance().getAttachmentsByChannel(channelId, limit, offset, guildId);
-
-export const updateAttachmentAsUploaded = (
-  attachmentId: string,
-  uploadedUrl: string,
-  uploadedAt: number,
-): Promise<void> =>
-  getInstance().updateAttachmentAsUploaded(
-    attachmentId,
-    uploadedUrl,
-    uploadedAt,
-  );
-
-export const updateAttachmentDiscordUrl = (
-  attachmentId: string,
-  discordUrl: string,
-): Promise<void> =>
-  getInstance().updateAttachmentDiscordUrl(attachmentId, discordUrl);
-
-export const updateAttachmentAsFailedUpload = (
-  attachmentId: string,
-  error: string,
-): Promise<void> =>
-  getInstance().updateAttachmentAsFailedUpload(attachmentId, error);
-
-export const getAttachmentsForMessages = (
-  messageIds: string[],
-): Promise<AttachmentRecord[]> =>
-  getInstance().getAttachmentsForMessages(messageIds);
-
-// Reviews
-export const createMessageReview = (
-  review: Omit<MessageReview, "id" | "created_at">,
-): Promise<MessageReview> => getInstance().createMessageReview(review);
-
-export const getMessageReview = (id: string): Promise<MessageReview | null> =>
-  getInstance().getMessageReview(id);
-
-export const listMessageReviews = (query: {
-  guildId?: string;
-  channelId?: string;
-  status?: string[];
-  cursor?: string;
-  limit: number;
-}): Promise<PageResult<MessageReview>> =>
-  getInstance().listMessageReviews(query);
-
-export const updateMessageReview = (
-  id: string,
-  updates: Partial<Omit<MessageReview, "id" | "created_at">>,
-): Promise<MessageReview | null> =>
-  getInstance().updateMessageReview(id, updates);
-
-// Moderation Actions
-export const createModerationAction = (
-  action: Omit<ModerationAction, "id" | "created_at">,
-): Promise<ModerationAction> => getInstance().createModerationAction(action);
-
-export const getModerationAction = (
-  id: string,
-): Promise<ModerationAction | null> => getInstance().getModerationAction(id);
-
-export const listModerationActions = (query: {
-  guildId?: string;
-  status?: string[];
-  cursor?: string;
-  limit: number;
-}): Promise<PageResult<ModerationAction>> =>
-  getInstance().listModerationActions(query);
-
-export const updateModerationAction = (
-  id: string,
-  updates: Partial<Omit<ModerationAction, "id" | "created_at">>,
-): Promise<ModerationAction | null> =>
-  getInstance().updateModerationAction(id, updates);
-
-// Retention
-export const getRetentionPolicy = (
-  guildId: string,
-): Promise<RetentionPolicy | null> => getInstance().getRetentionPolicy(guildId);
-
-export const upsertRetentionPolicy = (
-  policy: Omit<RetentionPolicy, "created_at" | "updated_at">,
-): Promise<RetentionPolicy> => getInstance().upsertRetentionPolicy(policy);
+export const messageStore: MessageStore = new Proxy<MessageStore>(
+  {} as MessageStore,
+  {
+    get(_, prop: string | symbol) {
+      const store = resolveStore();
+      const value = (store as unknown as Record<string | symbol, unknown>)[prop];
+      return typeof value === "function" ? value.bind(store) : value;
+    },
+  },
+);

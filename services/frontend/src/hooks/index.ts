@@ -25,7 +25,6 @@ export {
   useReanalyze,
   useReanalyzeBatch,
   useReview,
-  useSearch,
   useTextChannels,
 } from "./use-messages";
 export {

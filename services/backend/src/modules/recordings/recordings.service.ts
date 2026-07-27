@@ -1,5 +1,6 @@
+import { pgVoiceRecordingsTable } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
-import { sql } from "drizzle-orm";
+import { and, desc, eq, lt, type SQL } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/index.js";
 
 const logger = createChildLogger("recordings.service");
@@ -36,37 +37,47 @@ export class RecordingsService {
     logger.info({ limit }, "getRecent called");
     const db = getDatabase();
 
-    const conditions: ReturnType<typeof sql>[] = [];
+    const conditions: SQL[] = [];
 
     if (filters?.cursor) {
-      conditions.push(sql`created_at < ${filters.cursor}::numeric`);
+      conditions.push(
+        lt(pgVoiceRecordingsTable.created_at, Number(filters.cursor)),
+      );
     }
     if (filters?.channelId) {
-      conditions.push(sql`channel_id = ${filters.channelId}`);
+      conditions.push(eq(pgVoiceRecordingsTable.channel_id, filters.channelId));
     }
     if (filters?.userId) {
-      conditions.push(sql`user_id = ${filters.userId}`);
+      conditions.push(eq(pgVoiceRecordingsTable.user_id, filters.userId));
     }
 
-    const whereClause =
-      conditions.length > 0
-        ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
-        : sql``;
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const { rows } = await db.execute(sql`
-      SELECT
-        id, user_id, username, avatar_url, guild_id, channel_id,
-        channel_name, filename, size_bytes, download_url,
-        upload_status, upload_error, created_at, uploaded_at,
-        COALESCE(size_bytes, 0) AS duration_bytes
-      FROM voice_recordings
-      ${whereClause}
-      ORDER BY created_at DESC
-      LIMIT ${limit + 1}
-    `);
+    const allRows = await db
+      .select({
+        id: pgVoiceRecordingsTable.id,
+        user_id: pgVoiceRecordingsTable.user_id,
+        username: pgVoiceRecordingsTable.username,
+        avatar_url: pgVoiceRecordingsTable.avatar_url,
+        guild_id: pgVoiceRecordingsTable.guild_id,
+        channel_id: pgVoiceRecordingsTable.channel_id,
+        channel_name: pgVoiceRecordingsTable.channel_name,
+        filename: pgVoiceRecordingsTable.filename,
+        size_bytes: pgVoiceRecordingsTable.size_bytes,
+        download_url: pgVoiceRecordingsTable.download_url,
+        upload_status: pgVoiceRecordingsTable.upload_status,
+        upload_error: pgVoiceRecordingsTable.upload_error,
+        created_at: pgVoiceRecordingsTable.created_at,
+        uploaded_at: pgVoiceRecordingsTable.uploaded_at,
+        duration_bytes: pgVoiceRecordingsTable.size_bytes,
+      })
+      .from(pgVoiceRecordingsTable)
+      .where(where)
+      .orderBy(desc(pgVoiceRecordingsTable.created_at))
+      .limit(limit + 1);
 
-    const items = rows.slice(0, limit) as unknown as RecordingRow[];
-    const hasMore = rows.length > limit;
+    const items = allRows.slice(0, limit) as unknown as RecordingRow[];
+    const hasMore = allRows.length > limit;
     const nextCursor = hasMore
       ? String(items[items.length - 1]?.created_at)
       : null;
@@ -76,7 +87,9 @@ export class RecordingsService {
 
   async deleteById(id: string): Promise<void> {
     const db = getDatabase();
-    await db.execute(sql`DELETE FROM voice_recordings WHERE id = ${id}`);
+    await db
+      .delete(pgVoiceRecordingsTable)
+      .where(eq(pgVoiceRecordingsTable.id, id));
   }
 }
 

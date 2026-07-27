@@ -13,8 +13,20 @@ interface BroadcastEvent {
   timestamp: string;
 }
 
+interface JsonMessage {
+  type: string;
+  buffer?: string;
+  command?: string;
+  payload?: Record<string, unknown>;
+}
+
 // Track the active WebSocket server for lifecycle management
 let _wss: WebSocketServer | null = null;
+
+type MessageHandler = (
+  ws: WebSocket,
+  message: JsonMessage,
+) => Promise<void> | void;
 
 async function sendInitialStates(ws: WebSocket): Promise<void> {
   // Send initial user state
@@ -71,6 +83,35 @@ export function createWebSocketServer(server: Server): WebSocketServer {
   const wss = new WebSocketServer({ server, path: "/ws" });
   _wss = wss;
 
+  // Map-based dispatcher for JSON WebSocket message types
+  const jsonHandlers = new Map<string, MessageHandler>();
+
+  jsonHandlers.set("voice_transmit", async (_ws, message) => {
+    if (!message.buffer) return;
+    const { getCommandPublisher } = await import("../shared/redis/index.js");
+    const publisher = getCommandPublisher();
+    await publisher.publish(
+      BACKEND_VOICE_TRANSMIT,
+      JSON.stringify({ type: "pcm", buffer: message.buffer }),
+    );
+  });
+
+  jsonHandlers.set("voice_command", async (_ws, message) => {
+    if (!message.command) return;
+    const { getCommandPublisher } = await import("../shared/redis/index.js");
+    const publisher = getCommandPublisher();
+    const commandId = `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    await publisher.publish(
+      BACKEND_COMMAND,
+      JSON.stringify({
+        id: commandId,
+        type: message.command,
+        payload: message.payload ?? {},
+        replyChannel: `reply:${commandId}`,
+      }),
+    );
+  });
+
   wss.on("connection", (ws: WebSocket, req) => {
     // Parse auth token from query string
     const rawUrl = req.url ?? "/";
@@ -103,7 +144,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     ws.on("message", (data: Buffer) => {
       // Gateway PCM forward — broadcast raw binary to frontend clients only
       if (isGateway && Buffer.isBuffer(data)) {
-        broadcastBinaryToFrontend(data);
+        broadcastBinary(data);
         return;
       }
 
@@ -146,52 +187,11 @@ export function createWebSocketServer(server: Server): WebSocketServer {
       ) {
         try {
           const message = JSON.parse(data.toString());
-
-          if (message.type === "voice_transmit" && message.buffer) {
-            // Legacy: Forward PCM data to Redis for discord-gateway
-            import("../shared/redis/index.js").then(
-              ({ getCommandPublisher }) => {
-                const publisher = getCommandPublisher();
-                publisher
-                  .publish(
-                    BACKEND_VOICE_TRANSMIT,
-                    JSON.stringify({
-                      type: "pcm",
-                      buffer: message.buffer,
-                    }),
-                  )
-                  .catch((err: Error) => {
-                    logger.error(
-                      { err },
-                      "Failed to publish voice transmit to Redis",
-                    );
-                  });
-              },
-            );
-          } else if (message.type === "voice_command" && message.command) {
-            // Forward voice commands to discord-gateway with payload
-            import("../shared/redis/index.js").then(
-              ({ getCommandPublisher }) => {
-                const publisher = getCommandPublisher();
-                const commandId = `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-                publisher
-                  .publish(
-                    BACKEND_COMMAND,
-                    JSON.stringify({
-                      id: commandId,
-                      type: message.command,
-                      payload: message.payload ?? {},
-                      replyChannel: `reply:${commandId}`,
-                    }),
-                  )
-                  .catch((err: Error) => {
-                    logger.error(
-                      { err },
-                      "Failed to publish voice command to Redis",
-                    );
-                  });
-              },
-            );
+          const handler = jsonHandlers.get(message.type);
+          if (handler) {
+            Promise.resolve(handler(ws, message)).catch((err: Error) => {
+              logger.error({ err }, "JSON message handler failed");
+            });
           }
         } catch (err) {
           logger.debug({ err }, "Failed to parse WebSocket message as JSON");
@@ -233,19 +233,6 @@ export function createWebSocketServer(server: Server): WebSocketServer {
 
   // Don't let the interval keep the process alive after wss closes
   heartbeatInterval.unref();
-
-  // Forward gateway binary to frontend clients (no loopback to gateway)
-  function broadcastBinaryToFrontend(data: Buffer) {
-    for (const client of frontendClients) {
-      if (client.readyState === WebSocket.OPEN) {
-        try {
-          client.send(data);
-        } catch (err) {
-          logger.error({ err }, "Failed to send binary to frontend client");
-        }
-      }
-    }
-  }
 
   // JSON event broadcast — frontend clients only
   function broadcast(event: Omit<BroadcastEvent, "timestamp">) {

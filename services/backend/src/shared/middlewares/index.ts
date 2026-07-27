@@ -1,6 +1,7 @@
 import { AppError, ValidationError } from "@bete/shared/errors";
 import { createChildLogger } from "@bete/shared/logger";
 import type { NextFunction, Request, Response } from "express";
+import type { ZodSchema } from "zod";
 
 const logger = createChildLogger("middleware");
 
@@ -89,4 +90,50 @@ export function requireParam(
     throw new ValidationError(`Missing ${kind}: ${name}`);
   }
   return value;
+}
+
+/**
+ * Express middleware that validates `req.body` against a Zod schema.
+ * On success, replaces `req.body` with the parsed (and defaulted) value.
+ * On failure, responds with 400 and the Zod validation errors.
+ */
+export function validateBody<T>(schema: ZodSchema<T>) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const result = schema.safeParse(req.body);
+    if (!result.success) {
+      res.status(400).json({
+        error: "VALIDATION_ERROR",
+        message: "Request body validation failed",
+        details: result.error.flatten().fieldErrors,
+      });
+      return;
+    }
+    req.body = result.data;
+    next();
+  };
+}
+
+/**
+ * Express middleware that validates `req.query` against a Zod schema.
+ * On success, replaces `req.query` with the parsed (and defaulted) value.
+ * On failure, responds with 400 and the Zod validation errors.
+ */
+export function validateQuery<T>(schema: ZodSchema<T>) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const result = schema.safeParse(req.query);
+    if (!result.success) {
+      res.status(400).json({
+        error: "VALIDATION_ERROR",
+        message: "Query parameter validation failed",
+        details: result.error.flatten().fieldErrors,
+      });
+      return;
+    }
+    // Note: Express req.query is typed as ParsedQs — we attach parsed data
+    // alongside it via a custom property. For route handlers that read req.query
+    // directly, the middleware won't change the type; handlers should opt in by
+    // reading from the validated result or by using the schema's output type.
+    (req as Request & { validatedQuery: T }).validatedQuery = result.data;
+    next();
+  };
 }

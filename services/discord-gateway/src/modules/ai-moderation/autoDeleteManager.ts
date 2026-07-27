@@ -1,7 +1,7 @@
 import { createChildLogger } from "@bete/shared/logger";
 import type { Client, PermissionString } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
-import { createModerationAction } from "../message-capture/messageStore.js";
+import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
 import { isEligibleForAutoDelete } from "./autoDeleteEligibility.js";
 import { logDeletionToChannel } from "./autoDeleteLogger.js";
@@ -65,7 +65,7 @@ async function logAutoDeleteAttempt(
   result: AutoDeleteResult,
 ): Promise<void> {
   try {
-    await createModerationAction({
+    await messageStore.createModerationAction({
       message_id: message.id,
       user_id: message.user_id,
       guild_id: message.guild_id,

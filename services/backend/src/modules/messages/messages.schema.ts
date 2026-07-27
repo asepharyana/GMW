@@ -36,6 +36,13 @@ export const messageUpdateSchema = z.object({
   aiConfidence: z.number().optional(),
 });
 
+export const reanalyzeBatchSchema = z.object({
+  guildId: z.string().optional(),
+  channelId: z.string().optional(),
+  messageIds: z.array(z.string()).optional(),
+});
+
 export type MessageQuery = z.infer<typeof messageQuerySchema>;
 export type MessageCreate = z.infer<typeof messageCreateSchema>;
 export type MessageUpdate = z.infer<typeof messageUpdateSchema>;
+export type ReanalyzeBatchInput = z.infer<typeof reanalyzeBatchSchema>;

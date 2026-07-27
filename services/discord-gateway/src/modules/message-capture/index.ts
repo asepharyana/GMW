@@ -3,13 +3,6 @@ export {
   getMessageLocation,
   getMessageMetadata,
 } from "../message-capture/messageMetadata.js";
-export {
-  getMessageById,
-  insertAttachment,
-  updateMessageAsDeleted,
-  updateMessageAsEdited,
-  upsertMessageForCapture,
-} from "../message-capture/messageStore.js";
 export type {
   AIRecommendedAction,
   AISeverity,
@@ -18,4 +11,10 @@ export type {
   MessageRecord,
   VoiceSegmentRecord,
 } from "../message-capture/types.js";
-export { registerMessageCapture } from "./messageCapture.js";
+export type { TextCaptureTarget } from "./messageCapture.js";
+export {
+  captureMessage,
+  registerMessageCapture,
+  setEventBroadcaster,
+} from "./messageCapture.js";
+export { messageStore } from "./messageStore.js";

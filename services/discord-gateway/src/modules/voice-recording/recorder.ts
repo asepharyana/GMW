@@ -213,7 +213,9 @@ export function stopRecording(guildId: string): void {
         status: snapshot.status,
         stopped_at: stoppedAt,
       })
-      .catch(() => {});
+      .catch((err) =>
+        logger.warn({ err }, "Failed to broadcast voice recording stopped"),
+      );
 
     // Auto-enqueue muxer job if there are multiple segments
     const segments = snapshot.segments;

@@ -2,20 +2,14 @@ import { createChildLogger } from "@bete/shared/logger";
 import { config } from "../../shared/config/config.js";
 import { initializeDatabase } from "../../shared/database/drizzle.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
-import {
-  getAttachmentsForMessages,
-  getConversationContextBefore,
-  updateMessagesAIAnalysisBulk,
-} from "../message-capture/messageStore.js";
+import { messageStore } from "../message-capture/messageStore.js";
 import type {
   AnalysisResult,
   MessageRecord,
 } from "../message-capture/types.js";
 import { buildConversationContext } from "./conversationContext.js";
-import {
-  runModerationAnalysis,
-  runSimpleTextFallback,
-} from "./llmModerationClient.js";
+import { runModerationAnalysis } from "./moderationOrchestrator.js";
+import { runSimpleTextFallback } from "./simpleFallback.js";
 
 const logger = createChildLogger("aiAnalysisWorker");
 
@@ -142,7 +136,7 @@ async function processBatch(job: {
   const firstMessage = messages[0];
   if (!firstMessage) return { ok: true, conversationKey, rows: [] };
 
-  const contextBefore = await getConversationContextBefore({
+  const contextBefore = await messageStore.getConversationContextBefore({
     channelId: firstMessage.channel_id,
     threadId: firstMessage.thread_id,
     beforeCreatedAt: firstMessage.created_at,
@@ -158,7 +152,8 @@ async function processBatch(job: {
   const targetIds = messages.map((m) => m.id);
   const contextIds = contextBefore.map((m) => m.id);
   const allMessageIds = [...targetIds, ...contextIds];
-  const attachments = await getAttachmentsForMessages(allMessageIds);
+  const attachments =
+    await messageStore.getAttachmentsForMessages(allMessageIds);
 
   // ── Split: text-only vs media ──────────────────────────────────────
   // Text-only analysis runs fast (single LLM call, no vision).
@@ -223,13 +218,15 @@ async function processBatch(job: {
             },
           }));
           if (updates.length > 0) {
-            return updateMessagesAIAnalysisBulk(updates).then((rows) => {
-              allRows.push(...rows);
-              logger.info(
-                { count: updates.length, conversationKey },
-                "Text-only batch saved — media analysis still in progress",
-              );
-            });
+            return messageStore
+              .updateMessagesAIAnalysisBulk(updates)
+              .then((rows) => {
+                allRows.push(...rows);
+                logger.info(
+                  { count: updates.length, conversationKey },
+                  "Text-only batch saved — media analysis still in progress",
+                );
+              });
           }
         })
       : Promise.resolve();
@@ -257,9 +254,11 @@ async function processBatch(job: {
             },
           }));
           if (updates.length > 0) {
-            return updateMessagesAIAnalysisBulk(updates).then((rows) => {
-              allRows.push(...rows);
-            });
+            return messageStore
+              .updateMessagesAIAnalysisBulk(updates)
+              .then((rows) => {
+                allRows.push(...rows);
+              });
           }
         })
       : Promise.resolve();
@@ -291,7 +290,7 @@ async function processIndividual(job: {
 }): Promise<IndividualOkResponse | IndividualErrorResponse> {
   const { message, skipNormalAnalysis } = job;
 
-  const contextBefore = await getConversationContextBefore({
+  const contextBefore = await messageStore.getConversationContextBefore({
     channelId: message.channel_id,
     threadId: message.thread_id,
     beforeCreatedAt: message.created_at,
@@ -305,7 +304,7 @@ async function processIndividual(job: {
   });
 
   const contextIds = contextBefore.map((m) => m.id);
-  const attachments = await getAttachmentsForMessages([
+  const attachments = await messageStore.getAttachmentsForMessages([
     message.id,
     ...contextIds,
   ]);

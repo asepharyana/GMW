@@ -90,26 +90,6 @@ export function logModerationAnalysis(
   },
   parseErrors: string[] = [],
 ): void {
-  const _response: ModerationAnalysisResponse = {
-    messageIds,
-    batchSize: messageIds.length,
-    model,
-    tokenUsage,
-    results: results.map((r) => ({
-      messageId: r.messageId,
-      status: r.status,
-      flags: r.flags ?? [],
-      score: r.score,
-      severity: r.severity,
-      confidence: r.confidence,
-      recommendedAction: r.recommendedAction,
-      analysis: r.analysis?.substring(0, 200), // Truncate for logs
-    })) as AnalysisResult[],
-    duration_ms,
-    parseErrors,
-    timestamp: Date.now(),
-  };
-
   logger.info(
     {
       batch_size: messageIds.length,
@@ -158,13 +138,6 @@ export function logCacheEvent(
   cacheKey: string,
   source: "text" | "media" | "sticker",
 ): void {
-  const _event: CacheHitEvent = {
-    type,
-    cacheKey,
-    source,
-    timestamp: Date.now(),
-  };
-
   logger.debug(
     {
       cache_type: type.toUpperCase(),

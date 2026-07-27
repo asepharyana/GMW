@@ -1,5 +1,4 @@
 import {
-  BarChart3,
   Headphones,
   LayoutDashboard,
   type LucideIcon,
@@ -7,6 +6,7 @@ import {
   Mic,
   Music,
   Search,
+  Settings,
 } from "lucide-react";
 
 export interface NavItem {
@@ -60,7 +60,7 @@ export const navItems: NavItem[] = [
   {
     href: "/settings",
     label: "Settings",
-    icon: BarChart3,
+    icon: Settings,
     matchPrefix: "/settings",
   },
 ];
@@ -73,3 +73,8 @@ export const mobileNavItems: NavItem[] = navItems.filter((item) =>
 );
 
 export type NavItemId = (typeof navItems)[number]["href"];
+
+export function isActivePath(pathname: string, matchPrefix: string): boolean {
+  if (matchPrefix === "/dashboard") return pathname === "/dashboard";
+  return pathname.startsWith(matchPrefix);
+}

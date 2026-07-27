@@ -1,11 +1,7 @@
 import { createChildLogger } from "@bete/shared/logger";
 import { config } from "../../shared/config/config.js";
-import {
-  updateAttachmentAsFailedUpload,
-  updateAttachmentAsUploaded,
-  updateAttachmentDiscordUrl,
-} from "../message-capture/messageStore.js";
-import { uploadToTele } from "../voice-recording/teleUpload.js";
+import { uploadToTele } from "../../shared/uploader.js";
+import { messageStore } from "../message-capture/messageStore.js";
 
 const logger = createChildLogger("attachment-uploader");
 
@@ -125,7 +121,7 @@ export async function processAttachmentUpload(
       const freshUrl = await options.refreshDiscordUrl();
       if (!freshUrl) throw error;
       currentDiscordUrl = freshUrl;
-      await updateAttachmentDiscordUrl(attachmentId, freshUrl);
+      await messageStore.updateAttachmentDiscordUrl(attachmentId, freshUrl);
       buffer = await downloadDiscordAttachment(currentDiscordUrl);
     }
 
@@ -146,14 +142,18 @@ export async function processAttachmentUpload(
       options.contentType,
     );
 
-    await updateAttachmentAsUploaded(attachmentId, uploadedUrl, Date.now());
+    await messageStore.updateAttachmentAsUploaded(
+      attachmentId,
+      uploadedUrl,
+      Date.now(),
+    );
     logger.info(
       { attachmentId, url: uploadedUrl },
       "Attachment upload completed successfully",
     );
   } catch (error) {
     const errorMsg = toErrorMessage(error);
-    await updateAttachmentAsFailedUpload(attachmentId, errorMsg);
+    await messageStore.updateAttachmentAsFailedUpload(attachmentId, errorMsg);
     logger.error({ attachmentId, error: errorMsg }, "Attachment upload failed");
   }
 }

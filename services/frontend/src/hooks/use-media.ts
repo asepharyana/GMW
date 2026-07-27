@@ -1,20 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
-import { voiceApi } from "@/lib/api";
+import { mediaApi } from "@/lib/api";
 import type { MediaState } from "@/lib/types";
-import type { WsEventType } from "@/lib/ws/types";
-
-type WsHook = {
-  on: <E extends WsEventType>(
-    eventType: E,
-    handler: (data: unknown) => void,
-  ) => () => void;
-};
+import type { WsHook } from "@/lib/ws-hook";
 
 export function useMediaState() {
   return useQuery<MediaState>({
     queryKey: ["media-state"],
-    queryFn: () => voiceApi.getMediaStatus(),
+    queryFn: () => mediaApi.getStatus(),
     retry: false,
     refetchInterval: 10_000,
   });
@@ -23,7 +17,7 @@ export function useMediaState() {
 export function useMediaQueue() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (url: string) => voiceApi.mediaQueue(url, "music"),
+    mutationFn: (url: string) => mediaApi.queue(url, "music"),
     onSuccess: (data) => qc.setQueryData(["media-state"], data),
   });
 }
@@ -31,7 +25,7 @@ export function useMediaQueue() {
 export function useMediaSkip() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => voiceApi.mediaSkip(),
+    mutationFn: () => mediaApi.skip(),
     onSuccess: (data) => qc.setQueryData(["media-state"], data),
   });
 }
@@ -39,7 +33,7 @@ export function useMediaSkip() {
 export function useMediaStop() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => voiceApi.mediaStop(),
+    mutationFn: () => mediaApi.stop(),
     onSuccess: (data) => qc.setQueryData(["media-state"], data),
   });
 }
@@ -47,7 +41,7 @@ export function useMediaStop() {
 export function useMediaVolume() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (volume: number) => voiceApi.mediaVolume(volume),
+    mutationFn: (volume: number) => mediaApi.volume(volume),
     onSuccess: (data) => qc.setQueryData(["media-state"], data),
   });
 }
@@ -55,12 +49,6 @@ export function useMediaVolume() {
 /** Subscribe to WS media_state events to keep cache fresh */
 export function useMediaWsSync(ws: WsHook) {
   const qc = useQueryClient();
-  useEffectFn(ws, qc);
-}
-
-import { useEffect } from "react";
-
-function useEffectFn(ws: WsHook, qc: ReturnType<typeof useQueryClient>) {
   useEffect(() => {
     const unsub = ws.on("media_state", (data) => {
       qc.setQueryData(["media-state"], data as MediaState);

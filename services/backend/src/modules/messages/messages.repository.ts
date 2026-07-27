@@ -14,6 +14,7 @@ import {
   or,
   type SQL,
 } from "drizzle-orm";
+import { config } from "../../shared/config/index.js";
 import { getDatabase } from "../../shared/database/index.js";
 import { mapMessageRow } from "../../shared/utils/messageMapper.js";
 import type {
@@ -23,12 +24,12 @@ import type {
 } from "./messages.schema.js";
 
 /**
- * Thread IDs to exclude from all message queries.
+ * Thread/channel IDs to exclude from all message queries.
  * Messages in these threads (e.g. bot/selfbot spam) are skipped
  * both at capture time (discord-gateway) and when serving data
- * (backend API).
+ * (backend API). Configured via EXCLUDED_THREAD_IDS and EXCLUDED_CHANNEL_IDS.
  */
-const EXCLUDED_THREAD_IDS = ["1522077685508083893"];
+const EXCLUDED_THREAD_IDS = config.EXCLUDED_THREAD_IDS;
 
 const logger = createChildLogger("messages.repository");
 

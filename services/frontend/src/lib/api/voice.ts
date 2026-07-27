@@ -1,4 +1,4 @@
-import type { Channel, Guild, MediaState, VoiceStatus } from "@/lib/types";
+import type { Channel, Guild, VoiceStatus } from "@/lib/types";
 import { api } from "./client";
 
 export const voiceApi = {
@@ -18,13 +18,4 @@ export const voiceApi = {
     api.post<{ success: boolean; command: string }>("/api/voice/command", {
       command,
     }),
-
-  // Media
-  getMediaStatus: () => api.get<MediaState>("/api/media/status"),
-  mediaQueue: (source: string, mode: string) =>
-    api.post<MediaState>("/api/media/queue", { source, mode }),
-  mediaSkip: () => api.post<MediaState>("/api/media/skip", {}),
-  mediaStop: () => api.post<MediaState>("/api/media/stop", {}),
-  mediaVolume: (volume: number) =>
-    api.post<MediaState>("/api/media/volume", { volume }),
 };

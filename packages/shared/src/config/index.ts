@@ -22,6 +22,16 @@ export const configSchema = z
     MONITOR_GUILD_ID: z.string().min(1).optional(),
     TEXT_GUILD_ID: z.string().min(1).optional(),
     TEXT_CHANNEL_ID: z.string().min(1).optional(),
+    EXCLUDED_CHANNEL_IDS: z
+      .string()
+      .default("")
+      .transform((v) => v.split(",").filter(Boolean))
+      .describe("Channel IDs to exclude from capture"),
+    EXCLUDED_THREAD_IDS: z
+      .string()
+      .default("")
+      .transform((v) => v.split(",").filter(Boolean))
+      .describe("Thread IDs to exclude from capture"),
 
     // ── Legacy voice ─────────────────────────────────────────────────────
     VOICE_GUILD_ID: z.string().min(1).optional(),

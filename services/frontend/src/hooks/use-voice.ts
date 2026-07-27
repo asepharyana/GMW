@@ -1,16 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { voiceApi } from "@/lib/api";
-import type { ActiveSpeaker, VoiceStatus } from "@/lib/types";
-import type { WsEventType } from "@/lib/ws/types";
-
-type WsHook = {
-  on: <E extends WsEventType>(
-    eventType: E,
-    handler: (data: unknown) => void,
-  ) => () => void;
-};
+import type { ActiveSpeaker, Channel, VoiceStatus } from "@/lib/types";
+import type { WsHook } from "@/lib/ws-hook";
 
 export function useVoiceStatus() {
   return useQuery<VoiceStatus>({
@@ -20,26 +13,12 @@ export function useVoiceStatus() {
   });
 }
 
-export function useVoiceChannels() {
-  const [channels, setChannels] = useState<Array<{ id: string; name: string }>>(
-    [],
-  );
-  const [loading, setLoading] = useState(false);
-
-  const fetch = useCallback(async (guildId: string) => {
-    setLoading(true);
-    try {
-      const ch = await voiceApi.getVoiceChannels(guildId);
-      setChannels(ch);
-    } catch (err) {
-      console.error("useVoiceChannels:", err);
-      setChannels([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  return { channels, loading, fetch };
+export function useVoiceChannels(guildId: string) {
+  return useQuery<Channel[]>({
+    queryKey: ["voice-channels", guildId],
+    queryFn: () => voiceApi.getVoiceChannels(guildId),
+    enabled: !!guildId,
+  });
 }
 
 export function useSpeakers() {

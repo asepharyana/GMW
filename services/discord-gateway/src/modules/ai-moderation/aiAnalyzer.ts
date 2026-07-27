@@ -2,14 +2,7 @@ import { createChildLogger } from "@bete/shared/logger";
 import type { Client } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
 import type { EventBroadcaster } from "../event-broadcaster/index.js";
-import {
-  getConversationKeysWithIncompleteAnalysis,
-  getIncompleteMessagesByConversation,
-  getMessageById,
-  getPendingConversationKeys,
-  revertStuckProcessingMessages,
-  updateMessageAIAnalysis,
-} from "../message-capture/messageStore.js";
+import { messageStore } from "../message-capture/messageStore.js";
 import type { AnalysisQueueStatus } from "../message-capture/types.js";
 import {
   activeRequests,
@@ -18,18 +11,14 @@ import {
   skipAgeRestrictedMessages,
 } from "./batchProcessor.js";
 import { scheduleConversationAnalysis } from "./batchScheduler.js";
+import { getConversationKey } from "./circuitBreaker.js";
 import {
-  broadcastAnalysisCompleted,
   conversationConsecutiveErrors,
   conversationDebounceTimers,
   conversationErrorCooldown,
   conversationProcessing,
-  getConversationKey,
   isConversationProcessingLocked,
-  LAST_ERROR,
-  setModerationClient,
-  setSharedEventBroadcaster,
-} from "./circuitBreaker.js";
+} from "./conversationState.js";
 import {
   activeIndividualRequests,
   enqueueIndividualFallbacks,
@@ -38,6 +27,12 @@ import {
   individualInFlightByConversation,
   individualInFlightLastTouched,
 } from "./individualFallbackProcessor.js";
+import {
+  broadcastAnalysisCompleted,
+  LAST_ERROR,
+  setModerationClient,
+  setSharedEventBroadcaster,
+} from "./moderationState.js";
 
 const logger = createChildLogger("ai-analyzer");
 
@@ -46,7 +41,8 @@ const logger = createChildLogger("ai-analyzer");
 // ---------------------------------------------------------------------------
 
 export { pickBatchWithinBudget } from "./batchProcessor.js";
-export { getConversationKey, onCircuitBreakerAlert } from "./circuitBreaker.js";
+export { getConversationKey } from "./circuitBreaker.js";
+export { onCircuitBreakerAlert } from "./conversationState.js";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -59,14 +55,14 @@ export async function queueMessageAnalysis(messageId: string): Promise<void> {
   if (!config.AI_ANALYSIS_ENABLED) return;
 
   try {
-    const message = await getMessageById(messageId);
+    const message = await messageStore.getMessageById(messageId);
     if (!message) {
       logger.warn({ messageId }, "Message not found for analysis queue");
       return;
     }
 
     if (isAgeRestrictedMessage(message)) {
-      const updated = await updateMessageAIAnalysis(
+      const updated = await messageStore.updateMessageAIAnalysis(
         message.id,
         buildAgeRestrictedSkipResult(),
       );
@@ -117,7 +113,7 @@ export function getAnalysisQueueStatus(): AnalysisQueueStatus {
 /**
  * Starts the periodic recovery worker.
  *
- * FIX #4: Now also recovers messages stuck in `error/analysis_incomplete`
+ * Now also recovers messages stuck in `error/analysis_incomplete`
  * state (not just `pending`), and skips conversations that already have
  * individual fallback work in progress to avoid DB last-write-wins races.
  */
@@ -137,23 +133,20 @@ export function startPendingAIAnalysisWorker(
     .catch(console.error);
 
   setInterval(() => {
-    revertStuckProcessingMessages(300000).catch((err: unknown) => {
+    messageStore.revertStuckProcessingMessages(300000).catch((err: unknown) => {
       logger.error(
         { error: String(err) },
         "Failed to run stuck processing recovery",
       );
     });
 
-    // FIX #3 pattern: no async arrow -- chain promises explicitly.
     Promise.all([
-      getPendingConversationKeys(500),
-      getConversationKeysWithIncompleteAnalysis(200),
+      messageStore.getPendingConversationKeys(500),
+      messageStore.getConversationKeysWithIncompleteAnalysis(200),
     ])
       .then(([pendingKeys, incompleteKeys]) => {
         const now = Date.now();
 
-        // FIX #9: Prune stale entries from state maps to prevent unbounded
-        // memory growth from channels/threads that are no longer active.
         for (const [key, expiry] of conversationErrorCooldown) {
           if (now >= expiry) conversationErrorCooldown.delete(key);
         }
@@ -163,9 +156,6 @@ export function startPendingAIAnalysisWorker(
           }
         }
 
-        // FIX #7: Prune stale in-flight counters for conversations that have
-        // been idle longer than the processing timeout -- prevents permanent
-        // blocking if a decrement was missed due to an uncaught exception.
         const staleThreshold = config.AI_ANALYSIS_PROCESSING_TIMEOUT_MS * 2;
         for (const [key, lastTouched] of individualInFlightLastTouched) {
           if (now - lastTouched >= staleThreshold) {
@@ -187,17 +177,13 @@ export function startPendingAIAnalysisWorker(
           }
         }
 
-        // FIX #8: Build a set of keys already targeted for individual recovery
-        // so the batch loop below skips them.
         const incompleteKeySet = new Set(incompleteKeys);
 
         // --- Batch recovery for pending messages ---
         for (const key of pendingKeys) {
           if (conversationDebounceTimers.has(key)) continue;
           if (isConversationProcessingLocked(key)) continue;
-          // FIX #4: skip if individual fallback already running for this conversation.
           if (individualInFlightByConversation.has(key)) continue;
-          // FIX #8: skip if this conversation also needs individual recovery.
           if (incompleteKeySet.has(key)) continue;
           const cooldownUntil = conversationErrorCooldown.get(key);
           if (cooldownUntil && now < cooldownUntil) continue;
@@ -215,7 +201,8 @@ export function startPendingAIAnalysisWorker(
             if (isConversationProcessingLocked(key)) continue;
 
             promises.push(
-              getIncompleteMessagesByConversation(key, 500)
+              messageStore
+                .getIncompleteMessagesByConversation(key, 500)
                 .then(async (msgs) => {
                   const processableMessages =
                     await skipAgeRestrictedMessages(msgs);

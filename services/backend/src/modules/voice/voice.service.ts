@@ -5,13 +5,15 @@ import {
   COMMAND_VOICE_CONNECT,
   COMMAND_VOICE_DISCONNECT,
   type CommandReply,
+  pgMessagesTable,
   VOICE_STATUS_KEY,
 } from "@bete/shared";
+import { eq } from "drizzle-orm";
 import {
   createChildLogger,
   tryCommandThenFallback,
 } from "../../shared/commandHelper.js";
-import { getPool } from "../../shared/database/index.js";
+import { getDatabase } from "../../shared/database/index.js";
 import { publishCommand, readRedisStatus } from "../../shared/redis/index.js";
 
 const logger = createChildLogger("voice.service");
@@ -78,11 +80,12 @@ export async function getGuilds(): Promise<Guild[]> {
   return withFallback(
     () => publishCommand<Guild[]>(COMMAND_GUILDS_LIST, {}),
     async () => {
-      const pool = getPool();
-      const { rows } = await pool.query(
-        `SELECT DISTINCT guild_id FROM messages ORDER BY guild_id`,
-      );
-      return rows.map((row: Record<string, unknown>) => ({
+      const db = getDatabase();
+      const rows = await db
+        .selectDistinct({ guild_id: pgMessagesTable.guild_id })
+        .from(pgMessagesTable)
+        .orderBy(pgMessagesTable.guild_id);
+      return rows.map((row) => ({
         id: String(row.guild_id ?? ""),
         name: `Guild ${String(row.guild_id).slice(0, 8)}`,
         icon: null,
@@ -101,12 +104,13 @@ export async function getTextChannels(guildId: string): Promise<Channel[]> {
   return withFallback(
     () => publishCommand<Channel[]>(COMMAND_GUILDS_TEXT_CHANNELS, { guildId }),
     async () => {
-      const pool = getPool();
-      const { rows } = await pool.query(
-        `SELECT DISTINCT channel_id FROM messages WHERE guild_id = $1 ORDER BY channel_id`,
-        [guildId],
-      );
-      return rows.map((row: Record<string, unknown>) => ({
+      const db = getDatabase();
+      const rows = await db
+        .selectDistinct({ channel_id: pgMessagesTable.channel_id })
+        .from(pgMessagesTable)
+        .where(eq(pgMessagesTable.guild_id, guildId))
+        .orderBy(pgMessagesTable.channel_id);
+      return rows.map((row) => ({
         id: String(row.channel_id ?? ""),
         name: `Channel ${String(row.channel_id).slice(0, 8)}`,
         type: "text" as const,

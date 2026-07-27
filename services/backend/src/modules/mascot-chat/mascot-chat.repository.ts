@@ -1,5 +1,7 @@
+import { pgMascotChatMessagesTable, pgMessagesTable } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
-import { getPool } from "../../shared/database/index.js";
+import { and, desc, eq, type SQL, sql } from "drizzle-orm";
+import { getDatabase } from "../../shared/database/index.js";
 
 const logger = createChildLogger("mascot-chat.repository");
 
@@ -38,22 +40,15 @@ export interface ServerInsights {
 
 export class MascotChatRepository {
   async saveConversation(input: SaveConversationInput): Promise<void> {
-    const pool = getPool();
+    const db = getDatabase();
 
-    await pool.query(
-      `
-        INSERT INTO mascot_chat_messages
-          (user_id, user_message, mascot_response, context, created_at)
-        VALUES ($1, $2, $3, $4::jsonb, $5)
-      `,
-      [
-        input.userId,
-        input.userMessage,
-        input.mascotResponse,
-        JSON.stringify(input.context ?? {}),
-        input.timestamp.toISOString(),
-      ],
-    );
+    await db.insert(pgMascotChatMessagesTable).values({
+      user_id: input.userId,
+      user_message: input.userMessage,
+      mascot_response: input.mascotResponse,
+      context: (input.context ?? {}) as Record<string, unknown>,
+      created_at: input.timestamp,
+    });
 
     logger.debug({ userId: input.userId }, "Conversation saved");
   }
@@ -62,69 +57,61 @@ export class MascotChatRepository {
     userId: string,
     limit: number,
   ): Promise<MascotChatHistoryRow[]> {
-    const pool = getPool();
+    const db = getDatabase();
 
-    const { rows } = await pool.query<MascotChatHistoryRow>(
-      `
-        SELECT id, user_id, user_message, mascot_response, context, created_at
-        FROM mascot_chat_messages
-        WHERE user_id = $1
-        ORDER BY created_at DESC
-        LIMIT $2
-      `,
-      [userId, limit],
-    );
+    const rows = await db
+      .select()
+      .from(pgMascotChatMessagesTable)
+      .where(eq(pgMascotChatMessagesTable.user_id, userId))
+      .orderBy(desc(pgMascotChatMessagesTable.created_at))
+      .limit(limit);
 
     logger.debug({ userId, count: rows.length }, "Chat history fetched");
-    return rows.reverse();
+    return rows.reverse() as unknown as MascotChatHistoryRow[];
   }
 
   async clearChatHistory(userId: string): Promise<void> {
-    const pool = getPool();
+    const db = getDatabase();
 
-    const { rowCount } = await pool.query(
-      `DELETE FROM mascot_chat_messages WHERE user_id = $1`,
-      [userId],
+    const deleted = await db
+      .delete(pgMascotChatMessagesTable)
+      .where(eq(pgMascotChatMessagesTable.user_id, userId))
+      .returning({ id: pgMascotChatMessagesTable.id });
+
+    logger.info(
+      { userId, deletedRows: deleted.length },
+      "Chat history cleared",
     );
-
-    logger.info({ userId, deletedRows: rowCount ?? 0 }, "Chat history cleared");
   }
 
   async getServerInsights(
     guildId?: string,
     channelId?: string,
   ): Promise<ServerInsights> {
-    const pool = getPool();
-
     try {
-      const params: string[] = [];
-      const clauses: string[] = [];
+      const db = getDatabase();
+      const conditions: SQL[] = [];
 
       if (guildId) {
-        params.push(guildId);
-        clauses.push(`guild_id = $${params.length}`);
+        conditions.push(eq(pgMessagesTable.guild_id, guildId));
       }
       if (channelId) {
-        params.push(channelId);
-        clauses.push(`channel_id = $${params.length}`);
+        conditions.push(eq(pgMessagesTable.channel_id, channelId));
       }
 
-      const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-      const { rows } = await pool.query<ServerInsights>(
-        `
-          SELECT
-            COUNT(*)::int AS total_messages,
-            COUNT(DISTINCT user_id)::int AS active_users,
-            COUNT(*) FILTER (WHERE ai_status = 'flagged')::int AS flagged,
-            COUNT(*) FILTER (WHERE ai_status = 'warn')::int AS warned
-          FROM messages
-          ${where}
-        `,
-        params,
-      );
+      const [result] = await db
+        .select({
+          total_messages: sql<number>`COUNT(*)::int`,
+          active_users: sql<number>`COUNT(DISTINCT ${pgMessagesTable.user_id})::int`,
+          flagged: sql<number>`COUNT(*) FILTER (WHERE ${pgMessagesTable.ai_status} = 'flagged')::int`,
+          warned: sql<number>`COUNT(*) FILTER (WHERE ${pgMessagesTable.ai_status} = 'warn')::int`,
+        })
+        .from(pgMessagesTable)
+        .where(where);
 
-      const insights = rows[0] ?? {
+      const insights = result ?? {
         total_messages: 0,
         active_users: 0,
         flagged: 0,

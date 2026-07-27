@@ -1,24 +1,144 @@
 import { createChildLogger } from "@bete/shared/logger";
+import type { z } from "zod";
 import type { AnalysisResult } from "../message-capture/types.js";
-import { extractJson } from "./jsonExtractor.js";
+import type {
+  RecommendedActionSchema,
+  SeveritySchema,
+} from "./moderationSchemas.js";
 import { ModerationResponseSchema } from "./moderationSchemas.js";
-import {
-  clampScore,
-  deriveRecommendedAction,
-  deriveSeverity,
-  hasDeferralAnalysis,
-} from "./severityDeriver.js";
 
 const log = createChildLogger("moderationResponseParser");
 
+// ---------------------------------------------------------------------------
+// JSON extraction (inlined from jsonExtractor.ts)
+// ---------------------------------------------------------------------------
+
 /**
- * Re-export deferral patterns for backward compatibility.
- * See severityDeriver.ts for the full regex definitions.
+ * Helper to extract JSON from a potentially conversational or markdown-wrapped string.
  */
-export {
-  DEFERRAL_ANALYSIS_PATTERN,
-  DEFERRAL_EXCEPTION_PATTERN,
-} from "./severityDeriver.js";
+export function extractJson(content: string): unknown {
+  const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
+  const matches = content.matchAll(codeBlockRegex);
+  for (const match of matches) {
+    const codeContent = match[1].trim();
+    try {
+      const parsed = JSON.parse(codeContent);
+      if (parsed && typeof parsed === "object") {
+        return parsed;
+      }
+    } catch (err) {
+      log.debug(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Failed to parse JSON from code block — trying next block",
+      );
+    }
+  }
+
+  for (let start = 0; start < content.length; start++) {
+    const firstChar = content[start];
+    if (firstChar !== "{" && firstChar !== "[") continue;
+
+    const stack = [firstChar];
+    let inString = false;
+    let escaped = false;
+
+    for (let i = start + 1; i < content.length; i++) {
+      const char = content[i];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (char === "\\") {
+          escaped = true;
+        } else if (char === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (char === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (char === "{" || char === "[") {
+        stack.push(char);
+        continue;
+      }
+
+      const last = stack[stack.length - 1];
+      if ((char === "}" && last === "{") || (char === "]" && last === "[")) {
+        stack.pop();
+        if (stack.length === 0) {
+          const candidate = content.slice(start, i + 1);
+          try {
+            const parsed = JSON.parse(candidate);
+            if (parsed && typeof parsed === "object") {
+              return parsed;
+            }
+          } catch (err) {
+            log.debug(
+              { err: err instanceof Error ? err.message : String(err) },
+              "Failed to parse JSON candidate — trying next position",
+            );
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  throw new Error("No JSON object found in response");
+}
+
+// ---------------------------------------------------------------------------
+// Severity derivation (inlined from severityDeriver.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Enhanced deferral detection pattern (R9).
+ */
+export const DEFERRAL_ANALYSIS_PATTERN =
+  /(?:kurang (?:konteks|bukti|informasi|data) (?:untuk (?:menilai|menentukan|memutuskan)|untuk moderasi)|perlu (?:dicek|diperiksa|ditinjau|dikaji|dievaluasi) (?:oleh )?(?:admin|moderator|manusia|human review)|tidak (?:bisa|dapat|mampu) (?:menentukan|menilai|memastikan|menyimpulkan|memberi keputusan|memoderasi).*(?:karena (?:konteks tidak jelas|informasi tidak cukup|bukti kurang|konteks kurang|tidak cukup konteks)|data tidak cukup|informasi tidak lengkap)|cannot determine|insufficient (?:context|evidence|information) (?:to |for )?(?:moderate|judge|evaluate|decide|classify)|(?:sepertinya|tampaknya) (?:perlu|harus) (?:ditinjau|diperiksa|dicek) (?:oleh )?(?:admin|moderator)|tidak cukup (?:bukti|informasi|konteks) (?:untuk (?:memberikan|membuat|menentukan)|memutuskan))/i;
+
+/**
+ * Exceptions: patterns that look like deferral but are actually decisive.
+ */
+export const DEFERRAL_EXCEPTION_PATTERN =
+  /tidak bisa menentukan.*(?:karena|sebab|dengan alasan|sebab tidak ada).*(?:clean|tidak (?:ada|terdapat|menunjukkan).*(?:pelanggaran|masalah|indikasi|konten)|aman|bersih|normal)/i;
+
+export function hasDeferralAnalysis(analysis: string): boolean {
+  if (DEFERRAL_EXCEPTION_PATTERN.test(analysis)) return false;
+  return DEFERRAL_ANALYSIS_PATTERN.test(analysis);
+}
+
+export function clampScore(value: number | undefined, fallback = 0): number {
+  return Math.max(
+    0,
+    Math.min(1, Number.isFinite(value) ? (value as number) : fallback),
+  );
+}
+
+export function deriveSeverity(
+  status: "clean" | "warn" | "flagged",
+  score: number,
+): z.infer<typeof SeveritySchema> {
+  if (status === "clean") return "none";
+  if (status === "warn") return score >= 0.65 ? "medium" : "low";
+  if (score >= 0.9) return "critical";
+  return score >= 0.75 ? "high" : "medium";
+}
+
+export function deriveRecommendedAction(
+  status: "clean" | "warn" | "flagged",
+  severity: z.infer<typeof SeveritySchema>,
+): z.infer<typeof RecommendedActionSchema> {
+  if (status === "clean") return "none";
+  if (status === "warn") return severity === "medium" ? "review" : "warn";
+  if (severity === "critical") return "escalate";
+  if (severity === "high") return "delete";
+  return "review";
+}
 
 /**
  * Sanitize error messages for client-facing output (R10).

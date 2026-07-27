@@ -12,7 +12,6 @@ const logger = createChildLogger("media-source");
 export interface MediaInfo {
   title: string;
   duration: number;
-  uploader?: string;
   thumbnail?: string;
 }
 
@@ -284,7 +283,7 @@ export function resolveMediaUrl(
 }
 
 /**
- * Extract metadata (title, duration, uploader, thumbnail) from a media URL
+ * Extract metadata (title, duration, thumbnail) from a media URL
  * without downloading the audio stream.
  *
  * Uses `yt-dlp --dump-json` and parses the JSON output.
@@ -356,7 +355,6 @@ export async function extractMediaInfo(url: string): Promise<MediaInfo> {
         resolve({
           title: String(raw.title ?? url),
           duration: typeof raw.duration === "number" ? raw.duration : 0,
-          uploader: String(raw.uploader ?? raw.channel ?? "") || undefined,
           thumbnail: String(raw.thumbnail ?? "") || undefined,
         });
       } catch (parseErr) {

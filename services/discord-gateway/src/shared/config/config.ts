@@ -1,24 +1,13 @@
 import "dotenv/config";
-import type { AppConfig as SharedAppConfig } from "@bete/shared/config";
+import type { AppConfig } from "@bete/shared/config";
 import { loadConfig as sharedLoadConfig } from "@bete/shared/config";
 
-// Re-export the unified config with EFFECTIVE_* fields added
-export type AppConfig = SharedAppConfig & {
-  EFFECTIVE_TEXT_GUILD_ID?: string;
-  EFFECTIVE_VOICE_GUILD_ID?: string;
-  EFFECTIVE_MONITOR_GUILD_IDS: string[];
-};
+// Re-export the unified config — all EFFECTIVE_* fields are already
+// computed by the shared loadConfig().
+export type { AppConfig };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const parsed = sharedLoadConfig(env);
-  return {
-    ...parsed,
-    EFFECTIVE_TEXT_GUILD_ID: parsed.TEXT_GUILD_ID ?? parsed.MONITOR_GUILD_ID,
-    EFFECTIVE_VOICE_GUILD_ID: parsed.VOICE_GUILD_ID,
-    EFFECTIVE_MONITOR_GUILD_IDS:
-      (parsed as any).EFFECTIVE_MONITOR_GUILD_IDS ??
-      (parsed.MONITOR_GUILD_ID ? [parsed.MONITOR_GUILD_ID] : []),
-  };
+  return sharedLoadConfig(env);
 }
 
 export const config = loadConfig();

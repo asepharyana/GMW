@@ -93,3 +93,36 @@ export interface CommandReply<T = unknown> {
   data?: T;
   error?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Discord Redis channel → WebSocket event type mapping (single source of truth)
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps each Discord Redis channel to its corresponding WebSocket event type.
+ * Used by the backend Redis bridge to dispatch events to frontend WS clients.
+ */
+export const DISCORD_CHANNEL_TO_WS_EVENT: Record<string, string> = {
+  [DISCORD_MESSAGE_CREATED]: "message_created",
+  [DISCORD_MESSAGE_UPDATED]: "message_updated",
+  [DISCORD_MESSAGE_DELETED]: "message_deleted",
+  [DISCORD_MESSAGE_ANALYZED]: "message_analyzed",
+  [DISCORD_ATTACHMENT_CREATED]: "attachment_created",
+  [DISCORD_ATTACHMENT_UPLOADED]: "attachment_uploaded",
+  [DISCORD_VOICE_STARTED]: "voice_recording_started",
+  [DISCORD_VOICE_STOPPED]: "voice_recording_stopped",
+  [DISCORD_VOICE_UPLOADED]: "voice_recording_uploaded",
+  [DISCORD_ANALYSIS_QUEUE_STATUS]: "analysis_queue_status",
+  [DISCORD_VOICE_ACTIVE_USER]: "voice_active_user",
+  [DISCORD_VOICE_PCM]: "voice_pcm_data",
+  [DISCORD_VOICE_ANALYZED]: "voice_analyzed",
+  [DISCORD_REACTION_ADDED]: "reaction_added",
+  [DISCORD_REACTION_REMOVED]: "reaction_removed",
+  [DISCORD_THREAD_CREATED]: "thread_created",
+  [DISCORD_THREAD_DELETED]: "thread_deleted",
+  [DISCORD_THREAD_UPDATED]: "thread_updated",
+  [DISCORD_CHANNEL_TOPIC_UPDATED]: "channel_topic_updated",
+  [DISCORD_PRESENCE_UPDATED]: "presence_updated",
+  [DISCORD_GUILD_MEMBER_ADDED]: "guild_member_added",
+  [DISCORD_GUILD_MEMBER_REMOVED]: "guild_member_removed",
+};

@@ -1,67 +1,39 @@
+import {
+  closeDatabase as sharedCloseDb,
+  getDatabase as sharedGetDb,
+  getPool as sharedGetPool,
+  initializeDatabase as sharedInit,
+} from "@bete/shared/database/init";
 import { createChildLogger } from "@bete/shared/logger";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
 import { config } from "../config/index.js";
 
 const logger = createChildLogger("database");
 
-let pool: Pool | null = null;
-let db: ReturnType<typeof drizzle> | null = null;
+const dbConfig = {
+  DATABASE_URL: config.DATABASE_URL,
+  POSTGRES_HOST: config.POSTGRES_HOST as string | undefined,
+  POSTGRES_PORT: config.POSTGRES_PORT,
+  POSTGRES_USER: config.POSTGRES_USER as string | undefined,
+  POSTGRES_PASSWORD: config.POSTGRES_PASSWORD as string | undefined,
+  POSTGRES_DB: config.POSTGRES_DB as string | undefined,
+  POSTGRES_POOL_MIN: config.POSTGRES_POOL_MIN,
+  POSTGRES_POOL_MAX: config.POSTGRES_POOL_MAX,
+};
 
 export async function initializeDatabase() {
-  if (db) {
-    logger.warn("Database already initialized");
-    return db;
-  }
-
-  const databaseUrl =
-    config.DATABASE_URL ||
-    `postgresql://${config.POSTGRES_USER}${config.POSTGRES_PASSWORD ? `:${config.POSTGRES_PASSWORD}` : ""}@${config.POSTGRES_HOST}:${config.POSTGRES_PORT}/${config.POSTGRES_DB}`;
-
-  pool = new Pool({
-    connectionString: databaseUrl,
-  });
-
-  pool.on("error", (err) => {
-    logger.error({ err }, "Unexpected error on idle client");
-  });
-
-  try {
-    const client = await pool.connect();
-    client.release();
-    logger.info("Database connection successful");
-  } catch (err) {
-    logger.error({ err }, "Failed to connect to database");
-    throw err;
-  }
-
-  db = drizzle(pool);
-  return db;
+  logger.info("Initializing database");
+  return sharedInit(dbConfig);
 }
 
 export function getDatabase() {
-  if (!db) {
-    throw new Error(
-      "Database not initialized. Call initializeDatabase() first.",
-    );
-  }
-  return db;
+  return sharedGetDb();
 }
 
 export function getPool() {
-  if (!pool) {
-    throw new Error(
-      "Database not initialized. Call initializeDatabase() first.",
-    );
-  }
-  return pool;
+  return sharedGetPool();
 }
 
 export async function closeDatabase() {
-  if (pool) {
-    await pool.end();
-    pool = null;
-    db = null;
-    logger.info("Database connection closed");
-  }
+  logger.info("Closing database");
+  return sharedCloseDb();
 }

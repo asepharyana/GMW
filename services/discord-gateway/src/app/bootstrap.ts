@@ -19,7 +19,6 @@ import {
   registerMessageCapture,
   setEventBroadcaster as setMessageCaptureEventBroadcaster,
 } from "../modules/message-capture/messageCapture.js";
-import { getExpiredMessages } from "../modules/message-capture/messageStore.js";
 import { registerReactionCapture } from "../modules/reaction-tracking/index.js";
 import { registerThreadCapture } from "../modules/thread-tracking/index.js";
 import { registerPresenceCapture } from "../modules/user-presence/index.js";
@@ -50,6 +49,55 @@ const logger = createChildLogger("discord-gateway");
 
 // ─── Retention Cleanup ─────────────────────────────────────────────────────
 
+async function deleteExpiredRecords(
+  table: any,
+  timestampField: any,
+  days: number | undefined,
+  dryRun: boolean,
+  label: string,
+): Promise<void> {
+  if (!days || days <= 0) {
+    logger.debug({ label }, `Retention disabled for ${label}`);
+    return;
+  }
+
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const db = getDatabase() as unknown as NodePgDatabase<typeof schema>;
+
+  const expired = await db
+    .select({ id: table.id })
+    .from(table)
+    .where(lt(timestampField, cutoff))
+    .limit(1000);
+
+  if (expired.length === 0) {
+    logger.debug({ label }, `No expired ${label} found`);
+    return;
+  }
+
+  logger.info({ count: expired.length, label }, `Found expired ${label}`);
+
+  if (dryRun) {
+    logger.info(
+      { count: expired.length, label },
+      `[DRY RUN] Would delete ${expired.length} ${label}`,
+    );
+    return;
+  }
+
+  try {
+    await db.delete(table).where(
+      inArray(
+        table.id,
+        expired.map((r) => r.id),
+      ),
+    );
+    logger.info({ count: expired.length, label }, `Deleted expired ${label}`);
+  } catch (err) {
+    logger.error({ err, label }, `Failed to delete expired ${label}`);
+  }
+}
+
 function startRetentionCleanup(): void {
   const intervalMs = config.RETENTION_CLEANUP_INTERVAL_MS;
   const dryRun = config.RETENTION_DRY_RUN;
@@ -66,113 +114,27 @@ function startRetentionCleanup(): void {
   );
 
   async function runCleanupTick(): Promise<void> {
-    const db = getDatabase() as unknown as NodePgDatabase<typeof schema>;
-
-    // ── Expired messages ────────────────────────────────────────────────
-    if (config.RETENTION_MESSAGES_DAYS > 0) {
-      try {
-        const expiredMessages = await getExpiredMessages(
-          config.RETENTION_MESSAGES_DAYS,
-        );
-
-        if (expiredMessages.length > 0) {
-          const ids = expiredMessages.map((m: { id: string }) => m.id);
-          logger.info(
-            { count: ids.length, dryRun },
-            "Expired messages found for cleanup",
-          );
-
-          if (!dryRun) {
-            await db
-              .delete(messagesTable)
-              .where(inArray(messagesTable.id, ids));
-            logger.info({ count: ids.length }, "Expired messages deleted");
-          }
-        }
-      } catch (error) {
-        logger.error(
-          {
-            error: error instanceof Error ? error.message : String(error),
-          },
-          "Failed to clean up expired messages",
-        );
-      }
-    }
-
-    // ── Expired attachments ─────────────────────────────────────────────
-    if (config.RETENTION_ATTACHMENTS_DAYS > 0) {
-      try {
-        const cutoff =
-          Date.now() - config.RETENTION_ATTACHMENTS_DAYS * 24 * 60 * 60 * 1000;
-
-        const expiredAttachments = await db
-          .select({ id: attachmentsTable.id })
-          .from(attachmentsTable)
-          .where(lt(attachmentsTable.created_at, cutoff))
-          .limit(1000);
-
-        if (expiredAttachments.length > 0) {
-          const ids = expiredAttachments.map((a: { id: string }) => a.id);
-          logger.info(
-            { count: ids.length, dryRun },
-            "Expired attachments found for cleanup",
-          );
-
-          if (!dryRun) {
-            await db
-              .delete(attachmentsTable)
-              .where(inArray(attachmentsTable.id, ids));
-            logger.info({ count: ids.length }, "Expired attachments deleted");
-          }
-        }
-      } catch (error) {
-        logger.error(
-          {
-            error: error instanceof Error ? error.message : String(error),
-          },
-          "Failed to clean up expired attachments",
-        );
-      }
-    }
-
-    // ── Expired voice recordings ────────────────────────────────────────
-    if (config.RETENTION_VOICE_DAYS > 0) {
-      try {
-        const cutoff =
-          Date.now() - config.RETENTION_VOICE_DAYS * 24 * 60 * 60 * 1000;
-
-        const expiredRecordings = await db
-          .select({ id: voiceRecordingsTable.id })
-          .from(voiceRecordingsTable)
-          .where(lt(voiceRecordingsTable.created_at, cutoff))
-          .limit(1000);
-
-        if (expiredRecordings.length > 0) {
-          const ids = expiredRecordings.map((r: { id: string }) => r.id);
-          logger.info(
-            { count: ids.length, dryRun },
-            "Expired voice recordings found for cleanup",
-          );
-
-          if (!dryRun) {
-            await db
-              .delete(voiceRecordingsTable)
-              .where(inArray(voiceRecordingsTable.id, ids));
-            logger.info(
-              { count: ids.length },
-              "Expired voice recordings deleted",
-            );
-          }
-        }
-      } catch (error) {
-        logger.error(
-          {
-            error: error instanceof Error ? error.message : String(error),
-          },
-          "Failed to clean up expired voice recordings",
-        );
-      }
-    }
+    await deleteExpiredRecords(
+      messagesTable,
+      messagesTable.created_at,
+      config.RETENTION_MESSAGES_DAYS,
+      dryRun,
+      "messages",
+    );
+    await deleteExpiredRecords(
+      attachmentsTable,
+      attachmentsTable.created_at,
+      config.RETENTION_ATTACHMENTS_DAYS,
+      dryRun,
+      "attachments",
+    );
+    await deleteExpiredRecords(
+      voiceRecordingsTable,
+      voiceRecordingsTable.created_at,
+      config.RETENTION_VOICE_DAYS,
+      dryRun,
+      "voice recordings",
+    );
   }
 
   // Run immediately on start, then schedule
@@ -330,12 +292,13 @@ export async function initializeDiscordGateway() {
   startMetricsServer();
 
   logger.info("Calling Discord client.login");
-  client
-    .login(token)
-    .then(() => {
-      logger.info("Discord client.login resolved");
-    })
-    .catch((error: unknown) => {
-      logger.error({ error }, "Discord client.login failed");
-    });
+
+  // Fix: use await + try/catch instead of .then().catch()
+  try {
+    await client.login(token);
+    logger.info("Discord client logged in successfully");
+  } catch (err) {
+    logger.fatal({ err }, "Failed to login Discord client");
+    throw err;
+  }
 }

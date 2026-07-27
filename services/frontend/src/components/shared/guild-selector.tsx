@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { configApi, voiceApi } from "@/lib/api";
-import type { Guild } from "@/lib/types";
+import { useConfig, useGuilds } from "@/hooks";
 
 export interface GuildSelectorProps {
   /** Currently selected guild ID */
@@ -34,51 +33,22 @@ export function GuildSelector({
   onChange,
   autoHide = true,
 }: GuildSelectorProps) {
-  const [guilds, setGuilds] = useState<Guild[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: guilds = [], isLoading, error, refetch } = useGuilds();
+  const { data: config } = useConfig();
 
   const initDone = useRef(false);
 
-  const fetchGuilds = useCallback(() => {
-    setLoading(true);
-    setError(null);
-
-    const tryAutoSelect = (list: Guild[]) => {
-      if (value || list.length === 0 || initDone.current) return;
-      initDone.current = true;
-      // Try config's monitorGuildId first, then fall back to first guild
-      configApi
-        .get()
-        .then((cfg) => {
-          const preferred = cfg.monitorGuildId ?? list[0].id;
-          if (preferred) onChange(preferred);
-        })
-        .catch(() => {
-          onChange(list[0].id);
-        });
-    };
-
-    voiceApi
-      .getGuilds()
-      .then((list) => {
-        setGuilds(list);
-        tryAutoSelect(list);
-      })
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : "Failed to load guilds"),
-      )
-      .finally(() => setLoading(false));
-  }, [value, onChange]);
-
   useEffect(() => {
-    fetchGuilds();
-  }, [fetchGuilds]);
+    if (value || guilds.length === 0 || initDone.current) return;
+    initDone.current = true;
+    const preferred = config?.monitorGuildId ?? guilds[0].id;
+    if (preferred) onChange(preferred);
+  }, [value, guilds, config, onChange]);
 
   // Auto-hide when there's exactly one guild and autoHide is on
-  if (autoHide && guilds.length <= 1 && !loading && !error) return null;
+  if (autoHide && guilds.length <= 1 && !isLoading && !error) return null;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-card p-3">
         <Skeleton className="h-8 w-36" />
@@ -93,10 +63,10 @@ export function GuildSelector({
         <div className="flex items-center gap-2">
           <AlertCircle className="size-4 text-destructive shrink-0" />
           <p className="text-sm text-muted-foreground">
-            Could not load guilds: {error}
+            Could not load guilds: {error?.message ?? "Failed to load"}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchGuilds}>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
           <RefreshCw className="size-3 mr-1" />
           Retry
         </Button>

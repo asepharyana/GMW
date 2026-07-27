@@ -1,67 +1,73 @@
+# ---- Stage 1: Build native deps + TypeScript ----
+FROM node:22-slim AS builder
+
+WORKDIR /app
+
+RUN corepack enable
+
+# Build tools + Rust for native compilation
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    python3 make g++ curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Dependency manifests
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY patches ./patches
+COPY packages/shared/package.json ./packages/shared/package.json
+COPY services/discord-gateway/package.json ./services/discord-gateway/package.json
+
+# Install ALL deps (including devDeps needed for build)
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+
+# Source code
+COPY packages/shared ./packages/shared
+COPY services/discord-gateway ./services/discord-gateway
+COPY services/discord-gateway/drizzle ./drizzle
+
+# Build
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm --filter './packages/shared' run build
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm --filter './services/discord-gateway' run build
+
+# Create production-only deployment (no devDeps)
+RUN pnpm deploy --filter '@bete/discord-gateway' /tmp/deploy \
+    && rm -rf /tmp/deploy/node_modules/.pnpm/@biomejs+biome@* \
+           /tmp/deploy/node_modules/.pnpm/@biomejs+cli-linux-x64@* \
+           /tmp/deploy/node_modules/.pnpm/typescript@* \
+           /tmp/deploy/node_modules/.pnpm/drizzle-kit@* \
+           /tmp/deploy/node_modules/.pnpm/vitest@* \
+           /tmp/deploy/node_modules/.pnpm/esbuild@* \
+           /tmp/deploy/node_modules/.pnpm/tsx@* \
+           /tmp/deploy/node_modules/.pnpm/@types* \
+           /tmp/deploy/node_modules/.pnpm/@rolldown* \
+           /tmp/deploy/node_modules/.pnpm/@vitest*
+
+# ---- Stage 2: Runtime (minimal) ----
 FROM node:22-slim
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
-
-# Create non-root user
-RUN groupadd --system app && useradd --system -g app app
-
-# Install build tools for native dependencies (node-crc, @discordjs/opus)
-# and ffmpeg for voice transmit (PCM to OggOpus encoding)
-# This is done early to cache this expensive layer
+# Runtime system deps only
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    python3 make g++ ffmpeg curl ca-certificates \
+    ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust via rustup (Debian's rustc/cargo is too old for node-crc)
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-ENV PATH="/root/.cargo/bin:${PATH}"
+# Copy production-only artifacts from deploy
+COPY --from=builder /tmp/deploy/node_modules ./node_modules
+COPY --from=builder /tmp/deploy/package.json ./package.json
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/services/discord-gateway/dist ./services/discord-gateway/dist
+COPY --from=builder /app/drizzle ./drizzle
 
-# Copy dependency definition files first for better caching
-COPY pnpm-workspace.yaml .
-COPY pnpm-lock.yaml .
-COPY package.json .
+# Create recordings dir and set ownership
+RUN mkdir -p /app/recordings && chown -R node:node /app
+USER node
 
-# Copy patches (pnpm patchedDependencies)
-COPY patches ./patches
-
-# Copy packages (workspace dependencies)
-COPY packages/shared ./packages/shared
-
-# Copy Drizzle migrations (relative path used by migrator)
-COPY services/discord-gateway/drizzle ./drizzle
-
-# Copy service source (last — changes most often)
-COPY services/discord-gateway ./services/discord-gateway
-
-# Install dependencies with build cache
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
-
-# Build shared workspace dependency first
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm --filter './packages/shared' run build
-
-# Build discord gateway
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm --filter './services/discord-gateway' run build
-
-# Create recordings directory
-RUN mkdir -p /app/recordings
-
-# Own everything by non-root user
-RUN chown -R app:app /app
-
-# Switch to non-root user
-USER app
-
-# Expose no HTTP port (gateway is internal-only)
-
-# Healthcheck — verify PID 1 (node) is still running (no HTTP server in this service)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD sh -c "kill -0 1"
 
-# Start discord gateway
 CMD ["node", "services/discord-gateway/dist/index.js"]

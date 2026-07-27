@@ -1,3 +1,4 @@
+import type { AttachmentRecord, MessageRecord } from "@bete/shared";
 import { type CustomLogger, createChildLogger } from "@bete/shared/logger";
 import Redis from "ioredis";
 import { type DiscordGatewayEvent, EventChannels } from "./eventTypes.js";
@@ -43,7 +44,7 @@ export class EventBroadcaster {
     this.publisher = publisher;
   }
 
-  async messageCreated(data: unknown): Promise<void> {
+  async messageCreated(data: MessageRecord): Promise<void> {
     this.logger.debug({ data }, "Publishing message_created");
     await this.publisher.publish(EventChannels.MESSAGE_CREATED, {
       type: "message_created",
@@ -53,7 +54,9 @@ export class EventBroadcaster {
     });
   }
 
-  async messageUpdated(data: unknown): Promise<void> {
+  async messageUpdated(
+    data: Partial<MessageRecord> & { id: string },
+  ): Promise<void> {
     this.logger.debug({ data }, "Publishing message_updated");
     await this.publisher.publish(EventChannels.MESSAGE_UPDATED, {
       type: "message_updated",
@@ -63,7 +66,10 @@ export class EventBroadcaster {
     });
   }
 
-  async messageDeleted(data: unknown): Promise<void> {
+  async messageDeleted(data: {
+    id: string;
+    deleted_at: number;
+  }): Promise<void> {
     this.logger.debug({ data }, "Publishing message_deleted");
     await this.publisher.publish(EventChannels.MESSAGE_DELETED, {
       type: "message_deleted",
@@ -73,7 +79,7 @@ export class EventBroadcaster {
     });
   }
 
-  async messageAnalyzed(data: unknown): Promise<void> {
+  async messageAnalyzed(data: MessageRecord): Promise<void> {
     this.logger.debug({ data }, "Publishing message_analyzed");
     await this.publisher.publish(EventChannels.MESSAGE_ANALYZED, {
       type: "message_analyzed",
@@ -83,7 +89,7 @@ export class EventBroadcaster {
     });
   }
 
-  async attachmentCreated(data: unknown): Promise<void> {
+  async attachmentCreated(data: AttachmentRecord): Promise<void> {
     this.logger.debug({ data }, "Publishing attachment_created");
     await this.publisher.publish(EventChannels.ATTACHMENT_CREATED, {
       type: "attachment_created",
@@ -93,7 +99,7 @@ export class EventBroadcaster {
     });
   }
 
-  async attachmentUploaded(data: unknown): Promise<void> {
+  async attachmentUploaded(data: AttachmentRecord): Promise<void> {
     this.logger.debug({ data }, "Publishing attachment_uploaded");
     await this.publisher.publish(EventChannels.ATTACHMENT_UPLOADED, {
       type: "attachment_uploaded",
@@ -103,7 +109,7 @@ export class EventBroadcaster {
     });
   }
 
-  async voiceRecordingStarted(data: unknown): Promise<void> {
+  async voiceRecordingStarted(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing voice_recording_started");
     await this.publisher.publish(EventChannels.VOICE_STARTED, {
       type: "voice_recording_started",
@@ -113,7 +119,7 @@ export class EventBroadcaster {
     });
   }
 
-  async voiceRecordingStopped(data: unknown): Promise<void> {
+  async voiceRecordingStopped(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing voice_recording_stopped");
     await this.publisher.publish(EventChannels.VOICE_STOPPED, {
       type: "voice_recording_stopped",
@@ -123,7 +129,7 @@ export class EventBroadcaster {
     });
   }
 
-  async voiceRecordingUploaded(data: unknown): Promise<void> {
+  async voiceRecordingUploaded(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing voice_recording_uploaded");
     await this.publisher.publish(EventChannels.VOICE_UPLOADED, {
       type: "voice_recording_uploaded",
@@ -184,7 +190,7 @@ export class EventBroadcaster {
     });
   }
 
-  async reactionAdded(data: unknown): Promise<void> {
+  async reactionAdded(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing reaction_added");
     await this.publisher.publish(EventChannels.REACTION_ADDED, {
       type: "reaction_added",
@@ -194,7 +200,7 @@ export class EventBroadcaster {
     });
   }
 
-  async reactionRemoved(data: unknown): Promise<void> {
+  async reactionRemoved(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing reaction_removed");
     await this.publisher.publish(EventChannels.REACTION_REMOVED, {
       type: "reaction_removed",
@@ -204,7 +210,7 @@ export class EventBroadcaster {
     });
   }
 
-  async threadCreated(data: unknown): Promise<void> {
+  async threadCreated(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing thread_created");
     await this.publisher.publish(EventChannels.THREAD_CREATED, {
       type: "thread_created",
@@ -214,7 +220,7 @@ export class EventBroadcaster {
     });
   }
 
-  async threadDeleted(data: unknown): Promise<void> {
+  async threadDeleted(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing thread_deleted");
     await this.publisher.publish(EventChannels.THREAD_DELETED, {
       type: "thread_deleted",
@@ -224,7 +230,7 @@ export class EventBroadcaster {
     });
   }
 
-  async threadUpdated(data: unknown): Promise<void> {
+  async threadUpdated(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing thread_updated");
     await this.publisher.publish(EventChannels.THREAD_UPDATED, {
       type: "thread_updated",
@@ -234,7 +240,7 @@ export class EventBroadcaster {
     });
   }
 
-  async channelTopicUpdated(data: unknown): Promise<void> {
+  async channelTopicUpdated(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing channel_topic_updated");
     await this.publisher.publish(EventChannels.CHANNEL_TOPIC_UPDATED, {
       type: "channel_topic_updated",
@@ -244,7 +250,7 @@ export class EventBroadcaster {
     });
   }
 
-  async presenceUpdated(data: unknown): Promise<void> {
+  async presenceUpdated(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing presence_updated");
     await this.publisher.publish(EventChannels.PRESENCE_UPDATED, {
       type: "presence_updated",
@@ -254,7 +260,7 @@ export class EventBroadcaster {
     });
   }
 
-  async guildMemberAdded(data: unknown): Promise<void> {
+  async guildMemberAdded(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing guild_member_added");
     await this.publisher.publish(EventChannels.GUILD_MEMBER_ADDED, {
       type: "guild_member_added",
@@ -264,7 +270,7 @@ export class EventBroadcaster {
     });
   }
 
-  async guildMemberRemoved(data: unknown): Promise<void> {
+  async guildMemberRemoved(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing guild_member_removed");
     await this.publisher.publish(EventChannels.GUILD_MEMBER_REMOVED, {
       type: "guild_member_removed",
@@ -274,7 +280,7 @@ export class EventBroadcaster {
     });
   }
 
-  async voiceAnalyzed(data: unknown): Promise<void> {
+  async voiceAnalyzed(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing voice_analyzed");
     await this.publisher.publish(EventChannels.VOICE_ANALYZED, {
       type: "voice_analyzed",
@@ -284,7 +290,7 @@ export class EventBroadcaster {
     });
   }
 
-  async analysisQueueStatus(data: unknown): Promise<void> {
+  async analysisQueueStatus(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing analysis_queue_status");
     await this.publisher.publish(EventChannels.ANALYSIS_QUEUE_STATUS, {
       type: "analysis_queue_status",

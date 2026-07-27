@@ -1,7 +1,7 @@
 import type { CommandMessage, CommandReply } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import type { Client } from "discord.js-selfbot-v13";
-import { createModerationAction } from "../message-capture/messageStore.js";
+import { messageStore } from "../message-capture/messageStore.js";
 
 // ---------------------------------------------------------------------------
 // ModerationHandler
@@ -92,7 +92,7 @@ export class ModerationHandler {
         }
       }
 
-      const action = await createModerationAction({
+      const action = await messageStore.createModerationAction({
         message_id: payload.message_id,
         user_id: payload.user_id,
         guild_id: payload.guild_id,

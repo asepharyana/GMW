@@ -1,16 +1,23 @@
-import { createChildLogger } from "@bete/shared/logger";
-import { getPool } from "../../shared/database/index.js";
+import {
+  pgChannelCulturesTable,
+  pgMessagesTable,
+  pgUserProfilesTable,
+  pgUserReputationsTable,
+  pgVoiceRecordingsTable,
+} from "@bete/shared";
+import type { SQL } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import { getDatabase } from "../../shared/database/index.js";
 import type { ListUsersQuery } from "./dashboard.service.js";
-
-const _logger = createChildLogger("dashboard.repository");
 
 export class DashboardRepository {
   async getStats() {
-    const pool = getPool();
+    const db = getDatabase();
+
+    const oneDayAgo = Date.now() - 86400000;
 
     // Total messages and breakdown by ai_status
-    const msgResult = await pool.query(
-      `
+    const msgResult = await db.execute(sql`
       SELECT
         COUNT(*)::int AS total_messages,
         COUNT(*) FILTER (WHERE ai_status = 'flagged')::int AS total_flagged,
@@ -20,32 +27,30 @@ export class DashboardRepository {
         COUNT(*) FILTER (WHERE ai_status = 'pending')::int AS total_pending,
         COUNT(*) FILTER (WHERE ai_status = 'processing')::int AS total_processing,
         COUNT(DISTINCT user_id)::int AS total_users,
-        COUNT(*) FILTER (WHERE created_at >= $1)::int AS today_messages,
-        COUNT(*) FILTER (WHERE ai_status = 'flagged' AND created_at >= $1)::int AS today_flagged,
-        COUNT(DISTINCT user_id) FILTER (WHERE created_at >= $2)::int AS active_users_24h
-      FROM messages
-    `,
-      [Date.now() - 86400000, Date.now() - 86400000],
-    );
+        COUNT(*) FILTER (WHERE created_at >= ${oneDayAgo})::int AS today_messages,
+        COUNT(*) FILTER (WHERE ai_status = 'flagged' AND created_at >= ${oneDayAgo})::int AS today_flagged,
+        COUNT(DISTINCT user_id) FILTER (WHERE created_at >= ${oneDayAgo})::int AS active_users_24h
+      FROM ${pgMessagesTable}
+    `);
 
-    const msgRow = msgResult.rows[0];
+    const msgRow = msgResult.rows[0] as Record<string, unknown> | undefined;
 
     // Total voice recordings
-    const voiceResult = await pool.query(`
-      SELECT COUNT(*)::int AS count FROM voice_recordings
+    const voiceResult = await db.execute(sql`
+      SELECT COUNT(*)::int AS count FROM ${pgVoiceRecordingsTable}
     `);
 
     // Total AI user profiles
-    const profileResult = await pool.query(`
-      SELECT COUNT(*)::int AS count FROM user_profiles
+    const profileResult = await db.execute(sql`
+      SELECT COUNT(*)::int AS count FROM ${pgUserProfilesTable}
     `);
 
     // Top channels by message count
-    const topChannels = await pool.query(`
+    const topChannels = await db.execute(sql`
       SELECT channel_id,
              COALESCE(NULLIF((metadata::jsonb -> 'channel' ->> 'channelName'), ''), channel_id) AS channel_name,
              COUNT(*)::int AS message_count
-      FROM messages
+      FROM ${pgMessagesTable}
       WHERE metadata IS NOT NULL AND metadata != ''
       GROUP BY channel_id, (metadata::jsonb -> 'channel' ->> 'channelName')
       ORDER BY COUNT(*) DESC
@@ -78,31 +83,26 @@ export class DashboardRepository {
   }
 
   async listUsers(query: ListUsersQuery) {
-    const pool = getPool();
+    const db = getDatabase();
     const limit = query.limit ?? 20;
-    const conditions: string[] = [];
-    const params: unknown[] = [];
-    let paramIdx = 1;
+    const conditions: SQL[] = [];
 
     if (query.search) {
       conditions.push(
-        `(m.user_id ILIKE $${paramIdx} OR m.username ILIKE $${paramIdx})`,
+        sql`(m.user_id ILIKE ${`%${query.search}%`} OR m.username ILIKE ${`%${query.search}%`})`,
       );
-      params.push(`%${query.search}%`);
-      paramIdx++;
     }
 
     if (query.cursor) {
-      conditions.push(`m.last_message_at < $${paramIdx}`);
-      params.push(Number(query.cursor));
-      paramIdx++;
+      conditions.push(sql`m.last_message_at < ${Number(query.cursor)}`);
     }
 
     const whereClause =
-      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      conditions.length > 0
+        ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
+        : sql``;
 
-    const { rows } = await pool.query(
-      `
+    const { rows } = await db.execute(sql`
       SELECT
         m.user_id,
         m.username,
@@ -120,17 +120,15 @@ export class DashboardRepository {
           COUNT(*)::int AS total_messages,
           COUNT(*) FILTER (WHERE ai_status = 'flagged')::int AS flagged_count,
           MAX(created_at) AS last_message_at
-        FROM messages
+        FROM ${pgMessagesTable}
         GROUP BY user_id, username, avatar_url
       ) m
-      LEFT JOIN user_profiles p ON p.user_id = m.user_id
-      LEFT JOIN user_reputations r ON r.user_id = m.user_id
+      LEFT JOIN ${pgUserProfilesTable} p ON p.user_id = m.user_id
+      LEFT JOIN ${pgUserReputationsTable} r ON r.user_id = m.user_id
       ${whereClause}
       ORDER BY m.last_message_at DESC NULLS LAST
-      LIMIT $${paramIdx}
-      `,
-      [...params, limit + 1],
-    );
+      LIMIT ${limit + 1}
+    `);
 
     const data = (rows as Record<string, unknown>[])
       .slice(0, limit)
@@ -158,31 +156,26 @@ export class DashboardRepository {
   }
 
   async listChannels(query: ListUsersQuery & { guildId?: string }) {
-    const pool = getPool();
+    const db = getDatabase();
     const limit = query.limit ?? 20;
-    const conditions: string[] = [];
-    const params: unknown[] = [];
-    let paramIdx = 1;
+    const conditions: SQL[] = [];
 
     if (query.search) {
       conditions.push(
-        `(m.channel_id ILIKE $${paramIdx} OR m.channel_name ILIKE $${paramIdx})`,
+        sql`(m.channel_id ILIKE ${`%${query.search}%`} OR m.channel_name ILIKE ${`%${query.search}%`})`,
       );
-      params.push(`%${query.search}%`);
-      paramIdx++;
     }
 
     if (query.guildId) {
-      conditions.push(`m.guild_id = $${paramIdx}`);
-      params.push(query.guildId);
-      paramIdx++;
+      conditions.push(sql`m.guild_id = ${query.guildId}`);
     }
 
     const whereClause =
-      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      conditions.length > 0
+        ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
+        : sql``;
 
-    const { rows } = await pool.query(
-      `
+    const { rows } = await db.execute(sql`
       SELECT
         m.channel_id,
         m.channel_name,
@@ -200,16 +193,14 @@ export class DashboardRepository {
           COUNT(*)::int AS total_messages,
           COUNT(*) FILTER (WHERE ai_status = 'flagged')::int AS flagged_count,
           MAX(created_at) AS last_message_at
-        FROM messages
+        FROM ${pgMessagesTable}
         GROUP BY channel_id, guild_id, (metadata::jsonb -> 'channel' ->> 'channelName')
       ) m
-      LEFT JOIN channel_cultures c ON c.channel_id = m.channel_id
+      LEFT JOIN ${pgChannelCulturesTable} c ON c.channel_id = m.channel_id
       ${whereClause}
       ORDER BY m.total_messages DESC
-      LIMIT $${paramIdx}
-      `,
-      [...params, limit + 1],
-    );
+      LIMIT ${limit + 1}
+    `);
 
     const data = ((rows as Record<string, unknown>[]) || [])
       .slice(0, limit)
@@ -234,10 +225,9 @@ export class DashboardRepository {
   }
 
   async getChannelDetail(channelId: string) {
-    const pool = getPool();
+    const db = getDatabase();
 
-    const channelResult = await pool.query(
-      `
+    const channelResult = await db.execute(sql`
       SELECT
         m.channel_id,
         m.channel_name,
@@ -255,28 +245,23 @@ export class DashboardRepository {
           COUNT(*)::int AS total_messages,
           COUNT(*) FILTER (WHERE ai_status = 'flagged')::int AS flagged_count,
           COUNT(*) FILTER (WHERE ai_status = 'clean')::int AS clean_count
-        FROM messages
-        WHERE channel_id = $1
+        FROM ${pgMessagesTable}
+        WHERE channel_id = ${channelId}
         GROUP BY channel_id, guild_id, (metadata::jsonb -> 'channel' ->> 'channelName')
       ) m
-      LEFT JOIN channel_cultures c ON c.channel_id = m.channel_id
-      `,
-      [channelId],
-    );
+      LEFT JOIN ${pgChannelCulturesTable} c ON c.channel_id = m.channel_id
+    `);
 
     const row = channelResult.rows[0] as Record<string, unknown> | undefined;
     if (!row) return null;
 
-    const recent = await pool.query(
-      `
+    const recent = await db.execute(sql`
       SELECT id, content, channel_id, created_at, ai_status, username
-      FROM messages
-      WHERE channel_id = $1
+      FROM ${pgMessagesTable}
+      WHERE channel_id = ${channelId}
       ORDER BY created_at DESC
       LIMIT 20
-      `,
-      [channelId],
-    );
+    `);
 
     return {
       channel_id: String(row.channel_id),
@@ -301,11 +286,9 @@ export class DashboardRepository {
   }
 
   async getUserDetail(userId: string) {
-    const pool = getPool();
+    const db = getDatabase();
 
-    // Basic user info + profile + reputation
-    const userResult = await pool.query(
-      `
+    const userResult = await db.execute(sql`
       SELECT
         m.user_id,
         m.username,
@@ -326,32 +309,26 @@ export class DashboardRepository {
           COUNT(*)::int AS total_messages,
           COUNT(*) FILTER (WHERE ai_status = 'flagged')::int AS flagged_count,
           COUNT(*) FILTER (WHERE ai_status = 'clean')::int AS clean_count
-        FROM messages
-        WHERE user_id = $1
+        FROM ${pgMessagesTable}
+        WHERE user_id = ${userId}
         GROUP BY user_id, username, avatar_url
       ) m
-      LEFT JOIN user_profiles p ON p.user_id = m.user_id
-      LEFT JOIN user_reputations r ON r.user_id = m.user_id
-      `,
-      [userId],
-    );
+      LEFT JOIN ${pgUserProfilesTable} p ON p.user_id = m.user_id
+      LEFT JOIN ${pgUserReputationsTable} r ON r.user_id = m.user_id
+    `);
 
     const row = userResult.rows[0] as Record<string, unknown> | undefined;
     if (!row) {
       return null;
     }
 
-    // Recent messages
-    const recent = await pool.query(
-      `
+    const recent = await db.execute(sql`
       SELECT id, content, channel_id, created_at, ai_status
-      FROM messages
-      WHERE user_id = $1
+      FROM ${pgMessagesTable}
+      WHERE user_id = ${userId}
       ORDER BY created_at DESC
       LIMIT 20
-      `,
-      [userId],
-    );
+    `);
 
     return {
       user_id: String(row.user_id),
@@ -364,13 +341,13 @@ export class DashboardRepository {
       last_analyzed_at: row.last_analyzed_at
         ? Number(row.last_analyzed_at)
         : null,
-      trust_score: row.trust_score !== null ? Number(row.trust_score) : null,
+      trust_score: row.trust_score != null ? Number(row.trust_score) : null,
       clean_message_streak:
-        row.clean_message_streak !== null
+        row.clean_message_streak != null
           ? Number(row.clean_message_streak)
           : null,
       total_infractions:
-        row.total_infractions !== null ? Number(row.total_infractions) : null,
+        row.total_infractions != null ? Number(row.total_infractions) : null,
       recent_messages: (recent.rows as Record<string, unknown>[]).map((r) => ({
         id: String(r.id),
         content: String(r.content),

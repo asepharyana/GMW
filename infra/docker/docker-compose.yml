@@ -1,10 +1,8 @@
 version: '3.8'
 
 services:
-  # Nginx Reverse Proxy + Frontend Static Files
-  # Routes /api and /ws to backend, serves frontend WASM directly
   proxy:
-    image: registry.gitlab.com/mytheclipse-group/gmw/bete-proxy:${IMAGE_TAG:-latest}
+    image: ${REGISTRY}/mytheclipse/gmw/bete-proxy:${IMAGE_TAG:-latest}
     container_name: imphenbot-proxy
     restart: unless-stopped
     labels:
@@ -20,10 +18,6 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-    volumes:
-      # Bind mount for hot-deploy frontend — deploy.sh writes here,
-      # survives container restart. The image default serves as fallback.
-      - ./frontend-dist:/usr/share/nginx/html
     deploy:
       resources:
         limits:
@@ -31,9 +25,8 @@ services:
     networks:
       - app-shared-net
 
-  # Backend Service (REST API + WebSocket)
   backend:
-    image: registry.gitlab.com/mytheclipse-group/gmw/bete-backend:${IMAGE_TAG:-latest}
+    image: ${REGISTRY}/mytheclipse/gmw/bete-backend:${IMAGE_TAG:-latest}
     container_name: imphenbot-backend
     restart: unless-stopped
     env_file:
@@ -41,10 +34,6 @@ services:
     environment:
       NODE_ENV: production
       WEBSERVER_PORT: 3000
-    volumes:
-      # Bind mount for hot-deploy backend JS — deploy.sh writes here,
-      # survives container restart.
-      - ./backend-dist:/app/services/backend/dist
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
       interval: 30s
@@ -58,9 +47,8 @@ services:
     networks:
       - app-shared-net
 
-  # Discord Gateway Service (Event capture and processing — no HTTP)
   discord-gateway:
-    image: registry.gitlab.com/mytheclipse-group/gmw/bete-discord-gateway:${IMAGE_TAG:-latest}
+    image: ${REGISTRY}/mytheclipse/gmw/bete-discord-gateway:${IMAGE_TAG:-latest}
     container_name: imphenbot-discord-gateway
     restart: unless-stopped
     env_file:
@@ -68,10 +56,7 @@ services:
     environment:
       NODE_ENV: production
     volumes:
-      - ./recordings:/app/recordings
-      # Bind mount for hot-deploy gateway JS — deploy.sh writes here,
-      # survives container restart.
-      - ./gateway-dist:/app/services/discord-gateway/dist
+      - recordings:/app/recordings
     healthcheck:
       test: ["CMD-SHELL", "kill -0 1 || exit 1"]
       interval: 30s
@@ -84,6 +69,9 @@ services:
           memory: 512M
     networks:
       - app-shared-net
+
+volumes:
+  recordings:
 
 networks:
   app-shared-net:

@@ -26,7 +26,7 @@ export function LoadingSkeleton({
     <div
       className={cn(
         "grid gap-3",
-        columns > 1 ? `grid-cols-1 md:grid-cols-${columns}` : "grid-cols-1",
+        columns > 1 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1",
         className,
       )}
     >

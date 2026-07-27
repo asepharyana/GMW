@@ -18,6 +18,11 @@ let redis: Redis | null = null;
  */
 export function initSearxngCache(redisUrl: string): void {
   if (redis) return;
+  // Dedicated Redis connection needed because: this connection serves as an
+  // optional cache for SearXNG web search results with graceful degradation
+  // when Redis is unavailable (lazyConnect + null-assignment on failure).
+  // It uses custom retry strategy and must not block or break the main event
+  // pipeline if the cache is down.
   redis = new Redis(redisUrl, {
     maxRetriesPerRequest: 3,
     retryStrategy(times) {

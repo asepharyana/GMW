@@ -9,10 +9,45 @@
 import { createChildLogger } from "@bete/shared/logger";
 import { retryWithBackoff } from "@bete/shared/utils";
 import OpenAI from "openai";
+import pLimit from "p-limit";
 import { config } from "../../shared/config/config.js";
-import { withLlmConcurrency } from "./concurrencyLimiter.js";
 
 const log = createChildLogger("llm-client");
+
+// ---------------------------------------------------------------------------
+// Concurrency limiter for LLM API calls (inlined from concurrencyLimiter.ts)
+// ---------------------------------------------------------------------------
+
+const llmSemaphore = pLimit(config.AI_LLM_MAX_CONCURRENT ?? 5);
+
+let activeCount = 0;
+let pendingCount = 0;
+
+export async function withLlmConcurrency<T>(fn: () => Promise<T>): Promise<T> {
+  pendingCount++;
+  log.debug(
+    { activeCount, pendingCount, maxConcurrent: config.AI_LLM_MAX_CONCURRENT },
+    "Queuing LLM request",
+  );
+
+  return llmSemaphore(async () => {
+    pendingCount--;
+    activeCount++;
+
+    if (activeCount >= (config.AI_LLM_MAX_CONCURRENT ?? 5)) {
+      log.warn(
+        { activeCount, maxConcurrent: config.AI_LLM_MAX_CONCURRENT },
+        "LLM concurrency limit reached",
+      );
+    }
+
+    try {
+      return await fn();
+    } finally {
+      activeCount--;
+    }
+  });
+}
 
 /**
  * Covers all LLM response chunk shapes the streaming handler supports.

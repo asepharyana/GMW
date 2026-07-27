@@ -10,14 +10,7 @@ import {
   getMessageMetadata,
   isAgeRestrictedMessage,
 } from "../message-capture/messageMetadata.js";
-import {
-  getMessageById,
-  insertAttachment,
-  insertMessageEdit,
-  updateMessageAsDeleted,
-  updateMessageAsEdited,
-  upsertMessageForCapture,
-} from "../message-capture/messageStore.js";
+import { messageStore } from "../message-capture/messageStore.js";
 import type {
   AttachmentRecord,
   MessageRecord,
@@ -41,21 +34,8 @@ export interface MessageLocationInput {
   channelId?: string | null;
 }
 
-const EXCLUDED_CHANNEL_IDS = new Set([
-  "1310988070996414494",
-  "1265679542144467035",
-  "1310867899745046558",
-  "1323365288447574128",
-  "1508059937031589949",
-]);
-
-/**
- * Threads whose messages should be entirely ignored.
- * Useful when a bot or selfbot is spamming inside a thread and
- * you only want to ignore that one conversation, not the whole
- * parent channel.
- */
-const EXCLUDED_THREAD_IDS = new Set(["1522077685508083893"]);
+const EXCLUDED_CHANNEL_IDS = new Set(config.EXCLUDED_CHANNEL_IDS);
+const EXCLUDED_THREAD_IDS = new Set(config.EXCLUDED_THREAD_IDS);
 
 function isExcludedThread(message: {
   channel?: { isThread?: () => boolean; id?: string };
@@ -101,7 +81,7 @@ function getTextCaptureTarget(): TextCaptureTarget {
 }
 
 function getTextCaptureTargets(): TextCaptureTarget[] {
-  const { EFFECTIVE_MONITOR_GUILD_IDS, TEXT_CHANNEL_ID } = config as any;
+  const { EFFECTIVE_MONITOR_GUILD_IDS, TEXT_CHANNEL_ID } = config;
   if (EFFECTIVE_MONITOR_GUILD_IDS?.length) {
     if (TEXT_CHANNEL_ID) {
       return EFFECTIVE_MONITOR_GUILD_IDS.map((guildId: string) => ({
@@ -219,7 +199,7 @@ export async function captureMessage(
   const location = getMessageLocation(message);
   const messageRecord = buildMessageRecord(message, type);
 
-  const inserted = await upsertMessageForCapture(messageRecord);
+  const inserted = await messageStore.upsertMessageForCapture(messageRecord);
   if (!inserted) {
     return;
   }
@@ -242,7 +222,7 @@ export async function captureMessage(
         url: attachment.url,
       });
 
-      await insertAttachment(attachmentRecord);
+      await messageStore.insertAttachment(attachmentRecord);
 
       if (!isBacklog) {
         attachmentUploadTasks.push(
@@ -284,12 +264,7 @@ export async function captureMessage(
     queueMessageAnalysis(message.id);
 
     if (attachmentUploadTasks.length > 0) {
-      Promise.allSettled(attachmentUploadTasks).catch((err: unknown) => {
-        logger.error(
-          { messageId: message.id, error: err },
-          "Attachment upload tasks failed",
-        );
-      });
+      await Promise.allSettled(attachmentUploadTasks);
     }
   }
 }
@@ -323,7 +298,7 @@ export function registerMessageCapture(client: Client): void {
     if (isExcludedThread(newMessage)) return;
 
     try {
-      const existing = await getMessageById(newMessage.id);
+      const existing = await messageStore.getMessageById(newMessage.id);
 
       if (existing) {
         const newContent = getDisplayContent(newMessage as Message);
@@ -346,17 +321,17 @@ export function registerMessageCapture(client: Client): void {
 
         // Save edit history snapshot before overwriting
         if (oldContent) {
-          insertMessageEdit(newMessage.id, oldContent, editedAt).catch(
-            (err: unknown) => {
+          messageStore
+            .insertMessageEdit(newMessage.id, oldContent, editedAt)
+            .catch((err: unknown) => {
               logger.error(
                 { messageId: newMessage.id, error: err },
                 "Failed to save edit history",
               );
-            },
-          );
+            });
         }
 
-        await updateMessageAsEdited(
+        await messageStore.updateMessageAsEdited(
           newMessage.id,
           getDisplayContent(newMessage as Message),
           editedAt,
@@ -391,7 +366,7 @@ export function registerMessageCapture(client: Client): void {
 
     try {
       const deletedAt = Date.now();
-      await updateMessageAsDeleted(message.id, deletedAt);
+      await messageStore.updateMessageAsDeleted(message.id, deletedAt);
 
       if (_eventBroadcaster) {
         _eventBroadcaster.messageDeleted({

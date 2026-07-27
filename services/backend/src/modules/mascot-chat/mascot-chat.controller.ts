@@ -11,8 +11,12 @@ interface AuthenticatedRequest extends Request {
 
 export const handleMascotChat = asyncHandler(
   async (req: Request, res: Response) => {
-    const { message, context } = req.body;
+    const { message, context } = req.body as {
+      message: string;
+      context?: Record<string, unknown>;
+    };
 
+    // Validate required fields
     if (!message || typeof message !== "string") {
       return res.status(400).json({
         error: "INVALID_INPUT",

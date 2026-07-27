@@ -1,5 +1,7 @@
+import { pgMessagesTable } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
-import { getPool } from "../../shared/database/index.js";
+import { and, desc, eq, ilike, type SQL } from "drizzle-orm";
+import { getDatabase } from "../../shared/database/index.js";
 import {
   type MappedMessage,
   mapMessageRow,
@@ -19,44 +21,27 @@ export type AnalysisSearchResult = MappedMessage;
 
 export class AnalysisRepository {
   async search(query: AnalysisSearchQuery): Promise<AnalysisSearchResult[]> {
-    const pool = getPool();
+    const db = getDatabase();
     const { q = "", channelId, guildId, limit = 20 } = query;
 
     logger.debug({ q, channelId, guildId, limit }, "Searching analysis");
 
-    const searchPattern = `%${q}%`;
-    const clauses: string[] = ["content ILIKE $1"];
-    const params: (string | number)[] = [searchPattern];
-    let p = 2;
+    const conditions: SQL[] = [ilike(pgMessagesTable.content, `%${q}%`)];
 
     if (guildId) {
-      clauses.push(`guild_id = $${p}`);
-      params.push(guildId);
-      p++;
+      conditions.push(eq(pgMessagesTable.guild_id, guildId));
     }
 
     if (channelId) {
-      clauses.push(`channel_id = $${p}`);
-      params.push(channelId);
-      p++;
+      conditions.push(eq(pgMessagesTable.channel_id, channelId));
     }
 
-    const where = clauses.join(" AND ");
-    const { rows } = await pool.query(
-      `SELECT
-        id, guild_id, channel_id, thread_id,
-        user_id, username, avatar_url,
-        content, edited_content, created_at, edited_at, deleted_at,
-        type, metadata,
-        ai_status, ai_moderation_flags, ai_moderation_score,
-        ai_analysis, ai_categories, ai_severity, ai_confidence,
-        ai_recommended_action, ai_analyzed_at, ai_error
-      FROM messages
-      WHERE ${where}
-      ORDER BY created_at DESC
-      LIMIT $${p}`,
-      [...params, limit],
-    );
+    const rows = await db
+      .select()
+      .from(pgMessagesTable)
+      .where(and(...conditions))
+      .orderBy(desc(pgMessagesTable.created_at))
+      .limit(limit);
 
     return rows.map((r) => mapMessageRow(r as Record<string, unknown>));
   }

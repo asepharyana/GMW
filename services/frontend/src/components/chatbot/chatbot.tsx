@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bot,
   Loader2,
@@ -30,16 +31,28 @@ export function Chatbot() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatHistoryMessage[]>([]);
   const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const qc = useQueryClient();
+
+  const { data: historyMessages = [] } = useQuery({
+    queryKey: ["chatbot-history"],
+    queryFn: () => chatbotApi.getHistory(),
+    enabled: open,
+  });
 
   useEffect(() => {
-    if (!open) return;
-    chatbotApi
-      .getHistory()
-      .then(setMessages)
-      .catch(() => {});
-  }, [open]);
+    if (historyMessages.length > 0) setMessages(historyMessages);
+  }, [historyMessages]);
+
+  const sendMut = useMutation({
+    mutationFn: (text: string) => chatbotApi.send(text),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chatbot-history"] }),
+  });
+
+  const clearMut = useMutation({
+    mutationFn: () => chatbotApi.clearHistory(),
+    onSuccess: () => qc.setQueryData(["chatbot-history"], []),
+  });
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -47,18 +60,13 @@ export function Chatbot() {
     }
   }, []);
 
-  const handleClear = useCallback(async () => {
-    try {
-      await chatbotApi.clearHistory();
-      setMessages([]);
-    } catch (err) {
-      console.error("chatbot/clearHistory:", err);
-    }
-  }, []);
+  const handleClear = useCallback(() => {
+    clearMut.mutate();
+    setMessages([]);
+  }, [clearMut]);
 
   const handleSend = useCallback(async () => {
-    if (!input.trim() || sending) return;
-    setSending(true);
+    if (!input.trim() || sendMut.isPending) return;
     const text = input.trim();
     setInput("");
 
@@ -69,7 +77,7 @@ export function Chatbot() {
     ]);
 
     try {
-      const resp = await chatbotApi.send(text);
+      const resp = await sendMut.mutateAsync(text);
       setMessages((prev) => [
         ...prev,
         {
@@ -78,8 +86,7 @@ export function Chatbot() {
           timestamp: resp.timestamp,
         },
       ]);
-    } catch (err) {
-      console.error("chatbot/send:", err);
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
@@ -88,10 +95,8 @@ export function Chatbot() {
           timestamp: new Date().toISOString(),
         },
       ]);
-    } finally {
-      setSending(false);
     }
-  }, [input, sending]);
+  }, [input, sendMut]);
 
   return (
     <>
@@ -170,7 +175,7 @@ export function Chatbot() {
                     </div>
                   </div>
                 ))}
-                {sending && (
+                {sendMut.isPending && (
                   <div className="flex items-start gap-2">
                     <Avatar className="size-6 shrink-0">
                       <AvatarFallback className="text-[10px] bg-muted">
@@ -199,15 +204,15 @@ export function Chatbot() {
                 placeholder="Ask the mascot…"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                disabled={sending}
+                disabled={sendMut.isPending}
                 className="h-8 flex-1"
               />
               <Button
                 type="submit"
                 size="icon-sm"
-                disabled={!input.trim() || sending}
+                disabled={!input.trim() || sendMut.isPending}
               >
-                {sending ? (
+                {sendMut.isPending ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <Send className="size-4" />

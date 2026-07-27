@@ -6,17 +6,16 @@ import express, {
   type Response,
 } from "express";
 import helmet from "helmet";
-import { createAnalysisRouter } from "../modules/analysis/analysis.routes.js";
-import { createConfigRouter } from "../modules/config/config.routes.js";
-import { createDashboardRouter } from "../modules/dashboard/dashboard.routes.js";
-import { createHealthRouter } from "../modules/health/health.routes.js";
-import { createMascotChatRouter } from "../modules/mascot-chat/mascot-chat.routes.js";
-import { createMediaRouter } from "../modules/media/media.routes.js";
-import { createMessagesRouter } from "../modules/messages/messages.routes.js";
-import { createRecordingsRouter } from "../modules/recordings/recordings.routes.js";
-import { createUiStateRouter } from "../modules/ui-state/ui-state.routes.js";
-import { createGuildsRouter } from "../modules/voice/guilds.routes.js";
-import { createVoiceRouter } from "../modules/voice/voice.routes.js";
+import { createAnalysisRouter } from "../modules/analysis/index.js";
+import { createConfigRouter } from "../modules/config/index.js";
+import { createDashboardRouter } from "../modules/dashboard/index.js";
+import { createHealthRouter } from "../modules/health/index.js";
+import { createMascotChatRouter } from "../modules/mascot-chat/index.js";
+import { createMediaRouter } from "../modules/media/index.js";
+import { createMessagesRouter } from "../modules/messages/index.js";
+import { createRecordingsRouter } from "../modules/recordings/index.js";
+import { createUiStateRouter } from "../modules/ui-state/index.js";
+import { createVoiceRouter } from "../modules/voice/index.js";
 import { errorHandler } from "../shared/middlewares/index.js";
 
 // Auth removed — dashboard is public
@@ -68,8 +67,6 @@ export function createHttpApp(): Express {
   app.use("/api", createMascotChatRouter());
   app.use("/api", createRecordingsRouter());
   app.use("/api", createUiStateRouter());
-  app.use("/api/guilds", createGuildsRouter());
-
   app.use("/api", createMediaRouter());
   app.use("/api", createVoiceRouter());
 

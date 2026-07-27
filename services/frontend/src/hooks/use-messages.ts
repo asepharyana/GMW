@@ -1,16 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 
 import { messagesApi, voiceApi } from "@/lib/api";
 import type { AttachmentRecord, Channel, MessageRecord } from "@/lib/types";
-import type { WsEventType } from "@/lib/ws/types";
-
-type WsHook = {
-  on: <E extends WsEventType>(
-    eventType: E,
-    handler: (data: unknown) => void,
-  ) => () => void;
-};
+import type { WsHook } from "@/lib/ws-hook";
 
 // ── Query keys factory ───────────────────────────
 
@@ -98,16 +91,6 @@ export function useTextChannels(guildId: string) {
   });
 }
 
-// ── Search ───────────────────────────────────────
-
-export function useSearch() {
-  return useQuery<MessageRecord[]>({
-    queryKey: ["messages-search"],
-    queryFn: () => Promise.resolve([]),
-    enabled: false,
-  });
-}
-
 // ── Images ───────────────────────────────────────
 
 export function useImages(guildId: string) {
@@ -164,7 +147,7 @@ export function useMessageDetail(id: string | null) {
 // ── Mutations ────────────────────────────────────
 
 export function useReanalyze() {
-  const qc = useQueryClient();
+  const _qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => messagesApi.reanalyze(id),
   });

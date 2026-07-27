@@ -4,10 +4,17 @@ import {
   foreignKey as pgForeignKey,
   index as pgIndex,
   integer as pgInteger,
+  jsonb as pgJsonb,
   real as pgReal,
   pgTable,
   text as pgText,
+  timestamp as pgTimestamp,
+  uuid as pgUuid,
 } from "drizzle-orm/pg-core";
+
+// =============================================================================
+// Messages
+// =============================================================================
 
 /**
  * Messages Table (PostgreSQL)
@@ -101,36 +108,7 @@ export const pgMessagesTable = pgTable(
   }),
 );
 
-/**
- * Corrected Moderations Table (PostgreSQL)
- * Stores manual corrections of AI moderation false positives
- * for few-shot injection into LLM moderation prompts.
- */
-export const pgCorrectedModerationsTable = pgTable(
-  "corrected_moderations",
-  {
-    id: pgText("id").primaryKey(),
-    message_id: pgText("message_id").notNull(),
-    original_flags: pgText("original_flags").notNull(),
-    corrected_flags: pgText("corrected_flags").notNull(),
-    correction_notes: pgText("correction_notes"),
-    content_snippet: pgText("content_snippet").notNull(),
-    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
-  },
-  (table) => ({
-    createdAtIdx: pgIndex("idx_corrected_moderations_created_at").on(
-      table.created_at,
-    ),
-    messageIdx: pgIndex("idx_corrected_moderations_message_id").on(
-      table.message_id,
-    ),
-  }),
-);
-
-export type CorrectedModeration =
-  typeof pgCorrectedModerationsTable.$inferSelect;
-export type CorrectedModerationInsert =
-  typeof pgCorrectedModerationsTable.$inferInsert;
+export const messagesTable = pgMessagesTable;
 
 /**
  * Attachments Table (PostgreSQL)
@@ -180,3 +158,439 @@ export const pgAttachmentsTable = pgTable(
     }).onDelete("cascade"),
   }),
 );
+
+export const attachmentsTable = pgAttachmentsTable;
+
+/**
+ * Message Reviews Table (PostgreSQL)
+ * Tracks manual reviews of messages flagged by AI moderation
+ */
+export const pgMessageReviewsTable = pgTable(
+  "message_reviews",
+  {
+    id: pgText("id").primaryKey(),
+    message_id: pgText("message_id").notNull(),
+    guild_id: pgText("guild_id").notNull(),
+    channel_id: pgText("channel_id").notNull(),
+    reviewer_id: pgText("reviewer_id"),
+    status: pgText("status", {
+      enum: ["pending", "approved", "rejected", "escalated"],
+    })
+      .notNull()
+      .default("pending"),
+    notes: pgText("notes"),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+    reviewed_at: pgBigint("reviewed_at", { mode: "number" }),
+  },
+  (table) => ({
+    messageIdIdx: pgIndex("idx_message_reviews_message_id").on(
+      table.message_id,
+    ),
+    statusIdx: pgIndex("idx_message_reviews_status").on(table.status),
+    createdAtIdx: pgIndex("idx_message_reviews_created_at").on(
+      table.created_at,
+    ),
+    guildStatusIdx: pgIndex("idx_message_reviews_guild_status").on(
+      table.guild_id,
+      table.status,
+      table.created_at,
+    ),
+  }),
+);
+
+export const messageReviewsTable = pgMessageReviewsTable;
+
+// =============================================================================
+// Moderation / Corrections
+// =============================================================================
+
+/**
+ * Corrected Moderations Table (PostgreSQL)
+ * Stores manual corrections of AI moderation false positives
+ * for few-shot injection into LLM moderation prompts.
+ */
+export const pgCorrectedModerationsTable = pgTable(
+  "corrected_moderations",
+  {
+    id: pgText("id").primaryKey(),
+    message_id: pgText("message_id").notNull(),
+    original_flags: pgText("original_flags").notNull(),
+    corrected_flags: pgText("corrected_flags").notNull(),
+    correction_notes: pgText("correction_notes"),
+    content_snippet: pgText("content_snippet").notNull(),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    createdAtIdx: pgIndex("idx_corrected_moderations_created_at").on(
+      table.created_at,
+    ),
+    messageIdIdx: pgIndex("idx_corrected_moderations_message_id").on(
+      table.message_id,
+    ),
+  }),
+);
+
+export const correctedModerationsTable = pgCorrectedModerationsTable;
+
+// =============================================================================
+// Voice Recordings
+// =============================================================================
+
+/**
+ * Voice Recordings Table (PostgreSQL)
+ * Stores voice recording segment metadata and upload status
+ */
+export const pgVoiceRecordingsTable = pgTable(
+  "voice_recordings",
+  {
+    id: pgText("id").primaryKey(),
+    user_id: pgText("user_id").notNull(),
+    username: pgText("username").notNull(),
+    avatar_url: pgText("avatar_url"),
+    guild_id: pgText("guild_id"),
+    channel_id: pgText("channel_id"),
+    channel_name: pgText("channel_name"),
+    filename: pgText("filename").notNull(),
+    size_bytes: pgInteger("size_bytes").notNull(),
+    download_url: pgText("download_url"),
+    upload_status: pgText("upload_status", {
+      enum: ["pending", "uploaded", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    upload_error: pgText("upload_error"),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+    uploaded_at: pgBigint("uploaded_at", { mode: "number" }),
+    transcription: pgText("transcription"),
+  },
+  (table) => ({
+    userIdIdx: pgIndex("idx_voice_recordings_user_id").on(table.user_id),
+    channelIdIdx: pgIndex("idx_voice_recordings_channel_id").on(
+      table.channel_id,
+    ),
+    createdIdx: pgIndex("idx_voice_recordings_created_at").on(table.created_at),
+  }),
+);
+
+export const voiceRecordingsTable = pgVoiceRecordingsTable;
+
+// =============================================================================
+// AI Analysis / Analytics
+// =============================================================================
+
+/**
+ * AI Analysis Runs Table (PostgreSQL)
+ * Tracks AI analysis batch runs for conversation-level moderation
+ */
+export const pgAIAnalysisRunsTable = pgTable(
+  "ai_analysis_runs",
+  {
+    id: pgText("id").primaryKey(),
+    conversation_key: pgText("conversation_key").notNull(),
+    target_message_ids: pgText("target_message_ids").notNull(),
+    model: pgText("model").notNull(),
+    request_tokens_estimate: pgInteger("request_tokens_estimate"),
+    response_raw: pgText("response_raw"),
+    status: pgText("status", {
+      enum: ["pending", "processing", "completed", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    error: pgText("error"),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+    completed_at: pgBigint("completed_at", { mode: "number" }),
+  },
+  (table) => ({
+    conversationKeyIdx: pgIndex("idx_ai_analysis_runs_conversation_key").on(
+      table.conversation_key,
+    ),
+    statusIdx: pgIndex("idx_ai_analysis_runs_status").on(table.status),
+    createdAtIdx: pgIndex("idx_ai_analysis_runs_created_at").on(
+      table.created_at,
+    ),
+  }),
+);
+
+export const aiAnalysisRunsTable = pgAIAnalysisRunsTable;
+
+/**
+ * User Profiles Table (PostgreSQL)
+ * Stores AI-generated summaries of user behavior patterns.
+ */
+export const pgUserProfilesTable = pgTable(
+  "user_profiles",
+  {
+    user_id: pgText("user_id").primaryKey(),
+    guild_id: pgText("guild_id").notNull(),
+    profile_summary: pgText("profile_summary").notNull(),
+    last_analyzed_at: pgBigint("last_analyzed_at", {
+      mode: "number",
+    }).notNull(),
+  },
+  (table) => ({
+    guildIdx: pgIndex("idx_user_profiles_guild_id").on(table.guild_id),
+  }),
+);
+
+export const userProfilesTable = pgUserProfilesTable;
+
+/**
+ * User Reputations Table (PostgreSQL)
+ * Tracks user trust score and infractions to provide context to AI.
+ */
+export const pgUserReputationsTable = pgTable(
+  "user_reputations",
+  {
+    user_id: pgText("user_id").primaryKey(),
+    guild_id: pgText("guild_id").notNull(),
+    trust_score: pgInteger("trust_score").notNull().default(50),
+    clean_message_streak: pgInteger("clean_message_streak")
+      .notNull()
+      .default(0),
+    total_infractions: pgInteger("total_infractions").notNull().default(0),
+    last_infraction_at: pgBigint("last_infraction_at", { mode: "number" }),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+    updated_at: pgBigint("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    guildIdx: pgIndex("idx_user_reputations_guild_id").on(table.guild_id),
+    scoreIdx: pgIndex("idx_user_reputations_trust_score").on(table.trust_score),
+  }),
+);
+
+export const userReputationsTable = pgUserReputationsTable;
+
+/**
+ * Channel Cultures Table (PostgreSQL)
+ * Stores AI-generated summaries of channel norms and slang to inject as context.
+ */
+export const pgChannelCulturesTable = pgTable(
+  "channel_cultures",
+  {
+    channel_id: pgText("channel_id").primaryKey(),
+    guild_id: pgText("guild_id").notNull(),
+    culture_summary: pgText("culture_summary").notNull(),
+    last_analyzed_at: pgBigint("last_analyzed_at", {
+      mode: "number",
+    }).notNull(),
+  },
+  (table) => ({
+    guildIdx: pgIndex("idx_channel_cultures_guild_id").on(table.guild_id),
+  }),
+);
+
+export const channelCulturesTable = pgChannelCulturesTable;
+
+// =============================================================================
+// Cache (text analysis + stickers)
+// =============================================================================
+
+/**
+ * Text Analysis Cache Table (PostgreSQL)
+ * Caches per-normalized-text moderation analysis results.
+ */
+export const pgTextAnalysisCacheTable = pgTable(
+  "text_analysis_cache",
+  {
+    text: pgText("text").primaryKey(),
+    flags: pgText("flags").notNull().default("[]"),
+    source: pgText("source", {
+      enum: ["local", "primary_ai", "vision_llm"],
+    })
+      .notNull()
+      .default("local"),
+    analyzed_at: pgBigint("analyzed_at", { mode: "number" }).notNull(),
+    expires_at: pgBigint("expires_at", { mode: "number" }).notNull(),
+    hit_count: pgInteger("hit_count").notNull().default(0),
+  },
+  (table) => ({
+    expiresAtIdx: pgIndex("idx_text_analysis_cache_expires_at").on(
+      table.expires_at,
+    ),
+    sourceIdx: pgIndex("idx_text_analysis_cache_source").on(table.source),
+  }),
+);
+
+export const textAnalysisCacheTable = pgTextAnalysisCacheTable;
+
+/**
+ * Sticker Cache Table (PostgreSQL)
+ * Stores uploaded sticker image URLs for vision analysis.
+ */
+export const pgStickerCacheTable = pgTable(
+  "sticker_cache",
+  {
+    name: pgText("name").primaryKey(),
+    imageUrl: pgText("image_url").notNull().default(""),
+    mime_type: pgText("mime_type").notNull(),
+    fetched_at: pgBigint("fetched_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    fetchedAtIdx: pgIndex("idx_sticker_cache_fetched_at").on(table.fetched_at),
+  }),
+);
+
+export const stickerCacheTable = pgStickerCacheTable;
+
+// =============================================================================
+// Meta / System
+// =============================================================================
+
+/**
+ * Muxer Jobs Table (PostgreSQL)
+ * Tracks audio post-processing jobs with status and retry logic
+ */
+export const pgMuxerJobsTable = pgTable(
+  "muxer_jobs",
+  {
+    id: pgText("id").primaryKey(),
+    data: pgText("data").notNull(),
+    status: pgText("status", {
+      enum: ["pending", "processing", "completed", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    attempts: pgInteger("attempts").notNull().default(0),
+    maxAttempts: pgInteger("maxAttempts").notNull().default(3),
+    createdAt: pgBigint("createdAt", { mode: "number" }).notNull(),
+    updatedAt: pgBigint("updatedAt", { mode: "number" }).notNull(),
+    error: pgText("error"),
+  },
+  (table) => ({
+    statusIdx: pgIndex("idx_muxer_jobs_status").on(table.status),
+    createdAtIdx: pgIndex("idx_muxer_jobs_createdAt").on(table.createdAt),
+  }),
+);
+
+export const muxerJobsTable = pgMuxerJobsTable;
+
+/**
+ * UI State Table (PostgreSQL)
+ * Stores persistent UI state (e.g., selected channel, filter preferences)
+ */
+export const pgUIStateTable = pgTable("ui_state", {
+  key: pgText("key").primaryKey(),
+  value: pgText("value").notNull(),
+  updated_at: pgBigint("updated_at", { mode: "number" }).notNull(),
+});
+
+export const uiStateTable = pgUIStateTable;
+
+/**
+ * Retention Policies Table (PostgreSQL)
+ * Defines data retention rules per guild/channel
+ */
+export const pgRetentionPoliciesTable = pgTable(
+  "retention_policies",
+  {
+    id: pgText("id").primaryKey(),
+    guild_id: pgText("guild_id").notNull(),
+    channel_id: pgText("channel_id"),
+    retention_days: pgInteger("retention_days").notNull().default(90),
+    apply_to_media: pgBoolean("apply_to_media").notNull().default(true),
+    apply_to_voice: pgBoolean("apply_to_voice").notNull().default(true),
+    enabled: pgBoolean("enabled").notNull().default(true),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+    updated_at: pgBigint("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    guildIdIdx: pgIndex("idx_retention_policies_guild_id").on(table.guild_id),
+    enabledIdx: pgIndex("idx_retention_policies_enabled").on(table.enabled),
+  }),
+);
+
+export const retentionPoliciesTable = pgRetentionPoliciesTable;
+
+/**
+ * Mascot Chat Messages Table (PostgreSQL)
+ * Stores AI mascot chat conversation history
+ */
+export const pgMascotChatMessagesTable = pgTable(
+  "mascot_chat_messages",
+  {
+    id: pgUuid("id").defaultRandom().primaryKey(),
+    user_id: pgText("user_id").notNull(),
+    user_message: pgText("user_message").notNull(),
+    mascot_response: pgText("mascot_response").notNull(),
+    context: pgJsonb("context").notNull().default("{}"),
+    created_at: pgTimestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    userCreatedIdx: pgIndex("idx_mascot_chat_messages_user_created").on(
+      table.user_id,
+      table.created_at.desc(),
+    ),
+  }),
+);
+
+export const mascotChatMessagesTable = pgMascotChatMessagesTable;
+
+// =============================================================================
+// Type Exports
+// =============================================================================
+
+// Messages
+export type Message = typeof messagesTable.$inferSelect;
+export type MessageInsert = typeof messagesTable.$inferInsert;
+
+// Attachments
+export type Attachment = typeof attachmentsTable.$inferSelect;
+export type AttachmentInsert = typeof attachmentsTable.$inferInsert;
+
+// Message Reviews
+export type DbMessageReview = typeof messageReviewsTable.$inferSelect;
+export type DbMessageReviewInsert = typeof messageReviewsTable.$inferInsert;
+
+// Corrected Moderations
+export type CorrectedModeration = typeof correctedModerationsTable.$inferSelect;
+export type CorrectedModerationInsert =
+  typeof correctedModerationsTable.$inferInsert;
+
+// Voice Recordings
+export type VoiceRecording = typeof voiceRecordingsTable.$inferSelect;
+export type VoiceRecordingInsert = typeof voiceRecordingsTable.$inferInsert;
+
+// AI Analysis Runs
+export type AIAnalysisRun = typeof aiAnalysisRunsTable.$inferSelect;
+export type AIAnalysisRunInsert = typeof aiAnalysisRunsTable.$inferInsert;
+
+// User Profiles
+export type UserProfile = typeof userProfilesTable.$inferSelect;
+export type UserProfileInsert = typeof userProfilesTable.$inferInsert;
+
+// User Reputations
+export type UserReputation = typeof userReputationsTable.$inferSelect;
+export type UserReputationInsert = typeof userReputationsTable.$inferInsert;
+
+// Channel Cultures
+export type ChannelCulture = typeof channelCulturesTable.$inferSelect;
+export type ChannelCultureInsert = typeof channelCulturesTable.$inferInsert;
+
+// Text Analysis Cache
+export type TextAnalysisCache = typeof textAnalysisCacheTable.$inferSelect;
+export type TextAnalysisCacheInsert =
+  typeof textAnalysisCacheTable.$inferInsert;
+
+// Sticker Cache
+export type StickerCacheRecord = typeof stickerCacheTable.$inferSelect;
+export type StickerCacheInsert = typeof stickerCacheTable.$inferInsert;
+
+// Muxer Jobs
+export type MuxerJob = typeof muxerJobsTable.$inferSelect;
+export type MuxerJobInsert = typeof muxerJobsTable.$inferInsert;
+
+// UI State
+export type UIState = typeof uiStateTable.$inferSelect;
+export type UIStateInsert = typeof uiStateTable.$inferInsert;
+
+// Retention Policies
+export type DbRetentionPolicy = typeof retentionPoliciesTable.$inferSelect;
+export type DbRetentionPolicyInsert =
+  typeof retentionPoliciesTable.$inferInsert;
+
+// Mascot Chat Messages
+export type MascotChatMessage = typeof mascotChatMessagesTable.$inferSelect;
+export type MascotChatMessageInsert =
+  typeof mascotChatMessagesTable.$inferInsert;

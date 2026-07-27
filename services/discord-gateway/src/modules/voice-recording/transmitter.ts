@@ -221,7 +221,11 @@ export class VoiceTransmitter {
 
       if (this.redisSub) {
         await this.redisSub.unsubscribe(this.TRANSMIT_CHANNEL);
-        this.redisSub.quit().catch(() => {});
+        this.redisSub
+          .quit()
+          .catch((err) =>
+            logger.warn({ err }, "Failed to quit Redis subscriber"),
+          );
         this.redisSub = null;
       }
 

@@ -1,7 +1,7 @@
 import { createChildLogger } from "@bete/shared/logger";
 import type { Request, Response, Router } from "express";
 import express from "express";
-import { asyncHandler } from "../../shared/middlewares/index.js";
+import { asyncHandler, validateBody } from "../../shared/middlewares/index.js";
 import {
   handleGetAttachmentsByChannel,
   handleGetImageMessages,
@@ -9,6 +9,7 @@ import {
   handleGetMessagesByChannel,
   handleListMessages,
 } from "./messages.controller.js";
+import { reanalyzeBatchSchema } from "./messages.schema.js";
 import { messagesService } from "./messages.service.js";
 
 const logger = createChildLogger("messages.routes");
@@ -55,8 +56,9 @@ export function createMessagesRouter(): Router {
   // is not captured as an :id param.
   router.post(
     "/messages/reanalyze-batch",
+    validateBody(reanalyzeBatchSchema),
     asyncHandler(async (req: Request, res: Response) => {
-      const { guildId, channelId, messageIds } = (req.body ?? {}) as {
+      const { guildId, channelId, messageIds } = req.body as {
         guildId?: string;
         channelId?: string;
         messageIds?: string[];

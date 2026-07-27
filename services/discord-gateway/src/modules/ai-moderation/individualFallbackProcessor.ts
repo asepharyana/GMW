@@ -1,19 +1,18 @@
 import { createChildLogger } from "@bete/shared/logger";
 import { LRUCache } from "lru-cache";
 import { config } from "../../shared/config/config.js";
-import { updateMessagesAIAnalysisBulk } from "../message-capture/messageStore.js";
+import { messageStore } from "../message-capture/messageStore.js";
 import type {
   AnalysisResult,
   MessageRecord,
 } from "../message-capture/types.js";
+import { getConversationKey, workerPool } from "./circuitBreaker.js";
+import { fireAlert } from "./conversationState.js";
 import {
   broadcastAnalysisCompleted,
-  fireAlert,
-  getConversationKey,
   LAST_ERROR,
   scheduleAutoDelete,
-  workerPool,
-} from "./circuitBreaker.js";
+} from "./moderationState.js";
 import { logModerationError } from "./responseLogger.js";
 
 const logger = createChildLogger("individual-fallback");
@@ -149,7 +148,7 @@ async function processIndividualFallback(
       },
     }));
 
-    const rows = await updateMessagesAIAnalysisBulk(updates);
+    const rows = await messageStore.updateMessagesAIAnalysisBulk(updates);
     for (const row of rows) {
       broadcastAnalysisCompleted(row);
       scheduleAutoDelete(row);
@@ -225,29 +224,31 @@ async function processIndividualFallback(
     );
 
     if (exhaustedOnIncomplete) {
-      await updateMessagesAIAnalysisBulk([
-        {
-          messageId,
-          result: {
-            status: "error",
-            flags: JSON.stringify(["individual_analysis_exhausted"]),
-            score: 0,
-            analysis:
-              "Individual fallback exhausted all retries: LLM consistently dropped this message even in single-target mode",
-            categories: ["individual_analysis_exhausted"],
-            severity: "none",
-            confidence: 0,
-            recommendedAction: "review",
-            analyzedAt: Date.now(),
-            error: LAST_ERROR.value,
+      await messageStore
+        .updateMessagesAIAnalysisBulk([
+          {
+            messageId,
+            result: {
+              status: "error",
+              flags: JSON.stringify(["individual_analysis_exhausted"]),
+              score: 0,
+              analysis:
+                "Individual fallback exhausted all retries: LLM consistently dropped this message even in single-target mode",
+              categories: ["individual_analysis_exhausted"],
+              severity: "none",
+              confidence: 0,
+              recommendedAction: "review",
+              analyzedAt: Date.now(),
+              error: LAST_ERROR.value,
+            },
           },
-        },
-      ]).catch((dbErr: unknown) => {
-        logger.error(
-          { messageId, error: String(dbErr) },
-          "Failed to write terminal exhausted status",
-        );
-      });
+        ])
+        .catch((dbErr: unknown) => {
+          logger.error(
+            { messageId, error: String(dbErr) },
+            "Failed to write terminal exhausted status",
+          );
+        });
       logger.warn(
         { messageId },
         "Individual fallback exhausted -- marked as individual_analysis_exhausted",
@@ -284,11 +285,10 @@ async function processIndividualFallback(
 /**
  * Fans out message records to the individual fallback queue.
  *
- * FIX #1: Checks concurrency cap before admitting new work.
- * FIX #5: Checks individual circuit breaker before admitting new work.
+ * Checks concurrency cap and circuit breaker before admitting new work.
  */
 export function enqueueIndividualFallbacks(messages: MessageRecord[]): void {
-  // FIX #5: Honour the individual circuit breaker.
+  // Honour the individual circuit breaker.
   if (Date.now() < individualCooldownUntil) {
     logger.warn(
       {
@@ -300,7 +300,6 @@ export function enqueueIndividualFallbacks(messages: MessageRecord[]): void {
     return;
   }
 
-  // FIX #5: Enforce concurrency cap
   const maxConcurrent = config.AI_ANALYSIS_INDIVIDUAL_MAX_CONCURRENT ?? 50;
   const availableSlots = Math.max(0, maxConcurrent - activeIndividualRequests);
   if (availableSlots <= 0) {

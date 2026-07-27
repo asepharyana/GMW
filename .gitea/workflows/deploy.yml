@@ -1,82 +1,71 @@
-name: Deploy to VPS
+name: Build & Deploy
+run-name: "Build & Deploy ${{ github.sha }}"
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        service: [backend, discord-gateway, proxy]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install system dependencies
+      - name: Setup
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            build-essential \
-            ca-certificates \
-            curl \
-            libssl-dev \
-            pkg-config \
-            python3
+          set -eu
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends ca-certificates git docker.io
+          git config --global http.sslVerify false
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+      - name: Checkout
+        run: |
+          cd /tmp
+          git clone --depth 1 https://MythEclipse:${{ secrets.REGISTRY_TOKEN }}@git.imrnes.team/MythEclipse/GMW.git repo
+          cd /tmp/repo
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.1.3
-          run_install: false
+      - name: Docker Login
+        run: |
+          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ${{ vars.REGISTRY }} -u MythEclipse --password-stdin
 
-      - name: Set up Rust (for node-crc native build)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Lint
-        run: pnpm run lint
-
-      - name: Build shared package
-        run: pnpm --filter './packages/shared' run build
-
-      - name: Build backend
-        run: pnpm run build:backend
-
-      - name: Build discord gateway
-        run: pnpm run build:discord-gateway
-
-      - name: Build frontend
-        run: pnpm run build:web
-
-      - name: Prepare production environment file
+      - name: Build & Push ${{ matrix.service }}
         env:
-          PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
+          DOCKER_BUILDKIT: "1"
         run: |
-          umask 077
-          printf '%s\n' "$PRODUCTION_ENV" | tr -d '\r' > .env
-          chmod 600 .env
+          cd /tmp/repo
+          IMG=${{ vars.REGISTRY }}/mytheclipse/gmw/bete-${{ matrix.service }}
+          docker build \
+            --file infra/docker/Dockerfile.${{ matrix.service }} \
+            --tag $IMG:${{ github.sha }} \
+            --tag $IMG:latest \
+            --build-arg VITE_BE_API_URL=https://imphnen.asepharyana.my.id \
+            --build-arg VITE_BE_WS_URL=wss://imphnen.asepharyana.my.id \
+            .
+          docker push $IMG:${{ github.sha }}
+          docker push $IMG:latest
 
-      - name: Prepare SSH key
-        env:
-          VPS_SSH_KEY_CONTENT: ${{ secrets.VPS_SSH_KEY }}
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Install SSH
         run: |
-          umask 077
-          key_file="${RUNNER_TEMP:-/tmp}/bete-vps-key"
-          printf '%s\n' "$VPS_SSH_KEY_CONTENT" > "$key_file"
-          chmod 600 "$key_file"
-          echo "VPS_SSH_KEY=$key_file" >> "$GITHUB_ENV"
-
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends openssh-client ca-certificates
       - name: Deploy
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-        run: ./deploy.sh --no-build
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -eu
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ENV_B64=$(echo "$ENV_FILE" | base64 -w0)
+          ssh -o StrictHostKeyChecking=accept-new \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "cd /opt/imphenbot/infra/docker && echo '$ENV_B64' | base64 -d > .env && docker compose pull && docker compose up -d --remove-orphans && docker image prune -f"

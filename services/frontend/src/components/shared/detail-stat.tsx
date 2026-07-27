@@ -9,6 +9,12 @@ interface DetailStatProps {
   suffix?: string;
 }
 
+const valueColor = {
+  default: "",
+  danger: "text-red-400",
+  success: "text-emerald-400",
+};
+
 /**
  * Small stat label used inside detail views.
  */
@@ -19,15 +25,13 @@ export function DetailStat({
   suffix,
 }: DetailStatProps) {
   return (
-    <Card>
+    <Card className="bg-gradient-to-br from-cyan-500/5 to-transparent border-cyan-500/10">
       <CardContent className="p-3">
-        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground/70 tracking-wide">
+          {label}
+        </p>
         <p
-          className={cn(
-            "text-lg font-bold tabular-nums",
-            variant === "danger" && "text-destructive",
-            variant === "success" && "text-green-500",
-          )}
+          className={cn("text-lg font-bold tabular-nums", valueColor[variant])}
         >
           {formatNumber(value)}
           {suffix}
