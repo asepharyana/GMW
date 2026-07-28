@@ -27,11 +27,12 @@ COPY packages/shared ./packages/shared
 COPY services/discord-gateway ./services/discord-gateway
 COPY services/discord-gateway/drizzle ./drizzle
 
-# Build
+# Build (combined to reduce layers)
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm --filter './packages/shared' run build
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm --filter './services/discord-gateway' run build
+    pnpm --filter './packages/shared' run build \
+    && pnpm --filter './services/discord-gateway' run build \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create production-only deployment (no devDeps)
 RUN pnpm deploy --legacy --filter '@bete/discord-gateway' /tmp/deploy \
