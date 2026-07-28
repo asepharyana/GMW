@@ -1,26 +1,25 @@
+"use client";
+
 import type { LucideIcon } from "lucide-react";
+import { Inbox } from "lucide-react";
+import { GlassPanel } from "@/components/glass/panel";
 
 interface EmptyStateProps {
-  icon: LucideIcon;
-  title: string;
+  icon?: LucideIcon;
+  title?: string;
   description?: string;
 }
 
-/**
- * Consistent empty state for data-fetching pages.
- */
 export function EmptyState({
-  icon: Icon,
-  title,
-  description,
+  icon: Icon = Inbox,
+  title = "No data yet",
+  description = "Nothing to display here yet.",
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <Icon className="size-10 text-muted-foreground/40 mb-3" />
-      <p className="text-sm text-muted-foreground">{title}</p>
-      {description && (
-        <p className="text-xs text-muted-foreground/60 mt-1">{description}</p>
-      )}
-    </div>
+    <GlassPanel dense className="flex flex-col items-center gap-2 py-12">
+      <Icon className="size-8 text-text-secondary/20" />
+      <p className="text-sm text-text-secondary/60">{title}</p>
+      <p className="text-xs text-text-secondary/40">{description}</p>
+    </GlassPanel>
   );
 }

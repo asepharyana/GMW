@@ -1,38 +1,43 @@
-import { Skeleton } from "@/components/ui/skeleton";
+"use client";
+
 import { cn } from "@/lib/utils";
 
 interface LoadingSkeletonProps {
-  /** Number of skeleton rows */
   count?: number;
-  /** Height per skeleton row */
   height?: string;
-  /** Grid layout: columns */
+  width?: string;
   columns?: number;
-  /** Additional classes */
   className?: string;
 }
 
-/**
- * Consistent loading skeleton for data-fetching pages.
- * Renders a grid of skeleton placeholders.
- */
 export function LoadingSkeleton({
   count = 4,
-  height = "h-28",
-  columns = 1,
+  height = "h-24",
+  width,
+  columns,
   className,
 }: LoadingSkeletonProps) {
-  return (
+  const items = Array.from({ length: count }, (_, i) => (
     <div
+      key={i}
       className={cn(
-        "grid gap-3",
-        columns > 1 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1",
+        "glass rounded-[var(--radius-card)] overflow-hidden",
+        height,
+        width,
         className,
       )}
     >
-      {Array.from({ length: count }, (_, i) => (
-        <Skeleton key={i} className={cn(height, "rounded-xl")} />
-      ))}
+      <div className="w-full h-full animate-shimmer" />
     </div>
-  );
+  ));
+
+  if (columns) {
+    return (
+      <div className={`grid grid-cols-1 md:grid-cols-${columns} gap-3`}>
+        {items}
+      </div>
+    );
+  }
+
+  return <div className="space-y-2">{items}</div>;
 }
