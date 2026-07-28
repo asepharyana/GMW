@@ -64,4 +64,4 @@ jobs:
           ENV_B64=$(echo "$ENV_FILE" | base64 -w0)
           ssh -o StrictHostKeyChecking=accept-new \
             "$VPS_USER@$VPS_HOST" \
-            "cd /opt/imphenbot/infra/docker && echo '$ENV_B64' | base64 -d > .env && docker compose pull && docker compose down --remove-orphans && docker compose up -d --remove-orphans && docker image prune -f"
+            "cd /opt/imphenbot/infra/docker && echo '$ENV_B64' | base64 -d > .env && docker compose pull && docker compose down --remove-orphans && docker rm -f imphenbot-discord-gateway imphenbot-backend imphenbot-proxy 2>/dev/null; docker compose up -d --remove-orphans && docker image prune -f"
