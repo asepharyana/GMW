@@ -56,11 +56,20 @@ export function SpeakerWaveform({ speakers }: SpeakerWaveformProps) {
       <div className="space-y-1">
         {speakers.map((s) => (
           <div key={s.userId} className="flex items-center gap-2 text-xs">
-            <span className={s.speaking ? "text-primary font-medium" : "text-text-secondary/60"}>{s.username}</span>
+            <span
+              className={s.speaking ? "text-primary font-medium" : "text-text-secondary/60"}
+            >
+              {s.username}
+            </span>
           </div>
         ))}
       </div>
-      <canvas ref={canvasRef} width={400} height={speakers.length * 30} className="w-full h-auto mt-2 rounded" />
+      <canvas
+        ref={canvasRef}
+        width={400}
+        height={speakers.length * 30}
+        className="w-full h-auto mt-2 rounded"
+      />
     </GlassPanel>
   );
 }

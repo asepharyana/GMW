@@ -1,31 +1,53 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { MessageCard } from "./message-card";
+import { Button } from "@/components/ui/button";
 import type { MessageRecord } from "@/lib/types";
 
 interface MessageListProps {
   messages: MessageRecord[];
-  selectedId?: string | null;
+  selectedId: string | null;
   onSelect: (id: string) => void;
+  onReanalyze?: (id: string) => void;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
 }
 
-export function MessageList({ messages, selectedId, onSelect }: MessageListProps) {
+export function MessageList({
+  messages,
+  selectedId: _selectedId,
+  onSelect,
+  onReanalyze,
+  hasMore,
+  onLoadMore,
+  isLoadingMore,
+}: MessageListProps) {
   return (
-    <div className="space-y-1.5 overflow-y-auto max-h-[calc(100vh-200px)] pr-1">
-      {messages.length === 0 ? (
-        <div className="flex items-center justify-center py-12 text-text-secondary/40 text-sm">
-          No messages
+    <>
+      {messages.map((msg) => (
+        <MessageCard
+          key={msg.id}
+          message={msg}
+          onClick={onSelect}
+          onReanalyze={(id) => onReanalyze?.(id)}
+        />
+      ))}
+      {hasMore && (
+        <div className="flex justify-center py-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+            className="text-xs glass"
+          >
+            {isLoadingMore && <Loader2 className="size-3 animate-spin mr-1" />}
+            Load more
+          </Button>
         </div>
-      ) : (
-        messages.map((msg) => (
-          <MessageCard
-            key={msg.id}
-            message={msg}
-            selected={selectedId === msg.id}
-            onClick={onSelect}
-          />
-        ))
       )}
-    </div>
+    </>
   );
 }

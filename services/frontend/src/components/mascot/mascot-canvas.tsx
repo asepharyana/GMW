@@ -112,6 +112,11 @@ export function MascotCanvas() {
       ctx.arc(w / 2, 75, 6, 0.1, Math.PI - 0.1);
       ctx.stroke();
     }
+
+    // Breathing animation — subtle canvas shift
+    const breath = Math.sin(Date.now() / 1000) * 1.5;
+    // Applied via CSS transform on container instead
+
   }, [expression]);
 
   return (

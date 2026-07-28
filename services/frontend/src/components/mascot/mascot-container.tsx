@@ -1,28 +1,38 @@
 "use client";
 
-import { MessageCircle, X, Minimize2, Maximize2 } from "lucide-react";
+import { useRef, useState, useCallback, useEffect } from "react";
+import { Bot, MessageCircle, Minimize2 } from "lucide-react";
 import { useMascot } from "./mascot-context";
 import { MascotCanvas } from "./mascot-canvas";
 import { ChatPanel } from "./chat-panel";
-import { useState } from "react";
 
 export function MascotContainer() {
   const { minimized, setMinimized, chatOpen, setChatOpen } = useMascot();
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setDragging(true);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
-  };
+  }, [position]);
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragging) return;
     setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
-  };
+  }, [dragging, dragStart]);
 
-  const handleMouseUp = () => setDragging(false);
+  const handleMouseUp = useCallback(() => setDragging(false), []);
+
+  // Focus input when chat opens
+  useEffect(() => {
+    if (chatOpen) {
+      // Small delay for the animation
+      const id = setTimeout(() => inputRef.current?.focus(), 150);
+      return () => clearTimeout(id);
+    }
+  }, [chatOpen]);
 
   return (
     <div
@@ -35,9 +45,9 @@ export function MascotContainer() {
       {/* Main mascot bubble */}
       <div
         className={`glass-intense rounded-2xl overflow-hidden transition-all duration-200 ${
-          minimized ? "w-16 h-16 cursor-pointer" : "w-[200px]"
+          minimized ? "w-14 h-14 cursor-pointer" : "w-[220px]"
         }`}
-        style={{ height: minimized ? 64 : 280 }}
+        style={{ height: minimized ? 56 : 320 }}
       >
         {minimized ? (
           <button
@@ -45,8 +55,9 @@ export function MascotContainer() {
             onClick={() => setMinimized(false)}
             className="w-full h-full flex items-center justify-center"
             onMouseDown={handleMouseDown}
+            aria-label="Open mascot"
           >
-            <MessageCircle className="size-6 text-primary" />
+            <Bot className="size-6 text-primary" />
           </button>
         ) : (
           <>
@@ -55,13 +66,29 @@ export function MascotContainer() {
               className="flex items-center justify-between px-3 py-1.5 border-b border-glass-border cursor-grab active:cursor-grabbing"
               onMouseDown={handleMouseDown}
             >
-              <span className="text-[10px] font-semibold text-text-secondary tracking-wide uppercase">Mascot</span>
+              <span className="text-[10px] font-semibold text-text-secondary tracking-wide uppercase">
+                Mascot
+              </span>
               <div className="flex items-center gap-1">
-                <button type="button" onClick={() => setChatOpen(!chatOpen)}>
+                <button
+                  type="button"
+                  onClick={() => setChatOpen(!chatOpen)}
+                  className="size-5 flex items-center justify-center rounded hover:bg-glass-bg transition-colors"
+                  aria-label={chatOpen ? "Close chat" : "Open chat"}
+                >
                   <MessageCircle className="size-3 text-text-secondary/60 hover:text-text-primary" />
                 </button>
-                <button type="button" onClick={() => setMinimized(true)}>
-                  <Minimize2 className="size-3 text-text-secondary/60 hover:text-text-primary" />
+                <button
+                  type="button"
+                  onClick={() => setMinimized(true)}
+                  className="size-5 flex items-center justify-center rounded hover:bg-glass-bg transition-colors"
+                  aria-label="Minimize mascot"
+                >
+                  {minimized ? (
+                    <Bot className="size-3 text-text-secondary/60 hover:text-text-primary" />
+                  ) : (
+                    <Minimize2 className="size-3 text-text-secondary/60 hover:text-text-primary" />
+                  )}
                 </button>
               </div>
             </div>
@@ -72,8 +99,12 @@ export function MascotContainer() {
             </div>
 
             {/* Chat panel (expandable) */}
-            <div className={`transition-all duration-200 overflow-hidden ${chatOpen ? "h-[120px]" : "h-0"}`}>
-              <ChatPanel />
+            <div
+              className={`transition-all duration-200 overflow-hidden ${
+                chatOpen ? "h-[130px]" : "h-0"
+              }`}
+            >
+              <ChatPanel inputRef={inputRef} />
             </div>
           </>
         )}

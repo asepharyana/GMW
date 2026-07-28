@@ -1,28 +1,59 @@
 "use client";
 
 import { GlassCard } from "@/components/glass/card";
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
-interface VoiceActivityTimelineProps {
+interface ActivityTimelineProps {
   data?: { user: string; duration: number }[];
 }
 
-export function VoiceActivityTimeline({ data = [] }: VoiceActivityTimelineProps) {
+export function VoiceActivityTimeline({ data = [] }: ActivityTimelineProps) {
   return (
     <GlassCard variant="base">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">Voice Activity</span>
+        <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">
+          Voice Activity
+        </span>
       </div>
       <div className="h-40">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical">
-            <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "oklch(0.55 0.02 245)", fontSize: 10 }} />
-            <YAxis type="category" dataKey="user" axisLine={false} tickLine={false} tick={{ fill: "oklch(0.55 0.02 245)", fontSize: 10 }} width={80} />
-            <Tooltip
-              contentStyle={{ background: "oklch(0.11 0.02 245 / 0.9)", border: "1px solid oklch(1 0 0 / 0.08)", borderRadius: 8, fontSize: 12, color: "oklch(0.93 0.01 245)" }}
-              formatter={(value) => `${Number(value) / 60}m`}
+            <XAxis
+              type="number"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "oklch(0.55 0.02 245)", fontSize: 10 }}
             />
-            <Bar dataKey="duration" fill="var(--color-primary)" radius={[0, 4, 4, 0]} />
+            <YAxis
+              type="category"
+              dataKey="user"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "oklch(0.55 0.02 245)", fontSize: 10 }}
+              width={80}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "oklch(0.11 0.02 245 / 0.9)",
+                border: "1px solid oklch(1 0 0 / 0.08)",
+                borderRadius: 8,
+                fontSize: 12,
+                color: "oklch(0.93 0.01 245)",
+              }}
+              formatter={(value) => [`${(Number(value) / 60).toFixed(1)}m`, "Duration"]}
+            />
+            <Bar
+              dataKey="duration"
+              fill="var(--color-primary)"
+              radius={[0, 4, 4, 0]}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>

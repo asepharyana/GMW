@@ -5,7 +5,7 @@ import { GlassPanel } from "@/components/glass/panel";
 import { X } from "lucide-react";
 
 interface RecordingPlayerProps {
-  url?: string | null;
+  url?: string;
   onClose: () => void;
 }
 

@@ -33,7 +33,7 @@ export function LoadingSkeleton({
 
   if (columns) {
     return (
-      <div className={`grid grid-cols-1 md:grid-cols-${Math.min(columns, 6)} gap-3`}>
+      <div className={`grid grid-cols-1 md:grid-cols-${columns} gap-3`}>
         {items}
       </div>
     );

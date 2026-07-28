@@ -10,6 +10,10 @@ interface RecordingCardProps {
 }
 
 export function RecordingCard({ recording, onPlay }: RecordingCardProps) {
+  const durationStr = recording.duration_bytes
+    ? `${Math.floor(recording.duration_bytes / 60)}:${String(recording.duration_bytes % 60).padStart(2, "0")}`
+    : "--:--";
+
   return (
     <GlassCard variant="interactive" className="p-4" onClick={() => onPlay(recording.id)}>
       <div className="flex items-start gap-3">
@@ -39,9 +43,7 @@ export function RecordingCard({ recording, onPlay }: RecordingCardProps) {
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-text-secondary/60">
-              {recording.duration_bytes ? `${Math.floor(recording.duration_bytes / 60)}:${String(recording.duration_bytes % 60).padStart(2, "0")}` : "--:--"}
-            </span>
+            <span className="text-[10px] font-mono text-text-secondary/60">{durationStr}</span>
             <span className="text-[10px] text-text-secondary/40">{new Date(recording.created_at).toLocaleString()}</span>
           </div>
         </div>

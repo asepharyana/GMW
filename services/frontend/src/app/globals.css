@@ -43,6 +43,9 @@
   --color-accent: var(--color-primary);
   --color-accent-foreground: var(--color-primary-foreground);
 
+  /* Ring / focus outline for shadcn outline-ring utility */
+  --color-ring: var(--color-primary);
+
   /* Radius */
   --radius-card: 16px;
   --radius-panel: 12px;
@@ -86,25 +89,111 @@
       radial-gradient(ellipse 50% 40% at 80% 80%, oklch(0.65 0.2 280 / 0.04), transparent);
     background-size: 24px 24px, 100% 100%, 100% 100%;
   }
+  html {
+    @apply font-sans scroll-smooth;
+  }
+
+  /* Custom selection color */
+  ::selection {
+    background: oklch(0.62 0.17 215 / 0.4);
+    color: inherit;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(1 0 0 / 0.1);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(1 0 0 / 0.2);
+  }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: oklch(1 0 0 / 0.1); border-radius: 999px; }
   ::-webkit-scrollbar-thumb:hover { background: oklch(1 0 0 / 0.2); }
 }
 
+/* ── Animations ──────────────────────────── */
+
 @keyframes pulse-ring {
-  0% { transform: scale(0.8); opacity: 1; }
-  100% { transform: scale(2.5); opacity: 0; }
-}
-@keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
 }
 
-.animate-fade-in-up { animation: fade-in-up 0.3s ease-out forwards; }
-.animate-pulse-ring { animation: pulse-ring 1.5s ease-out infinite; }
-.animate-shimmer { background: linear-gradient(90deg, transparent, oklch(0.62 0.17 215 / 0.08), transparent); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.3s ease-out forwards;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, oklch(0.62 0.17 215 / 0.08), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ── Utility classes ─────────────────────── */
+
+/* Gradient text */
+.text-gradient {
+  background: linear-gradient(135deg, oklch(0.62 0.17 215), oklch(0.6 0.15 195), oklch(0.65 0.12 185));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Gradient border (via pseudo-element trick) */
+.gradient-border {
+  position: relative;
+}
+.gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, oklch(0.62 0.17 215), oklch(0.6 0.15 195), oklch(0.65 0.12 185));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* Live pulse ring (compat alias) */
+.live-pulse-ring {
+  animation: pulse-ring 1.5s ease-out infinite;
+}

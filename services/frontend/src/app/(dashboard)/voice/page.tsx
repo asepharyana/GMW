@@ -7,7 +7,15 @@ import { MicControl } from "@/components/voice/mic-control";
 import { VoiceActivityTimeline } from "@/components/voice/activity-timeline";
 import { SubNav } from "@/components/layout/sub-nav";
 import { useWebSocket } from "@/lib/ws/context";
-import { useGuilds, useMicTransmit, useSpeakers, useVoiceChannels, useVoiceConnect, useVoiceDisconnect, useVoiceStatus } from "@/hooks";
+import {
+  useGuilds,
+  useMicTransmit,
+  useSpeakers,
+  useVoiceChannels,
+  useVoiceConnect,
+  useVoiceDisconnect,
+  useVoiceStatus,
+} from "@/hooks";
 
 type VoiceTab = "connection" | "activity";
 
@@ -43,6 +51,15 @@ export default function VoicePage() {
     [micMut],
   );
 
+  const handleGuildChange = useCallback((guildId: string | null) => {
+    if (!guildId) {
+      setSelectedGuild("");
+      setSelectedChannel("");
+      return;
+    }
+    setSelectedGuild(guildId);
+  }, []);
+
   const activeSpeakers = speakers.filter((s) => s.speaking);
   const connected = voiceStatus?.connected ?? false;
 
@@ -50,8 +67,8 @@ export default function VoicePage() {
     <div className="space-y-4 animate-fade-in-up">
       <SubNav
         tabs={[
-          { id: "connection", label: "Connection" },
-          { id: "activity", label: "Activity" },
+          { id: "connection", label: "Connection", icon: undefined },
+          { id: "activity", label: "Activity", icon: undefined },
         ]}
         activeTab={tab}
         onTabChange={(t) => setTab(t as VoiceTab)}
@@ -64,7 +81,7 @@ export default function VoicePage() {
         voiceChannels={voiceChannels}
         selectedGuild={selectedGuild}
         selectedChannel={selectedChannel}
-        onGuildChange={(g) => { setSelectedGuild(g ?? ""); setSelectedChannel(""); }}
+        onGuildChange={handleGuildChange}
         onChannelChange={(v) => setSelectedChannel(v ?? "")}
         onConnect={() => connectMut.mutate({ guildId: selectedGuild, channelId: selectedChannel })}
         onDisconnect={() => disconnectMut.mutate(undefined)}

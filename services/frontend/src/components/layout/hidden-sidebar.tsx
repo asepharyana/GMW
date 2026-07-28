@@ -5,7 +5,7 @@ import { GuildSelector } from "@/components/shared/guild-selector";
 
 interface HiddenSidebarProps {
   guildId: string;
-  onGuildChange: (guildId: string | null) => void;
+  onGuildChange: (guildId: string) => void;
 }
 
 export function HiddenSidebar({ guildId, onGuildChange }: HiddenSidebarProps) {
@@ -24,6 +24,7 @@ export function HiddenSidebar({ guildId, onGuildChange }: HiddenSidebarProps) {
   return (
     <>
       {/* Hotspot trigger */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: transparent mouse detection zone, not interactive content */}
       <div
         className="fixed left-0 top-0 bottom-0 w-1 z-50"
         onMouseEnter={handleMouseEnter}
@@ -31,6 +32,8 @@ export function HiddenSidebar({ guildId, onGuildChange }: HiddenSidebarProps) {
 
       {/* Sidebar */}
       <div
+        role="region"
+        aria-label="Guild selector sidebar"
         className={`fixed left-0 top-0 bottom-0 z-40 w-56 glass-intense border-r border-glass-border transition-transform duration-150 ease-out ${
           visible ? "translate-x-0" : "-translate-x-full"
         }`}

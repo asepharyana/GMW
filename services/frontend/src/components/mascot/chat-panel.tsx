@@ -1,55 +1,90 @@
 "use client";
 
+import { useRef, useEffect } from "react";
 import { Send } from "lucide-react";
-import { useState } from "react";
 import { useMascot } from "./mascot-context";
 
-export function ChatPanel() {
-  const { chatHistory, addChat, setExpression } = useMascot();
-  const [input, setInput] = useState("");
+interface ChatPanelProps {
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+}
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    addChat("user", input);
-    setExpression("listening");
+export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
+  const { messages, sendMessage, isTyping } = useMascot();
+  const listRef = useRef<HTMLDivElement>(null);
+  const internalInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = externalInputRef ?? internalInputRef;
 
-    // Simulated bot response — replace with actual mascot-chat API call
-    setTimeout(() => {
-      addChat("assistant", "I'm monitoring this server for you!");
-      setExpression("happy");
-    }, 800);
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    if (listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
+    }
+  }, [messages, isTyping]);
 
-    setInput("");
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const input = inputRef.current;
+    if (!input || !input.value.trim()) return;
+    sendMessage(input.value);
+    input.value = "";
   };
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
-        {chatHistory.slice(-6).map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <span className={`text-[10px] px-2 py-1 rounded-lg max-w-[85%] ${
-              msg.role === "user"
-                ? "bg-primary/20 text-text-primary"
-                : "glass text-text-secondary"
-            }`}>
-              {msg.text}
+      {/* Chat messages */}
+      <div ref={listRef} className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
+        {messages.length === 0 && (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-[10px] text-text-secondary/40">Ask mascot anything</p>
+          </div>
+        )}
+        {messages.slice(-8).map((msg, i) => (
+          <div
+            key={`${msg.timestamp}-${i}`}
+            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+          >
+            <span
+              className={`text-[10px] px-2 py-1 rounded-lg max-w-[85%] leading-relaxed ${
+                msg.role === "user"
+                  ? "bg-primary/20 text-text-primary"
+                  : "glass text-text-secondary"
+              }`}
+            >
+              {msg.content}
             </span>
           </div>
         ))}
+        {isTyping && (
+          <div className="flex justify-start">
+            <div className="glass rounded-lg px-2 py-1">
+              <span className="inline-flex gap-0.5">
+                <span className="size-1 rounded-full bg-text-secondary animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="size-1 rounded-full bg-text-secondary animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="size-1 rounded-full bg-text-secondary animate-bounce" style={{ animationDelay: "300ms" }} />
+              </span>
+            </div>
+          </div>
+        )}
       </div>
-      <div className="flex items-center gap-1 px-2 py-1 border-t border-glass-border">
+
+      {/* Input bar */}
+      <form onSubmit={handleSubmit} className="flex items-center gap-1 px-2 py-1.5 border-t border-glass-border shrink-0">
         <input
+          ref={inputRef}
           type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
           placeholder="Ask mascot..."
           className="flex-1 bg-transparent text-[10px] text-text-primary placeholder-text-secondary/30 outline-none"
+          disabled={isTyping}
         />
-        <button type="button" onClick={handleSend} className="size-5 flex items-center justify-center">
+        <button
+          type="submit"
+          className="size-5 flex items-center justify-center disabled:opacity-40"
+          disabled={isTyping}
+          aria-label="Send message"
+        >
           <Send className="size-3 text-primary" />
         </button>
-      </div>
+      </form>
     </div>
   );
 }

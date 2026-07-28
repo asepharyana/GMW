@@ -1,3 +1,4 @@
-export { MascotProvider } from "./mascot-context";
+export { MascotProvider, useMascot } from "./mascot-context";
 export { MascotContainer } from "./mascot-container";
-export { useMascot } from "./mascot-context";
+export { MascotCanvas } from "./mascot-canvas";
+export { ChatPanel } from "./chat-panel";

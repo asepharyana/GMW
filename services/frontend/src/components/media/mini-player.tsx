@@ -1,41 +1,79 @@
 "use client";
 
-import { Play, SkipForward, Volume2, X } from "lucide-react";
+import { Disc3, Music, Play, SkipForward, Square, Volume2 } from "lucide-react";
 import { useMediaPlayer } from "@/lib/hooks/use-media-player";
 
 export function MiniPlayer() {
-  const { currentTrack, playing, volume, skip, stop, setVolume } = useMediaPlayer();
+  const { playing, current, queue, volume, pending, skip, stop, setVolume } =
+    useMediaPlayer();
 
-  if (!currentTrack) return null;
+  // Nothing to show if no track is playing and nothing is queued
+  if (!current && queue.length === 0) return null;
 
   return (
-    <div className="fixed bottom-16 md:bottom-4 left-4 z-30 glass-elevated rounded-[var(--radius-card)] p-3 w-64 shadow-2xl">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="size-6 flex items-center justify-center rounded bg-primary/20">
-          <Play className="size-3 text-primary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-text-primary truncate">{currentTrack.title}</p>
-          {currentTrack.artist && (
-            <p className="text-[10px] text-text-secondary/50 truncate">{currentTrack.artist}</p>
+    <div className="fixed bottom-0 left-0 right-0 z-40 h-14 glass-intense border-t border-glass-border flex items-center gap-3 px-4 md:px-6">
+      {/* Track info */}
+      <div className="flex items-center gap-2.5 min-w-0 flex-1 max-w-[280px]">
+        <div className="size-8 rounded-md bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10 flex items-center justify-center shrink-0">
+          {playing ? (
+            <Disc3 className="size-4 text-primary animate-spin" style={{ animationDuration: "4s" }} />
+          ) : (
+            <Music className="size-4 text-text-secondary" />
           )}
         </div>
-        <button type="button" onClick={stop} className="size-5 flex items-center justify-center hover:bg-glass-bg rounded">
-          <X className="size-3 text-text-secondary/60" />
-        </button>
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-text-primary truncate">
+            {current?.title ?? "Unknown track"}
+          </p>
+          {queue.length > 0 && (
+            <p className="text-[10px] text-text-secondary/60">
+              {queue.length > 1
+                ? `${queue.length} in queue`
+                : "1 in queue"}
+            </p>
+          )}
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        <button type="button" onClick={skip} className="size-6 flex items-center justify-center hover:bg-glass-bg rounded">
-          <SkipForward className="size-3 text-text-secondary/60" />
-        </button>
-        <Volume2 className="size-3 text-text-secondary/40" />
+
+      {/* Controls */}
+      <div className="flex items-center gap-1 shrink-0">
+        {playing && (
+          <button
+            type="button"
+            onClick={stop}
+            disabled={pending}
+            className="size-8 flex items-center justify-center rounded-md text-text-secondary hover:text-destructive hover:bg-glass-bg transition-colors disabled:opacity-40"
+            aria-label="Stop"
+          >
+            <Square className="size-3.5" />
+          </button>
+        )}
+        {current && (
+          <button
+            type="button"
+            onClick={skip}
+            disabled={pending || queue.length === 0}
+            className="size-8 flex items-center justify-center rounded-md text-text-secondary hover:text-text-primary hover:bg-glass-bg transition-colors disabled:opacity-40"
+            aria-label="Skip"
+          >
+            <SkipForward className="size-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Volume */}
+      <div className="flex items-center gap-2 shrink-0 ml-2">
+        <Volume2 className="size-3.5 text-text-secondary/60" />
         <input
           type="range"
-          min={0}
-          max={100}
+          min="0"
+          max="1"
+          step="0.05"
           value={volume}
           onChange={(e) => setVolume(Number(e.target.value))}
-          className="flex-1 h-1 appearance-none bg-glass-border rounded-full accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+          className="w-20 h-1 appearance-none rounded-full bg-glass-bg accent-primary cursor-pointer
+            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+          aria-label="Volume"
         />
       </div>
     </div>

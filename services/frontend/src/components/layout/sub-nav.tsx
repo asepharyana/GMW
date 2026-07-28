@@ -15,9 +15,19 @@ interface SubNavProps {
   className?: string;
 }
 
-export function SubNav({ tabs, activeTab, onTabChange, className }: SubNavProps) {
+export function SubNav({
+  tabs,
+  activeTab,
+  onTabChange,
+  className,
+}: SubNavProps) {
   return (
-    <div className={cn("flex items-center gap-1 px-1 py-1 glass rounded-[var(--radius-panel)] w-fit", className)}>
+    <div
+      className={cn(
+        "flex items-center gap-1 px-1 py-1 glass rounded-[var(--radius-panel)] w-fit",
+        className,
+      )}
+    >
       {tabs.map((tab) => (
         <button
           key={tab.id}

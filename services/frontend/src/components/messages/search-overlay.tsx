@@ -16,11 +16,11 @@ export function SearchOverlay({ open, onClose, onSelect }: SearchOverlayProps) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data: results } = useQuery<{ results: MessageRecord[] }>({
+  const { data: results } = useQuery<MessageRecord[]>({
     queryKey: ["messages-search", query],
     queryFn: async () => {
       const res = await messagesApi.search(query, 20);
-      return res;
+      return res.results;
     },
     enabled: query.length >= 2,
   });
@@ -37,7 +37,7 @@ export function SearchOverlay({ open, onClose, onSelect }: SearchOverlayProps) {
     const handleKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        onClose();
+        onClose(); // this is called when Cmd+K is pressed globally — toggle
       }
       if (e.key === "Escape") onClose();
     };
@@ -69,12 +69,12 @@ export function SearchOverlay({ open, onClose, onSelect }: SearchOverlayProps) {
 
         {/* Results */}
         <div className="max-h-80 overflow-y-auto p-2 space-y-1">
-          {!results || results.results.length === 0 ? (
+          {!results || results.length === 0 ? (
             <div className="py-8 text-center text-xs text-text-secondary/40">
               {query.length < 2 ? "Type at least 2 characters" : "No results found"}
             </div>
           ) : (
-            results.results.map((msg: MessageRecord) => (
+            results.map((msg) => (
               <button
                 key={msg.id}
                 type="button"

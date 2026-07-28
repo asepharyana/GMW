@@ -27,7 +27,7 @@ export function ActivityHeatmap({ data = {} }: ActivityHeatmapProps) {
     <GlassCard variant="base">
       <div className="flex items-center gap-2 mb-3">
         <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">Activity</span>
-        <span className="text-[10px] text-text-secondary/40">hour x day</span>
+        <span className="text-[10px] text-text-secondary/40">hour × day</span>
       </div>
       <div className="overflow-x-auto">
         <div className="flex gap-0.5 min-w-[400px]">
@@ -46,7 +46,7 @@ export function ActivityHeatmap({ data = {} }: ActivityHeatmapProps) {
                   <div
                     key={`${day}-${hour}`}
                     className={cn("size-3 rounded-sm transition-colors", getIntensity(day, hour))}
-                    title={`${day} ${hour}:00 - ${data[`${day}-${hour}`] || 0}`}
+                    title={`${day} ${hour}:00 — ${data[`${day}-${hour}`] || 0}`}
                   />
                 ))}
                 <div className="h-3 flex items-center justify-center text-[8px] text-text-secondary/30 font-mono">

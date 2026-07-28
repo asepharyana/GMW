@@ -1,77 +1,130 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { useWebSocket } from "@/lib/ws/context";
+import { mediaApi } from "@/lib/api";
+import type { MediaState, MediaItem } from "@/lib/types";
 
-interface Track {
-  id: string;
-  title: string;
-  artist?: string;
-  duration?: number;
-}
-
-interface MediaPlayerState {
-  currentTrack: Track | null;
-  queue: Track[];
+interface MediaPlayerContextValue {
+  /** Current play state */
   playing: boolean;
+  /** Current track, or null */
+  current: MediaItem | null;
+  /** Upcoming queue */
+  queue: MediaItem[];
+  /** Current volume [0-1] */
   volume: number;
-}
+  /** True while a mutation is in flight */
+  pending: boolean;
 
-interface MediaPlayerContextType extends MediaPlayerState {
-  play: (track: Track) => void;
+  /** Skip to next track */
   skip: () => void;
+  /** Stop playback */
   stop: () => void;
-  setVolume: (v: number) => void;
-  addToQueue: (track: Track) => void;
-  removeFromQueue: (id: string) => void;
+  /** Set volume [0-1] */
+  setVolume: (vol: number) => void;
+  /** Queue a URL for playback */
+  queueUrl: (url: string) => void;
 }
 
-const MediaPlayerContext = createContext<MediaPlayerContextType | null>(null);
+const MediaPlayerContext = createContext<MediaPlayerContextValue | null>(null);
 
 export function MediaPlayerProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<MediaPlayerState>({
-    currentTrack: null,
-    queue: [],
+  const ws = useWebSocket();
+  const [state, setState] = useState<MediaState>({
     playing: false,
-    volume: 75,
+    musicVolume: 0.5,
+    current: null,
+    queue: [],
   });
+  const [pending, setPending] = useState(false);
+  const fetched = useRef(false);
 
-  const play = (track: Track) => {
-    setState((prev) => ({ ...prev, currentTrack: track, playing: true }));
-  };
-
-  const skip = () => {
-    setState((prev) => {
-      if (prev.queue.length === 0) return { ...prev, currentTrack: null, playing: false };
-      const [next, ...rest] = prev.queue;
-      return { ...prev, currentTrack: next, queue: rest };
+  // Fetch initial state
+  useEffect(() => {
+    if (fetched.current) return;
+    fetched.current = true;
+    mediaApi.getStatus().then((data) => {
+      if (data) setState(data as MediaState);
+    }).catch(() => {
+      // API not yet available
     });
-  };
+  }, []);
 
-  const stop = () => {
-    setState((prev) => ({ ...prev, currentTrack: null, playing: false }));
-  };
+  // Subscribe to live media_state events via WS
+  useEffect(() => {
+    const unsub = ws.on("media_state", (data) => {
+      setState(data as unknown as MediaState);
+    });
+    return unsub;
+  }, [ws]);
 
-  const setVolume = (volume: number) => {
-    setState((prev) => ({ ...prev, volume }));
-  };
+  const skip = useCallback(() => {
+    setPending(true);
+    mediaApi.skip().then((data) => {
+      if (data) setState(data as MediaState);
+    }).catch(() => {
+      // ignore
+    }).finally(() => setPending(false));
+  }, []);
 
-  const addToQueue = (track: Track) => {
-    setState((prev) => ({ ...prev, queue: [...prev.queue, track] }));
-  };
+  const stop = useCallback(() => {
+    setPending(true);
+    mediaApi.stop().then((data) => {
+      if (data) setState(data as MediaState);
+    }).catch(() => {
+      // ignore
+    }).finally(() => setPending(false));
+  }, []);
 
-  const removeFromQueue = (id: string) => {
-    setState((prev) => ({ ...prev, queue: prev.queue.filter((t) => t.id !== id) }));
-  };
+  const setVolume = useCallback((vol: number) => {
+    mediaApi.volume(vol).then((data) => {
+      if (data) setState(data as MediaState);
+    }).catch(() => {
+      // ignore
+    });
+  }, []);
+
+  const queueUrl = useCallback((url: string) => {
+    setPending(true);
+    mediaApi.queue(url, "music").then((data) => {
+      if (data) setState(data as MediaState);
+    }).catch(() => {
+      // ignore
+    }).finally(() => setPending(false));
+  }, []);
 
   return (
-    <MediaPlayerContext.Provider value={{ ...state, play, skip, stop, setVolume, addToQueue, removeFromQueue }}>
+    <MediaPlayerContext.Provider
+      value={{
+        playing: state.playing,
+        current: state.current,
+        queue: state.queue,
+        volume: state.musicVolume,
+        pending,
+        skip,
+        stop,
+        setVolume,
+        queueUrl,
+      }}
+    >
       {children}
     </MediaPlayerContext.Provider>
   );
 }
 
-export function useMediaPlayer() {
+export function useMediaPlayer(): MediaPlayerContextValue {
   const ctx = useContext(MediaPlayerContext);
-  if (!ctx) throw new Error("useMediaPlayer must be used within MediaPlayerProvider");
+  if (!ctx) {
+    throw new Error("useMediaPlayer must be used within a MediaPlayerProvider");
+  }
   return ctx;
 }

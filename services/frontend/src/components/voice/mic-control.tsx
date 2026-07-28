@@ -12,7 +12,13 @@ interface MicControlProps {
   onVolumeChange: (v: number) => void;
 }
 
-export function MicControl({ connected, active, onToggle, volume, onVolumeChange }: MicControlProps) {
+export function MicControl({
+  connected,
+  active,
+  onToggle,
+  volume,
+  onVolumeChange,
+}: MicControlProps) {
   return (
     <GlassCard variant="base">
       <div className="flex items-center gap-3">
