@@ -230,7 +230,7 @@ async function runTwoPassPipeline(
       return buildFallbackResult(message.id, "No LLM result returned");
     }
 
-    const llmResult = moderationResult.results[0];
+    const llmResult = moderationResult.results[0] as unknown as AnalysisResult;
     return mergeLayers(layer1Result, llmResult);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
