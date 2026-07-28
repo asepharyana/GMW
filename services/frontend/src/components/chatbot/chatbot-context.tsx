@@ -12,18 +12,18 @@ import {
 import { chatbotApi } from "@/lib/api";
 import type { ChatHistoryMessage } from "@/lib/types";
 
-export type MascotExpression = "idle" | "listening" | "surprise" | "happy" | "sad" | "talking";
+export type ChatbotExpression = "idle" | "listening" | "surprise" | "happy" | "sad" | "talking";
 
-interface MascotMessage {
+interface ChatbotMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
 }
 
-interface MascotContextValue {
-  /** Expression the mascot avatar should display */
-  expression: MascotExpression;
-  setExpression: (expr: MascotExpression) => void;
+interface ChatbotContextValue {
+  /** Expression the chatbot avatar should display */
+  expression: ChatbotExpression;
+  setExpression: (expr: ChatbotExpression) => void;
 
   /** Whether the enlarged bubble is minimized to a small icon */
   minimized: boolean;
@@ -42,19 +42,19 @@ interface MascotContextValue {
   toggle: () => void;
 
   /** Chat messages with real API backend */
-  messages: MascotMessage[];
+  messages: ChatbotMessage[];
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => Promise<void>;
   isTyping: boolean;
 }
 
-const MascotContext = createContext<MascotContextValue | null>(null);
+const ChatbotContext = createContext<ChatbotContextValue | null>(null);
 
-export function MascotProvider({ children }: { children: ReactNode }) {
-  const [expression, setExpression] = useState<MascotExpression>("idle");
+export function ChatbotProvider({ children }: { children: ReactNode }) {
+  const [expression, setExpression] = useState<ChatbotExpression>("idle");
   const [minimized, setMinimized] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
-  const [messages, setMessages] = useState<MascotMessage[]>([]);
+  const [messages, setMessages] = useState<ChatbotMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const historyFetched = useRef(false);
 
@@ -89,7 +89,7 @@ export function MascotProvider({ children }: { children: ReactNode }) {
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
 
-    const userMsg: MascotMessage = {
+    const userMsg: ChatbotMessage = {
       role: "user",
       content: content.trim(),
       timestamp: new Date().toISOString(),
@@ -100,7 +100,7 @@ export function MascotProvider({ children }: { children: ReactNode }) {
 
     try {
       const res = await chatbotApi.send(content.trim());
-      const botMsg: MascotMessage = {
+      const botMsg: ChatbotMessage = {
         role: "assistant",
         content: res.response,
         timestamp: res.timestamp ?? new Date().toISOString(),
@@ -108,7 +108,7 @@ export function MascotProvider({ children }: { children: ReactNode }) {
       setMessages((prev) => [...prev, botMsg]);
       setExpression("happy");
     } catch {
-      const errorMsg: MascotMessage = {
+      const errorMsg: ChatbotMessage = {
         role: "assistant",
         content: "Sorry, I couldn't process that request. Please try again.",
         timestamp: new Date().toISOString(),
@@ -130,7 +130,7 @@ export function MascotProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <MascotContext.Provider
+    <ChatbotContext.Provider
       value={{
         expression,
         setExpression,
@@ -148,14 +148,14 @@ export function MascotProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-    </MascotContext.Provider>
+    </ChatbotContext.Provider>
   );
 }
 
-export function useMascot(): MascotContextValue {
-  const ctx = useContext(MascotContext);
+export function useChatbot(): ChatbotContextValue {
+  const ctx = useContext(ChatbotContext);
   if (!ctx) {
-    throw new Error("useMascot must be used within a MascotProvider");
+    throw new Error("useChatbot must be used within a ChatbotProvider");
   }
   return ctx;
 }

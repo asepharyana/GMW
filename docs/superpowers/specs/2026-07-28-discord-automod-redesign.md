@@ -47,7 +47,7 @@ Full frontend redesign for Discord Automod, a Discord moderation watcher dashboa
 Key pillars:
 - **Immersion** — Full-viewport canvas with ambient motion, glass panels float over content
 - **Awareness** — Live data streams, real-time voice waveforms, animated moderation alerts
-- **Presence** — Live2D vtuber mascot character as chatbot interface, reacts to server events
+- **Presence** — Live2D vtuber chatbot character as chatbot interface, reacts to server events
 
 ---
 
@@ -69,7 +69,7 @@ Key pillars:
 │   └─────────┘  └──────────────┘                       │
 │                                                        │
 ├──────────────────────────────────────────────────────┤
-│ 🎵 [Mini-player] ← bottom-left        🎭 [Mascot] ← BR │
+│ 🎵 [Mini-player] ← bottom-left        🎭 [Chatbot] ← BR │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -196,9 +196,9 @@ Custom theme matching design tokens:
 - Heatmap: activity by hour × weekday
 - Radar: multi-axis for moderation categories
 
-### 4.5 Live2D Mascot / Chatbot
+### 4.5 Live2D Chatbot / Chatbot
 
-- Replaces the existing `Chatbot` component entirely — mascot panel is the new chat interface
+- Replaces the existing `Chatbot` component entirely — chatbot panel is the new chat interface
 - **Location:** Floating panel, bottom-right corner, draggable
 - **Default size:** Compact — upper body visible (~200×280px)
 - **Click character:** Expand with full chat panel
@@ -232,7 +232,7 @@ Full-viewport command center:
 - **Message Trend Chart:** 7-day area chart
 - **Activity Heatmap:** Hour × day-of-week, moderation event density
 - **Top Channels:** Bar chart with channel names
-- **Mascot visible** floating bottom-right
+- **Chatbot visible** floating bottom-right
 
 ### 5.2 Messages — Split Pane
 
@@ -334,8 +334,8 @@ Optimistic cache updates for real-time data
 ### 7.4 Global State (React Context)
 
 - `useMediaPlayer()` — current track, queue, play/skip/stop/volume
-- `useMascot()` — expression, minimized, chatHistory, setExpression
-  - Externally triggerable: `mascot.setExpression("surprise")` on flagged message, `("listening")` on voice activity
+- `useChatbot()` — expression, minimized, chatHistory, setExpression
+  - Externally triggerable: `chatbot.setExpression("surprise")` on flagged message, `("listening")` on voice activity
 
 ### 7.5 URL State
 
@@ -359,7 +359,7 @@ Each page has its own error boundary. One page failure doesn't affect others.
 - **Icons:** lucide-react
 - **State/data:** @tanstack/react-query v5
 - **Charts:** Recharts 3.8 (with custom theme)
-- **3D/Mascot:** Live2D Cubism SDK WebGL (pixi.js wrapper)
+- **3D/Chatbot:** Live2D Cubism SDK WebGL (pixi.js wrapper)
 - **Audio:** Web Audio API for waveform visualization
 - **Animation:** CSS animations + transitions (no GSAP/framer-motion dependency unless specifically needed)
 
@@ -374,7 +374,7 @@ src/
 │   ├── page.tsx                      # Redirect → /dashboard
 │   ├── globals.css                   # Complete redesign CSS (tokens, glass, animations)
 │   └── (dashboard)/
-│       ├── layout.tsx                # Dashboard layout (top nav, QueryClient, WS, mascot)
+│       ├── layout.tsx                # Dashboard layout (top nav, QueryClient, WS, chatbot)
 │       ├── dashboard/
 │       │   └── page.tsx              # Ops Center
 │       ├── messages/
@@ -424,11 +424,11 @@ src/
 │   │   ├── recording-card.tsx        # Glass card with waveform preview
 │   │   └── recording-player.tsx      # Inline audio player
 │   │
-│   ├── mascot/
-│   │   ├── mascot-container.tsx      # Floating L2D container
-│   │   ├── mascot-canvas.tsx         # WebGL canvas for L2D rendering
+│   ├── chatbot/
+│   │   ├── chatbot-container.tsx      # Floating L2D container
+│   │   ├── chatbot-canvas.tsx         # WebGL canvas for L2D rendering
 │   │   ├── chat-panel.tsx            # Chat input + history
-│   │   └── mascot-context.tsx        # Context provider
+│   │   └── chatbot-context.tsx        # Context provider
 │   │
 │   ├── media/
 │   │   └── mini-player.tsx           # Floating mini media player
@@ -448,7 +448,7 @@ src/
 │   │   └── types.ts                  # WS event types
 │   ├── hooks/                        # Existing hooks + new ones
 │   │   ├── use-media-player.ts       # Global media state
-│   │   ├── use-mascot.ts             # Mascot context hook
+│   │   ├── use-chatbot.ts             # Chatbot context hook
 │   │   └── use-heatmap.ts           # Heatmap data hook
 │   ├── types/                        # Existing types (unchanged)
 │   ├── navigation.ts                 # Nav items (updated)
@@ -486,7 +486,7 @@ src/
 
 ### Phase 5 — Floating Elements
 18. Build `mini-player.tsx` for media
-19. Build mascot components (L2D integration)
+19. Build chatbot components (L2D integration)
 
 ---
 
@@ -495,7 +495,7 @@ src/
 - Visual regression checks per component
 - WS integration tests for cache updates
 - Responsive breakpoint testing (mobile bottom nav)
-- L2D mascot load + expression trigger
+- L2D chatbot load + expression trigger
 
 ---
 

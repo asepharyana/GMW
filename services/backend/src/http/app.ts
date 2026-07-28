@@ -10,7 +10,7 @@ import { createAnalysisRouter } from "../modules/analysis/index.js";
 import { createConfigRouter } from "../modules/config/index.js";
 import { createDashboardRouter } from "../modules/dashboard/index.js";
 import { createHealthRouter } from "../modules/health/index.js";
-import { createMascotChatRouter } from "../modules/mascot-chat/index.js";
+import { createChatbotRouter } from "../modules/chatbot/index.js";
 import { createMediaRouter } from "../modules/media/index.js";
 import { createMessagesRouter } from "../modules/messages/index.js";
 import { createRecordingsRouter } from "../modules/recordings/index.js";
@@ -64,7 +64,7 @@ export function createHttpApp(): Express {
   app.use("/api", createDashboardRouter());
   app.use("/api", createMessagesRouter());
   app.use("/api", createAnalysisRouter());
-  app.use("/api", createMascotChatRouter());
+  app.use("/api", createChatbotRouter());
   app.use("/api", createRecordingsRouter());
   app.use("/api", createUiStateRouter());
   app.use("/api", createMediaRouter());

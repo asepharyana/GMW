@@ -80,7 +80,7 @@ Express 5 + Helmet HTTP server with WebSocket (ws) on port 3001 (default).
 - `POST /api/messages/:id/moderate` — Dispatch moderation action
 - `GET /api/review` — Flagged/warned messages
 - `GET /api/analysis/search` — Full-text search with `?q=`
-- `POST /api/chat` — Mascot AI chat
+- `POST /api/chat` — AI chatbot chat
 - `GET /api/chat/history` — Chat history
 - `POST /api/chat/clear` — Clear chat history
 - `POST /api/voice/command` — Send voice transmit commands
@@ -105,7 +105,7 @@ Express 5 + Helmet HTTP server with WebSocket (ws) on port 3001 (default).
 - `voice/` — Voice connection, guilds, channels
 - `media/` — Music/screenshare player control
 - `analysis/` — Full-text search across analyzed messages
-- `mascot-chat/` — AI chatbot with server context
+- `chatbot/` — AI chatbot with server context
 - `recordings/` — Voice recording listing
 - `ui-state/` — Persistent UI state for dashboard
 - `config/` — App config endpoint
@@ -205,7 +205,7 @@ Next.js 16 (React 19) static export dashboard, built with TypeScript + Tailwind 
 
 **Feature structure:**
 - `src/app/` — App Router pages (login, dashboard with tabs)
-- `src/features/` — Feature components (dashboard, messages, live, mascot)
+- `src/features/` — Feature components (dashboard, messages, live, chatbot)
 - `src/lib/` — Shared utilities (types, API client, WebSocket, hooks)
 - `src/components/` — Shared UI components (layout, ui)
 

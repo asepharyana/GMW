@@ -1,18 +1,18 @@
 import { createChildLogger } from "@bete/shared/logger";
 import { config } from "../../shared/config/index.js";
 import type {
-  MascotChatContext,
-  MascotChatHistoryRow,
+  ChatbotContext,
+  ChatbotHistoryRow,
   SaveConversationInput,
-} from "./mascot-chat.repository.js";
-import { mascotChatRepository } from "./mascot-chat.repository.js";
+} from "./chatbot.repository.js";
+import { chatbotRepository } from "./chatbot.repository.js";
 
-const logger = createChildLogger("mascot-chat.service");
+const logger = createChildLogger("chatbot.service");
 
-class MascotChatService {
+class ChatbotService {
   async processMessage(
     message: string,
-    context: MascotChatContext | undefined,
+    context: ChatbotContext | undefined,
     userId: string,
   ): Promise<string> {
     logger.info(
@@ -20,7 +20,7 @@ class MascotChatService {
       "processMessage called",
     );
     const recentContext = await this.getRecentConversationContext(userId);
-    const serverInsights = await mascotChatRepository.getServerInsights(
+    const serverInsights = await chatbotRepository.getServerInsights(
       context?.guildId,
       context?.channelId,
     );
@@ -39,29 +39,29 @@ class MascotChatService {
 
   async saveConversation(input: SaveConversationInput): Promise<void> {
     logger.info({ userId: input.userId }, "saveConversation called");
-    await mascotChatRepository.saveConversation(input);
+    await chatbotRepository.saveConversation(input);
   }
 
   async getChatHistory(
     userId: string,
     limit: number,
-  ): Promise<MascotChatHistoryRow[]> {
+  ): Promise<ChatbotHistoryRow[]> {
     logger.debug({ userId, limit }, "getChatHistory called");
-    return mascotChatRepository.getChatHistory(userId, limit);
+    return chatbotRepository.getChatHistory(userId, limit);
   }
 
   async clearChatHistory(userId: string): Promise<void> {
     logger.info({ userId }, "clearChatHistory called");
-    await mascotChatRepository.clearChatHistory(userId);
+    await chatbotRepository.clearChatHistory(userId);
   }
 
   private async getRecentConversationContext(
     userId: string,
   ): Promise<string[]> {
-    const history = await mascotChatRepository.getChatHistory(userId, 3);
+    const history = await chatbotRepository.getChatHistory(userId, 3);
     return history.flatMap((row) => [
       `User: ${row.user_message}`,
-      `Mascot: ${row.mascot_response}`,
+      `Bot: ${row.bot_response}`,
     ]);
   }
 
@@ -71,7 +71,7 @@ class MascotChatService {
     flagged: number;
     warned: number;
   }): string {
-    return `Kamu lagi ngobrol sama mascot Discord Watcher — temen ngobrol yang tau keadaan server.
+    return `Kamu lagi ngobrol sama chatbot Discord Watcher — temen ngobrol yang tau keadaan server.
 
 Data server saat ini:
 - Pesan: ${insights.total_messages}
@@ -92,7 +92,7 @@ Gaya ngobrol:
   private buildHistoryMessages(
     recentContext: string[],
   ): Array<{ role: "user" | "assistant"; content: string }> {
-    // recentContext is alternating User/Mascot messages
+    // recentContext is alternating User/Bot messages
     return recentContext.map((text) => {
       if (text.startsWith("User: ")) {
         return { role: "user" as const, content: text.slice(6) };
@@ -178,4 +178,4 @@ Gaya ngobrol:
   }
 }
 
-export const mascotChatService = new MascotChatService();
+export const chatbotService = new ChatbotService();

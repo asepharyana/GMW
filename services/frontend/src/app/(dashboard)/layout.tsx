@@ -5,8 +5,8 @@ import { Suspense, useEffect, useState } from "react";
 import { TopNav } from "@/components/layout/top-nav";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { WsProvider, useWebSocket } from "@/lib/ws/context";
-import { MascotProvider, useMascot } from "@/components/mascot/mascot-context";
-import { MascotContainer } from "@/components/mascot/mascot-container";
+import { ChatbotProvider, useChatbot } from "@/components/chatbot/chatbot-context";
+import { ChatbotContainer } from "@/components/chatbot/chatbot-container";
 import { MiniPlayer } from "@/components/media/mini-player";
 import { MediaPlayerProvider } from "@/lib/hooks/use-media-player";
 import { HiddenSidebar } from "@/components/layout/hidden-sidebar";
@@ -21,9 +21,9 @@ const queryClient = new QueryClient({
   },
 });
 
-function MascotExpressionSync() {
+function ChatbotExpressionSync() {
   const ws = useWebSocket();
-  const { setExpression } = useMascot();
+  const { setExpression } = useChatbot();
 
   useEffect(() => {
     const unsub1 = ws.on("message_created", (data: any) => {
@@ -57,8 +57,8 @@ export default function DashboardLayout({
     <QueryClientProvider client={queryClient}>
       <WsProvider>
         <MediaPlayerProvider>
-          <MascotProvider>
-            <MascotExpressionSync />
+          <ChatbotProvider>
+            <ChatbotExpressionSync />
             <div className="min-h-screen bg-canvas">
               <TopNav />
               <HiddenSidebar guildId={guildId} onGuildChange={(g) => setGuildId(g ?? "")} />
@@ -80,9 +80,9 @@ export default function DashboardLayout({
 
               <MobileNav />
               <MiniPlayer />
-              <MascotContainer />
+              <ChatbotContainer />
             </div>
-          </MascotProvider>
+          </ChatbotProvider>
         </MediaPlayerProvider>
       </WsProvider>
     </QueryClientProvider>

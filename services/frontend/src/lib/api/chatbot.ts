@@ -3,9 +3,9 @@ import { api } from "./client";
 
 export const chatbotApi = {
   send: (message: string) =>
-    api.post<ChatbotResponse>("/api/mascot/chat", { message }),
+    api.post<ChatbotResponse>("/api/chat", { message }),
 
-  getHistory: () => api.get<ChatHistoryMessage[]>("/api/mascot/chat/history"),
+  getHistory: () => api.get<ChatHistoryMessage[]>("/api/chat/history"),
 
-  clearHistory: () => api.delete<{ ok: boolean }>("/api/mascot/chat/history"),
+  clearHistory: () => api.delete<{ ok: boolean }>("/api/chat/history"),
 };

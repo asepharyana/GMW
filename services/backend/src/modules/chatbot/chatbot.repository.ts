@@ -1,11 +1,11 @@
-import { pgMascotChatMessagesTable, pgMessagesTable } from "@bete/shared";
+import { pgChatbotMessagesTable, pgMessagesTable } from "@bete/shared";
 import { createChildLogger } from "@bete/shared/logger";
 import { and, desc, eq, type SQL, sql } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/index.js";
 
-const logger = createChildLogger("mascot-chat.repository");
+const logger = createChildLogger("chatbot.repository");
 
-export interface MascotChatContext {
+export interface ChatbotContext {
   messageCount?: number;
   activeParticipants?: number;
   lastActivity?: string;
@@ -17,17 +17,17 @@ export interface MascotChatContext {
 export interface SaveConversationInput {
   userId: string;
   userMessage: string;
-  mascotResponse: string;
-  context?: MascotChatContext;
+  botResponse: string;
+  context?: ChatbotContext;
   timestamp: Date;
 }
 
-export interface MascotChatHistoryRow {
+export interface ChatbotHistoryRow {
   id: string;
   user_id: string;
   user_message: string;
-  mascot_response: string;
-  context: MascotChatContext | null;
+  bot_response: string;
+  context: ChatbotContext | null;
   created_at: string;
 }
 
@@ -38,14 +38,14 @@ export interface ServerInsights {
   warned: number;
 }
 
-export class MascotChatRepository {
+export class ChatbotRepository {
   async saveConversation(input: SaveConversationInput): Promise<void> {
     const db = getDatabase();
 
-    await db.insert(pgMascotChatMessagesTable).values({
+    await db.insert(pgChatbotMessagesTable).values({
       user_id: input.userId,
       user_message: input.userMessage,
-      mascot_response: input.mascotResponse,
+      bot_response: input.botResponse,
       context: (input.context ?? {}) as Record<string, unknown>,
       created_at: input.timestamp,
     });
@@ -56,27 +56,27 @@ export class MascotChatRepository {
   async getChatHistory(
     userId: string,
     limit: number,
-  ): Promise<MascotChatHistoryRow[]> {
+  ): Promise<ChatbotHistoryRow[]> {
     const db = getDatabase();
 
     const rows = await db
       .select()
-      .from(pgMascotChatMessagesTable)
-      .where(eq(pgMascotChatMessagesTable.user_id, userId))
-      .orderBy(desc(pgMascotChatMessagesTable.created_at))
+      .from(pgChatbotMessagesTable)
+      .where(eq(pgChatbotMessagesTable.user_id, userId))
+      .orderBy(desc(pgChatbotMessagesTable.created_at))
       .limit(limit);
 
     logger.debug({ userId, count: rows.length }, "Chat history fetched");
-    return rows.reverse() as unknown as MascotChatHistoryRow[];
+    return rows.reverse() as unknown as ChatbotHistoryRow[];
   }
 
   async clearChatHistory(userId: string): Promise<void> {
     const db = getDatabase();
 
     const deleted = await db
-      .delete(pgMascotChatMessagesTable)
-      .where(eq(pgMascotChatMessagesTable.user_id, userId))
-      .returning({ id: pgMascotChatMessagesTable.id });
+      .delete(pgChatbotMessagesTable)
+      .where(eq(pgChatbotMessagesTable.user_id, userId))
+      .returning({ id: pgChatbotMessagesTable.id });
 
     logger.info(
       { userId, deletedRows: deleted.length },
@@ -135,4 +135,4 @@ export class MascotChatRepository {
   }
 }
 
-export const mascotChatRepository = new MascotChatRepository();
+export const chatbotRepository = new ChatbotRepository();

@@ -25,7 +25,7 @@ src/
 │   ├── messages/         # Message feed, search, review, detail modal
 │   ├── live/             # Voice connection, music player, recordings
 │   ├── dashboard/        # Stats, users, channels overview
-│   └── mascot/           # AI chatbot
+│   └── chatbot/          # AI chatbot
 ├── lib/
 │   ├── api/              # Fetch-based API client (all BE endpoints)
 │   ├── ws/               # WebSocket client + React context

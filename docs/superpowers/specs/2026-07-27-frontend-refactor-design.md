@@ -1,7 +1,7 @@
 # Frontend Refactor: Cleanup, API Alignment & Rebrand
 
 ## Goal
-Refactor the frontend (`services/frontend/`) to be cleaner, more maintainable, properly aligned with backend API, and rebranded from "bete/GMW" to "Discord Automod" and from "mascot" to "chatbot".
+Refactor the frontend (`services/frontend/`) to be cleaner, more maintainable, properly aligned with backend API, and rebranded from "bete/GMW" to "Discord Automod" and from "chatbot" to "chatbot".
 
 ## Scope
 
@@ -23,7 +23,7 @@ Refactor the frontend (`services/frontend/`) to be cleaner, more maintainable, p
 
 ### D. Rebrand
 - **bete/GMW → Discord Automod**: page title, sidebar, settings, comments
-- **mascot → chatbot**: the frontend already uses "chatbot" naming for the component and API module; backend paths (`/api/mascot/chat`) stay unchanged on frontend since they reference the actual backend path
+- **chatbot → chatbot**: the frontend already uses "chatbot" naming for the component and API module; backend paths (`/api/chatbot/chat`) stay unchanged on frontend since they reference the actual backend path
 
 ### E. Dead Code Removal
 - Remove `components/landing/` (including `live-stats.tsx`)

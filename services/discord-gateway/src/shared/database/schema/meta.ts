@@ -1,5 +1,5 @@
 import {
-  pgMascotChatMessagesTable,
+  pgChatbotMessagesTable,
   pgMuxerJobsTable,
   pgRetentionPoliciesTable,
   pgUIStateTable,
@@ -7,7 +7,7 @@ import {
 
 // Re-export shared tables
 export {
-  pgMascotChatMessagesTable,
+  pgChatbotMessagesTable,
   pgMuxerJobsTable,
   pgRetentionPoliciesTable,
   pgUIStateTable,
@@ -15,7 +15,7 @@ export {
 export const muxerJobsTable = pgMuxerJobsTable;
 export const uiStateTable = pgUIStateTable;
 export const retentionPoliciesTable = pgRetentionPoliciesTable;
-export const mascotChatMessagesTable = pgMascotChatMessagesTable;
+export const chatbotMessagesTable = pgChatbotMessagesTable;
 
 // Types
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;
@@ -24,6 +24,6 @@ export type UIState = typeof uiStateTable.$inferSelect;
 export type UIStateInsert = typeof uiStateTable.$inferInsert;
 export type RetentionPolicy = typeof retentionPoliciesTable.$inferSelect;
 export type RetentionPolicyInsert = typeof retentionPoliciesTable.$inferInsert;
-export type MascotChatMessage = typeof mascotChatMessagesTable.$inferSelect;
-export type MascotChatMessageInsert =
-  typeof mascotChatMessagesTable.$inferInsert;
+export type ChatbotMessage = typeof chatbotMessagesTable.$inferSelect;
+export type ChatbotMessageInsert =
+  typeof chatbotMessagesTable.$inferInsert;

@@ -2,12 +2,12 @@
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import { Bot, MessageCircle, Minimize2 } from "lucide-react";
-import { useMascot } from "./mascot-context";
-import { MascotCanvas } from "./mascot-canvas";
+import { useChatbot } from "./chatbot-context";
+import { ChatbotCanvas } from "./chatbot-canvas";
 import { ChatPanel } from "./chat-panel";
 
-export function MascotContainer() {
-  const { minimized, setMinimized, chatOpen, setChatOpen } = useMascot();
+export function ChatbotContainer() {
+  const { minimized, setMinimized, chatOpen, setChatOpen } = useChatbot();
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -42,7 +42,7 @@ export function MascotContainer() {
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {/* Main mascot bubble */}
+      {/* Main chatbot bubble */}
       <div
         className={`glass-intense rounded-2xl overflow-hidden transition-all duration-200 ${
           minimized ? "w-14 h-14 cursor-pointer" : "w-[220px]"
@@ -55,7 +55,7 @@ export function MascotContainer() {
             onClick={() => setMinimized(false)}
             className="w-full h-full flex items-center justify-center"
             onMouseDown={handleMouseDown}
-            aria-label="Open mascot"
+            aria-label="Open chatbot"
           >
             <Bot className="size-6 text-primary" />
           </button>
@@ -67,7 +67,7 @@ export function MascotContainer() {
               onMouseDown={handleMouseDown}
             >
               <span className="text-[10px] font-semibold text-text-secondary tracking-wide uppercase">
-                Mascot
+                Chatbot
               </span>
               <div className="flex items-center gap-1">
                 <button
@@ -82,7 +82,7 @@ export function MascotContainer() {
                   type="button"
                   onClick={() => setMinimized(true)}
                   className="size-5 flex items-center justify-center rounded hover:bg-glass-bg transition-colors"
-                  aria-label="Minimize mascot"
+                  aria-label="Minimize chatbot"
                 >
                   {minimized ? (
                     <Bot className="size-3 text-text-secondary/60 hover:text-text-primary" />
@@ -95,7 +95,7 @@ export function MascotContainer() {
 
             {/* Canvas area */}
             <div className="h-[140px] flex items-center justify-center">
-              <MascotCanvas />
+              <ChatbotCanvas />
             </div>
 
             {/* Chat panel (expandable) */}

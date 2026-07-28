@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Full frontend redesign with glassmorphic dark theme, floating top nav, Live2D mascot, and rich analytics dashboard.
+**Goal:** Full frontend redesign with glassmorphic dark theme, floating top nav, Live2D chatbot, and rich analytics dashboard.
 
 **Architecture:** No routing or state management changes — same Next.js App Router, TanStack Query, WebSocket context. Only visual layer and component structure rewritten. New glass component system wraps existing logic.
 
@@ -33,7 +33,7 @@
 | `src/app/globals.css` | Complete rewrite — new tokens, glass system, animations |
 | `src/app/layout.tsx` | Fonts (Inter + JetBrains Mono), metadata |
 | `src/app/page.tsx` | Redirect `/dashboard` not `/messages` |
-| `src/app/(dashboard)/layout.tsx` | Top nav, no sidebar, mascot context, media context, WS provider |
+| `src/app/(dashboard)/layout.tsx` | Top nav, no sidebar, chatbot context, media context, WS provider |
 | `src/lib/navigation.ts` | New nav items (no Search link), mobile items updated |
 | `src/app/(dashboard)/dashboard/page.tsx` | Full rewrite — Ops Center |
 | `src/app/(dashboard)/messages/page.tsx` | Full rewrite — Split pane |
@@ -69,23 +69,23 @@
 | `src/components/voice/activity-timeline.tsx` | Voice activity chart |
 | `src/components/recordings/recording-card.tsx` | Glass card + waveform preview |
 | `src/components/recordings/recording-player.tsx` | Inline audio player |
-| `src/components/mascot/mascot-container.tsx` | Floating L2D container |
-| `src/components/mascot/mascot-canvas.tsx` | WebGL Live2D renderer |
-| `src/components/mascot/chat-panel.tsx` | Chat input + history |
-| `src/components/mascot/mascot-context.tsx` | Context provider |
+| `src/components/chatbot/chatbot-container.tsx` | Floating L2D container |
+| `src/components/chatbot/chatbot-canvas.tsx` | WebGL Live2D renderer |
+| `src/components/chatbot/chat-panel.tsx` | Chat input + history |
+| `src/components/chatbot/chatbot-context.tsx` | Context provider |
 | `src/components/media/mini-player.tsx` | Floating media player |
 | `src/components/shared/error-boundary.tsx` | Per-page error boundary |
 | `src/components/shared/loading-skeleton.tsx` | Glass shimmer skeleton |
 | `src/components/shared/empty-state.tsx` | Empty state |
 | `src/lib/hooks/use-media-player.ts` | Global media player context |
-| `src/lib/hooks/use-mascot.ts` | Mascot context hook |
+| `src/lib/hooks/use-chatbot.ts` | Chatbot context hook |
 
 ### Deleted files (replaced by new components):
 | File | Replaced by |
 |------|-------------|
 | `src/components/layout/app-sidebar.tsx` | `top-nav.tsx` + `hidden-sidebar.tsx` |
 | `src/components/layout/app-header.tsx` | `top-nav.tsx` + `sub-nav.tsx` |
-| `src/components/chatbot/chatbot.tsx` | `mascot/` components |
+| `src/components/chatbot/chatbot.tsx` | `chatbot/` components |
 | `src/components/shared/stat-card.tsx` | `dashboard/stat-card.tsx` |
 | `src/components/shared/detail-stat.tsx` | inline in detail views |
 | `src/components/messages/images-grid.tsx` | `attachments-grid.tsx` |
@@ -749,8 +749,8 @@ import { Suspense } from "react";
 import { TopNav } from "@/components/layout/top-nav";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { WsProvider } from "@/lib/ws/context";
-import { MascotProvider } from "@/components/mascot/mascot-context";
-import { MascotContainer } from "@/components/mascot/mascot-container";
+import { ChatbotProvider } from "@/components/chatbot/chatbot-context";
+import { ChatbotContainer } from "@/components/chatbot/chatbot-container";
 import { MiniPlayer } from "@/components/media/mini-player";
 import { MediaPlayerProvider } from "@/lib/hooks/use-media-player";
 import { HiddenSidebar } from "@/components/layout/hidden-sidebar";
@@ -777,7 +777,7 @@ export default function DashboardLayout({
     <QueryClientProvider client={queryClient}>
       <WsProvider>
         <MediaPlayerProvider>
-          <MascotProvider>
+          <ChatbotProvider>
             <div className="min-h-screen bg-canvas">
               <TopNav />
               <HiddenSidebar guildId={guildId} onGuildChange={(g) => setGuildId(g ?? "")} />
@@ -799,9 +799,9 @@ export default function DashboardLayout({
 
               <MobileNav />
               <MiniPlayer />
-              <MascotContainer />
+              <ChatbotContainer />
             </div>
-          </MascotProvider>
+          </ChatbotProvider>
         </MediaPlayerProvider>
       </WsProvider>
     </QueryClientProvider>
@@ -822,7 +822,7 @@ rm src/components/chatbot/chatbot.tsx
 ```bash
 git add src/app/\(dashboard\)/layout.tsx
 git rm src/components/layout/app-sidebar.tsx src/components/layout/app-header.tsx src/components/chatbot/chatbot.tsx
-git commit -m "feat: rewrite dashboard layout with top nav, hidden sidebar, mascot, mini-player"
+git commit -m "feat: rewrite dashboard layout with top nav, hidden sidebar, chatbot, mini-player"
 ```
 
 ---
@@ -3117,38 +3117,38 @@ git commit -m "feat: add media player context and floating mini player"
 
 ---
 
-### Task 21: Mascot — Context, Container & Canvas
+### Task 21: Chatbot — Context, Container & Canvas
 
 **Files:**
-- Create: `src/components/mascot/mascot-context.tsx`
-- Create: `src/components/mascot/mascot-container.tsx`
-- Create: `src/components/mascot/mascot-canvas.tsx`
-- Create: `src/components/mascot/chat-panel.tsx`
+- Create: `src/components/chatbot/chatbot-context.tsx`
+- Create: `src/components/chatbot/chatbot-container.tsx`
+- Create: `src/components/chatbot/chatbot-canvas.tsx`
+- Create: `src/components/chatbot/chat-panel.tsx`
 
-- [ ] **Step 1: Create MascotContext**
+- [ ] **Step 1: Create ChatbotContext**
 
 ```tsx
 "use client";
 
 import { createContext, useContext, useState, type ReactNode } from "react";
 
-type MascotExpression = "idle" | "listening" | "surprise" | "happy" | "sad" | "talking";
+type ChatbotExpression = "idle" | "listening" | "surprise" | "happy" | "sad" | "talking";
 
-interface MascotContextType {
-  expression: MascotExpression;
+interface ChatbotContextType {
+  expression: ChatbotExpression;
   minimized: boolean;
   chatOpen: boolean;
   chatHistory: { role: "user" | "assistant"; text: string }[];
-  setExpression: (expr: MascotExpression) => void;
+  setExpression: (expr: ChatbotExpression) => void;
   setMinimized: (v: boolean) => void;
   setChatOpen: (v: boolean) => void;
   addChat: (role: "user" | "assistant", text: string) => void;
 }
 
-const MascotContext = createContext<MascotContextType | null>(null);
+const ChatbotContext = createContext<ChatbotContextType | null>(null);
 
-export function MascotProvider({ children }: { children: ReactNode }) {
-  const [expression, setExpression] = useState<MascotExpression>("idle");
+export function ChatbotProvider({ children }: { children: ReactNode }) {
+  const [expression, setExpression] = useState<ChatbotExpression>("idle");
   const [minimized, setMinimized] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
@@ -3158,28 +3158,28 @@ export function MascotProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <MascotContext.Provider
+    <ChatbotContext.Provider
       value={{ expression, minimized, chatOpen, chatHistory, setExpression, setMinimized, setChatOpen, addChat }}
     >
       {children}
-    </MascotContext.Provider>
+    </ChatbotContext.Provider>
   );
 }
 
-export function useMascot() {
-  const ctx = useContext(MascotContext);
-  if (!ctx) throw new Error("useMascot must be used within MascotProvider");
+export function useChatbot() {
+  const ctx = useContext(ChatbotContext);
+  if (!ctx) throw new Error("useChatbot must be used within ChatbotProvider");
   return ctx;
 }
 ```
 
-- [ ] **Step 2: Create MascotCanvas (Live2D placeholder)**
+- [ ] **Step 2: Create ChatbotCanvas (Live2D placeholder)**
 
 ```tsx
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useMascot } from "./mascot-context";
+import { useChatbot } from "./chatbot-context";
 
 /**
  * Live2D Cubism WebGL canvas.
@@ -3188,15 +3188,15 @@ import { useMascot } from "./mascot-context";
  * Integration requires:
  *   1. Live2D Cubism SDK for Web (npm: @live2d/cubism)
  *   2. Model files: .model3.json, .moc3, .physics3.json, textures
- *   3. Place model files in public/mascot/
+ *   3. Place model files in public/chatbot/
  *
  * The current implementation shows a placeholder character.
  * Replace with actual Cubism SDK integration when model files are available.
  */
 
-export function MascotCanvas() {
+export function ChatbotCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { expression } = useMascot();
+  const { expression } = useChatbot();
 
   // Placeholder: draw a simple avatar face that responds to expression
   useEffect(() => {
@@ -3308,19 +3308,19 @@ export function MascotCanvas() {
 }
 ```
 
-- [ ] **Step 3: Create MascotContainer**
+- [ ] **Step 3: Create ChatbotContainer**
 
 ```tsx
 "use client";
 
 import { MessageCircle, X, Minimize2, Maximize2 } from "lucide-react";
-import { useMascot } from "./mascot-context";
-import { MascotCanvas } from "./mascot-canvas";
+import { useChatbot } from "./chatbot-context";
+import { ChatbotCanvas } from "./chatbot-canvas";
 import { ChatPanel } from "./chat-panel";
 import { useState } from "react";
 
-export function MascotContainer() {
-  const { minimized, setMinimized, chatOpen, setChatOpen } = useMascot();
+export function ChatbotContainer() {
+  const { minimized, setMinimized, chatOpen, setChatOpen } = useChatbot();
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -3345,7 +3345,7 @@ export function MascotContainer() {
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {/* Main mascot bubble */}
+      {/* Main chatbot bubble */}
       <div
         className={`glass-intense rounded-2xl overflow-hidden transition-all duration-200 ${
           minimized ? "w-16 h-16 cursor-pointer" : "w-[200px]"
@@ -3368,7 +3368,7 @@ export function MascotContainer() {
               className="flex items-center justify-between px-3 py-1.5 border-b border-glass-border cursor-grab active:cursor-grabbing"
               onMouseDown={handleMouseDown}
             >
-              <span className="text-[10px] font-semibold text-text-secondary tracking-wide uppercase">Mascot</span>
+              <span className="text-[10px] font-semibold text-text-secondary tracking-wide uppercase">Chatbot</span>
               <div className="flex items-center gap-1">
                 <button type="button" onClick={() => setChatOpen(!chatOpen)}>
                   <MessageCircle className="size-3 text-text-secondary/60 hover:text-text-primary" />
@@ -3381,7 +3381,7 @@ export function MascotContainer() {
 
             {/* Canvas area */}
             <div className="h-[140px] flex items-center justify-center">
-              <MascotCanvas />
+              <ChatbotCanvas />
             </div>
 
             {/* Chat panel (expandable) */}
@@ -3403,10 +3403,10 @@ export function MascotContainer() {
 
 import { Send } from "lucide-react";
 import { useState } from "react";
-import { useMascot } from "./mascot-context";
+import { useChatbot } from "./chatbot-context";
 
 export function ChatPanel() {
-  const { chatHistory, addChat, setExpression } = useMascot();
+  const { chatHistory, addChat, setExpression } = useChatbot();
   const [input, setInput] = useState("");
 
   const handleSend = () => {
@@ -3414,7 +3414,7 @@ export function ChatPanel() {
     addChat("user", input);
     setExpression("listening");
 
-    // Simulated bot response — replace with actual mascot-chat API call
+    // Simulated bot response — replace with actual chatbot-chat API call
     setTimeout(() => {
       addChat("assistant", `I'm monitoring this server for you!`);
       setExpression("happy");
@@ -3444,7 +3444,7 @@ export function ChatPanel() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder="Ask mascot..."
+          placeholder="Ask chatbot..."
           className="flex-1 bg-transparent text-[10px] text-text-primary placeholder-text-secondary/30 outline-none"
         />
         <button type="button" onClick={handleSend} className="size-5 flex items-center justify-center">
@@ -3459,17 +3459,17 @@ export function ChatPanel() {
 - [ ] **Step 5: Create barrel export**
 
 ```tsx
-// src/components/mascot/index.ts
-export { MascotProvider } from "./mascot-context";
-export { MascotContainer } from "./mascot-container";
-export { useMascot } from "./mascot-context";
+// src/components/chatbot/index.ts
+export { ChatbotProvider } from "./chatbot-context";
+export { ChatbotContainer } from "./chatbot-container";
+export { useChatbot } from "./chatbot-context";
 ```
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/components/mascot/
-git commit -m "feat: add Live2D mascot container with canvas, chat panel, and context"
+git add src/components/chatbot/
+git commit -m "feat: add Live2D chatbot container with canvas, chat panel, and context"
 ```
 
 ---
@@ -3477,21 +3477,21 @@ git commit -m "feat: add Live2D mascot container with canvas, chat panel, and co
 ### Task 22: WS Expression Triggers
 
 **Files:**
-- Modify: `src/app/(dashboard)/layout.tsx` — add WS → mascot expression bindings
+- Modify: `src/app/(dashboard)/layout.tsx` — add WS → chatbot expression bindings
 
 - [ ] **Step 1: Add WebSocket expression triggers**
 
-In the dashboard layout, add a side-effect that connects WebSocket events to mascot expressions:
+In the dashboard layout, add a side-effect that connects WebSocket events to chatbot expressions:
 
 ```tsx
 // Add to dashboard layout before the return:
 import { useEffect } from "react";
-import { useMascot } from "@/components/mascot/mascot-context";
+import { useChatbot } from "@/components/chatbot/chatbot-context";
 import { useWebSocket } from "@/lib/ws/context";
 
-function MascotExpressionSync() {
+function ChatbotExpressionSync() {
   const ws = useWebSocket();
-  const { setExpression } = useMascot();
+  const { setExpression } = useChatbot();
 
   useEffect(() => {
     const unsub1 = ws.on("message_created", (data: any) => {
@@ -3512,13 +3512,13 @@ function MascotExpressionSync() {
 }
 ```
 
-Then render `<MascotExpressionSync />` inside the layout tree.
+Then render `<ChatbotExpressionSync />` inside the layout tree.
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add src/app/\(dashboard\)/layout.tsx
-git commit -m "feat: connect WS events to mascot expression triggers"
+git commit -m "feat: connect WS events to chatbot expression triggers"
 ```
 
 ---
@@ -3570,12 +3570,12 @@ git commit -m "chore: remove old components replaced by redesign"
   - Section 8 (Tech Stack) → Task 2 (fonts)
   - Section 9 (File Structure) → All tasks
   - Section 10 (Implementation Order) → Followed as-is
-  - Mascot → Tasks 21, 22
+  - Chatbot → Tasks 21, 22
   - Media Player → Task 20
   - No gaps found.
 
 - [ ] **Placeholder check:** No TBD, TODO, or "implement later" found. Every task has specific code. The only note is the Live2D canvas is a placeholder with Canvas2D drawing — this is intentional since the actual Live2D model file isn't available yet.
 
-- [ ] **Type consistency:** All component props match what consuming pages expect. Hook interfaces consistent (useMascot, useMediaPlayer). No type drift between tasks.
+- [ ] **Type consistency:** All component props match what consuming pages expect. Hook interfaces consistent (useChatbot, useMediaPlayer). No type drift between tasks.
 
 - [ ] **No contradictions:** nav items match top nav links. Page layouts match sub-nav tabs. No file referenced before being created.

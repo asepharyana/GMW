@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useMascot } from "./mascot-context";
+import { useChatbot } from "./chatbot-context";
 
 /**
  * Live2D Cubism WebGL canvas.
@@ -10,15 +10,15 @@ import { useMascot } from "./mascot-context";
  * Integration requires:
  *   1. Live2D Cubism SDK for Web (npm: @live2d/cubism)
  *   2. Model files: .model3.json, .moc3, .physics3.json, textures
- *   3. Place model files in public/mascot/
+ *   3. Place model files in public/chatbot/
  *
  * The current implementation shows a placeholder character.
  * Replace with actual Cubism SDK integration when model files are available.
  */
 
-export function MascotCanvas() {
+export function ChatbotCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { expression } = useMascot();
+  const { expression } = useChatbot();
 
   // Placeholder: draw a simple avatar face that responds to expression
   useEffect(() => {

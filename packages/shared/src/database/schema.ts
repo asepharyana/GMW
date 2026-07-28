@@ -502,30 +502,30 @@ export const pgRetentionPoliciesTable = pgTable(
 export const retentionPoliciesTable = pgRetentionPoliciesTable;
 
 /**
- * Mascot Chat Messages Table (PostgreSQL)
- * Stores AI mascot chat conversation history
+ * Chatbot Messages Table (PostgreSQL)
+ * Stores AI chat conversation history
  */
-export const pgMascotChatMessagesTable = pgTable(
-  "mascot_chat_messages",
+export const pgChatbotMessagesTable = pgTable(
+  "chatbot_messages",
   {
     id: pgUuid("id").defaultRandom().primaryKey(),
     user_id: pgText("user_id").notNull(),
     user_message: pgText("user_message").notNull(),
-    mascot_response: pgText("mascot_response").notNull(),
+    bot_response: pgText("bot_response").notNull(),
     context: pgJsonb("context").notNull().default("{}"),
     created_at: pgTimestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
   },
   (table) => ({
-    userCreatedIdx: pgIndex("idx_mascot_chat_messages_user_created").on(
+    userCreatedIdx: pgIndex("idx_chatbot_messages_user_created").on(
       table.user_id,
       table.created_at.desc(),
     ),
   }),
 );
 
-export const mascotChatMessagesTable = pgMascotChatMessagesTable;
+export const chatbotMessagesTable = pgChatbotMessagesTable;
 
 // =============================================================================
 // Type Exports
@@ -590,7 +590,7 @@ export type DbRetentionPolicy = typeof retentionPoliciesTable.$inferSelect;
 export type DbRetentionPolicyInsert =
   typeof retentionPoliciesTable.$inferInsert;
 
-// Mascot Chat Messages
-export type MascotChatMessage = typeof mascotChatMessagesTable.$inferSelect;
-export type MascotChatMessageInsert =
-  typeof mascotChatMessagesTable.$inferInsert;
+// Chatbot Messages
+export type ChatbotMessage = typeof chatbotMessagesTable.$inferSelect;
+export type ChatbotMessageInsert =
+  typeof chatbotMessagesTable.$inferInsert;

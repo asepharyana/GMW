@@ -13,7 +13,7 @@ Comprehensive refactoring of `services/backend` (4.2k lines) and `services/disco
 
 **Problem:** Two competing controller patterns.
 
-- `messages.controller.ts`, `mascot-chat.controller.ts` use convoluted `asyncHandler` inside function body (Gaya A)
+- `messages.controller.ts`, `chatbot-chat.controller.ts` use convoluted `asyncHandler` inside function body (Gaya A)
 - `voice.controller.ts`, `health.controller.ts` use clean `asyncHandler` decorator (Gaya B)
 
 **Fix:** Convert all controllers to **Gaya B** (decorator pattern).
@@ -36,7 +36,7 @@ export const handleListMessages = asyncHandler(async (req, res) => {
 
 **Files affected:**
 - `modules/messages/messages.controller.ts`
-- `modules/mascot-chat/mascot-chat.controller.ts`
+- `modules/chatbot-chat/chatbot-chat.controller.ts`
 
 ### Phase 2 — Backend `response.ts` Cleanup
 

@@ -2,14 +2,14 @@
 
 import { useRef, useEffect } from "react";
 import { Send } from "lucide-react";
-import { useMascot } from "./mascot-context";
+import { useChatbot } from "./chatbot-context";
 
 interface ChatPanelProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
-  const { messages, sendMessage, isTyping } = useMascot();
+  const { messages, sendMessage, isTyping } = useChatbot();
   const listRef = useRef<HTMLDivElement>(null);
   const internalInputRef = useRef<HTMLInputElement>(null);
   const inputRef = externalInputRef ?? internalInputRef;
@@ -35,7 +35,7 @@ export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
       <div ref={listRef} className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
-            <p className="text-[10px] text-text-secondary/40">Ask mascot anything</p>
+            <p className="text-[10px] text-text-secondary/40">Ask chatbot anything</p>
           </div>
         )}
         {messages.slice(-8).map((msg, i) => (
@@ -72,7 +72,7 @@ export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Ask mascot..."
+          placeholder="Ask chatbot..."
           className="flex-1 bg-transparent text-[10px] text-text-primary placeholder-text-secondary/30 outline-none"
           disabled={isTyping}
         />
