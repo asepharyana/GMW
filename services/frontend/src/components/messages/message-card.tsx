@@ -1,87 +1,160 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { Hash, RefreshCw } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { safeParseJsonArray } from "@/lib/format";
 import type { MessageRecord } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { AiStatusBadge } from "./ai-status-badge";
 
-interface MessageCardProps {
+export function MessageCard({
+  message: msg,
+  onClick,
+  onReanalyze,
+}: {
   message: MessageRecord;
-  selected?: boolean;
-  onClick?: (id: string) => void;
-}
-
-const severityDot: Record<string, string> = {
-  clean: "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/60",
-  pending: "bg-text-secondary/30",
-  warn: "bg-accent-amber shadow-[0_0_6px] shadow-accent-amber/60",
-  flagged: "bg-accent-purple shadow-[0_0_6px] shadow-accent-purple/60",
-  error: "bg-destructive/60",
-};
-
-function formatRelativeTime(timestamp: number): string {
-  const diff = Date.now() - timestamp;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
-}
-
-export function MessageCard({ message, selected, onClick }: MessageCardProps) {
-  const status = message.ai_status || "pending";
+  onClick: (id: string) => void;
+  onReanalyze: (id: string) => void;
+}) {
+  const severity = (
+    {
+      low: "border-l-cyan-500/40",
+      medium: "border-l-amber-500/60",
+      high: "border-l-orange-500/70",
+      critical: "border-l-red-500/80",
+    } as Record<string, string>
+  )[msg.ai_severity ?? ""];
 
   return (
-    <button
-      type="button"
-      onClick={() => onClick?.(message.id)}
+    <Card
       className={cn(
-        "w-full text-left px-4 py-3 rounded-[var(--radius-panel)] transition-all duration-150 border",
-        selected
-          ? "glass-elevated border-border-glow"
-          : "glass border-glass-border hover:border-border-glow/50 hover:scale-[1.002]",
+        "cursor-pointer transition-all duration-200 hover:shadow-[0_0_16px_oklch(0.62_0.17_215_/_0.08)] hover:border-cyan-500/20",
+        severity && "border-l-2",
+        severity,
       )}
+      onClick={() => onClick(msg.id)}
     >
-      <div className="flex items-start gap-3">
-        {/* Severity dot */}
-        <span className={cn("mt-1.5 size-2 rounded-full shrink-0", severityDot[status] || severityDot.pending)} />
-
-        <div className="flex-1 min-w-0">
-          {/* Header */}
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-sm font-semibold text-text-primary truncate">{message.username}</span>
-            <span className="text-[10px] font-mono text-text-secondary/50">{message.channel_id?.slice(0, 8)}</span>
-            <span className="ml-auto text-[10px] text-text-secondary/40 shrink-0">
-              {message.created_at ? formatRelativeTime(message.created_at) : ""}
-            </span>
-          </div>
-
-          {/* Content */}
-          <p className="text-sm text-text-secondary/80 line-clamp-2 leading-relaxed">
-            {message.content || "(no text content)"}
-          </p>
-
-          {/* AI status badge */}
-          {status !== "pending" && (
-            <div className="flex items-center gap-2 mt-1.5">
-              <span className={cn(
-                "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium font-mono",
-                status === "clean" && "bg-emerald-500/10 text-emerald-500",
-                status === "warn" && "bg-accent-amber/10 text-accent-amber",
-                status === "flagged" && "bg-accent-purple/10 text-accent-purple",
-                status === "error" && "bg-destructive/10 text-destructive",
-              )}>
-                {status}
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <Avatar className="size-8 shrink-0 mt-0.5">
+            <AvatarImage src={msg.avatar_url ?? undefined} />
+            <AvatarFallback className="text-xs">
+              {msg.username.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium">{msg.username}</span>
+              <span className="text-xs text-muted-foreground">
+                {new Date(msg.created_at).toLocaleString()}
               </span>
-              {message.ai_moderation_flags && message.ai_moderation_flags.length > 0 && (
-                <span className="text-[10px] text-text-secondary/50 font-mono">
-                  {message.ai_moderation_flags}
-                </span>
+              <span className="text-xs text-muted-foreground">
+                <Hash className="size-3 inline mr-0.5" />
+                {msg.channel_id.slice(0, 8)}
+              </span>
+              <AiStatusBadge status={msg.ai_status} />
+              {msg.ai_severity && msg.ai_severity !== "none" && (
+                <Badge
+                  variant="destructive"
+                  className="text-[10px] px-1.5 py-0 h-4"
+                >
+                  {msg.ai_severity}
+                </Badge>
+              )}
+              {msg.type === "deleted" && (
+                <Badge
+                  variant="destructive"
+                  className="text-[10px] px-1.5 py-0 h-4"
+                >
+                  deleted
+                </Badge>
+              )}
+              {msg.type === "edited" && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 h-4"
+                >
+                  edited
+                </Badge>
               )}
             </div>
-          )}
+            <p
+              className={cn(
+                "text-sm leading-relaxed",
+                msg.type === "deleted" &&
+                  "italic text-muted-foreground line-through",
+              )}
+            >
+              {msg.content}
+            </p>
+            {(() => {
+              const u = extractFirstImage(msg.metadata);
+              if (!u) return null;
+              return (
+                <img
+                  src={u}
+                  alt=""
+                  className="mt-2 max-h-48 rounded-lg border border-border/50 object-cover"
+                />
+              );
+            })()}
+            {msg.ai_moderation_flags && msg.ai_moderation_flags !== "[]" && (
+              <div className="flex flex-wrap gap-1">
+                {safeParseJsonArray(msg.ai_moderation_flags).map((f) => (
+                  <Badge
+                    key={f}
+                    variant="destructive"
+                    className="text-[10px] px-1.5 py-0 h-4"
+                  >
+                    {f}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {msg.ai_analysis && (
+              <p className="text-xs text-muted-foreground italic line-clamp-2 leading-relaxed">
+                {msg.ai_analysis}
+              </p>
+            )}
+            {msg.ai_confidence != null && (
+              <div className="flex items-center gap-2 max-w-40">
+                <Progress value={msg.ai_confidence * 100} className="h-1.5" />
+                <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                  {(msg.ai_confidence * 100).toFixed(0)}%
+                </span>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                onReanalyze(msg.id);
+              }}
+            >
+              <RefreshCw className="size-3 mr-1" /> Reanalyze
+            </Button>
+          </div>
         </div>
-      </div>
-    </button>
+      </CardContent>
+    </Card>
   );
+}
+
+export function extractFirstImage(
+  metadata: string | null | undefined,
+): string | null {
+  if (!metadata) return null;
+  try {
+    const m = JSON.parse(metadata);
+    const atts: Array<{ url: string; contentType?: string }> =
+      m.attachments ?? [];
+    return atts.find((a) => a.contentType?.startsWith("image/"))?.url ?? null;
+  } catch {
+    return null;
+  }
 }

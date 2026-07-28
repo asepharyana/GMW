@@ -64,8 +64,8 @@ export function SearchPanel() {
           </p>
           {results.length === 0 ? (
             <EmptyState
-              title="No messages found"
-              description="Try a different search query."
+              icon={Search}
+              title="No messages found matching your query."
             />
           ) : (
             <div className="space-y-2">

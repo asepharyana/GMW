@@ -146,6 +146,21 @@ export const configSchema = z
       .int()
       .positive()
       .default(60000),
+    // ── AI Model (new unified keys) ───────────────────────────────────
+    AI_MODEL_FAST_CLASSIFIER_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === "true")
+      .default(true)
+      .describe("Enable Layer 1 fast heuristic classifier"),
+    AI_MODEL_LLM_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(30000)
+      .describe("Timeout for individual LLM moderation calls"),
+
+
 
     // ── AI Analysis Timing ──────────────────────────────────────────────
     AI_ANALYSIS_DEBOUNCE_MS: z.coerce.number().positive().default(500),

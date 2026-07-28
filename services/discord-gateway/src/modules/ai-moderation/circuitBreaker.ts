@@ -11,9 +11,9 @@ import type { MessageRecord } from "../message-capture/types.js";
 
 function getAnalysisWorkerUrl(): URL {
   const candidates = [
-    new URL("./aiAnalysisWorker.js", import.meta.url),
-    new URL("../aiAnalysisWorker.js", import.meta.url),
-    new URL("./aiAnalysisWorker.ts", import.meta.url),
+    new URL("./ai-analysis-worker.js", import.meta.url),
+    new URL("../ai-analysis-worker.js", import.meta.url),
+    new URL("./ai-analysis-worker.ts", import.meta.url),
   ];
 
   for (const candidate of candidates) {

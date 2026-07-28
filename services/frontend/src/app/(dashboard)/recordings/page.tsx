@@ -10,8 +10,6 @@ import type { VoiceRecording } from "@/lib/types";
 
 type RecordingsTab = "library" | "stats";
 
-type RecordingsTab = "library" | "stats";
-
 export default function RecordingsPage() {
   const { data: recordings, isLoading, error, refetch } = useRecordings();
   const [playingId, setPlayingId] = useState<string | null>(null);

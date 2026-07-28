@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { mobileNavItems, isActivePath } from "@/lib/navigation";
+
+import { isActivePath, mobileNavItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 export function MobileNav() {

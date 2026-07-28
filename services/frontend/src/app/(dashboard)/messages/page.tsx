@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  useGuilds,
   useImages,
   useLoadMore,
   useMessageDetail,
@@ -56,8 +55,16 @@ export default function MessagesPage() {
 
   const ws = useWebSocket();
   const { data: channels = [] } = useTextChannels(guildId);
-  const { data: messages, isLoading, error, refetch } = useMessages(guildId, selectedChannel || undefined);
-  const { data: cursorData } = useMessagesHasMore(guildId, selectedChannel || undefined);
+  const {
+    data: messages,
+    isLoading,
+    error,
+    refetch,
+  } = useMessages(guildId, selectedChannel || undefined);
+  const { data: cursorData } = useMessagesHasMore(
+    guildId,
+    selectedChannel || undefined,
+  );
   const loadMoreMut = useLoadMore();
   const { data: images } = useImages(guildId);
   const { data: reviews } = useReview(selectedChannel || undefined);
@@ -132,8 +139,10 @@ export default function MessagesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">All channels</SelectItem>
-              {channels.map((ch: any) => (
-                <SelectItem key={ch.id} value={ch.id}># {ch.name}</SelectItem>
+              {channels.map((ch) => (
+                <SelectItem key={ch.id} value={ch.id}>
+                  # {ch.name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
