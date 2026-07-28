@@ -1,23 +1,17 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { Flag, Loader2, MessageSquare, RefreshCw, Search } from "lucide-react";
-import { useCallback, useState } from "react";
-import { ImagesGrid } from "@/components/messages/images-grid";
-import { MessageCard } from "@/components/messages/message-card";
+import { useCallback, useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Flag, Image, Loader2, RefreshCw, Search } from "lucide-react";
+import { MessageList } from "@/components/messages/message-list";
 import { MessageDetailView } from "@/components/messages/message-detail-view";
-import { ReviewList } from "@/components/messages/review-list";
+import { SearchOverlay } from "@/components/messages/search-overlay";
+import { extractFirstImage } from "@/components/messages/message-card";
+import { SubNav } from "@/components/layout/sub-nav";
 import { ErrorState, LoadingSkeleton } from "@/components/shared";
-import { GuildSelector } from "@/components/shared/guild-selector";
+import { GlassCard } from "@/components/glass/card";
+import { GlassPanel } from "@/components/glass/panel";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -25,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useImages,
   useLoadMore,
@@ -38,16 +31,27 @@ import {
   useReview,
   useTextChannels,
 } from "@/hooks";
-import { messagesApi } from "@/lib/api";
 import type { MessageRecord } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
+import { GuildSelector } from "@/components/shared/guild-selector";
+
+type MessagesTab = "all" | "images" | "review";
 
 export default function MessagesPage() {
-  const [guildId, setGuildId] = useState("");
-  const [selectedChannel, setSelectedChannel] = useState("");
-  const [viewTab, setViewTab] = useState<"all" | "images" | "review">("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [guildId, setGuildId] = useState(searchParams.get("guild") || "");
+  const [selectedChannel, setSelectedChannel] = useState(
+    searchParams.get("channel") || "",
+  );
+  const [detailId, setDetailId] = useState<string | null>(
+    searchParams.get("selected"),
+  );
+  const [tab, setTab] = useState<MessagesTab>(
+    (searchParams.get("tab") as MessagesTab) || "all",
+  );
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const ws = useWebSocket();
   const { data: channels = [] } = useTextChannels(guildId);
@@ -67,33 +71,35 @@ export default function MessagesPage() {
   const reanalyzeMut = useReanalyze();
   const reanalyzeBatchMut = useReanalyzeBatch();
 
-  // Sync WS events into the TanStack Query cache
-  useMessagesWsSync(ws, guildId);
-
-  // Detail dialog
   const {
     message: detailMessage,
     attachments: detailAttachments,
     loading: detailLoading,
   } = useMessageDetail(detailId);
 
-  // Search query (manual trigger)
-  const [searchEnabled, setSearchEnabled] = useState(false);
-  const { data: searchResults } = useQuery<
-    MessageRecord[]
-  >({
-    queryKey: ["messages-search", guildId, searchQuery],
-    queryFn: async () => {
-      const result = await messagesApi.search(searchQuery, 50);
-      return result.results;
-    },
-    enabled: searchEnabled && !!searchQuery && !!guildId,
-  });
+  useMessagesWsSync(ws, guildId);
 
-  const handleSearch = useCallback(() => {
-    if (!searchQuery.trim()) return;
-    setSearchEnabled(true);
-  }, [searchQuery]);
+  // Sync state to URL
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (guildId) params.set("guild", guildId);
+    if (selectedChannel) params.set("channel", selectedChannel);
+    if (detailId) params.set("selected", detailId);
+    if (tab !== "all") params.set("tab", tab);
+    router.replace(`/messages?${params.toString()}`, { scroll: false });
+  }, [guildId, selectedChannel, detailId, tab, router]);
+
+  // Global Cmd+K search trigger
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, []);
 
   const handleLoadMore = useCallback(() => {
     if (!cursorData?.cursor || loadMoreMut.isPending) return;
@@ -104,40 +110,31 @@ export default function MessagesPage() {
     });
   }, [cursorData, loadMoreMut, guildId, selectedChannel]);
 
-  const displayMessages = searchResults ?? messages ?? [];
-  const hasMore = cursorData?.hasMore ?? false;
-  const isEmpty = !isLoading && displayMessages.length === 0;
+  const handleGuildChange = useCallback((g: string) => {
+    setGuildId(g);
+    setSelectedChannel("");
+    setDetailId(null);
+  }, []);
 
-  if (error) {
-    return (
-      <div className="space-y-5">
-        <GuildSelector value={guildId} onChange={setGuildId} />
-        <ErrorState message={error.message} onRetry={refetch} />
-      </div>
-    );
-  }
+  const subNavTabs = [
+    { id: "all", label: "All", icon: null },
+    { id: "images", label: "Images", icon: <Image className="size-3" /> },
+    { id: "review", label: "Review", icon: <Flag className="size-3" /> },
+  ];
+
+  const currentMessages = messages ?? [];
 
   return (
-    <div className="space-y-5">
-      <GuildSelector value={guildId} onChange={setGuildId} />
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Search messages…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="pl-9 h-9"
-          />
-        </div>
+    <div className="animate-fade-in-up space-y-4">
+      {/* ── Controls bar ── */}
+      <div className="flex items-center gap-3">
+        <GuildSelector value={guildId} onChange={handleGuildChange} />
         {channels.length > 0 && (
           <Select
             value={selectedChannel}
             onValueChange={(v) => setSelectedChannel(v ?? "")}
           >
-            <SelectTrigger className="h-9 w-full sm:w-44">
+            <SelectTrigger className="h-8 w-40 glass border-glass-border text-xs">
               <SelectValue placeholder="All channels" />
             </SelectTrigger>
             <SelectContent>
@@ -150,122 +147,187 @@ export default function MessagesPage() {
             </SelectContent>
           </Select>
         )}
+        <button
+          type="button"
+          onClick={() => setSearchOpen(true)}
+          className="ml-auto flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs text-text-secondary/60 hover:text-text-primary glass hover:glass-elevated transition-all"
+        >
+          <Search className="size-3.5" />
+          Search
+          <span className="hidden font-mono text-[10px] text-text-secondary/30 sm:inline">
+            &#8984;K
+          </span>
+        </button>
         <Button
           variant="outline"
           size="sm"
           onClick={() => reanalyzeBatchMut.mutate(guildId)}
+          className="h-8 text-xs"
         >
-          <RefreshCw className="size-4 mr-1.5" />
-          Reanalyze Errors
+          <RefreshCw className="mr-1 size-3" /> Reanalyze
         </Button>
       </div>
 
-      <Tabs
-        value={viewTab}
-        onValueChange={(v) => setViewTab(v as typeof viewTab)}
-      >
-        <TabsList>
-          <TabsTrigger value="all">
-            All ({(searchResults ?? messages)?.length ?? 0})
-          </TabsTrigger>
-          <TabsTrigger value="images">
-            Images ({images?.length ?? 0})
-          </TabsTrigger>
-          <TabsTrigger value="review">
-            <Flag className="size-3.5 mr-1" /> Review ({reviews?.length ?? 0})
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {/* ── Sub navigation ── */}
+      <SubNav
+        tabs={subNavTabs}
+        activeTab={tab}
+        onTabChange={(t) => setTab(t as MessagesTab)}
+      />
 
-      {searchResults && (
-        <p className="text-sm text-muted-foreground animate-fade-in-up">
-          Found {searchResults.length} result
-          {searchResults.length !== 1 ? "s" : ""}
-        </p>
-      )}
+      {/* ── Split pane ── */}
+      {error ? (
+        <ErrorState message={error.message} onRetry={refetch} />
+      ) : isLoading ? (
+        <LoadingSkeleton count={6} height="h-20" />
+      ) : (
+        <div className="flex gap-4">
+          {/* Left pane */}
+          <div
+            className={cn(
+              "space-y-2",
+              detailId ? "w-1/2 lg:w-2/5" : "w-full",
+            )}
+          >
+            {tab === "all" && (
+              <MessageList
+                messages={currentMessages}
+                selectedId={detailId}
+                onSelect={setDetailId}
+                onReanalyze={(id) => reanalyzeMut.mutate(id)}
+                hasMore={cursorData?.hasMore}
+                onLoadMore={handleLoadMore}
+                isLoadingMore={loadMoreMut.isPending}
+              />
+            )}
+            {tab === "images" && (
+              <ImageGrid items={images ?? []} onSelect={setDetailId} />
+            )}
+            {tab === "review" && (
+              <ReviewList
+                items={reviews ?? []}
+                onSelect={setDetailId}
+              />
+            )}
+          </div>
 
-      {/* ── ALL tab ── */}
-      {viewTab === "all" && (
-        <div className="space-y-2 animate-fade-in-up">
-          {isLoading ? (
-            <LoadingSkeleton count={8} height="h-28" />
-          ) : isEmpty ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <Search className="size-10 text-muted-foreground/40 mb-3" />
-              <p className="text-sm text-muted-foreground">
-                {searchResults
-                  ? "No messages found matching your search."
-                  : "No captures yet."}
-              </p>
-            </div>
-          ) : (
-            <>
-              {displayMessages.map((msg) => (
-                <MessageCard
-                  key={msg.id}
-                  message={msg}
-                  onClick={setDetailId}
-                  onReanalyze={(id) => reanalyzeMut.mutate(id)}
-                />
-              ))}
-              {hasMore && (
-                <div className="flex justify-center py-6">
-                  <Button
-                    variant="outline"
-                    onClick={handleLoadMore}
-                    disabled={loadMoreMut.isPending}
+          {/* Right pane — message detail */}
+          {detailId && (
+            <div className="sticky top-16 hidden w-1/2 self-start md:block lg:w-3/5">
+              {detailLoading ? (
+                <GlassPanel dense className="flex items-center justify-center py-12">
+                  <Loader2 className="size-5 animate-spin text-text-secondary/60" />
+                </GlassPanel>
+              ) : detailMessage ? (
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setDetailId(null)}
+                    className="text-xs text-text-secondary/60 hover:text-text-primary transition-colors"
                   >
-                    {loadMoreMut.isPending && (
-                      <Loader2 className="size-4 animate-spin mr-2" />
-                    )}
-                    {loadMoreMut.isPending ? "Loading…" : "Load more"}
-                  </Button>
+                    &larr; Back to list
+                  </button>
+                  <MessageDetailView
+                    message={detailMessage}
+                    attachments={detailAttachments}
+                  />
                 </div>
-              )}
-            </>
+              ) : null}
+            </div>
           )}
         </div>
       )}
 
-      {/* ── IMAGES tab ── */}
-      {viewTab === "images" && (
-        <ImagesGrid images={images ?? []} onSelect={setDetailId} />
-      )}
+      {/* ── Search overlay ── */}
+      <SearchOverlay
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onSelect={(id) => {
+          setDetailId(id);
+          setTab("all");
+        }}
+      />
+    </div>
+  );
+}
 
-      {/* ── REVIEW tab ── */}
-      {viewTab === "review" && (
-        <ReviewList
-          reviews={reviews ?? []}
-          onSelect={setDetailId}
-          onReanalyze={(id) => reanalyzeMut.mutate(id)}
-        />
-      )}
+// ── Inline ImageGrid (glass-styled) ────────────────
 
-      {/* Detail dialog */}
-      <Dialog
-        open={detailId !== null}
-        onOpenChange={(o) => !o && setDetailId(null)}
-      >
-        <DialogContent className="sm:max-w-2xl max-h-[85vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MessageSquare className="size-4" /> Message Detail
-            </DialogTitle>
-          </DialogHeader>
-          <ScrollArea className="max-h-[70vh] pr-1">
-            {detailLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="size-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : detailMessage ? (
-              <MessageDetailView
-                message={detailMessage}
-                attachments={detailAttachments}
+function ImageGrid({
+  items,
+  onSelect,
+}: {
+  items: MessageRecord[];
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {items.map((item) => {
+        const imgUrl = extractFirstImage(item.metadata);
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onSelect(item.id)}
+            className="glass overflow-hidden rounded-lg transition-transform hover:scale-[1.02]"
+          >
+            {imgUrl ? (
+              <img
+                src={imgUrl}
+                alt=""
+                className="h-24 w-full object-cover"
+                loading="lazy"
               />
-            ) : null}
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
+            ) : (
+              <div className="flex h-24 w-full items-center justify-center text-xs text-text-secondary/40">
+                No image
+              </div>
+            )}
+          </button>
+        );
+      })}
+      {items.length === 0 && (
+        <div className="col-span-3 py-12 text-center text-xs text-text-secondary/40">
+          No images
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Inline ReviewList (glass-styled) ────────────────
+
+function ReviewList({
+  items,
+  onSelect,
+}: {
+  items: MessageRecord[];
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <GlassCard
+          key={item.id}
+          variant="danger"
+          className="cursor-pointer p-3"
+          onClick={() => onSelect(item.id)}
+        >
+          <div className="flex items-start gap-2">
+            <Flag className="mt-0.5 size-3.5 shrink-0 text-accent-purple" />
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-2 text-xs text-text-secondary">
+                {item.content || item.id}
+              </p>
+            </div>
+          </div>
+        </GlassCard>
+      ))}
+      {items.length === 0 && (
+        <div className="py-12 text-center text-xs text-text-secondary/40">
+          No flagged messages
+        </div>
+      )}
     </div>
   );
 }
