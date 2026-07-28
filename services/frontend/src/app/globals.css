@@ -43,6 +43,9 @@
   --color-accent: var(--color-primary);
   --color-accent-foreground: var(--color-primary-foreground);
 
+  /* Ring / focus outline for shadcn outline-ring utility */
+  --color-ring: var(--color-primary);
+
   /* Radius */
   --radius-card: 16px;
   --radius-panel: 12px;
