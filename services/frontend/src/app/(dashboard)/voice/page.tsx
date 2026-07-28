@@ -1,20 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-
-import { ActiveSpeakersPanel } from "@/components/voice/active-speakers-panel";
-import { MicrophoneCard } from "@/components/voice/microphone-card";
-import { VoiceConnectionCard } from "@/components/voice/voice-connection-card";
-import {
-  useGuilds,
-  useMicTransmit,
-  useSpeakers,
-  useVoiceChannels,
-  useVoiceConnect,
-  useVoiceDisconnect,
-  useVoiceStatus,
-} from "@/hooks";
+import { VoiceConnectionCard } from "@/components/voice/connection-card";
+import { SpeakerWaveform } from "@/components/voice/speaker-waveform";
+import { MicControl } from "@/components/voice/mic-control";
+import { VoiceActivityTimeline } from "@/components/voice/activity-timeline";
+import { SubNav } from "@/components/layout/sub-nav";
 import { useWebSocket } from "@/lib/ws/context";
+import { useGuilds, useMicTransmit, useSpeakers, useVoiceChannels, useVoiceConnect, useVoiceDisconnect, useVoiceStatus } from "@/hooks";
+
+type VoiceTab = "connection" | "activity";
 
 export default function VoicePage() {
   const ws = useWebSocket();
@@ -28,20 +23,13 @@ export default function VoicePage() {
   const micMut = useMicTransmit();
   const [selectedChannel, setSelectedChannel] = useState("");
   const [micActive, setMicActive] = useState(false);
+  const [volume, setVolume] = useState(75);
+  const [tab, setTab] = useState<VoiceTab>("connection");
 
   useEffect(() => {
     const unsub = subscribe(ws);
     return () => unsub();
   }, [ws, subscribe]);
-
-  const handleGuildChange = useCallback((guildId: string | null) => {
-    if (!guildId) {
-      setSelectedGuild("");
-      setSelectedChannel("");
-      return;
-    }
-    setSelectedGuild(guildId);
-  }, []);
 
   const handleMicToggle = useCallback(
     async (checked: boolean) => {
@@ -59,25 +47,44 @@ export default function VoicePage() {
   const connected = voiceStatus?.connected ?? false;
 
   return (
-    <div className="space-y-5 animate-fade-in-up">
+    <div className="space-y-4 animate-fade-in-up">
+      <SubNav
+        tabs={[
+          { id: "connection", label: "Connection" },
+          { id: "activity", label: "Activity" },
+        ]}
+        activeTab={tab}
+        onTabChange={(t) => setTab(t as VoiceTab)}
+      />
+
       <VoiceConnectionCard
-        selectedGuild={selectedGuild}
-        onGuildChange={handleGuildChange}
-        selectedChannel={selectedChannel}
-        onChannelChange={(v) => setSelectedChannel(v)}
-        guilds={guilds}
-        voiceChannels={voiceChannels}
         connected={connected}
         activeChannelName={voiceStatus?.activeChannelName}
-        connectMut={connectMut}
-        disconnectMut={disconnectMut}
+        guilds={guilds}
+        voiceChannels={voiceChannels}
+        selectedGuild={selectedGuild}
+        selectedChannel={selectedChannel}
+        onGuildChange={(g) => { setSelectedGuild(g ?? ""); setSelectedChannel(""); }}
+        onChannelChange={(v) => setSelectedChannel(v ?? "")}
+        onConnect={() => connectMut.mutate({ guildId: selectedGuild, channelId: selectedChannel })}
+        onDisconnect={() => disconnectMut.mutate(undefined)}
+        connecting={connectMut.isPending}
       />
-      <ActiveSpeakersPanel activeSpeakers={activeSpeakers} />
-      <MicrophoneCard
-        connected={connected}
-        micActive={micActive}
-        onMicToggle={handleMicToggle}
-      />
+
+      {tab === "connection" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <SpeakerWaveform speakers={activeSpeakers} />
+          <MicControl
+            connected={connected}
+            active={micActive}
+            onToggle={handleMicToggle}
+            volume={volume}
+            onVolumeChange={setVolume}
+          />
+        </div>
+      )}
+
+      {tab === "activity" && <VoiceActivityTimeline />}
     </div>
   );
 }

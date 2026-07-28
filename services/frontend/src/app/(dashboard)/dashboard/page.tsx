@@ -1,83 +1,70 @@
 "use client";
 
-import { BarChart3, Hash, Users } from "lucide-react";
+import { AlertCircle, Clock, Hash, Shield, Sparkles, Users } from "lucide-react";
 import { useState } from "react";
-import {
-  ChannelDetailSection,
-  ChannelsSection,
-  StatsSection,
-  UserDetailSection,
-  UsersSection,
-} from "@/components/dashboard";
-import { GuildSelector } from "@/components/shared/guild-selector";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useStats } from "@/hooks";
+import { StatCard } from "@/components/dashboard/stat-card";
+import { LiveStream } from "@/components/dashboard/live-stream";
+import { ModQueue } from "@/components/dashboard/mod-queue";
+import { MessageTrendChart } from "@/components/dashboard/message-trend-chart";
+import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
+import { TopChannelsChart } from "@/components/dashboard/top-channels-chart";
+import { SubNav } from "@/components/layout/sub-nav";
+import { ErrorState, LoadingSkeleton } from "@/components/shared";
 
-type View = "stats" | "users" | "channels" | "user-detail" | "channel-detail";
+type DashboardTab = "stats" | "live" | "activity";
 
 export default function DashboardPage() {
-  const [view, setView] = useState<View>("stats");
-  const [guildId, setGuildId] = useState("");
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(
-    null,
-  );
+  const [tab, setTab] = useState<DashboardTab>("stats");
+  const { data: stats, isLoading, error, refetch } = useStats();
+
+  const subNavTabs = [
+    { id: "stats", label: "Stats", icon: <Hash className="size-3" /> },
+    { id: "live", label: "Live", icon: <Sparkles className="size-3" /> },
+    { id: "activity", label: "Activity", icon: <Clock className="size-3" /> },
+  ];
 
   return (
-    <div className="space-y-5">
-      <GuildSelector value={guildId} onChange={setGuildId} />
+    <div className="space-y-4 animate-fade-in-up">
+      <SubNav tabs={subNavTabs} activeTab={tab} onTabChange={(t) => setTab(t as DashboardTab)} />
 
-      <Tabs
-        value={
-          view === "user-detail"
-            ? "users"
-            : view === "channel-detail"
-              ? "channels"
-              : view
-        }
-        onValueChange={(v) => setView(v as View)}
-      >
-        <TabsList>
-          <TabsTrigger value="stats" onClick={() => setView("stats")}>
-            <BarChart3 className="size-4" /> Stats
-          </TabsTrigger>
-          <TabsTrigger value="users" onClick={() => setView("users")}>
-            <Users className="size-4" /> Users
-          </TabsTrigger>
-          <TabsTrigger value="channels" onClick={() => setView("channels")}>
-            <Hash className="size-4" /> Channels
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {tab === "stats" && (
+        <div className="space-y-4">
+          {error ? (
+            <ErrorState message={error.message} onRetry={refetch} />
+          ) : isLoading || !stats ? (
+            <LoadingSkeleton count={6} height="h-28" columns={3} />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <StatCard label="Total Messages" value={stats.total_messages} icon={Hash} />
+                <StatCard label="Today" value={stats.today_messages} icon={Clock} />
+                <StatCard label="Users" value={stats.total_users} icon={Users} />
+                <StatCard label="Active 24h" value={stats.active_users_24h} icon={Sparkles} />
+                <StatCard label="Flagged" value={stats.total_flagged} icon={AlertCircle} variant="danger" />
+                <StatCard label="Clean" value={stats.total_clean} icon={Shield} variant="success" />
+              </div>
 
-      {view === "stats" && <StatsSection />}
-      {view === "users" && (
-        <UsersSection
-          onSelect={(userId) => {
-            setSelectedUserId(userId);
-            setView("user-detail");
-          }}
-        />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <MessageTrendChart />
+                <TopChannelsChart />
+              </div>
+            </>
+          )}
+        </div>
       )}
-      {view === "user-detail" && selectedUserId && (
-        <UserDetailSection
-          userId={selectedUserId}
-          onBack={() => setView("users")}
-        />
+
+      {tab === "live" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <LiveStream />
+          <ModQueue />
+        </div>
       )}
-      {view === "channels" && (
-        <ChannelsSection
-          guildId={guildId}
-          onSelect={(chId) => {
-            setSelectedChannelId(chId);
-            setView("channel-detail");
-          }}
-        />
-      )}
-      {view === "channel-detail" && selectedChannelId && (
-        <ChannelDetailSection
-          channelId={selectedChannelId}
-          onBack={() => setView("channels")}
-        />
+
+      {tab === "activity" && (
+        <div className="grid grid-cols-1 gap-4">
+          <ActivityHeatmap />
+        </div>
       )}
     </div>
   );
