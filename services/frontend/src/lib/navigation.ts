@@ -1,26 +1,23 @@
 import {
-  Headphones,
   LayoutDashboard,
-  type LucideIcon,
   MessageSquare,
   Mic,
-  Music,
-  Search,
+  Headphones,
   Settings,
+  type LucideIcon,
 } from "lucide-react";
 
 export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** The pathname prefix that indicates this item is active */
+}
+
+export interface NavItemWithMatch extends NavItem {
   matchPrefix: string;
 }
 
-/**
- * Primary navigation items shown in the sidebar.
- */
-export const navItems: NavItem[] = [
+export const navItems: NavItemWithMatch[] = [
   {
     href: "/dashboard",
     label: "Dashboard",
@@ -40,22 +37,10 @@ export const navItems: NavItem[] = [
     matchPrefix: "/voice",
   },
   {
-    href: "/media",
-    label: "Media",
-    icon: Music,
-    matchPrefix: "/media",
-  },
-  {
     href: "/recordings",
     label: "Recordings",
     icon: Headphones,
     matchPrefix: "/recordings",
-  },
-  {
-    href: "/analysis",
-    label: "Search",
-    icon: Search,
-    matchPrefix: "/analysis",
   },
   {
     href: "/settings",
@@ -65,16 +50,14 @@ export const navItems: NavItem[] = [
   },
 ];
 
-/**
- * Mobile bottom bar items (subset of primary nav).
- */
-export const mobileNavItems: NavItem[] = navItems.filter((item) =>
-  ["/dashboard", "/messages", "/voice", "/media"].includes(item.href),
+export const mobileNavItems: NavItemWithMatch[] = navItems.filter((item) =>
+  ["/dashboard", "/messages", "/voice", "/recordings"].includes(item.href),
 );
 
-export type NavItemId = (typeof navItems)[number]["href"];
-
-export function isActivePath(pathname: string, matchPrefix: string): boolean {
+export function isActivePath(
+  pathname: string,
+  matchPrefix: string,
+): boolean {
   if (matchPrefix === "/dashboard") return pathname === "/dashboard";
   return pathname.startsWith(matchPrefix);
 }
