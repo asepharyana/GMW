@@ -5,8 +5,17 @@ type WsEventCallback = (event: WsEvent) => void;
 function getWsUrl(): string {
   if (typeof window === "undefined") return "ws://localhost:3001/ws";
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  const host = window.location.host;
-  return `${protocol}://${host}/ws`;
+  const hostname = window.location.hostname;
+  const port = window.location.port;
+
+  // In local dev, WS server runs on port 3001 alongside the backend
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    const wsPort = port === "3000" ? "3001" : port;
+    return `${protocol}://${hostname}:${wsPort}/ws`;
+  }
+
+  // Production: nginx proxies /ws/* to backend
+  return `${protocol}://${hostname}${port ? `:${port}` : ""}/ws`;
 }
 
 export class WsConnection {

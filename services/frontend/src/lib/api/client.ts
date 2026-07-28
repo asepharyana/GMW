@@ -11,8 +11,17 @@ export class ApiError extends Error {
 function getBaseUrl(): string {
   if (typeof window === "undefined") return "";
   const protocol = window.location.protocol.replace(":", "");
-  const host = window.location.host;
-  return `${protocol}://${host}`;
+  const hostname = window.location.hostname;
+  const port = window.location.port;
+
+  // In local dev, frontend (port 3000) proxies API calls to backend (port 3001)
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    const apiPort = port === "3000" ? "3001" : port;
+    return `${protocol}://${hostname}:${apiPort}`;
+  }
+
+  // Production: nginx proxies /api/* to backend
+  return `${protocol}://${hostname}${port ? `:${port}` : ""}`;
 }
 
 export async function apiRequest<T>(
