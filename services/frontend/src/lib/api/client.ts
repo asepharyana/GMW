@@ -8,19 +8,20 @@ export class ApiError extends Error {
   }
 }
 
-function getBaseUrl(): string {
-  if (typeof window === "undefined") return "";
-  const protocol = window.location.protocol.replace(":", "");
-  const hostname = window.location.hostname;
-  const port = window.location.port;
+const REMOTE_API = "https://imphnen.asepharyana.my.id";
 
-  // In local dev, frontend (port 3000) proxies API calls to backend (port 3001)
+function getBaseUrl(): string {
+  if (typeof window === "undefined") return REMOTE_API;
+  const hostname = window.location.hostname;
+
+  // In local dev, route API calls to the remote server
   if (hostname === "localhost" || hostname === "127.0.0.1") {
-    const apiPort = port === "3000" ? "3001" : port;
-    return `${protocol}://${hostname}:${apiPort}`;
+    return REMOTE_API;
   }
 
-  // Production: nginx proxies /api/* to backend
+  // Production: nginx proxies /api/* to backend on the same host
+  const protocol = window.location.protocol.replace(":", "");
+  const port = window.location.port;
   return `${protocol}://${hostname}${port ? `:${port}` : ""}`;
 }
 
