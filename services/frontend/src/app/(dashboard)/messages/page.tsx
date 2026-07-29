@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Flag, Image, Loader2, RefreshCw, Search } from "lucide-react";
 import { MessageList } from "@/components/messages/message-list";
-import { MessageDetail } from "@/components/messages/message-detail";
+import { MessageDetailView } from "@/components/messages/message-detail-view";
 import { SearchOverlay } from "@/components/messages/search-overlay";
 import { extractFirstImage } from "@/components/messages/message-card";
 import { SubNav } from "@/components/layout/sub-nav";
@@ -227,7 +227,7 @@ export default function MessagesPage() {
                   >
                     &larr; Back to list
                   </button>
-                  <MessageDetail
+                  <MessageDetailView
                     message={detailMessage}
                     attachments={detailAttachments}
                   />
