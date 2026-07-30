@@ -83,6 +83,8 @@ jobs:
               sleep 3
               systemctl status $UNIT --no-pager 2>&1 | head -12
             else
-              echo \"Unit $UNIT not yet created — run setup first\"
+              echo \"=== $UNIT: profile set, unit not yet created ==="
+              echo \"Run: nix-env --profile $PROFILE --set $STORE_PATH\"
+              echo \"Create: /etc/systemd/system/$UNIT.service\"
             fi
           " 2>&1
