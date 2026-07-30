@@ -1,53 +1,41 @@
-# ---- Builder stage: install deps + compile ----
+# ---- Builder stage ----
 FROM node:22-slim AS builder
 
 WORKDIR /build
 
-# Install pnpm and allow postinstall scripts for native addons
-RUN npm install -g pnpm \
-    && pnpm config set onlyBuiltDependencies '*' --location project
+RUN npm install -g pnpm@10
 
-# Build-time system deps (python3 for node-gyp, g++ for native addons)
+# Build tools for native addons (discordjs/voice may need node-gyp)
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
     python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy manifest files first for layer caching
-COPY services/backend/package.json ./
-COPY patches/ ./patches/
+# Copy source + manifests
+COPY services/backend/ ./
 
-# Install all deps (devDeps included for build)
+# Install ALL deps (devDeps needed for TypeScript build)
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --no-frozen-lockfile
 
-# Copy source (shared code embedded in src/shared/)
-COPY services/backend/ ./
-
 # Build TypeScript
-RUN pnpm run build
+RUN ./node_modules/.bin/tsc
 
-# Strip devDependencies — production runtime only
-RUN pnpm prune --prod
+# Switch to production-only deps (strips devDeps + cleans .pnpm store)
+RUN rm -rf node_modules && pnpm install --prod --no-frozen-lockfile
 
-# ---- Runtime stage: minimal ----
-FROM node:22-slim
+# ---- Runtime stage ----
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Create non-root user
-RUN groupadd --system app && useradd --system -g app app
+COPY --from=builder --chown=node:node /build/dist ./dist
+COPY --from=builder --chown=node:node /build/node_modules ./node_modules
+COPY --from=builder --chown=node:node /build/package.json ./
 
-# Only production artifacts from builder
-COPY --from=builder /build/dist ./dist
-COPY --from=builder /build/node_modules ./node_modules
-COPY --from=builder /build/package.json ./
-
-RUN chown -R app:app /app
-USER app
-
+USER node
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/health || exit 1
+  CMD node -e "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1))"
 
 CMD ["node", "dist/index.js"]

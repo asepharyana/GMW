@@ -3,34 +3,22 @@ FROM node:22-slim AS builder
 
 WORKDIR /build
 
-RUN corepack enable
+RUN npm install -g pnpm@10
 
-# Build essentials
+# Build essentials (native deps like sharp need g++)
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
     make g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Manifest files first
-COPY services/frontend/package.json ./
-COPY services/frontend/tsconfig.json ./
-COPY services/frontend/next.config.ts ./
-
-# Install all deps, skip postinstall (no native addons needed for static export)
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --ignore-scripts --no-frozen-lockfile
-
-# Source code
+# Copy source + manifests
 COPY services/frontend/ ./
 
-# Build args
-ARG VITE_BE_API_URL
-ARG VITE_BE_WS_URL
-ENV VITE_BE_API_URL=${VITE_BE_API_URL}
-ENV VITE_BE_WS_URL=${VITE_BE_WS_URL}
+# Install all deps
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --no-frozen-lockfile
 
 # Build static export
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    npx next build
+RUN pnpm run build
 
 # ---- Runtime stage: nginx ----
 FROM nginx:alpine

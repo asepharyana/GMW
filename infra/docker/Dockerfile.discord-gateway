@@ -1,60 +1,52 @@
-# ---- Builder stage: native addons + TypeScript ----
+# ---- Builder stage ----
 FROM node:22-slim AS builder
 
 WORKDIR /build
 
-# Install pnpm and allow postinstall scripts for native addons
-RUN corepack enable \
-    && pnpm config set onlyBuiltDependencies '*' --location project
+RUN npm install -g pnpm@10
 
-# Build tools + Rust (required by @dank074/discord-video-stream)
+# Build tools + Rust (required by napi-rs native addons)
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
     python3 make g++ curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust toolchain (separate RUN so the layer can cache if apt changes)
+# Install Rust toolchain
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Manifest files first for layer caching
-COPY services/discord-gateway/package.json ./
-COPY patches/ ./patches/
+COPY services/discord-gateway/ ./
 
-# Install all deps (devDeps needed for TypeScript build)
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --no-frozen-lockfile
 
-# Source code (shared code embedded in src/shared/)
-COPY services/discord-gateway/ ./
-COPY services/discord-gateway/drizzle ./drizzle
+RUN ./node_modules/.bin/tsc
 
-# Build TypeScript
-RUN pnpm run build
+# Strip debug symbols from native addons
+RUN find node_modules -name '*.node' -exec strip -s {} \; 2>/dev/null; \
+    find node_modules -name '*.so' -exec strip -s {} \; 2>/dev/null; \
+    echo "Stripped native binaries"
 
-# Strip devDependencies — only production deps in final image
-RUN pnpm prune --prod
+# Switch to production-only deps
+RUN rm -rf node_modules && pnpm install --prod --no-frozen-lockfile
 
-# ---- Runtime stage: minimal ----
+# ---- Runtime stage ----
 FROM node:22-slim
+
+# Install ffmpeg with minimal dependencies
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Runtime system deps only (ffmpeg for audio processing)
-RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    ffmpeg ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder --chown=node:node /build/dist ./dist
+COPY --from=builder --chown=node:node /build/node_modules ./node_modules
+COPY --from=builder --chown=node:node /build/package.json ./
+COPY --from=builder --chown=node:node /build/drizzle ./drizzle
 
-# Only production artifacts from builder
-COPY --from=builder /build/dist ./dist
-COPY --from=builder /build/node_modules ./node_modules
-COPY --from=builder /build/package.json ./
-COPY --from=builder /build/drizzle ./drizzle
-
-# Create recordings dir
-RUN mkdir -p /app/recordings && chown -R node:node /app
+RUN mkdir -p /app/recordings
 USER node
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD sh -c "kill -0 1"
+  CMD node -e "process.exit(0)"
 
 CMD ["node", "dist/index.js"]
