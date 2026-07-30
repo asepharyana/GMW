@@ -84,7 +84,8 @@
             mkdir -p $out/bin
             cat > $out/bin/gmw-backend << WRAPPER
 #!${pkgs.runtimeShell}
-exec ${nodejs}/bin/node $out/lib/gmw-backend/dist/index.js
+cd $out/lib/gmw-backend
+exec ${nodejs}/bin/node dist/index.js
 WRAPPER
             chmod +x $out/bin/gmw-backend
           '';
@@ -152,7 +153,8 @@ WRAPPER
             mkdir -p $out/bin
             cat > $out/bin/gmw-discord-gateway << WRAPPER
 #!${pkgs.runtimeShell}
-exec ${nodejs}/bin/node $out/lib/gmw-discord-gateway/dist/index.js
+cd $out/lib/gmw-discord-gateway
+exec ${nodejs}/bin/node dist/index.js
 WRAPPER
             chmod +x $out/bin/gmw-discord-gateway
           '';
