@@ -18,8 +18,9 @@ jobs:
         run: |
           set -eu
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends ca-certificates git docker.io
+          apt-get install -y -qq --no-install-recommends ca-certificates git docker.io docker-buildx
           git config --global http.sslVerify false
+          docker buildx install
           # Clean up runner disk before build
           docker system prune -af --volumes 2>/dev/null || true
           apt-get clean 2>/dev/null || true
