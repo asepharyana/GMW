@@ -49,6 +49,32 @@
           buildPhase = pnpmInstall + ''
             echo "=== Compiling TypeScript ==="
             npx tsc 2>&1
+            echo "=== Fixing @/ path aliases to relative paths ==="
+            node -e "
+              const fs = require('fs');
+              const path = require('path');
+              let count = 0;
+              function walk(dir) {
+                if (!fs.existsSync(dir)) return;
+                for (const e of fs.readdirSync(dir, {withFileTypes: true})) {
+                  const p = path.join(dir, e.name);
+                  if (e.isDirectory()) walk(p);
+                  else if (e.name.endsWith('.js')) {
+                    const c = fs.readFileSync(p, 'utf8');
+                    const pat = /from\s+['\"]@\/([^'\"]+)['\"]/g;
+                    const n = c.replace(pat, (m, p1) => {
+                      const target = path.join('dist', p1) + '.js';
+                      const rel = path.relative(path.dirname(p), target);
+                      return 'from \"' + (rel.startsWith('.') ? rel : './' + rel) + '\"';
+                    });
+                    if (n !== c) { fs.writeFileSync(p, n); count++; }
+                  }
+                }
+              }
+              walk('dist');
+              console.log('Fixed ' + count + ' files');
+            "
+            echo "=== Build complete ==="
           '';
 
           installPhase = ''
@@ -56,10 +82,10 @@
             cp -r dist node_modules package.json tsconfig.json $out/lib/gmw-backend/
 
             mkdir -p $out/bin
-            cat > $out/bin/gmw-backend <<WRAPPER
-            #!${pkgs.runtimeShell}
-            exec ${nodejs}/bin/node $out/lib/gmw-backend/dist/index.js "\$@"
-            WRAPPER
+            cat > $out/bin/gmw-backend << WRAPPER
+#!${pkgs.runtimeShell}
+exec ${nodejs}/bin/node $out/lib/gmw-backend/dist/index.js
+WRAPPER
             chmod +x $out/bin/gmw-backend
           '';
 
@@ -88,6 +114,32 @@
           buildPhase = pnpmInstall + ''
             echo "=== Compiling TypeScript ==="
             npx tsc 2>&1
+            echo "=== Fixing @/ path aliases to relative paths ==="
+            node -e "
+              const fs = require('fs');
+              const path = require('path');
+              let count = 0;
+              function walk(dir) {
+                if (!fs.existsSync(dir)) return;
+                for (const e of fs.readdirSync(dir, {withFileTypes: true})) {
+                  const p = path.join(dir, e.name);
+                  if (e.isDirectory()) walk(p);
+                  else if (e.name.endsWith('.js')) {
+                    const c = fs.readFileSync(p, 'utf8');
+                    const pat = /from\s+['\"]@\/([^'\"]+)['\"]/g;
+                    const n = c.replace(pat, (m, p1) => {
+                      const target = path.join('dist', p1) + '.js';
+                      const rel = path.relative(path.dirname(p), target);
+                      return 'from \"' + (rel.startsWith('.') ? rel : './' + rel) + '\"';
+                    });
+                    if (n !== c) { fs.writeFileSync(p, n); count++; }
+                  }
+                }
+              }
+              walk('dist');
+              console.log('Fixed ' + count + ' files');
+            "
+            echo "=== Build complete ==="
           '';
 
           installPhase = ''
@@ -98,10 +150,10 @@
             cp -r drizzle $out/lib/gmw-discord-gateway/ 2>/dev/null || true
 
             mkdir -p $out/bin
-            cat > $out/bin/gmw-discord-gateway <<WRAPPER
-            #!${pkgs.runtimeShell}
-            exec ${nodejs}/bin/node $out/lib/gmw-discord-gateway/dist/index.js "\$@"
-            WRAPPER
+            cat > $out/bin/gmw-discord-gateway << WRAPPER
+#!${pkgs.runtimeShell}
+exec ${nodejs}/bin/node $out/lib/gmw-discord-gateway/dist/index.js
+WRAPPER
             chmod +x $out/bin/gmw-discord-gateway
           '';
 
@@ -157,27 +209,16 @@
           installPhase = ''
             mkdir -p $out/bin $out/etc $out/share
 
-            # Copy nginx config
-            cp nginx/nginx.conf $out/etc/nginx.conf 2>/dev/null || cat > $out/etc/nginx.conf <<NGINX_CONF
-            events {}
-            http {
-              include ${pkgs.nginx}/conf/mime.types;
-              server {
-                listen 80;
-                server_name _;
-                root ${frontend}/share/gmw-frontend/out;
-                index index.html;
-                location / {
-                  try_files \$uri \$uri/ /index.html;
-                }
-              }
-            }
-NGINX_CONF
+            # Substitute placeholders in nginx template
+            sed \
+              -e "s|@NGINX_MIME@|${pkgs.nginx}/conf/mime.types|g" \
+              -e "s|@FRONTEND_ROOT@|${frontend}/share/gmw-frontend/out|g" \
+              ${./infra/nix/nginx.conf.template} \
+              > $out/etc/nginx.conf
 
-            mkdir -p $out/bin
-            cat > $out/bin/gmw-proxy <<WRAPPER
-            #!${pkgs.runtimeShell}
-            exec ${pkgs.nginx}/bin/nginx -c $out/etc/nginx.conf -p /var/lib/gmw-proxy -g "daemon off;" "\$@"
+            cat > $out/bin/gmw-proxy << WRAPPER
+#!${pkgs.runtimeShell}
+exec ${pkgs.nginx}/bin/nginx -c $out/etc/nginx.conf -p /var/lib/gmw-proxy -g "error_log /var/lib/gmw-proxy/nginx-error.log; daemon off;"
 WRAPPER
             chmod +x $out/bin/gmw-proxy
           '';
