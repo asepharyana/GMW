@@ -25,7 +25,7 @@ jobs:
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_KEY_VALUE: ${{ secrets.VPS_SSH_KEY_VALUE }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
           set -eu
 
@@ -50,7 +50,7 @@ jobs:
           PROFILE="/nix/var/nix/profiles/gmw-$SERVICE"
 
           key_file=$(mktemp /tmp/deploy-key.XXXXXX)
-          printf '%s\n' "$VPS_SSH_KEY_VALUE" > "$key_file"
+          printf '%s\n' "$VPS_SSH_KEY" > "$key_file"
           chmod 600 "$key_file"
 
           export NIX_SSHOPTS="-i $key_file -o StrictHostKeyChecking=no"
