@@ -1,71 +1,88 @@
-name: Build & Deploy
-run-name: "Build & Deploy ${{ github.sha }}"
+name: Build & Deploy (Nix)
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix:
         service: [backend, discord-gateway, proxy]
+
     steps:
-      - name: Setup
+      - name: Check out repository
+        run: |
+          git clone https://git.imrnes.team/MythEclipse/GMW.git .
+          git checkout ${{ github.sha }}
+
+      - name: Install Nix & Build ${{ matrix.service }}
         run: |
           set -eu
-          apt-get update -qq
-          apt-get install -y -qq --no-install-recommends ca-certificates git docker.io docker-buildx
-          git config --global http.sslVerify false
-          docker buildx install
-          # Clean up runner disk before build
-          docker system prune -af --volumes 2>/dev/null || true
-          apt-get clean 2>/dev/null || true
 
-      - name: Checkout
-        run: |
-          cd /tmp
-          git clone --depth 1 https://MythEclipse:${{ secrets.REGISTRY_TOKEN }}@git.imrnes.team/MythEclipse/GMW.git repo
-          cd /tmp/repo
+          # Install Nix (container-safe: --init none, root-only mode)
+          curl -fsSL https://install.determinate.systems/nix \
+            | sh -s -- install linux --no-confirm --init none 2>&1
 
-      - name: Docker Login
-        run: |
-          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ${{ vars.REGISTRY }} -u MythEclipse --password-stdin
+          # Enable flakes
+          mkdir -p /etc/nix
+          echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
 
-      - name: Build & Push ${{ matrix.service }}
+          . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+
+          # Build
+          nix build .#${{ matrix.service }} --impure --option sandbox false 2>&1
+
+          echo "$(readlink result)" > /tmp/gmw-store-path-${{ matrix.service }}
+
+      - name: Copy binary to target VPS & deploy ${{ matrix.service }}
         env:
-          DOCKER_BUILDKIT: "1"
-        run: |
-          cd /tmp/repo
-          IMG=${{ vars.REGISTRY }}/mytheclipse/gmw/bete-${{ matrix.service }}
-          docker build \
-            --file infra/docker/Dockerfile.${{ matrix.service }} \
-            --tag $IMG:${{ github.sha }} \
-            --tag $IMG:latest \
-            --build-arg VITE_BE_API_URL=https://imphnen.asepharyana.my.id \
-            --build-arg VITE_BE_WS_URL=wss://imphnen.asepharyana.my.id \
-            .
-          docker push $IMG:${{ github.sha }}
-          docker push $IMG:latest
-
-      - name: Deploy (proxy only — after all pushes)
-        if: matrix.service == 'proxy' && github.ref == 'refs/heads/main'
-        env:
-          ENV_FILE: ${{ secrets.ENV_FILE }}
-          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          VPS_USER: ${{ secrets.VPS_USER }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY_VALUE: ${{ secrets.VPS_SSH_KEY_VALUE }}
         run: |
           set -eu
-          apt-get update -qq
-          apt-get install -y -qq --no-install-recommends openssh-client ca-certificates
-          mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ENV_B64=$(echo "$ENV_FILE" | base64 -w0)
-          ssh -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
-            "$VPS_USER@$VPS_HOST" \
-            "cd /opt/imphenbot/infra/docker && echo '$ENV_B64' | base64 -d > .env && docker compose pull || true && docker compose down --remove-orphans || true && docker rm -f imphenbot-discord-gateway imphenbot-backend imphenbot-proxy || true && docker compose up -d --remove-orphans && docker image prune -f"
+
+          . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+
+          SERVICE="${{ matrix.service }}"
+          STORE_PATH=$(cat "/tmp/gmw-store-path-$SERVICE")
+          echo "=== $SERVICE — Store path: $STORE_PATH"
+
+          key_file=$(mktemp /tmp/deploy-key.XXXXXX)
+          printf '%s\n' "$VPS_SSH_KEY_VALUE" > "$key_file"
+          chmod 600 "$key_file"
+
+          # Copy binary closure to target VPS via Nix SSH store
+          export NIX_SSHOPTS="-i $key_file -o StrictHostKeyChecking=no"
+          nix copy --to "ssh://${VPS_USER}@${VPS_HOST}" "$STORE_PATH" 2>&1
+
+          # Deploy: update profile + restart service
+          NIX_BIN="/nix/var/nix/profiles/default/bin"
+          PROFILE="/nix/var/nix/profiles/gmw-$SERVICE"
+          UNIT="gmw-$SERVICE"
+
+          ssh -i "$key_file" -o StrictHostKeyChecking=no \
+            "${VPS_USER}@${VPS_HOST}" "
+            # Remove stale profile dir if it exists as regular directory
+            if [ -d $PROFILE ] && [ ! -L $PROFILE ]; then
+              rm -rf $PROFILE
+            fi
+
+            export PATH=\$PATH:$NIX_BIN
+            nix-env --profile $PROFILE --set $STORE_PATH
+
+            if systemctl is-enabled --quiet $UNIT 2>/dev/null; then
+              systemctl daemon-reload
+              systemctl restart $UNIT
+              sleep 3
+              systemctl status $UNIT --no-pager 2>&1 | head -12
+            else
+              echo \"Unit $UNIT not yet created — run setup first\"
+            fi
+          " 2>&1

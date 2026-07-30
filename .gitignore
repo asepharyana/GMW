@@ -15,3 +15,6 @@ target/
 
 # Gitea CI runner logs
 .gitea/workflows/*.log
+
+# Nix build result symlink
+result
