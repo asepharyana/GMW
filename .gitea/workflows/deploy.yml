@@ -21,26 +21,7 @@ jobs:
           git clone https://git.imrnes.team/MythEclipse/GMW.git .
           git checkout ${{ github.sha }}
 
-      - name: Install Nix & Build ${{ matrix.service }}
-        run: |
-          set -eu
-
-          # Install Nix (container-safe: --init none, root-only mode)
-          curl -fsSL https://install.determinate.systems/nix \
-            | sh -s -- install linux --no-confirm --init none 2>&1
-
-          # Enable flakes
-          mkdir -p /etc/nix
-          echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
-
-          . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-
-          # Build
-          nix build .#${{ matrix.service }} --impure --option sandbox false 2>&1
-
-          echo "$(readlink result)" > /tmp/gmw-store-path-${{ matrix.service }}
-
-      - name: Copy binary to target VPS & deploy ${{ matrix.service }}
+      - name: Build & Deploy ${{ matrix.service }}
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -48,43 +29,42 @@ jobs:
         run: |
           set -eu
 
+          # --- Install Nix & Build ---
+          curl -fsSL https://install.determinate.systems/nix \
+            | sh -s -- install linux --no-confirm --init none 2>&1
+
+          mkdir -p /etc/nix
+          echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
+
           . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 
           SERVICE="${{ matrix.service }}"
-          STORE_PATH=$(cat "/tmp/gmw-store-path-$SERVICE")
-          echo "=== $SERVICE — Store path: $STORE_PATH"
+          echo "=== Building: $SERVICE ==="
+          nix build ".#$SERVICE" --impure --option sandbox false 2>&1
+
+          STORE_PATH=$(readlink result)
+          echo "=== Store path: $STORE_PATH"
+
+          # --- Deploy ---
+          NIX_BIN="/nix/var/nix/profiles/default/bin"
+          PROFILE="/nix/var/nix/profiles/gmw-$SERVICE"
 
           key_file=$(mktemp /tmp/deploy-key.XXXXXX)
           printf '%s\n' "$VPS_SSH_KEY_VALUE" > "$key_file"
           chmod 600 "$key_file"
 
-          # Copy binary closure to target VPS via Nix SSH store
           export NIX_SSHOPTS="-i $key_file -o StrictHostKeyChecking=no"
           nix copy --to "ssh://${VPS_USER}@${VPS_HOST}" "$STORE_PATH" 2>&1
 
-          # Deploy: update profile + restart service
-          NIX_BIN="/nix/var/nix/profiles/default/bin"
-          PROFILE="/nix/var/nix/profiles/gmw-$SERVICE"
-          UNIT="gmw-$SERVICE"
-
           ssh -i "$key_file" -o StrictHostKeyChecking=no \
             "${VPS_USER}@${VPS_HOST}" "
-            # Remove stale profile dir if it exists as regular directory
             if [ -d $PROFILE ] && [ ! -L $PROFILE ]; then
               rm -rf $PROFILE
             fi
-
             export PATH=\$PATH:$NIX_BIN
             nix-env --profile $PROFILE --set $STORE_PATH
-
-            if systemctl is-enabled --quiet $UNIT 2>/dev/null; then
-              systemctl daemon-reload
-              systemctl restart $UNIT
-              sleep 3
-              systemctl status $UNIT --no-pager 2>&1 | head -12
-            else
-              echo \"=== $UNIT: profile set, unit not yet created ==="
-              echo \"Run: nix-env --profile $PROFILE --set $STORE_PATH\"
-              echo \"Create: /etc/systemd/system/$UNIT.service\"
-            fi
+            systemctl daemon-reload
+            systemctl restart gmw-$SERVICE
+            sleep 3
+            systemctl status gmw-$SERVICE --no-pager 2>&1 | head -12
           " 2>&1
