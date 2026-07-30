@@ -2,7 +2,7 @@ import {
   pgAttachmentsTable,
   pgMessageReviewsTable,
   pgMessagesTable,
-} from "@bete/shared";
+} from "../../../shared/index.js";
 import {
   bigint as pgBigint,
   boolean as pgBoolean,

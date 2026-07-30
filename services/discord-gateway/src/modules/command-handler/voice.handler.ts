@@ -1,5 +1,5 @@
-import type { CommandMessage, CommandReply } from "@bete/shared";
-import { createChildLogger } from "@bete/shared/logger";
+import type { CommandMessage, CommandReply } from "../../shared/index.js";
+import { createChildLogger } from "../../shared/logger/index.js";
 import type { Client } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
 import { discordPlayer } from "../voice-recording/player.js";

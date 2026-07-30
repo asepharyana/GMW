@@ -8,9 +8,6 @@ public/app/
 .env.test
 logs/
 .codegraph/
-# moon
-.moon/cache
-.moon/docker
 worktrees/
 .worktrees/
 services/frontend/frontend/dist/

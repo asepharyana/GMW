@@ -4,7 +4,7 @@ import {
   pgUserProfilesTable,
   pgUserReputationsTable,
   pgVoiceRecordingsTable,
-} from "@bete/shared";
+} from "../../shared/index.js";
 import type { SQL } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/index.js";

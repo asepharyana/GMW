@@ -1,5 +1,5 @@
-import { AppError } from "@bete/shared/errors";
-import { createChildLogger } from "@bete/shared/logger";
+import { AppError } from "@/shared/errors/index";
+import { createChildLogger } from "@/shared/logger/index";
 import type { VoiceConnection } from "@discordjs/voice";
 import type { Client, Guild, VoiceChannel } from "discord.js-selfbot-v13";
 import { discordPlayer } from "./player.js";

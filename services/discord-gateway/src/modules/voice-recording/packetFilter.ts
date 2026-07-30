@@ -1,5 +1,5 @@
 import { Transform, type TransformCallback } from "node:stream";
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 
 const _logger = createChildLogger("packet-filter");
 

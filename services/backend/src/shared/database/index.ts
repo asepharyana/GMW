@@ -3,8 +3,8 @@ import {
   getDatabase as sharedGetDb,
   getPool as sharedGetPool,
   initializeDatabase as sharedInit,
-} from "@bete/shared/database/init";
-import { createChildLogger } from "@bete/shared/logger";
+} from "@/shared/database/init";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../config/index.js";
 
 const logger = createChildLogger("database");

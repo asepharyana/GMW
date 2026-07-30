@@ -1,5 +1,5 @@
 import { promises as fsPromises } from "node:fs";
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../../shared/config/config.js";
 import type {
   SegmentState,

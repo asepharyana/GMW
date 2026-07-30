@@ -4,7 +4,7 @@ import {
   COMMAND_MEDIA_STOP,
   COMMAND_MEDIA_VOLUME,
   MEDIA_STATUS_KEY,
-} from "@bete/shared";
+} from "../../shared/index.js";
 import {
   createChildLogger,
   tryCommandThenFallback,

@@ -1,4 +1,4 @@
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import type { Request, Response } from "express";
 import { asyncHandler } from "../../shared/middlewares/index.js";
 import { messageQuerySchema } from "./messages.schema.js";

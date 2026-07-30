@@ -1,6 +1,6 @@
-import type { PageResult } from "@bete/shared";
-import { pgAttachmentsTable, pgMessagesTable } from "@bete/shared";
-import { createChildLogger } from "@bete/shared/logger";
+import type { PageResult } from "../../shared/index.js";
+import { pgAttachmentsTable, pgMessagesTable } from "../../shared/index.js";
+import { createChildLogger } from "../../shared/logger/index.js";
 import {
   and,
   desc,

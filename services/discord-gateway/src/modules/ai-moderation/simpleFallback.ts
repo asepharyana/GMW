@@ -6,7 +6,7 @@
  * Step 2: Real analysis text (only if not clean).
  * Extracted from moderationOrchestrator.ts.
  */
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import type {
   AnalysisResult,
   MessageRecord,

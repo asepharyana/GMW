@@ -5,8 +5,8 @@ import {
   getDatabase as sharedGetDb,
   initializeDatabase as sharedInit,
   withDatabaseClient as sharedWithClient,
-} from "@bete/shared/database/init";
-import { createChildLogger } from "@bete/shared/logger";
+} from "@/shared/database/init";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import * as schema from "./schema.js";
 

@@ -13,39 +13,22 @@ RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Dependency manifests
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY services/discord-gateway/package.json services/discord-gateway/pnpm-lock.yaml* ./services/discord-gateway/
 COPY patches ./patches
-COPY packages/shared/package.json ./packages/shared/package.json
-COPY services/discord-gateway/package.json ./services/discord-gateway/package.json
 
 # Install ALL deps (including devDeps needed for build)
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
+    cd services/discord-gateway && pnpm install --frozen-lockfile
 
-# Source code
-COPY packages/shared ./packages/shared
+# Source code (shared code is embedded in src/shared/)
 COPY services/discord-gateway ./services/discord-gateway
 COPY services/discord-gateway/drizzle ./drizzle
 
-# Build (combined to reduce layers)
+# Build
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm --filter './packages/shared' run build \
-    && pnpm --filter './services/discord-gateway' run build \
+    cd services/discord-gateway && pnpm run build \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-# Create production-only deployment (no devDeps)
-RUN pnpm deploy --legacy --filter '@bete/discord-gateway' /tmp/deploy \
-    && rm -rf /tmp/deploy/node_modules/.pnpm/@biomejs+biome@* \
-           /tmp/deploy/node_modules/.pnpm/@biomejs+cli-linux-x64@* \
-           /tmp/deploy/node_modules/.pnpm/typescript@* \
-           /tmp/deploy/node_modules/.pnpm/drizzle-kit@* \
-           /tmp/deploy/node_modules/.pnpm/vitest@* \
-           /tmp/deploy/node_modules/.pnpm/esbuild@* \
-           /tmp/deploy/node_modules/.pnpm/tsx@* \
-           /tmp/deploy/node_modules/.pnpm/@types* \
-           /tmp/deploy/node_modules/.pnpm/@rolldown* \
-           /tmp/deploy/node_modules/.pnpm/@vitest*
 
 # ---- Stage 2: Runtime (minimal) ----
 FROM node:22-slim
@@ -57,11 +40,10 @@ RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
     ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy production-only artifacts from deploy
-COPY --from=builder /tmp/deploy/node_modules ./node_modules
-COPY --from=builder /tmp/deploy/package.json ./package.json
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+# Copy built artifacts
 COPY --from=builder /app/services/discord-gateway/dist ./services/discord-gateway/dist
+COPY --from=builder /app/services/discord-gateway/node_modules ./services/discord-gateway/node_modules
+COPY --from=builder /app/services/discord-gateway/package.json ./services/discord-gateway/package.json
 COPY --from=builder /app/drizzle ./drizzle
 
 # Create recordings dir and set ownership

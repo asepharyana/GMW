@@ -1,4 +1,4 @@
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { encoding_for_model as encodingForModel } from "tiktoken";
 import { formatMediaEvidenceForPrompt } from "../message-capture/messageMetadata.js";
 import type { MessageRecord } from "../message-capture/types.js";

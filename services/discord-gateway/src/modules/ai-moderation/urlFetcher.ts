@@ -1,7 +1,7 @@
 import { resolve } from "node:dns/promises";
 import { isIP } from "node:net";
-import { createChildLogger } from "@bete/shared/logger";
-import { createAbortControllerWithTimeout } from "@bete/shared/utils";
+import { createChildLogger } from "@/shared/logger/index";
+import { createAbortControllerWithTimeout } from "@/shared/utils/index";
 
 const _log = createChildLogger("urlFetcher");
 

@@ -9,7 +9,7 @@
  *   broadcastEvent("message_created", messageData);
  */
 
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 
 const logger = createChildLogger("broadcast");
 

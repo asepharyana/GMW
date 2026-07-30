@@ -1,6 +1,6 @@
 import "dotenv/config";
-import type { AppConfig } from "@bete/shared/config";
-import { loadConfig as sharedLoadConfig } from "@bete/shared/config";
+import type { AppConfig } from "@/shared/config/index";
+import { loadConfig as sharedLoadConfig } from "@/shared/config/index";
 
 // Re-export the unified config — all EFFECTIVE_* fields are already
 // computed by the shared loadConfig().

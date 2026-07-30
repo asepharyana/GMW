@@ -1,5 +1,5 @@
-import { ConfigError, DatabaseError } from "@bete/shared/errors";
-import { createChildLogger } from "@bete/shared/logger";
+import { ConfigError, DatabaseError } from "@/shared/errors/index";
+import { createChildLogger } from "@/shared/logger/index";
 import { Client } from "discord.js-selfbot-v13";
 import { inArray, lt } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";

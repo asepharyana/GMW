@@ -14,7 +14,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@bete/shared": "workspace:*",
     "@discordjs/voice": "^0.19.2",
     "axios": "^1.16.1",
     "dotenv": "^17.4.2",

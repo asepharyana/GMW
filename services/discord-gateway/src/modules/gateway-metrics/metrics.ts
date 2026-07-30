@@ -1,5 +1,5 @@
 import http from "node:http";
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 
 const logger = createChildLogger("gateway-metrics");

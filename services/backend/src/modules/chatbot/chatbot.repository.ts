@@ -1,5 +1,5 @@
-import { pgChatbotMessagesTable, pgMessagesTable } from "@bete/shared";
-import { createChildLogger } from "@bete/shared/logger";
+import { pgChatbotMessagesTable, pgMessagesTable } from "../../shared/index.js";
+import { createChildLogger } from "../../shared/logger/index.js";
 import { and, desc, eq, type SQL, sql } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/index.js";
 

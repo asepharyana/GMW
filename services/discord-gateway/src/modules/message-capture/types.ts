@@ -5,7 +5,7 @@ import type {
   MessageRecord,
   UserMetadata,
   VoiceRecordingUploadData,
-} from "@bete/shared";
+} from "../../shared/index.js";
 import type prism from "prism-media";
 
 // Re-export all shared types for backward compatibility
@@ -31,7 +31,7 @@ export type {
   UserMetadata,
   VoiceRecordingUploadData,
   VoiceSegmentRecord,
-} from "@bete/shared";
+} from "../../shared/index.js";
 
 // Types that are LOCAL ONLY (not in shared) — keep here
 export interface SegmentState {

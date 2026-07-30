@@ -1,4 +1,4 @@
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import type { Client, PermissionString } from "discord.js-selfbot-v13";
 import { config } from "../../shared/config/config.js";
 import { messageStore } from "../message-capture/messageStore.js";

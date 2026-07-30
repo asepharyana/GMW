@@ -1,4 +1,4 @@
-import { createChildLogger, type Logger } from "@bete/shared/logger";
+import { createChildLogger, type Logger } from "@/shared/logger/index";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import type * as schema from "../../shared/database/schema.js";

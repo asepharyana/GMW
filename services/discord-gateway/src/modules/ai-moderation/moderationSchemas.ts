@@ -1,4 +1,4 @@
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { z } from "zod";
 
 const log = createChildLogger("moderationSchemas");

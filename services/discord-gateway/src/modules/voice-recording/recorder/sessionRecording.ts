@@ -1,4 +1,4 @@
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import type { UserMetadata } from "../../message-capture/types.js";
 
 const logger = createChildLogger("recording-session");

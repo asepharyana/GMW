@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { PassThrough, type Readable } from "node:stream";
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { StreamType } from "@discordjs/voice";
 
 const logger = createChildLogger("media-source");

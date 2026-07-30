@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { PassThrough } from "node:stream";
-import { BACKEND_VOICE_TRANSMIT } from "@bete/shared";
-import { createChildLogger } from "@bete/shared/logger";
+import { BACKEND_VOICE_TRANSMIT } from "../../shared/index.js";
+import { createChildLogger } from "../../shared/logger/index.js";
 import { StreamType } from "@discordjs/voice";
 import type Redis from "ioredis";
 import { discordPlayer } from "./player.js";

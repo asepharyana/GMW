@@ -9,8 +9,8 @@
  *
  * Both sides now import from this module instead.
  */
-import { createChildLogger } from "@bete/shared/logger";
-import { delay, retryWithBackoff } from "@bete/shared/utils";
+import { createChildLogger } from "@/shared/logger/index";
+import { delay, retryWithBackoff } from "@/shared/utils/index";
 import type { ChatCompletion } from "openai/resources/chat/completions";
 import { config } from "../../shared/config/config.js";
 import type { AnalysisResult } from "../message-capture/types.js";

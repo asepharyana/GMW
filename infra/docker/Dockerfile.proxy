@@ -11,20 +11,14 @@ RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
     python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency manifests first for layer caching
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY packages/shared/package.json ./packages/shared/package.json
-COPY services/frontend/package.json ./services/frontend/package.json
+COPY services/frontend/package.json services/frontend/pnpm-lock.yaml* ./services/frontend/
 COPY services/frontend/tsconfig.json ./services/frontend/tsconfig.json
 
-# Copy patches (pnpm patchedDependencies)
-COPY patches/ ./patches/
-
-# Install dependencies (frontend + shared)
+# Install frontend dependencies (standalone, no shared workspace dep)
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --no-frozen-lockfile --filter './packages/shared' --filter './services/frontend'
+    cd services/frontend && pnpm install --no-frozen-lockfile
 
 # Copy source code
-COPY packages/shared/ ./packages/shared/
 COPY services/frontend/ ./services/frontend/
 
 # Pass API/WS URLs as build args
@@ -33,11 +27,9 @@ ARG VITE_BE_WS_URL
 ENV VITE_BE_API_URL=${VITE_BE_API_URL}
 ENV VITE_BE_WS_URL=${VITE_BE_WS_URL}
 
-# Build shared lib first, then frontend static export
+# Build frontend static export
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm --filter './packages/shared' run build
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm --filter frontend run build
+    cd services/frontend && pnpm run build
 
 # ---- Stage 2: Nginx ----
 FROM nginx:alpine

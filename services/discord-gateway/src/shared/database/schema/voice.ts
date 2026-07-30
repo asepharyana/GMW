@@ -1,4 +1,4 @@
-import { pgVoiceRecordingsTable } from "@bete/shared";
+import { pgVoiceRecordingsTable } from "../../../shared/index.js";
 
 // Re-export shared table
 export { pgVoiceRecordingsTable };

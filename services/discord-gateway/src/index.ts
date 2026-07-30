@@ -1,7 +1,7 @@
 import "libsodium-wrappers";
 import "@snazzah/davey";
 import "dotenv/config";
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { initializeDiscordGateway } from "./app/bootstrap.js";
 
 const logger = createChildLogger("discord-gateway");

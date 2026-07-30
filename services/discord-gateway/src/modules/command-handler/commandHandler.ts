@@ -4,8 +4,8 @@ import {
   type CommandReply,
   MEDIA_STATUS_KEY,
   VOICE_STATUS_KEY,
-} from "@bete/shared";
-import { createChildLogger } from "@bete/shared/logger";
+} from "../../shared/index.js";
+import { createChildLogger } from "../../shared/logger/index.js";
 import type { Client } from "discord.js-selfbot-v13";
 import Redis from "ioredis";
 import { config } from "../../shared/config/config.js";

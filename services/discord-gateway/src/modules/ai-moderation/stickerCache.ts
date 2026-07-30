@@ -1,4 +1,4 @@
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 import { uploadToTele } from "../../shared/uploader.js";

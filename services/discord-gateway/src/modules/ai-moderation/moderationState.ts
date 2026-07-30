@@ -1,4 +1,4 @@
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import type { Client } from "discord.js-selfbot-v13";
 import { LRUCache } from "lru-cache";
 import { config } from "../../shared/config/config.js";

@@ -1,6 +1,6 @@
 import { promises as fsPromises } from "node:fs";
 import path from "node:path";
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import type { VoiceConnection } from "@discordjs/voice";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
 import type { EventBroadcaster } from "../../event-broadcaster/eventBroadcaster.js";

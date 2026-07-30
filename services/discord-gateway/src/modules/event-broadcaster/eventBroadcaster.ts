@@ -1,5 +1,5 @@
-import type { AttachmentRecord, MessageRecord } from "@bete/shared";
-import { type CustomLogger, createChildLogger } from "@bete/shared/logger";
+import type { AttachmentRecord, MessageRecord } from "../../shared/index.js";
+import { type CustomLogger, createChildLogger } from "../../shared/logger/index.js";
 import Redis from "ioredis";
 import { type DiscordGatewayEvent, EventChannels } from "./eventTypes.js";
 

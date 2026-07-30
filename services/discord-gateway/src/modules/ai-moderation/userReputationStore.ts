@@ -1,4 +1,4 @@
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { and, desc, eq } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import {

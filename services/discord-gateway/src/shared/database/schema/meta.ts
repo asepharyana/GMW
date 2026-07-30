@@ -3,7 +3,7 @@ import {
   pgMuxerJobsTable,
   pgRetentionPoliciesTable,
   pgUIStateTable,
-} from "@bete/shared";
+} from "../../../shared/index.js";
 
 // Re-export shared tables
 export {

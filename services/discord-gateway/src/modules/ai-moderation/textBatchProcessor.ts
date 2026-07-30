@@ -5,7 +5,7 @@
  * searches, deduplicates short messages, splits into sub-batches, and calls
  * the LLM for analysis. Extracted from moderationOrchestrator.ts.
  */
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import type {
   AnalysisResult,

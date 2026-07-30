@@ -11,13 +11,11 @@
       "tests/**/*.ts",
       "services/**/*.ts",
       "services/**/*.tsx",
-      "packages/**/*.ts",
       "*.json",
       "*.ts",
       "!vendor",
       "!.claude",
       "!services/**/dist",
-      "!packages/**/dist",
       "!services/**/.next",
       "!services/**/out"
     ]

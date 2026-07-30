@@ -1,4 +1,4 @@
-import type { createChildLogger } from "@bete/shared/logger";
+import type { createChildLogger } from "@/shared/logger/index";
 import type { Client } from "discord.js-selfbot-v13";
 import type { CommandHandler } from "../modules/command-handler/commandHandler.js";
 import type { EventBroadcaster } from "../modules/event-broadcaster/index.js";

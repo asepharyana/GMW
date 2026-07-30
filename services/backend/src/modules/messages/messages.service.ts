@@ -1,5 +1,5 @@
-import { NotFoundError, ValidationError } from "@bete/shared/errors";
-import { createChildLogger } from "@bete/shared/logger";
+import { NotFoundError, ValidationError } from "@/shared/errors/index";
+import { createChildLogger } from "@/shared/logger/index";
 import { messagesRepository } from "./messages.repository.js";
 import type { MessageQuery } from "./messages.schema.js";
 

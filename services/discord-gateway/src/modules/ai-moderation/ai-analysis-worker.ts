@@ -17,7 +17,7 @@
  * simpler, unified worker that combines both layers.
  */
 
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import { initializeDatabase } from "../../shared/database/drizzle.js";
 import { messageStore } from "../message-capture/messageStore.js";

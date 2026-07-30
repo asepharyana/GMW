@@ -6,8 +6,8 @@
  * defaults are maintained in one place.
  */
 
-import { createChildLogger } from "@bete/shared/logger";
-import { retryWithBackoff } from "@bete/shared/utils";
+import { createChildLogger } from "@/shared/logger/index";
+import { retryWithBackoff } from "@/shared/utils/index";
 import OpenAI from "openai";
 import pLimit from "p-limit";
 import { config } from "../../shared/config/config.js";

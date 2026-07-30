@@ -1,5 +1,5 @@
-import { AppError, ValidationError } from "@bete/shared/errors";
-import { createChildLogger } from "@bete/shared/logger";
+import { AppError, ValidationError } from "@/shared/errors/index";
+import { createChildLogger } from "@/shared/logger/index";
 import type { NextFunction, Request, Response } from "express";
 import type { ZodSchema } from "zod";
 

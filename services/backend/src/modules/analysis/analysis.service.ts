@@ -1,4 +1,4 @@
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/index.js";
 import type { AnalysisSearchQuery } from "./analysis.repository.js";
 import { analysisRepository } from "./analysis.repository.js";

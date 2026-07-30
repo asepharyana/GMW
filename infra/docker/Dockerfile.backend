@@ -2,12 +2,6 @@ FROM node:22-slim
 
 WORKDIR /app
 
-# Build args for frontend API URLs
-ARG VITE_BE_API_URL
-ARG VITE_BE_WS_URL
-ENV VITE_BE_API_URL=${VITE_BE_API_URL}
-ENV VITE_BE_WS_URL=${VITE_BE_WS_URL}
-
 # Install pnpm
 RUN npm install -g pnpm
 
@@ -18,30 +12,21 @@ RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends python3
 RUN groupadd --system app && useradd --system -g app app
 
 # Copy dependency definition files first for better caching
-COPY pnpm-workspace.yaml .
-COPY pnpm-lock.yaml .
-COPY package.json .
+COPY services/backend/package.json services/backend/pnpm-lock.yaml* ./services/backend/
 
 # Copy patches (pnpm patchedDependencies)
 COPY patches ./patches
 
-# Copy packages (workspace dependencies)
-COPY packages/shared ./packages/shared
+# Copy service source (shared code is embedded in src/shared/)
+COPY services/backend/ ./services/backend/
 
-# Copy service
-COPY services/backend ./services/backend
-
-# Install dependencies with build cache
+# Install dependencies
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
-
-# Build shared workspace dependency first
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm --filter './packages/shared' run build
+    cd services/backend && pnpm install --frozen-lockfile
 
 # Build backend
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm --filter './services/backend' run build
+    cd services/backend && pnpm run build
 
 # Own dist + node_modules by non-root user
 RUN chown -R app:app /app

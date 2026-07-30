@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../../shared/config/config.js";
 import {
   insertVoiceRecording,

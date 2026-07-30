@@ -22,7 +22,7 @@ import {
   DISCORD_VOICE_STOPPED,
   DISCORD_VOICE_UPLOADED,
   type DiscordGatewayEvent,
-} from "@bete/shared";
+} from "../../shared/index.js";
 
 export type { DiscordGatewayEvent };
 

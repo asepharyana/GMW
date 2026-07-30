@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import * as prism from "prism-media";
 import { config } from "../../../shared/config/config.js";
 

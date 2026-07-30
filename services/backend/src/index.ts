@@ -1,5 +1,5 @@
 import type { Server } from "node:http";
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { startHttpServer } from "./http/server.js";
 import { closeDatabase } from "./shared/database/index.js";
 import { stopCommandBridge } from "./shared/redis/index.js";

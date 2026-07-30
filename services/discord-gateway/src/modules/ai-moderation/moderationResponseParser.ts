@@ -1,4 +1,4 @@
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import type { z } from "zod";
 import type { AnalysisResult } from "../message-capture/types.js";
 import type {

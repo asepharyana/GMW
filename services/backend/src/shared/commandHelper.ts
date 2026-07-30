@@ -1,5 +1,5 @@
-import type { CommandReply } from "@bete/shared";
-import { createChildLogger } from "@bete/shared/logger";
+import type { CommandReply } from "./index.js";
+import { createChildLogger } from "./logger/index.js";
 
 export { createChildLogger };
 

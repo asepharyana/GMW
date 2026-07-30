@@ -1,4 +1,4 @@
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import type { VoiceConnection } from "@discordjs/voice";
 import { EndBehaviorType } from "@discordjs/voice";
 import { config } from "../../../shared/config/config.js";

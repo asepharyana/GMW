@@ -1,6 +1,6 @@
 import type { Server } from "node:http";
-import { BACKEND_COMMAND, BACKEND_VOICE_TRANSMIT } from "@bete/shared";
-import { createChildLogger } from "@bete/shared/logger";
+import { BACKEND_COMMAND, BACKEND_VOICE_TRANSMIT } from "../shared/index.js";
+import { createChildLogger } from "../shared/logger/index.js";
 import { WebSocket, WebSocketServer } from "ws";
 import { config } from "../shared/config/index.js";
 import { setBroadcastFunctions } from "./broadcast.js";

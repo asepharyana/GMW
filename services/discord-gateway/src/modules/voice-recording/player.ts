@@ -1,5 +1,5 @@
 import type { Readable } from "node:stream";
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import {
   type AudioPlayer,
   AudioPlayerStatus,

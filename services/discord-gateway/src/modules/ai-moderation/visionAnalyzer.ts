@@ -5,8 +5,8 @@
  * moderation pipeline, runs single-image vision LLM analysis with
  * multi-layer caching, and detects whether a message has media content.
  */
-import { createChildLogger } from "@bete/shared/logger";
-import { delay } from "@bete/shared/utils";
+import { createChildLogger } from "@/shared/logger/index";
+import { delay } from "@/shared/utils/index";
 import { config } from "../../shared/config/config.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
 import type {

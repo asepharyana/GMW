@@ -1,5 +1,5 @@
-import { DISCORD_CHANNEL_TO_WS_EVENT, DISCORD_VOICE_PCM } from "@bete/shared";
-import { createChildLogger } from "@bete/shared/logger";
+import { DISCORD_CHANNEL_TO_WS_EVENT, DISCORD_VOICE_PCM } from "../shared/index.js";
+import { createChildLogger } from "../shared/logger/index.js";
 import Redis from "ioredis";
 import { config } from "../shared/config/index.js";
 import { broadcastBinary, broadcastEvent } from "./broadcast.js";

@@ -14,7 +14,7 @@ import {
   COMMAND_VOICE_TRANSMIT_STOP,
   type CommandMessage,
   type CommandReply,
-} from "@bete/shared";
+} from "../../shared/index.js";
 import type { GuildHandler } from "./guild.handler.js";
 import type { MediaHandler } from "./media.handler.js";
 import type { ModerationHandler } from "./moderation.handler.js";

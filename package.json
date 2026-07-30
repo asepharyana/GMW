@@ -1,31 +1,24 @@
 {
-  "name": "discord-voice-recorder",
+  "name": "bete-monorepo",
   "version": "1.0.0",
-  "description": "Discord bot that joins a voice channel and records audio",
-  "type": "module",
-  "packageManager": "pnpm@11.1.3",
+  "private": true,
+  "description": "Bete Discord Moderation Services — standalone services in one repo",
   "scripts": {
-    "dev:backend": "pnpm --filter './services/backend' run dev",
-    "dev:discord-gateway": "pnpm --filter './services/discord-gateway' run dev",
-    "dev:web": "pnpm --filter './services/frontend' run dev",
-    "build:web": "pnpm --filter './services/frontend' run build",
-    "typecheck:web": "pnpm --filter './services/frontend' run build",
-    "build:backend": "pnpm --filter './services/backend' run build",
-    "build:discord-gateway": "pnpm --filter './services/discord-gateway' run build",
-    "typecheck": "pnpm -r run typecheck",
+    "dev:backend": "pnpm --prefix services/backend dev",
+    "dev:discord-gateway": "pnpm --prefix services/discord-gateway dev",
+    "dev:web": "pnpm --prefix services/frontend dev",
+    "build:web": "pnpm --prefix services/frontend build",
+    "build:backend": "pnpm --prefix services/backend build",
+    "build:discord-gateway": "pnpm --prefix services/discord-gateway build",
+    "typecheck": "pnpm --prefix services/backend typecheck && pnpm --prefix services/discord-gateway typecheck",
     "lint": "biome check --diagnostic-level=error .",
     "format": "biome format --write .",
-    "test": "pnpm -r run test",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio",
+    "test": "pnpm --prefix services/backend test && pnpm --prefix services/discord-gateway test",
     "db:truncate": "psql \"$DATABASE_URL\" -f scripts/truncate-all.sql",
     "install:yt-dlp": "sh scripts/install-yt-dlp.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.5",
-    "drizzle-kit": "^0.31.10",
-    "tsx": "^4.22.2",
     "typescript": "^5.9.3"
   }
 }

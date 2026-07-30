@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { CommandMessage, CommandReply } from "@bete/shared";
-import { createChildLogger } from "@bete/shared/logger";
+import type { CommandMessage, CommandReply } from "../../shared/index.js";
+import { createChildLogger } from "../../shared/logger/index.js";
 import { StreamType } from "@discordjs/voice";
 import {
   extractMediaInfo,

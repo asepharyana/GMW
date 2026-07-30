@@ -1,6 +1,6 @@
 import { promises as fsPromises } from "node:fs";
-import { createChildLogger } from "@bete/shared/logger";
-import { retryWithBackoff } from "@bete/shared/utils";
+import { createChildLogger } from "@/shared/logger/index";
+import { retryWithBackoff } from "@/shared/utils/index";
 import {
   type DiscordGatewayAdapterCreator,
   entersState,

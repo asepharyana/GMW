@@ -3,7 +3,7 @@ import {
   pgChannelCulturesTable,
   pgUserProfilesTable,
   pgUserReputationsTable,
-} from "@bete/shared";
+} from "../../../shared/index.js";
 
 // Re-export shared tables
 export {

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 
 const logger = createChildLogger("ffmpeg-process");
 

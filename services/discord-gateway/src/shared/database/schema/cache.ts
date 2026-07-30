@@ -2,7 +2,7 @@ import {
   pgCorrectedModerationsTable,
   pgStickerCacheTable,
   pgTextAnalysisCacheTable,
-} from "@bete/shared";
+} from "../../../shared/index.js";
 
 // Re-export shared tables
 export {

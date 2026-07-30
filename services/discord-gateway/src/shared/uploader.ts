@@ -1,5 +1,5 @@
-import { createChildLogger } from "@bete/shared/logger";
-import { retryWithBackoff } from "@bete/shared/utils";
+import { createChildLogger } from "@/shared/logger/index";
+import { retryWithBackoff } from "@/shared/utils/index";
 
 const logger = createChildLogger("tele-upload");
 

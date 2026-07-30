@@ -4,7 +4,7 @@
  * Orchestrates LLM-based moderation analysis — manages batch splitting,
  * parallel text+media analysis, LLM calls with retry, and cache handling.
  */
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
 import type {

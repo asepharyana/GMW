@@ -1,4 +1,4 @@
-import { createChildLogger } from "@bete/shared/logger";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import { isAgeRestrictedMetadata } from "../message-capture/messageMetadata.js";
 import { messageStore } from "../message-capture/messageStore.js";

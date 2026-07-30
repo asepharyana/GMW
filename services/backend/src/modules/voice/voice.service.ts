@@ -7,7 +7,7 @@ import {
   type CommandReply,
   pgMessagesTable,
   VOICE_STATUS_KEY,
-} from "@bete/shared";
+} from "../../shared/index.js";
 import { eq } from "drizzle-orm";
 import {
   createChildLogger,

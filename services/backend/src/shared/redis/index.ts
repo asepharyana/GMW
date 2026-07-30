@@ -4,8 +4,8 @@ import {
   BACKEND_COMMAND_REPLY_PREFIX,
   type CommandMessage,
   type CommandReply,
-} from "@bete/shared";
-import { createChildLogger } from "@bete/shared/logger";
+} from "../index.js";
+import { createChildLogger } from "../logger/index.js";
 import Redis from "ioredis";
 import { config } from "../config/index.js";
 
