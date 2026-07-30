@@ -1,44 +1,42 @@
-# ---- Stage 1: Build Next.js static export ----
-FROM node:22-slim AS frontend-builder
+# ---- Builder stage: Next.js static export ----
+FROM node:22-slim AS builder
 
-WORKDIR /app
+WORKDIR /build
 
-# Install pnpm
 RUN corepack enable
 
-# Install build essentials for native deps
+# Build essentials
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    python3 make g++ && rm -rf /var/lib/apt/lists/*
+    make g++ \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency manifests first for layer caching
-COPY services/frontend/package.json services/frontend/pnpm-lock.yaml* ./services/frontend/
-COPY services/frontend/tsconfig.json ./services/frontend/tsconfig.json
+# Manifest files first
+COPY services/frontend/package.json ./
+COPY services/frontend/tsconfig.json ./
+COPY services/frontend/next.config.ts ./
 
-# Install frontend dependencies (standalone, no shared workspace dep)
+# Install all deps, skip postinstall (no native addons needed for static export)
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    cd services/frontend && pnpm install --no-frozen-lockfile
+    pnpm install --ignore-scripts --no-frozen-lockfile
 
-# Copy source code
-COPY services/frontend/ ./services/frontend/
+# Source code
+COPY services/frontend/ ./
 
-# Pass API/WS URLs as build args
+# Build args
 ARG VITE_BE_API_URL
 ARG VITE_BE_WS_URL
 ENV VITE_BE_API_URL=${VITE_BE_API_URL}
 ENV VITE_BE_WS_URL=${VITE_BE_WS_URL}
 
-# Build frontend static export
+# Build static export
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    cd services/frontend && pnpm run build
+    npx next build
 
-# ---- Stage 2: Nginx ----
+# ---- Runtime stage: nginx ----
 FROM nginx:alpine
 
-# Nginx config (API/WS proxy + static file serving)
 COPY infra/docker/nginx/nginx.conf /etc/nginx/conf.d/default.conf
-
-# Static export from frontend builder
-COPY --from=frontend-builder /app/services/frontend/out/ /usr/share/nginx/html/
+COPY --from=builder /build/out/ /usr/share/nginx/html/
 
 EXPOSE 80
 

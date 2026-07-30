@@ -1,56 +1,60 @@
-# ---- Stage 1: Build native deps + TypeScript ----
+# ---- Builder stage: native addons + TypeScript ----
 FROM node:22-slim AS builder
 
-WORKDIR /app
+WORKDIR /build
 
-RUN corepack enable
+# Install pnpm and allow postinstall scripts for native addons
+RUN corepack enable \
+    && pnpm config set onlyBuiltDependencies '*' --location project
 
-# Build tools + Rust for native compilation
+# Build tools + Rust (required by @dank074/discord-video-stream)
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
     python3 make g++ curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Dependency manifests
-COPY services/discord-gateway/package.json services/discord-gateway/pnpm-lock.yaml* ./services/discord-gateway/
-COPY patches ./patches
-
-# Install ALL deps (including devDeps needed for build)
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    cd services/discord-gateway && pnpm install --frozen-lockfile
-
-# Source code (shared code is embedded in src/shared/)
-COPY services/discord-gateway ./services/discord-gateway
-COPY services/discord-gateway/drizzle ./drizzle
-
-# Build
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    cd services/discord-gateway && pnpm run build \
-    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- Stage 2: Runtime (minimal) ----
+# Install Rust toolchain (separate RUN so the layer can cache if apt changes)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Manifest files first for layer caching
+COPY services/discord-gateway/package.json ./
+COPY patches/ ./patches/
+
+# Install all deps (devDeps needed for TypeScript build)
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --no-frozen-lockfile
+
+# Source code (shared code embedded in src/shared/)
+COPY services/discord-gateway/ ./
+COPY services/discord-gateway/drizzle ./drizzle
+
+# Build TypeScript
+RUN pnpm run build
+
+# Strip devDependencies — only production deps in final image
+RUN pnpm prune --prod
+
+# ---- Runtime stage: minimal ----
 FROM node:22-slim
 
 WORKDIR /app
 
-# Runtime system deps only
+# Runtime system deps only (ffmpeg for audio processing)
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
     ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy built artifacts
-COPY --from=builder /app/services/discord-gateway/dist ./services/discord-gateway/dist
-COPY --from=builder /app/services/discord-gateway/node_modules ./services/discord-gateway/node_modules
-COPY --from=builder /app/services/discord-gateway/package.json ./services/discord-gateway/package.json
-COPY --from=builder /app/drizzle ./drizzle
+# Only production artifacts from builder
+COPY --from=builder /build/dist ./dist
+COPY --from=builder /build/node_modules ./node_modules
+COPY --from=builder /build/package.json ./
+COPY --from=builder /build/drizzle ./drizzle
 
-# Create recordings dir and set ownership
+# Create recordings dir
 RUN mkdir -p /app/recordings && chown -R node:node /app
 USER node
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD sh -c "kill -0 1"
 
-CMD ["node", "services/discord-gateway/dist/index.js"]
+CMD ["node", "dist/index.js"]

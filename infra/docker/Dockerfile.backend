@@ -1,45 +1,53 @@
+# ---- Builder stage: install deps + compile ----
+FROM node:22-slim AS builder
+
+WORKDIR /build
+
+# Install pnpm and allow postinstall scripts for native addons
+RUN npm install -g pnpm \
+    && pnpm config set onlyBuiltDependencies '*' --location project
+
+# Build-time system deps (python3 for node-gyp, g++ for native addons)
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy manifest files first for layer caching
+COPY services/backend/package.json ./
+COPY patches/ ./patches/
+
+# Install all deps (devDeps included for build)
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --no-frozen-lockfile
+
+# Copy source (shared code embedded in src/shared/)
+COPY services/backend/ ./
+
+# Build TypeScript
+RUN pnpm run build
+
+# Strip devDependencies — production runtime only
+RUN pnpm prune --prod
+
+# ---- Runtime stage: minimal ----
 FROM node:22-slim
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
-
-# Install build tools for native dependencies (node-crc, @discordjs/opus)
-RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 make g++ wget && rm -rf /var/lib/apt/lists/*
-
 # Create non-root user
 RUN groupadd --system app && useradd --system -g app app
 
-# Copy dependency definition files first for better caching
-COPY services/backend/package.json services/backend/pnpm-lock.yaml* ./services/backend/
+# Only production artifacts from builder
+COPY --from=builder /build/dist ./dist
+COPY --from=builder /build/node_modules ./node_modules
+COPY --from=builder /build/package.json ./
 
-# Copy patches (pnpm patchedDependencies)
-COPY patches ./patches
-
-# Copy service source (shared code is embedded in src/shared/)
-COPY services/backend/ ./services/backend/
-
-# Install dependencies
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    cd services/backend && pnpm install --frozen-lockfile
-
-# Build backend
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    cd services/backend && pnpm run build
-
-# Own dist + node_modules by non-root user
 RUN chown -R app:app /app
-
-# Switch to non-root user
 USER app
 
-# Expose port
 EXPOSE 3000
 
-# Healthcheck — backend serves HTTP on port 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
   CMD wget -qO- http://localhost:3000/api/health || exit 1
 
-# Start backend
-CMD ["node", "services/backend/dist/index.js"]
+CMD ["node", "dist/index.js"]
