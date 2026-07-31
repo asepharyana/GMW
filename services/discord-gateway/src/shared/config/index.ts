@@ -134,6 +134,17 @@ export const configSchema = z
       .default("https://9router.asepharyana.my.id/v1"),
     AI_LLM_MODEL: z.string().default("text"),
     AI_LLM_VISION_MODEL: z.string().optional(),
+    AI_LLM_EMBEDDING_MODEL: z.string().optional(),
+    AI_LLM_EMBEDDING_MIN_SIMILARITY: z.coerce
+      .number()
+      .min(0)
+      .max(1)
+      .default(0.97),
+    AI_LLM_EMBEDDING_MAX_CANDIDATES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(30),
     AI_LLM_MAX_CONCURRENT: z.coerce.number().int().positive().default(5),
     AI_LLM_IMAGE_MAX_DIMENSION: z.coerce
       .number()

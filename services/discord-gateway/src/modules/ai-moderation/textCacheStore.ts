@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { createChildLogger } from "@/shared/logger/index";
 import { executeAll, executeGet } from "../../shared/database/drizzle.js";
+import { findBestEmbeddingMatch } from "./embeddingClient.js";
 
 const logger = createChildLogger("text-cache-store");
 
@@ -355,8 +356,108 @@ export async function getCachedTextModeration(cacheKey: string): Promise<{
 }
 
 /**
+ * Semantic moderation cache lookup.
+ *
+ * Returns the most similar stored verdict whose cosine similarity to the
+ * query embedding is at least `minSimilarity`. Only entries written by the
+ * moderation pipeline (source='user_moderation') with a stored embedding are
+ * considered, limited to the most recent `limit` rows to bound cost.
+ * Returns null on no match or any failure — callers then proceed to the LLM.
+ */
+export async function findSimilarTextModeration(
+  embedding: number[],
+  minSimilarity: number,
+  limit: number,
+): Promise<{
+  text: string;
+  similarity: number;
+  status: "clean" | "warn" | "flagged";
+  flags: string[];
+  score: number;
+  analysis: string;
+  categories: string[];
+  severity: string;
+  confidence: number;
+  recommendedAction: string;
+} | null> {
+  try {
+    const rows = await executeAll(
+      `SELECT text, flags, embedding
+       FROM text_analysis_cache
+       WHERE source = 'user_moderation'
+         AND embedding IS NOT NULL
+         AND expires_at > $1
+       ORDER BY analyzed_at DESC
+       LIMIT $2`,
+      [Date.now(), limit],
+    );
+    if (!rows || rows.length === 0) return null;
+
+    const candidates = rows.flatMap((row) => {
+      let embeddingArr: number[] = [];
+      let parsed: Record<string, unknown>;
+      try {
+        embeddingArr = JSON.parse(row.embedding) as number[];
+        parsed = JSON.parse(row.flags) as Record<string, unknown>;
+      } catch {
+        return [];
+      }
+      // Skip processing locks / malformed entries — never reuse an
+      // in-flight or non-verdict row.
+      const storedStatus = parsed.status as string | undefined;
+      if (storedStatus === "processing" || storedStatus === undefined) {
+        return [];
+      }
+      if (!Array.isArray(parsed.flags)) return [];
+      return [
+        {
+          text: row.text,
+          embedding: embeddingArr,
+          parsed,
+        },
+      ];
+    });
+
+    const match = findBestEmbeddingMatch(
+      embedding,
+      candidates.map((c) => c.embedding),
+      minSimilarity,
+    );
+    if (!match) return null;
+
+    const hit = candidates[match.index];
+    const parsed = hit.parsed;
+    const flags = (parsed.flags as string[]) ?? [];
+    const storedStatus = (parsed.status as string) ?? "clean";
+    const status: "clean" | "warn" | "flagged" =
+      storedStatus === "warn" || storedStatus === "flagged"
+        ? storedStatus
+        : "clean";
+    return {
+      text: hit.text,
+      similarity: match.similarity,
+      status,
+      flags,
+      score: (parsed.score as number) ?? 0,
+      analysis: (parsed.analysis as string) ?? "",
+      categories: (parsed.categories as string[]) ?? [],
+      severity: (parsed.severity as string) ?? "none",
+      confidence: (parsed.confidence as number) ?? 0,
+      recommendedAction: (parsed.recommendedAction as string) ?? "none",
+    };
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed semantic text moderation lookup",
+    );
+    return null;
+  }
+}
+
+/**
  * Store a moderation result for a (user, content) pair.
  * The `flags` field stores the full result object as JSON.
+ * `embedding` (optional) is stored for semantic near-duplicate lookups.
  */
 export async function setCachedTextModeration(
   cacheKey: string,
@@ -370,25 +471,28 @@ export async function setCachedTextModeration(
     recommendedAction: string;
     status?: "clean" | "warn" | "flagged" | "processing";
   },
+  embedding?: number[] | null,
 ): Promise<void> {
   const now = Date.now();
   const USER_MOD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
   try {
     await executeAll(
-      `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count)
-       VALUES ($1, $2, $3, $4, $5, 0)
+      `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count, embedding)
+       VALUES ($1, $2, $3, $4, $5, 0, $6)
        ON CONFLICT (text) DO UPDATE SET
-         flags = EXCLUDED.flags,
-         source = EXCLUDED.source,
-         analyzed_at = EXCLUDED.analyzed_at,
-         expires_at = EXCLUDED.expires_at`,
+        flags = EXCLUDED.flags,
+        source = EXCLUDED.source,
+        analyzed_at = EXCLUDED.analyzed_at,
+        expires_at = EXCLUDED.expires_at,
+        embedding = COALESCE(EXCLUDED.embedding, text_analysis_cache.embedding)`,
       [
         cacheKey,
         JSON.stringify(result),
         "user_moderation",
         now,
         now + USER_MOD_CACHE_TTL_MS,
+        embedding && embedding.length > 0 ? JSON.stringify(embedding) : null,
       ],
     );
   } catch (error) {

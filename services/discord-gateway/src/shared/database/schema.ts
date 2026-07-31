@@ -402,6 +402,9 @@ export const pgTextAnalysisCacheTable = pgTable(
     analyzed_at: pgBigint("analyzed_at", { mode: "number" }).notNull(),
     expires_at: pgBigint("expires_at", { mode: "number" }).notNull(),
     hit_count: pgInteger("hit_count").notNull().default(0),
+    // JSON-encoded embedding vector for semantic moderation cache lookups.
+    // Null for entries stored before embeddings were enabled.
+    embedding: pgText("embedding"),
   },
   (table) => ({
     expiresAtIdx: pgIndex("idx_text_analysis_cache_expires_at").on(

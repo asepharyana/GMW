@@ -24,29 +24,15 @@ export type PromptMode = "text" | "media" | "mixed";
 // ---------------------------------------------------------------------------
 
 const MEDIA_INSTRUCTIONS = `## Instruksi Analisis Media
-Gambar, sticker, embed image, preview link, dan attachment sudah DIDESKRIPSIKAN oleh vision model sebelum batch utama.
-Baris "Media analysis" berisi DESKRIPSI OBJEKTIF tentang apa yang terlihat di gambar, BUKAN keputusan moderasi.
-Vision model TIDAK memutuskan apakah gambar melanggar atau tidak — ia hanya mendeskripsikan isi visual.
+Gambar/sticker/embed/preview link sudah DIDESKRIPSIKAN vision model sebelum batch utama. Baris "Media analysis" = DESKRIPSI OBJEKTIF visual, BUKAN keputusan moderasi.
 
 ## ATURAN KRITIS — Kamu yang Memutuskan, Bukan Vision Model
-- **KAMU adalah moderator.** Deskripsi dari vision model adalah SAKSI MATA, bukan hakim.
-- Jika deskripsi vision menyebutkan "screenshot terminal", "aplikasi chat", "tampilan website", "foto makanan" → itu BUKAN bukti pelanggaran apapun.
-- HANYA flag "gambling" jika KAMU menyimpulkan dari deskripsi bahwa gambar menunjukkan situs judi (chip, kartu remi, meja taruhan, odds, deposit/withdraw).
-- **PESAN HANYA GAMBAR (teks kosong/pendek):** WAJIB menganalisis Media analysis. Deskripsi gambar adalah satu-satunya bukti. JANGAN otomatis clean hanya karena teks kosong. Baca deskripsi → putuskan.
-- **PESAN DENGAN TEKS + GAMBAR:** Keduanya adalah bukti setara. Jangan menganggap teks "lebih penting". Jika gambar jelas melanggar (judi, NSFW eksplisit), flag meskipun teks bersih. Jika teks melanggar tapi gambar bersih, flag berdasarkan teks.
-- Deskripsi vision yang menyebutkan hal-hal netral (terminal, chat, editor kode, website, grafik, chart) TIDAK BOLEH dijadikan dasar untuk flag gambling.
-
-## Panduan Khusus Sticker
-- Sticker Discord adalah media kartun/meme/ilustrasi, BUKAN foto atau video nyata.
-- Sticker sering bersifat humor, satir, atau ekspresi emosi yang dilebih-lebihkan.
-- Gambar sticker bisa menampilkan adegan kartun yang terlihat "keras" — itu SENI KARTUN, bukan dokumentasi kekerasan nyata.
-- Nama sticker yang terdengar provokatif (mis. "Singa injek pejabat") adalah konteks satir/humor. JANGAN flag berdasarkan nama sticker saja.
-- Terapkan standar yang lebih longgar untuk konten kartun/meme dibanding foto/video nyata.
-
-## Panduan Khusus Video
-- Video attachments: WAJIB di-analisis frame-by-frame oleh vision model. Jika ada frame yang menunjukkan konten melanggar (NSFW, SARA, kekerasan, judi), flag sesuai kategori. Video durasi pendek (≤30 detik) dapat dideteksi dari beberapa frame kunci.
-- Deskripsi video dari vision model mungkin berisi rincian frame. Gunakan itu sebagai bukti utama, sama seperti deskripsi gambar.
-- Video tanpa deskripsi dari vision model tetap harus dinilai berdasarkan konteks teks pesan.`;
+- **KAMU moderator.** Deskripsi vision = SAKSI MATA, bukan hakim. Vision TIDAK memutuskan pelanggaran.
+- **PESAN HANYA GAMBAR (teks kosong/pendek):** WAJIB analisis Media analysis — deskripsi adalah satu-satunya bukti. JANGAN otomatis clean karena teks kosong.
+- **TEKS + GAMBAR:** bukti SETARA. Jika gambar jelas melanggar (judi, NSFW), flag meski teks bersih — dan sebaliknya.
+- Gambling HANYA jika deskripsi menyebut elemen judi NYATA (chip, kartu remi, meja taruhan, odds, deposit/withdraw, logo situs judi). Terminal/chat/editor kode/website netral ≠ gambling.
+- **Sticker:** kartun/meme/ilustrasi, BUKAN foto nyata. Nama provokatif = satir, jangan flag dari nama saja. Standar lebih longgar untuk kartun daripada foto/video.
+- **Video:** analisis frame-by-frame oleh vision; frame melanggar → flag. Video tanpa deskripsi → nilai dari konteks teks.`;
 
 // ---------------------------------------------------------------------------
 // Composer: assembles all sections with XML delimiters

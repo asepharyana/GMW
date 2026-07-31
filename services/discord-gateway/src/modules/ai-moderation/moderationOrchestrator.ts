@@ -12,12 +12,13 @@ import type {
   AttachmentRecord,
   MessageRecord,
 } from "../message-capture/types.js";
-import { callModerationLLM } from "./llmCaller.js";
 import { hasMediaContent } from "./mediaAnalysisClient.js";
 import { runMediaBatch } from "./mediaBatchProcessor.js";
 import { initSearxngCache } from "./searxngSearch.js";
 import { runTextOnlyBatch } from "./textBatchProcessor.js";
+import { embedText, isEmbeddingEnabled } from "./embeddingClient.js";
 import {
+  findSimilarTextModeration,
   getCachedTextModeration,
   makeTextModerationCacheKey,
   setCachedTextModeration,
@@ -59,6 +60,9 @@ export async function runModerationAnalysis(
   const cacheHits: AnalysisResult[] = [];
   const uncachedTargets: MessageRecord[] = [];
   const seenCacheKeys = new Set<string>();
+  // Embedding per exact cache key — computed once during lookup, reused
+  // when the fresh LLM verdict is written back to the semantic cache.
+  const embeddingsByKey = new Map<string, number[]>();
 
   for (const target of targets) {
     const hasMedia = hasMediaContent(target, attachments);
@@ -139,6 +143,46 @@ export async function runModerationAnalysis(
       /* proceed */
     }
 
+    // Semantic cache: reuse verdicts for near-duplicate text (requires the
+    // configured embedding model). Only non-trivial text-only messages
+    // qualify — media and empty text never take this path.
+    if (isEmbeddingEnabled() && rawContent.trim().length >= 5) {
+      const embedding = await embedText(rawContent);
+      if (embedding) {
+        embeddingsByKey.set(cacheKey, embedding);
+        const semantic = await findSimilarTextModeration(
+          embedding,
+          config.AI_LLM_EMBEDDING_MIN_SIMILARITY,
+          config.AI_LLM_EMBEDDING_MAX_CANDIDATES,
+        );
+        if (semantic) {
+          log.debug(
+            {
+              messageId: target.id,
+              similarity: Number(semantic.similarity.toFixed(4)),
+              status: semantic.status,
+            },
+            "Semantic moderation cache hit — reusing stored verdict",
+          );
+          cacheHits.push({
+            messageId: target.id,
+            status: semantic.status,
+            flags: semantic.flags,
+            score: semantic.score,
+            analysis: semantic.analysis,
+            categories: semantic.categories,
+            severity: semantic.severity as AnalysisResult["severity"],
+            confidence: semantic.confidence,
+            recommendedAction:
+              semantic.recommendedAction as AnalysisResult["recommendedAction"],
+            policyVersion: "semantic-cache-2026-07",
+            evidence: [],
+          } as AnalysisResult);
+          continue;
+        }
+      }
+    }
+
     uncachedTargets.push(target);
   }
 
@@ -205,16 +249,20 @@ export async function runModerationAnalysis(
     }
 
     const cacheKey = makeTextModerationCacheKey(rawContent);
-    setCachedTextModeration(cacheKey, {
-      flags: result.flags ?? [],
-      score: result.score ?? 0,
-      analysis: result.analysis ?? "",
-      categories: result.categories ?? result.flags ?? [],
-      severity: result.severity ?? "none",
-      confidence: result.confidence ?? result.score ?? 0,
-      recommendedAction: result.recommendedAction ?? "none",
-      status: result.status,
-    }).catch(() => {});
+    setCachedTextModeration(
+      cacheKey,
+      {
+        flags: result.flags ?? [],
+        score: result.score ?? 0,
+        analysis: result.analysis ?? "",
+        categories: result.categories ?? result.flags ?? [],
+        severity: result.severity ?? "none",
+        confidence: result.confidence ?? result.score ?? 0,
+        recommendedAction: result.recommendedAction ?? "none",
+        status: result.status,
+      },
+      embeddingsByKey.get(cacheKey),
+    ).catch(() => {});
   }
 
   const allResults = [

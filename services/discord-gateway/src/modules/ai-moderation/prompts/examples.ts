@@ -1,8 +1,10 @@
 /**
  * Few-shot examples for LLM moderation prompts.
  *
- * Extracted from the monolithic system.ts to reduce line count and enable
- * focused maintenance of example data.
+ * Compressed for token efficiency: analysis strings are shortened,
+ * redundant fields (categories, policy_version) omitted from example
+ * outputs — both are optional in the response schema and the parser
+ * derives them when missing. All teaching signals are preserved.
  */
 
 // ---------------------------------------------------------------------------
@@ -24,9 +26,7 @@ export interface ExampleDef {
 // Formatter
 // ---------------------------------------------------------------------------
 
-/**
- * Formats an array of ExampleDef into the prompt-ready string block.
- */
+/** Formats an array of ExampleDef into the prompt-ready string block. */
 export function formatExamples(examples: ExampleDef[], prefix: string): string {
   return `${prefix}\n\n${examples
     .map(
@@ -41,13 +41,13 @@ export function formatExamples(examples: ExampleDef[], prefix: string): string {
 // ---------------------------------------------------------------------------
 
 export const ALL_EXAMPLES: ExampleDef[] = [
-  // ── Text-only examples (1, 2, 15, 16, 17, 18, 19) ──
+  // ── Text-only examples ──
   {
     id: "1",
     title: "Pesan bersih dengan slang",
     input: "[target] id=12345 user=budi: anjay wkwk gaskeun santuy bro",
     output:
-      '{"results":[{"message_id":"12345","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Slang Indonesia umum tanpa pelanggaran terdeteksi."}]}',
+      '{"results":[{"message_id":"12345","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.95,"recommended_action":"none","evidence":[],"analysis":"Slang Indonesia umum, tanpa pelanggaran."}]}',
     modes: ["text", "mixed"],
   },
   {
@@ -56,7 +56,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=67890 user=anon: lu goblok banget sih kontol, mampus aja lo",
     output:
-      '{"results":[{"message_id":"67890","status":"flagged","flags":["harassment","vulgar_language"],"score":0.85,"categories":["harassment","vulgar_language"],"severity":"high","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["lu goblok banget sih kontol","mampus aja lo"],"analysis":"Insult langsung dengan kata kasar terarah ke individu."}]}',
+      '{"results":[{"message_id":"67890","status":"flagged","flags":["harassment","vulgar_language"],"score":0.85,"severity":"high","confidence":0.9,"recommended_action":"delete","evidence":["lu goblok banget sih kontol"],"analysis":"Insult langsung dengan kata kasar terarah ke individu."}]}',
     modes: ["text", "mixed"],
   },
   {
@@ -64,7 +64,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     title: "Emoji Huruf (Evasion)",
     input: "[target] id=16161 user=sneaky: gsap expo 🇬 🇦 🇾",
     output:
-      '{"results":[{"message_id":"16161","status":"flagged","flags":["sexual_deviation"],"score":0.8,"categories":["sexual_deviation"],"severity":"medium","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["🇬 🇦 🇾"],"analysis":"Pengirim menggunakan emoji regional indicator untuk mengeja kata terlarang — teknik evasi untuk topik yang dibatasi server. Melanggar kebijakan."}]}',
+      '{"results":[{"message_id":"16161","status":"flagged","flags":["sexual_deviation"],"score":0.8,"severity":"medium","confidence":0.95,"recommended_action":"delete","evidence":["🇬 🇦 🇾"],"analysis":"Regional indicator mengeja kata terlarang — evasi untuk topik yang dibatasi server."}]}',
     modes: ["text", "mixed"],
   },
   {
@@ -72,7 +72,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     title: "Typo QWERTY Programming (False Positive Prevention)",
     input: "[target] id=17171 user=dian432: Apakah bisa ngodonf disitu?",
     output:
-      '{"results":[{"message_id":"17171","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim bertanya tentang pemrograman. Kata \'ngodonf\' adalah typo natural (QWERTY f-g, o-i) dari \'ngoding\'. Bukan obfuscation kata kasar. Konteks percakapan wajar."}]}',
+      '{"results":[{"message_id":"17171","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.95,"recommended_action":"none","evidence":[],"analysis":"Kata \'ngodonf\' typo QWERTY natural (f-g, o-i) dari \'ngoding\', bukan obfuscation. Diskusi teknis wajar."}]}',
     modes: ["text", "mixed"],
   },
   {
@@ -81,7 +81,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=17172 user=dev: TypeError: Cannot read properties of undefined (reading 'map'). Kalo ada yang tau solusinya tolong bantu",
     output:
-      '{"results":[{"message_id":"17172","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim bertanya tentang error programming. Ini adalah diskusi teknis normal, bukan pelanggaran. Aman."}]}',
+      '{"results":[{"message_id":"17172","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.95,"recommended_action":"none","evidence":[],"analysis":"Diskusi teknis normal tentang error programming, bukan pelanggaran."}]}',
     modes: ["text", "mixed"],
   },
   {
@@ -90,7 +90,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=17173 user=dev: Guys pake Cursor lebih enak daripada VSCode? Gw pake Claude buat bantuin debugging",
     output:
-      '{"results":[{"message_id":"17173","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim membahas tools programming (Cursor, VSCode, Claude). Ini adalah diskusi teknis biasa. Tidak ada pelanggaran."}]}',
+      '{"results":[{"message_id":"17173","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.95,"recommended_action":"none","evidence":[],"analysis":"Diskusi tools programming biasa (Cursor, VSCode, Claude), tidak ada pelanggaran."}]}',
     modes: ["text", "mixed"],
   },
   {
@@ -99,18 +99,18 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=17174 user=alex: btw gw gay, semoga ga masalah ya. Gw cmn mau jujur aja",
     output:
-      '{"results":[{"message_id":"17174","status":"flagged","flags":["sexual_deviation"],"score":0.85,"categories":["sexual_deviation"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["btw gw gay, semoga ga masalah ya"],"analysis":"Pengirim menyebutkan orientasi LGBT. Berdasarkan kebijakan server, segala bentuk diskusi tentang LGBT dilarang — tidak ada toleransi untuk pengakuan orientasi, coming out, atau curhat personal. Dihapus."}]}',
+      '{"results":[{"message_id":"17174","status":"flagged","flags":["sexual_deviation"],"score":0.85,"severity":"high","confidence":0.95,"recommended_action":"delete","evidence":["btw gw gay, semoga ga masalah ya"],"analysis":"Pengakuan orientasi LGBT — server zero tolerance terhadap segala diskusi/coming out. Dihapus."}]}',
     modes: ["text", "mixed"],
   },
 
-  // ── Mixed examples (3, 8, 9, 10, 10.5, 11, 12, 13, 14, 20, 22, 27) ──
+  // ── Mixed examples ──
   {
     id: "3",
     title: "Sticker kartun dengan nama provokatif",
     input:
       '[target] id=11111 user=citra: <:singa_injek:123456> [sticker: "Singa injek pejabat"]',
     output:
-      '{"results":[{"message_id":"11111","status":"clean","flags":[],"score":0.1,"categories":[],"severity":"none","confidence":0.8,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Sticker kartun satir dengan nama provokatif namun bukan ancaman nyata."}]}',
+      '{"results":[{"message_id":"11111","status":"clean","flags":[],"score":0.1,"severity":"none","confidence":0.8,"recommended_action":"none","evidence":[],"analysis":"Sticker kartun satir dengan nama provokatif, bukan ancaman nyata."}]}',
     modes: ["text", "media", "mixed"],
   },
   {
@@ -119,7 +119,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=88888 user=sexist: dasar perempuan ngerti apa sih, logika lo aja kagak bener",
     output:
-      '{"results":[{"message_id":"88888","status":"flagged","flags":["hate_speech","harassment"],"score":0.82,"categories":["hate_speech","harassment"],"severity":"high","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["dasar perempuan ngerti apa sih","logika lo aja kagak bener"],"analysis":"Pengirim mengirim komentar seksis merendahkan yang menyasar gender perempuan. Penghinaan terarah dan stereotip ofensif. Melanggar aturan hate speech dan harassment."}]}',
+      '{"results":[{"message_id":"88888","status":"flagged","flags":["hate_speech","harassment"],"score":0.82,"severity":"high","confidence":0.9,"recommended_action":"delete","evidence":["dasar perempuan ngerti apa sih"],"analysis":"Komentar seksis merendahkan yang menyasar gender — stereotip ofensif terarah."}]}',
     modes: ["text", "media", "mixed"],
   },
   {
@@ -128,7 +128,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=99999 user=drama: si budi kemarin ngomongin lo di belakang, masa tega banget dia, ayo kita konfrontasi di sini aja",
     output:
-      '{"results":[{"message_id":"99999","status":"warn","flags":["conflict_instigation"],"score":0.65,"categories":["conflict_instigation"],"severity":"low","confidence":0.75,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["si budi kemarin ngomongin lo di belakang","ayo kita konfrontasi di sini aja"],"analysis":"Pengirim mengajak konfrontasi masalah personal di channel publik. Berpotensi menimbulkan pertengkaran dan drama. Tidak ada pelanggaran berat namun perlu diperingatkan."}]}',
+      '{"results":[{"message_id":"99999","status":"warn","flags":["conflict_instigation"],"score":0.65,"severity":"low","confidence":0.75,"recommended_action":"warn","evidence":["ayo kita konfrontasi di sini aja"],"analysis":"Mengajak konfrontasi masalah personal di channel publik, berpotensi memicu drama."}]}',
     modes: ["text", "media", "mixed"],
   },
   {
@@ -137,7 +137,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=10101 user=fox: mau liat foto pake kostum hewan? DM aja, khusus 18+",
     output:
-      '{"results":[{"message_id":"10101","status":"flagged","flags":["sexual_deviation"],"score":0.85,"categories":["sexual_deviation"],"severity":"high","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["mau liat foto pake kostum hewan? DM aja, khusus 18+"],"analysis":"Pengirim mengajak aktivitas seksual dengan frasa eksplisit \'DM aja, khusus 18+\'. Ini melanggar kebijakan server."}]}',
+      '{"results":[{"message_id":"10101","status":"flagged","flags":["sexual_deviation"],"score":0.85,"severity":"high","confidence":0.9,"recommended_action":"delete","evidence":["mau liat foto pake kostum hewan? DM aja, khusus 18+"],"analysis":"Ajakan aktivitas seksual eksplisit \'DM khusus 18+\'. Melanggar kebijakan."}]}',
     modes: ["text", "media", "mixed"],
   },
   {
@@ -146,7 +146,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=10505 user=dev: ERROR: Cannot read properties of undefined (reading 'data'). Stack trace: at Module._compile (node:internal/modules/cjs/loader:1256:14)",
     output:
-      '{"results":[{"message_id":"10505","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim berbagi error log programming. Ini adalah diskusi teknis normal antara developer, bukan pelanggaran. Aman."}]}',
+      '{"results":[{"message_id":"10505","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.95,"recommended_action":"none","evidence":[],"analysis":"Error log programming biasa antara developer, aman."}]}',
     modes: ["text", "media", "mixed"],
   },
   {
@@ -155,7 +155,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=12121 user=pejabat_munafik_dajjal: Halo teman-teman, ada yang main game?",
     output:
-      '{"results":[{"message_id":"12121","status":"flagged","flags":["offensive_username"],"score":0.3,"categories":["offensive_username"],"severity":"low","confidence":0.95,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["Username \'pejabat_munafik_dajjal\' mengandung unsur ofensif/SARA"],"analysis":"Pengirim memiliki username ofensif yang menyerang pejabat dengan label SARA. Namun isi pesan bersih dan tidak terkait username. Flag ringan."}]}',
+      '{"results":[{"message_id":"12121","status":"flagged","flags":["offensive_username"],"score":0.3,"severity":"low","confidence":0.95,"recommended_action":"warn","evidence":["Username \'pejabat_munafik_dajjal\' mengandung unsur ofensif/SARA"],"analysis":"Username ofensif menyerang pejabat dengan label SARA, tapi isi pesan bersih — flag ringan."}]}',
     modes: ["text", "media", "mixed"],
   },
   {
@@ -164,7 +164,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=13131 user=nazi_babi_itu: bener tuh nih ras emang harus dibasmi",
     output:
-      '{"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"categories":["offensive_username","hate_speech","sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Username \'nazi_babi_itu\' mengandung unsur SARA","bener tuh nih ras emang harus dibasmi"],"analysis":"Pengirim memiliki username SARA dan isi pesan memperkuat tone kebencian dengan ajakan kekerasan terhadap ras tertentu. Pelanggaran berat."}]}',
+      '{"results":[{"message_id":"13131","status":"flagged","flags":["offensive_username","hate_speech","sara"],"score":0.9,"severity":"high","confidence":0.95,"recommended_action":"delete","evidence":["bener tuh nih ras emang harus dibasmi"],"analysis":"Username SARA dan isi pesan memperkuat kebencian dengan ajakan kekerasan. Pelanggaran berat."}]}',
     modes: ["text", "media", "mixed"],
   },
   {
@@ -173,7 +173,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       '[target] id=14141 user=hater: ++++++K1[[ your $€/F" "~`| \\\\0ve $ 1F ¥°U |}iE ®©',
     output:
-      '{"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"categories":["harassment","hate_speech"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["++++++K1[[ your $€/F","\\\\\\\\0ve $ 1F ¥°U |}iE"],"analysis":"Pesan menggunakan teknik obfuscation/simbol untuk menyembunyikan frasa \'Kill yourself I love if you die\'. Ini adalah ancaman dan pelecehan berat yang disamarkan."}]}',
+      '{"results":[{"message_id":"14141","status":"flagged","flags":["harassment","hate_speech"],"score":0.95,"severity":"critical","confidence":0.95,"recommended_action":"delete","evidence":["++++++K1[[ your $€/F"],"analysis":"Obfuscation simbol menyembunyikan frasa ancaman \'Kill yourself\'. Ancaman berat yang disamarkan."}]}',
     modes: ["text", "media", "mixed"],
   },
   {
@@ -181,7 +181,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     title: "Vulgaritas Bahasa Asing / All-Caps",
     input: "[target] id=15151 user=troll: AKU RAJA TITTEN",
     output:
-      '{"results":[{"message_id":"15151","status":"flagged","flags":["vulgar_language"],"score":0.85,"categories":["vulgar_language"],"severity":"medium","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["AKU RAJA TITTEN"],"analysis":"Pesan menggunakan kata vulgar bahasa asing (\'titten\' berarti payudara dalam bahasa Jerman) dengan huruf kapital. Ini adalah pelanggaran vulgar_language meskipun formatnya seperti candaan."}]}',
+      '{"results":[{"message_id":"15151","status":"flagged","flags":["vulgar_language"],"score":0.85,"severity":"medium","confidence":0.9,"recommended_action":"delete","evidence":["AKU RAJA TITTEN"],"analysis":"Kata vulgar bahasa asing (\'titten\') dengan huruf kapital — melanggar meski format seperti candaan."}]}',
     modes: ["text", "media", "mixed"],
   },
   {
@@ -190,7 +190,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       '[target] id=20201 user=parodist: Kitabonia 11:17 — "Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"',
     output:
-      '{"results":[{"message_id":"20201","status":"flagged","flags":["sara"],"score":0.92,"categories":["sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Kitabonia 11:17","Dan bersabdalah Sang Admin: barang siapa yang melakukan spam, niscaya akan kena mute tujuh hari tujuh malam"],"analysis":"Pengirim membuat ayat palsu dengan format penulisan kitab suci (pasal:ayat) yang memparodikan wahyu. Ini adalah penistaan agama serius, bukan humor. Melanggar kebijakan SARA."}]}',
+      '{"results":[{"message_id":"20201","status":"flagged","flags":["sara"],"score":0.92,"severity":"critical","confidence":0.95,"recommended_action":"delete","evidence":["Kitabonia 11:17"],"analysis":"Ayat palsu dengan format kitab suci memparodikan wahyu — penistaan agama, bukan humor."}]}',
     modes: ["text", "media", "mixed"],
   },
   {
@@ -199,7 +199,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=22223 user=edgy: Shirkmaxxing grindset, nanti halalmaxxing juga",
     output:
-      '{"results":[{"message_id":"22223","status":"flagged","flags":["sara"],"score":0.88,"categories":["sara"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Shirkmaxxing grindset","halalmaxxing juga"],"analysis":"Pengirim menggunakan istilah suci agama Islam (shirk/syirik dan halal) sebagai bahan candaan dengan suffix meme. Ini adalah penistaan terhadap konsep teologis serius. Melanggar SARA."}]}',
+      '{"results":[{"message_id":"22223","status":"flagged","flags":["sara"],"score":0.88,"severity":"high","confidence":0.95,"recommended_action":"delete","evidence":["Shirkmaxxing grindset"],"analysis":"Istilah suci agama (shirk, halal) sebagai bahan candaan meme — penistaan konsep teologis."}]}',
     modes: ["text", "media", "mixed"],
   },
   {
@@ -207,18 +207,18 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     title: "Ekspresi keagamaan normal (AMAN, BUKAN SARA)",
     input: "[target] id=27278 user=muslim_user: Astaghfirullah, sabar ya bro",
     output:
-      '{"results":[{"message_id":"27278","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim mengucapkan istighfar (doa normal) dalam konteks menenangkan teman. Ini adalah ekspresi keagamaan wajar dalam budaya Indonesia, bukan penistaan. Aman."}]}',
+      '{"results":[{"message_id":"27278","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.95,"recommended_action":"none","evidence":[],"analysis":"Istighfar untuk menenangkan teman — ekspresi keagamaan wajar Indonesia, bukan penistaan."}]}',
     modes: ["text", "media", "mixed"],
   },
 
-  // ── Media-only examples (4, 5, 6, 7, 21, 23, 24, 25, 26, 28) ──
+  // ── Media-only examples ──
   {
     id: "4",
     title: "Pesan biasa dengan gambar (JANGAN flag sebagai judi)",
     input:
       "[target] id=22222 user=rina: Aku suka nasgor loh [Media analysis for message 22222] [gambar di atas adalah attachment foto.jpg dari pesan id=22222]: Gambar menampilkan tangkapan layar aplikasi chat dengan teks percakapan biasa. Tidak ada konten melanggar terlihat. Aman.",
     output:
-      '{"results":[{"message_id":"22222","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pesan berisi percakapan sehari-hari tentang makanan. Gambar menunjukkan screenshot chat biasa tanpa pelanggaran."}]}',
+      '{"results":[{"message_id":"22222","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.95,"recommended_action":"none","evidence":[],"analysis":"Percakapan sehari-hari tentang makanan; gambar screenshot chat biasa tanpa pelanggaran."}]}',
     modes: ["media", "mixed"],
   },
   {
@@ -227,7 +227,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       '[target] id=33333 user=spammer: MAIN DI SINI GACOR PARAH https://judionline.xyz [Media analysis for message 33333] [gambar di atas adalah attachment slot.jpg dari pesan id=33333]: Gambar menampilkan antarmuka situs judi online dengan mesin slot, chip, dan tombol deposit. Terlihat logo "JudiOnline" dan odds taruhan.',
     output:
-      '{"results":[{"message_id":"33333","status":"flagged","flags":["gambling"],"score":0.92,"categories":["gambling"],"severity":"high","confidence":0.92,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["MAIN DI SINI GACOR PARAH","https://judionline.xyz","Gambar menampilkan antarmuka situs judi online dengan mesin slot, chip, dan tombol deposit"],"analysis":"Promosi situs judi online dengan link, teks promosi, dan gambar antarmuka judi yang jelas."}]}',
+      '{"results":[{"message_id":"33333","status":"flagged","flags":["gambling"],"score":0.92,"severity":"high","confidence":0.92,"recommended_action":"delete","evidence":["MAIN DI SINI GACOR PARAH","https://judionline.xyz"],"analysis":"Promosi situs judi dengan link, teks promosi, dan gambar antarmuka judi yang jelas."}]}',
     modes: ["media", "mixed"],
   },
   {
@@ -236,7 +236,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=44444 user=dev: [Media analysis for message 44444] [gambar di atas adalah attachment screenshot.png dari pesan id=44444]: Screenshot terminal Linux dengan background hitam dan teks hijau. Terlihat output command 'ls -la' dan 'git status'. Tidak ada teks atau elemen mencurigakan.",
     output:
-      '{"results":[{"message_id":"44444","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.95,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim mengirim screenshot terminal Linux. Terlihat output command ls -la dan git status dengan teks hijau di background hitam. Aktivitas coding biasa, tidak ada konten melanggar."}]}',
+      '{"results":[{"message_id":"44444","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.95,"recommended_action":"none","evidence":[],"analysis":"Screenshot terminal Linux (ls -la, git status) — aktivitas coding biasa, tidak ada pelanggaran."}]}',
     modes: ["media", "mixed"],
   },
   {
@@ -245,7 +245,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       '[target] id=55555 user=promotor: [Media analysis for message 55555] [gambar di atas adalah attachment promo.jpg dari pesan id=55555]: Screenshot website dengan background merah dan emas. Terlihat teks "DEPOSIT NOW", "BONUS 100%", "SLOT GACOR", chip poker, dan roda roulette. Ada tombol "DAFTAR" dan "LOGIN".',
     output:
-      '{"results":[{"message_id":"55555","status":"flagged","flags":["gambling"],"score":0.94,"categories":["gambling"],"severity":"high","confidence":0.94,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Gambar menampilkan antarmuka situs judi online dengan chip, roulette, tombol deposit, dan teks promosi judi"],"analysis":"Promosi situs judi melalui gambar dengan elemen judi jelas: chip, roulette, teks deposit dan bonus."}]}',
+      '{"results":[{"message_id":"55555","status":"flagged","flags":["gambling"],"score":0.94,"severity":"high","confidence":0.94,"recommended_action":"delete","evidence":["Gambar antarmuka situs judi dengan chip, roulette, tombol deposit"],"analysis":"Gambar promosi judi jelas: chip, roulette, teks deposit dan bonus. Melanggar gambling."}]}',
     modes: ["media", "mixed"],
   },
   {
@@ -254,7 +254,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=21212 user=troll: ayo bikin agama, aku tuhannya, yg mau jadi malaikat DM aku",
     output:
-      '{"results":[{"message_id":"21212","status":"flagged","flags":["sara"],"score":0.95,"categories":["sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["ayo bikin agama, aku tuhannya, yg mau jadi malaikat DM aku"],"analysis":"Pengirim mengajak membuat agama palsu dan mengaku sebagai Tuhan. Ini adalah penistaan agama yang sangat serius, bukan candaan. Melanggar kebijakan SARA."}]}',
+      '{"results":[{"message_id":"21212","status":"flagged","flags":["sara"],"score":0.95,"severity":"critical","confidence":0.95,"recommended_action":"delete","evidence":["ayo bikin agama, aku tuhannya"],"analysis":"Mengajak membuat agama palsu dan mengaku Tuhan — penistaan agama serius, bukan candaan."}]}',
     modes: ["media", "mixed"],
   },
   {
@@ -263,7 +263,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=23234 user=edgelord: Hashem is watching you jerk off lol",
     output:
-      '{"results":[{"message_id":"23234","status":"flagged","flags":["sara"],"score":0.94,"categories":["sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Hashem is watching you jerk off lol"],"analysis":"Pengirim menggunakan nama suci Yahudi (Hashem) dalam konteks vulgar dan merendahkan. Ini adalah penistaan/blasphemy serius terhadap figur agama. Melanggar SARA."}]}',
+      '{"results":[{"message_id":"23234","status":"flagged","flags":["sara"],"score":0.94,"severity":"critical","confidence":0.95,"recommended_action":"delete","evidence":["Hashem is watching you jerk off lol"],"analysis":"Nama suci (Hashem) dalam konteks vulgar merendahkan — blasphemy serius."}]}',
     modes: ["media", "mixed"],
   },
   {
@@ -272,7 +272,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=24245 user=provokator: nabi palsu ba'al, sembah aja patung",
     output:
-      '{"results":[{"message_id":"24245","status":"flagged","flags":["sara","hate_speech"],"score":0.9,"categories":["sara","hate_speech"],"severity":"high","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["nabi palsu ba\'al","sembah aja patung"],"analysis":"Pengirim menyindir konsep nabi dengan referensi Ba\'al dan menyuruh menyembah patung. Ini adalah penistaan dan provokasi terhadap agama monoteis. Melanggar SARA."}]}',
+      '{"results":[{"message_id":"24245","status":"flagged","flags":["sara","hate_speech"],"score":0.9,"severity":"high","confidence":0.95,"recommended_action":"delete","evidence":["nabi palsu ba\'al"],"analysis":"Sindiran konsep nabi dengan referensi Ba\'al + ajakan menyembah patung — penistaan monoteis."}]}',
     modes: ["media", "mixed"],
   },
   {
@@ -281,7 +281,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=25256 user=sindiran: Bodoh admin-admin kita itu. Mereka tidak minta petunjuk dari Tuhan",
     output:
-      '{"results":[{"message_id":"25256","status":"flagged","flags":["sara","hate_speech"],"score":0.82,"categories":["sara","hate_speech"],"severity":"high","confidence":0.9,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Bodoh admin-admin kita itu","tidak minta petunjuk dari Tuhan"],"analysis":"Pengirim menggunakan bahasa keagamaan (\'petunjuk dari Tuhan\') untuk mengejek admin. Ini adalah parodi yang menggunakan framework agama untuk merendahkan orang lain. Melanggar SARA dan hate speech."}]}',
+      '{"results":[{"message_id":"25256","status":"flagged","flags":["sara","hate_speech"],"score":0.82,"severity":"high","confidence":0.9,"recommended_action":"delete","evidence":["tidak minta petunjuk dari Tuhan"],"analysis":"Framework agama (\'petunjuk dari Tuhan\') dipakai untuk mengejek — parodi merendahkan."}]}',
     modes: ["media", "mixed"],
   },
   {
@@ -290,7 +290,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=26267 user=provokator: Islam/Kristen itu agama sesat semua, cuma agama gue yg bener",
     output:
-      '{"results":[{"message_id":"26267","status":"flagged","flags":["sara","hate_speech","conflict_instigation"],"score":0.95,"categories":["sara","hate_speech","conflict_instigation"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["Islam/Kristen itu agama sesat semua","cuma agama gue yg bener"],"analysis":"Pengirim menyerang agama lain sebagai \'sesat\' dan mengklaim kebenaran mutlak agamanya sendiri dengan tone provokatif. Ini adalah provokasi antar-agama serius. Melanggar SARA."}]}',
+      '{"results":[{"message_id":"26267","status":"flagged","flags":["sara","hate_speech","conflict_instigation"],"score":0.95,"severity":"critical","confidence":0.95,"recommended_action":"delete","evidence":["Islam/Kristen itu agama sesat semua"],"analysis":"Menyerang agama lain sebagai \'sesat\' dengan truth claim provokatif — provokasi antar-agama serius."}]}',
     modes: ["media", "mixed"],
   },
   {
@@ -299,40 +299,40 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     input:
       "[target] id=28289 user=thinker: Menurutku konsep trinitas dalam Kristen menarik dibandingkan tauhid dalam Islam. Apa pendapat kalian?",
     output:
-      '{"results":[{"message_id":"28289","status":"clean","flags":[],"score":0.0,"categories":[],"severity":"none","confidence":0.9,"recommended_action":"none","policy_version":"default-2026-05-30","evidence":[],"analysis":"Pengirim membandingkan konsep teologis antar agama dengan bahasa sopan dan tone diskusi, bukan provokasi. Mengajak diskusi dengan hormat. Aman."}]}',
+      '{"results":[{"message_id":"28289","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.9,"recommended_action":"none","evidence":[],"analysis":"Perbandingan teologis dengan bahasa sopan dan tone diskusi — bukan provokasi. Aman."}]}',
     modes: ["media", "mixed"],
   },
 
-  // ── New: Invite link / promosi server ──
+  // ── Invite link / promosi server ──
   {
     id: "29",
     title: "Promosi invite Discord tanpa konteks (spam)",
     input:
       "[target] id=29292 user=promotor: Join sini bro https://discord.gg/xyzk123 diskusi coding seru",
     output:
-      '{"results":[{"message_id":"29292","status":"warn","flags":["spam"],"score":0.55,"categories":["spam"],"severity":"low","confidence":0.7,"recommended_action":"warn","policy_version":"default-2026-05-30","evidence":["https://discord.gg/xyzk123"],"analysis":"Pengirim mempromosikan server Discord lain melalui invite link di channel. Meskipun topik coding relevan, promosi server tanpa izin di channel publik berpotensi spam. Diberi peringatan."}]}',
+      '{"results":[{"message_id":"29292","status":"warn","flags":["spam"],"score":0.55,"severity":"low","confidence":0.7,"recommended_action":"warn","evidence":["https://discord.gg/xyzk123"],"analysis":"Promosi server lain via invite di channel publik tanpa izin — potensi spam."}]}',
     modes: ["text", "media", "mixed"],
   },
 
-  // ── New: LGBT zero tolerance ──
+  // ── LGBT zero tolerance ──
   {
     id: "30",
     title: "LGBT coming out (dilarang — zero tolerance)",
     input:
       "[target] id=30303 user=rainbow: jujur aja gua lesbian, terima apa adanya",
     output:
-      '{"results":[{"message_id":"30303","status":"flagged","flags":["sexual_deviation"],"score":0.9,"categories":["sexual_deviation"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["jujur aja gua lesbian, terima apa adanya"],"analysis":"Pengirim mengungkapkan orientasi lesbian. LGBT zero tolerance — segala bentuk diskusi/pengakuan orientasi LGBT dilarang di server ini. Dihapus."}]}',
+      '{"results":[{"message_id":"30303","status":"flagged","flags":["sexual_deviation"],"score":0.9,"severity":"critical","confidence":0.95,"recommended_action":"delete","evidence":["jujur aja gua lesbian"],"analysis":"Pengakuan orientasi lesbian — zero tolerance LGBT di server ini. Dihapus."}]}',
     modes: ["text", "media", "mixed"],
   },
 
-  // ── New: Topik Israel/Palestina/Yahudi ──
+  // ── Topik Israel/Palestina/Yahudi ──
   {
     id: "31",
     title: "Diskusi Israel-Palestina (dilarang total)",
     input:
       "[target] id=31313 user=hot_takes: gw sih dukung palestina, israel biadab banget",
     output:
-      '{"results":[{"message_id":"31313","status":"flagged","flags":["conflict_instigation","sara"],"score":0.95,"categories":["conflict_instigation","sara"],"severity":"critical","confidence":0.95,"recommended_action":"delete","policy_version":"default-2026-05-30","evidence":["gw sih dukung palestina, israel biadab banget"],"analysis":"Segala bentuk diskusi tentang Israel, Palestina, dan Yahudi dilarang total di server ini — tidak ada debat, dukungan, atau berita. Dihapus."}]}',
+      '{"results":[{"message_id":"31313","status":"flagged","flags":["conflict_instigation","sara"],"score":0.95,"severity":"critical","confidence":0.95,"recommended_action":"delete","evidence":["gw sih dukung palestina"],"analysis":"Segala diskusi Israel/Palestina/Yahudi dilarang total — tidak ada debat, dukungan, atau berita. Dihapus."}]}',
     modes: ["text", "media", "mixed"],
   },
 ];
