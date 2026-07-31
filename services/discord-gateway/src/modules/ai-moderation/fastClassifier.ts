@@ -51,12 +51,27 @@ const ZERO_WIDTH_RE = /[​-‍⁠﻿­؜]/;
 const URL_RE = /https?:\/\/[^\s"]+/gi;
 const INVITE_RE = /(?:discord\.(?:gg|com\/invite)|dsc\.gg)\/[a-zA-Z0-9_-]+/gi;
 const INVITE_CODE_RE = /(?:^|\s)([a-zA-Z0-9_-]{6,12})(?:\s|$)/g;
+// Word-boundary phone match. `(?<!\d)` / `(?!\d)` stop the matcher from
+// grabbing a slice out of a longer digit run (e.g. Discord snowflake IDs).
 const PHONE_RE =
-  /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/g;
+  /(?<!\d)(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}(?!\d)/g;
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
 const CRYPTO_RE =
   /(?:0x[a-fA-F0-9]{40}|bc1[a-z0-9]{39,59}|1[a-km-zA-HJ-NP-Z1-9]{25,34}|3[a-km-zA-HJ-NP-Z1-9]{25,34})/g;
 const IP_RE = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g;
+
+// ── Discord markdown token sanitization ────────────────────────────────
+// Custom emoji (<:name:id>, <a:name:id>), user/role/channel mentions and
+// timestamps embed long numeric snowflakes. If left in the text, digit-based
+// patterns (phone_number, personal_info, ip_address_sharing) false-positive
+// on them — e.g. <:mambotongue:1463255254220148939> "matched" phone_number.
+const DISCORD_TOKEN_RE =
+  /<(?:a?:[^>]{1,32}:\d{17,20}|@!?\d{17,20}|@&\d{17,20}|#\d{17,20}|t:\d{10,11}(?::[tTdDRfF])?)>/g;
+
+/** Replaces Discord markdown tokens with a space so they can't trip patterns. */
+export function sanitizeDiscordTokens(content: string): string {
+  return content.replace(DISCORD_TOKEN_RE, " ");
+}
 
 // ── Spam / low-quality patterns ─────────────────────────────────────────
 
@@ -305,6 +320,9 @@ export function classifyMessage(message: MessageRecord): Layer1Result {
   }
 
   const mentions = countMentions(content);
+  // Strip Discord markdown tokens (emoji/mention snowflakes) before pattern
+  // matching so digit-based patterns don't false-positive on them.
+  const sanitized = sanitizeDiscordTokens(content);
   const matchedFlags: string[] = [];
   const severityWeights: Record<string, number> = {
     low: 1,
@@ -320,7 +338,7 @@ export function classifyMessage(message: MessageRecord): Layer1Result {
   const matchedPatternDetails: string[] = [];
 
   for (const pattern of PATTERNS) {
-    if (pattern.test(content, mentions)) {
+    if (pattern.test(sanitized, mentions)) {
       matchedFlags.push(pattern.name);
       matchedPatternDetails.push(pattern.name);
 
