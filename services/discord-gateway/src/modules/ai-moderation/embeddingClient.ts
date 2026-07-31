@@ -61,6 +61,9 @@ export async function embedTexts(texts: string[]): Promise<number[][] | null> {
     const response = await client.embeddings.create({
       model: config.AI_LLM_EMBEDDING_MODEL as string,
       input: texts,
+      // OpenAI SDK v6 defaults to base64; Nvidia-backed embedding models
+      // (e.g. llama-nemotron-embed) reject it with 400. Always float.
+      encoding_format: "float",
     });
     return response.data.map((item) => item.embedding);
   } catch (error) {
