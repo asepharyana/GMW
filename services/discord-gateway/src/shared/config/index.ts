@@ -163,21 +163,14 @@ export const configSchema = z
       .int()
       .positive()
       .default(60000),
-    // ── AI Model (new unified keys) ───────────────────────────────────
-    AI_MODEL_FAST_CLASSIFIER_ENABLED: z
-      .string()
-      .optional()
-      .transform((v) => v === "true")
-      .default(true)
-      .describe("Enable Layer 1 fast heuristic classifier"),
-    AI_MODEL_LLM_TIMEOUT_MS: z.coerce
+    // Text-only moderation batches are cheaper than media (no downloads /
+    // vision pre-pass), so they get their own (shorter) timeout instead of
+    // being tied to the media budget.
+    AI_LLM_TEXT_ANALYSIS_TIMEOUT_MS: z.coerce
       .number()
       .int()
       .positive()
-      .default(30000)
-      .describe("Timeout for individual LLM moderation calls"),
-
-
+      .default(30000),
 
     // ── AI Analysis Timing ──────────────────────────────────────────────
     AI_ANALYSIS_DEBOUNCE_MS: z.coerce.number().positive().default(500),
@@ -210,7 +203,11 @@ export const configSchema = z
       .int()
       .positive()
       .default(50),
-    PISCINA_MAX_THREADS: z.coerce.number().int().positive().optional(),
+    // Worker pool size. Default 4 (not availableParallelism) because each
+    // Piscina thread owns its own pLimit(5) semaphore — on big VPSes
+    // availableParallelism × 5 concurrent LLM calls would overwhelm the
+    // router. Keep threads modest; concurrency is capped per-thread anyway.
+    PISCINA_MAX_THREADS: z.coerce.number().int().positive().default(4),
 
     // ── Voice Transcription ────────────────────────────────────────────────
     AI_VOICE_TRANSCRIPTION_ENABLED: z
@@ -218,14 +215,6 @@ export const configSchema = z
       .optional()
       .transform((v) => v === "true")
       .default(false),
-
-    // ── OpenAI Moderation ───────────────────────────────────────────────
-    OPENAI_MODERATION_API_KEY: z.string().optional(),
-    OPENAI_MODERATION_BASE_URL: z
-      .string()
-      .url()
-      .default("https://api.openai.com/v1"),
-    OPENAI_MODERATION_MODEL: z.string().default("omni-moderation-latest"),
 
     // ── Auto Delete ─────────────────────────────────────────────────────
     AUTO_DELETE_FLAGGED_ENABLED: z

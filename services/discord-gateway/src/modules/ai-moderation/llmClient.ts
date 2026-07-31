@@ -6,10 +6,10 @@
  * defaults are maintained in one place.
  */
 
-import { createChildLogger } from "@/shared/logger/index";
-import { retryWithBackoff } from "@/shared/utils/index";
 import OpenAI from "openai";
 import pLimit from "p-limit";
+import { createChildLogger } from "@/shared/logger/index";
+import { retryWithBackoff } from "@/shared/utils/index";
 import { config } from "../../shared/config/config.js";
 
 const log = createChildLogger("llm-client");
@@ -246,38 +246,12 @@ export async function llmChat(
 }
 
 /**
- * Convenience for the legacy text-only badword detection call in
- * `indonesianTextNormalizer`.  Returns parsed flags or [].
- */
-export async function llmDetectBadwords(text: string): Promise<string[]> {
-  const completion = await llmChat({
-    messages: [
-      {
-        role: "user",
-        content:
-          "Deteksi kata kasar / pelanggaran ringan dari teks Indonesia berikut. " +
-          'Balas hanya JSON object dengan format {"flags":[...]} dan gunakan hanya flag valid ini: ' +
-          Array.from(VALID_PRIMARY_AI_FLAGS).join(", ") +
-          ". Jika tidak ada pelanggaran, flags harus array kosong. Teks: " +
-          text,
-      },
-    ],
-    max_tokens: 200,
-    temperature: 0.1,
-    top_p: 0.9,
-    jsonResponse: { type: "json_object" },
-    retries: 2,
-  });
-
-  if (!completion) return [];
-  const content = completion.choices[0]?.message?.content?.trim();
-  if (!content) return [];
-  return extractFlagsFromContent(content);
-}
-
-/**
  * Convenience for vision (image/sticker/emoji) analysis.
  * Returns the raw completion content (trimmed) or null.
+ *
+ * NOTE: retries are disabled here on purpose — visionAnalyzer.ts already
+ * wraps this call in its own 3-attempt loop with exponential backoff.
+ * A second retry layer would multiply worst-case API calls (3×3=9/image).
  */
 export async function llmVision(
   promptText: string,
@@ -297,91 +271,9 @@ export async function llmVision(
     max_tokens: 500,
     temperature: 0.1,
     top_p: 0.9,
-    retries: 2,
+    retries: 0,
   });
 
   if (!completion) return null;
   return completion.choices[0]?.message?.content?.trim() ?? null;
-}
-
-// ---------------------------------------------------------------------------
-// Flag extraction (reused from indonesianTextNormalizer)
-// ---------------------------------------------------------------------------
-
-const VALID_PRIMARY_AI_FLAGS = new Set([
-  "spam",
-  "hate_speech",
-  "sara",
-  "hoaks",
-  "harassment",
-  "vulgar_language",
-  "sexual_content",
-  "sexual_deviation",
-  "violence",
-  "self_harm",
-  "doxxing",
-  "scam",
-  "misinformation",
-  "nsfw_image",
-  "gore_image",
-  "illegal_content",
-  "gambling",
-  "drugs",
-  "child_safety",
-  "financial_scam",
-  "religious_insult",
-  "self_promo",
-  "conflict_instigation",
-  "offensive_username",
-  "potential_evasion",
-  "unclear_context",
-]);
-
-function normalizeFlag(value: string): string | null {
-  const lower = value
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, "_");
-  if (!lower) return null;
-  if (VALID_PRIMARY_AI_FLAGS.has(lower)) return lower;
-  return null;
-}
-
-function extractFlagsFromContent(content: string): string[] {
-  const flags = new Set<string>();
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    parsed = null;
-  }
-
-  const addValue = (v: unknown) => {
-    if (typeof v !== "string") return;
-    const n = normalizeFlag(v);
-    if (n) flags.add(n);
-  };
-
-  if (Array.isArray(parsed)) {
-    for (const item of parsed) addValue(item);
-  } else if (parsed && typeof parsed === "object") {
-    const obj = parsed as Record<string, unknown>;
-    for (const key of ["flags", "categories", "badwords"]) {
-      const val = obj[key];
-      if (Array.isArray(val)) {
-        for (const item of val) addValue(item);
-      } else {
-        addValue(val);
-      }
-    }
-  }
-
-  if (flags.size > 0) return Array.from(flags);
-
-  const lower = content.toLowerCase();
-  for (const flag of VALID_PRIMARY_AI_FLAGS) {
-    if (lower.includes(flag)) flags.add(flag);
-  }
-
-  return Array.from(flags);
 }

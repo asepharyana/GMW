@@ -13,9 +13,9 @@ import type {
   MessageRecord,
 } from "../message-capture/types.js";
 import { getChannelCulture } from "./channelCultureStore.js";
-import { prepareMediaMessage } from "./mediaAnalysisClient.js";
 import type { RetryState } from "./llmCaller.js";
 import { callModerationLLM } from "./llmCaller.js";
+import { prepareMediaMessage } from "./mediaAnalysisClient.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
 import { buildCorrectedFewShotExamples } from "./textBatchProcessor.js";
 
@@ -65,7 +65,7 @@ export async function runMediaBatch(
   });
 
   const messagesBlock = prepared.map((p) => p.messageBlock).join("\n");
-  const userContent = `${systemText}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
+  const userContent = `<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
 
   const perMsgTimeout = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
   const batchTimeout = Math.min(
@@ -79,7 +79,7 @@ export async function runMediaBatch(
 
   try {
     const result = await callModerationLLM(
-      async (_state: RetryState) => userContent,
+      async (_state: RetryState) => ({ system: systemText, user: userContent }),
       targetIds,
       `media-batch:${targetIds.length}msgs`,
       abortController.signal,

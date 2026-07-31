@@ -22,6 +22,9 @@ export interface QdrantVerdictPayload {
   flags: string; // JSON string of the full moderation result
   analyzed_at: number;
   expires_at: number;
+  /** Bare content hash (16 hex chars) — enables content-based invalidation
+   *  regardless of the (context-scoped) point id. */
+  content_hash?: string;
 }
 
 function baseUrl(): string {
@@ -212,6 +215,150 @@ export async function searchQdrant(
       "Qdrant search failed — semantic cache skipped",
     );
     return [];
+  }
+}
+
+/**
+ * Batch search: one HTTP round-trip for N vectors (Qdrant
+ * `/points/search/batch`). Result is index-aligned with `vectors` — each
+ * entry is the top hits for that vector (or [] on per-vector failure).
+ * Used by the orchestrator to avoid N sequential embed→search round-trips.
+ */
+export async function searchQdrantBatch(
+  vectors: number[][],
+  limit: number,
+  scoreThreshold: number,
+): Promise<QdrantSearchHit[][]> {
+  if (vectors.length === 0) return [];
+  try {
+    const json = (await request(
+      "POST",
+      `/collections/${collectionName()}/points/search/batch`,
+      {
+        searches: vectors.map((vector) => ({
+          vector,
+          limit,
+          score_threshold: scoreThreshold,
+          with_payload: true,
+          filter: {
+            must: [
+              {
+                key: "expires_at",
+                range: { gte: Date.now() },
+              },
+            ],
+          },
+        })),
+      },
+    )) as {
+      result?: Array<{
+        result?: Array<{
+          id?: number;
+          score?: number;
+          payload?: QdrantVerdictPayload;
+        }>;
+      }>;
+    };
+
+    return (json.result ?? []).map((entry) =>
+      (entry.result ?? [])
+        .filter((hit) => hit.payload?.flags)
+        .map((hit) => ({
+          cacheKey: `qdrant:${hit.id ?? "?"}`,
+          score: hit.score ?? 0,
+          payload: hit.payload as QdrantVerdictPayload,
+        })),
+    );
+  } catch (error) {
+    log.warn(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Qdrant batch search failed — semantic cache skipped",
+    );
+    return vectors.map(() => []);
+  }
+}
+
+/**
+ * Delete expired verdict points from the collection. Best-effort: 404
+ * (collection missing) and failures are swallowed — the periodic pruner
+ * just retries next sweep.
+ */
+export async function deleteExpiredQdrantPoints(): Promise<number> {
+  try {
+    const json = (await request(
+      "POST",
+      `/collections/${collectionName()}/points/delete`,
+      {
+        filter: {
+          must: [
+            {
+              key: "expires_at",
+              range: { lt: Date.now() },
+            },
+          ],
+        },
+      },
+    )) as { result?: { deleted?: number } | null };
+
+    return json.result?.deleted ?? 0;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("-> 404")) {
+      log.debug({}, "Qdrant collection absent — nothing to prune");
+    } else {
+      log.warn(
+        { error: error instanceof Error ? error.message : String(error) },
+        "Qdrant expired-point prune failed",
+      );
+    }
+    return 0;
+  }
+}
+
+/**
+ * Delete the verdict point for an exact cache key (used by cache
+ * invalidation when a moderator corrects a verdict).
+ */
+export async function deleteQdrantPoint(cacheKey: string): Promise<boolean> {
+  try {
+    await request("POST", `/collections/${collectionName()}/points/delete`, {
+      points: [qdrantPointId(cacheKey)],
+    });
+    return true;
+  } catch (error) {
+    log.warn(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Qdrant point delete failed",
+    );
+    return false;
+  }
+}
+
+/**
+ * Delete all verdict points whose payload carries a given bare content hash.
+ * Used by cache invalidation for corrected verdicts — matches context-scoped
+ * points that share the same content regardless of their point ids.
+ */
+export async function deleteQdrantPointsByContentHash(
+  bareHash: string,
+): Promise<boolean> {
+  try {
+    await request("POST", `/collections/${collectionName()}/points/delete`, {
+      filter: {
+        must: [
+          {
+            key: "content_hash",
+            match: { value: bareHash },
+          },
+        ],
+      },
+    });
+    return true;
+  } catch (error) {
+    log.warn(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Qdrant content-hash point delete failed",
+    );
+    return false;
   }
 }
 

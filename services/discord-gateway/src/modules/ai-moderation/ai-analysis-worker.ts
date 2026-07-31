@@ -5,11 +5,15 @@
  *
  * ## Pipeline
  *
- *   Message → LLM evaluator (with conversation context + media evidence)
+ *   Message batch → runModerationAnalysis (orchestrator) → LLM evaluator
+ *   (with conversation context + media evidence) → per-message verdicts
  *
- * Every message is judged by the LLM — there is no regex/heuristic
- * pre-classification. A failed LLM call yields an explicit "error" status
- * (never a heuristic verdict), and the recovery worker retries it later.
+ * The orchestrator splits text-only vs media internally and runs both
+ * paths in parallel with ONE LLM call per sub-batch — a 20-message text
+ * batch costs 1 LLM call, not 20. Every message is judged by the LLM —
+ * there is no regex/heuristic pre-classification. A failed LLM call yields
+ * an explicit "error" status (never a heuristic verdict), and the recovery
+ * worker retries it later.
  */
 
 import { createChildLogger } from "@/shared/logger/index";
@@ -115,7 +119,10 @@ export default async function workerRouter(
   if (!config.AI_LLM_API_KEY) {
     const errorMsg =
       "AI_LLM_API_KEY is missing from environment. Worker cannot process moderation requests without credentials.";
-    logger.error({ error: errorMsg }, "AI_LLM_API_KEY is missing from environment");
+    logger.error(
+      { error: errorMsg },
+      "AI_LLM_API_KEY is missing from environment",
+    );
 
     if (job.type === "batch") {
       return {
@@ -172,59 +179,8 @@ export default async function workerRouter(
 }
 
 // ---------------------------------------------------------------------------
-// Single-pass LLM pipeline
+// Result normalization
 // ---------------------------------------------------------------------------
-
-/**
- * Runs the LLM moderation analysis on a single message.
- *
- * The LLM verdict IS the result — confidence, severity, flags and
- * analysis all come from the model. On failure the message is marked
- * "error" (explicit, retryable) instead of receiving a heuristic verdict.
- */
-async function runLLMAnalysis(
-  message: MessageRecord,
-  contextText: string,
-  attachments: Awaited<ReturnType<typeof messageStore.getAttachmentsForMessages>>,
-): Promise<AnalysisResult> {
-  try {
-    const moderationResult = await runModerationAnalysis({
-      targets: [message],
-      contextText,
-      attachments,
-    });
-
-    if (moderationResult.results.length === 0) {
-      return buildFallbackResult(message.id, "No LLM result returned");
-    }
-
-    const llmResult = moderationResult.results[0] as unknown as AnalysisResult;
-    if (llmResult.status === "error") {
-      return llmResult;
-    }
-
-    return {
-      messageId: llmResult.messageId,
-      status: llmResult.status ?? "clean",
-      flags: llmResult.flags ?? [],
-      categories: llmResult.categories ?? [],
-      severity: llmResult.severity ?? "none",
-      confidence: normalizeConfidence(llmResult.confidence),
-      recommendedAction: llmResult.recommendedAction ?? "none",
-      score: llmResult.score ?? 0,
-      analysis:
-        llmResult.analysis?.trim() ||
-        buildFallbackAnalysis(message, llmResult.status ?? "clean"),
-    };
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    logger.warn(
-      { messageId: message.id, error: errorMsg },
-      "LLM analysis failed for message",
-    );
-    return buildFallbackResult(message.id, errorMsg);
-  }
-}
 
 /** Clamp LLM-provided confidence to [0, 1]; default by status when missing. */
 function normalizeConfidence(raw: number | undefined | null): number {
@@ -239,10 +195,7 @@ function normalizeConfidence(raw: number | undefined | null): number {
  * Quotes the actual message content so the log still explains WHAT was said
  * instead of a bare template like "Tidak ada indikasi pelanggaran."
  */
-function buildFallbackAnalysis(
-  message: MessageRecord,
-  status: string,
-): string {
+function buildFallbackAnalysis(message: MessageRecord, status: string): string {
   const raw = (message.edited_content ?? message.content ?? "").trim();
   const snippet = raw.length > 120 ? `${raw.slice(0, 120).trimEnd()}…` : raw;
 
@@ -273,8 +226,31 @@ function buildFallbackResult(
   };
 }
 
+/** Normalize one orchestrator result into the worker's AnalysisResult shape. */
+function normalizeResult(
+  result: AnalysisResult,
+  message: MessageRecord | undefined,
+): AnalysisResult {
+  const status = result.status ?? "clean";
+  return {
+    messageId: result.messageId,
+    status,
+    flags: result.flags ?? [],
+    categories: result.categories ?? [],
+    severity: result.severity ?? "none",
+    confidence: normalizeConfidence(result.confidence),
+    recommendedAction: result.recommendedAction ?? "none",
+    score: result.score ?? 0,
+    analysis:
+      result.analysis?.trim() ||
+      (message
+        ? buildFallbackAnalysis(message, status)
+        : buildFallbackResult(result.messageId, "Missing message").analysis),
+  };
+}
+
 // ---------------------------------------------------------------------------
-// Batch handler
+// Batch handler — ONE orchestrator call for the whole batch
 // ---------------------------------------------------------------------------
 
 async function processBatch(job: {
@@ -286,7 +262,7 @@ async function processBatch(job: {
   const firstMessage = messages[0];
   if (!firstMessage) return { ok: true, conversationKey, rows: [] };
 
-  // Fetch context
+  // Fetch context + attachments ONCE for the whole batch.
   const contextBefore = await messageStore.getConversationContextBefore({
     channelId: firstMessage.channel_id,
     threadId: firstMessage.thread_id,
@@ -301,31 +277,31 @@ async function processBatch(job: {
   });
   const contextText = contextLines.join("\n");
 
-  // Fetch attachments
   const targetIds = messages.map((m) => m.id);
   const contextIds = contextBefore.map((m) => m.id);
-  const allMessageIds = [...targetIds, ...contextIds];
-  const attachments =
-    await messageStore.getAttachmentsForMessages(allMessageIds);
+  const attachments = await messageStore.getAttachmentsForMessages([
+    ...targetIds,
+    ...contextIds,
+  ]);
 
-  // Run LLM analysis for each message
-  const analysisResults = await Promise.all(
-    messages.map(async (msg) => {
-      try {
-        return await runLLMAnalysis(msg, contextText, attachments);
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        logger.error(
-          { messageId: msg.id, error: errorMsg },
-          "LLM analysis failed for message",
-        );
-        return buildFallbackResult(msg.id, errorMsg);
-      }
-    }),
+  // The orchestrator handles text/media split + caching + parallel paths
+  // internally, so a 20-message batch = 1 text LLM call (+1 media call
+  // when media is present), not N per-message calls.
+  const moderationResult = await runModerationAnalysis({
+    targets: messages,
+    contextText,
+    attachments,
+  });
+
+  const results = moderationResult.results.map((r) =>
+    normalizeResult(
+      r as unknown as AnalysisResult,
+      messages.find((m) => m.id === r.messageId),
+    ),
   );
 
   // Save results to DB
-  const updates = analysisResults.map((result) => ({
+  const updates = results.map((result) => ({
     messageId: result.messageId,
     result: {
       status: result.status,
@@ -393,8 +369,28 @@ async function processIndividual(job: {
   ]);
 
   try {
-    const result = await runLLMAnalysis(message, contextText, attachments);
-    return { ok: true, results: [result] };
+    const moderationResult = await runModerationAnalysis({
+      targets: [message],
+      contextText,
+      attachments,
+    });
+
+    if (moderationResult.results.length === 0) {
+      return {
+        ok: true,
+        results: [buildFallbackResult(message.id, "No LLM result returned")],
+      };
+    }
+
+    const llmResult = moderationResult.results[0] as unknown as AnalysisResult;
+    if (llmResult.status === "error") {
+      return { ok: true, results: [llmResult] };
+    }
+
+    return {
+      ok: true,
+      results: [normalizeResult(llmResult, message)],
+    };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     logger.error(

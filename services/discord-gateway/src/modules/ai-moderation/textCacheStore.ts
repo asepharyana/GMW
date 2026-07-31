@@ -3,7 +3,11 @@ import { createChildLogger } from "@/shared/logger/index";
 import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 import { findBestEmbeddingMatch } from "./embeddingClient.js";
 import {
+  deleteExpiredQdrantPoints,
+  deleteQdrantPoint,
+  deleteQdrantPointsByContentHash,
   isQdrantConfigured,
+  type QdrantVerdictPayload,
   searchQdrant,
   upsertQdrantPoint,
 } from "./qdrantClient.js";
@@ -17,84 +21,6 @@ export interface TextCacheEntry {
   analyzed_at: number;
   expires_at: number;
   hit_count: number;
-}
-
-/**
- * Lookup cached analysis result for a normalized text string.
- * Returns null if not found or expired.
- */
-export async function getCachedText(
-  text: string,
-): Promise<TextCacheEntry | null> {
-  try {
-    const row = await executeGet(
-      `SELECT text, flags, source, analyzed_at, expires_at, hit_count
-       FROM text_analysis_cache
-       WHERE text = $1 AND expires_at > $2`,
-      [text, Date.now()],
-    );
-
-    if (!row) return null;
-
-    return {
-      text: row.text,
-      flags: JSON.parse(row.flags),
-      source: row.source,
-      analyzed_at: row.analyzed_at,
-      expires_at: row.expires_at,
-      hit_count: row.hit_count,
-    };
-  } catch (error) {
-    logger.error(
-      { error: error instanceof Error ? error.message : String(error) },
-      "Failed to get cached text",
-    );
-    return null;
-  }
-}
-
-/**
- * Insert or update a text analysis cache entry.
- */
-export async function upsertCachedText(
-  text: string,
-  flags: string[],
-  source: "local" | "primary_ai" | "vision_llm",
-  expiresAt: number,
-): Promise<void> {
-  const now = Date.now();
-
-  try {
-    await executeAll(
-      `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count)
-       VALUES ($1, $2, $3, $4, $5, 0)
-       ON CONFLICT (text) DO UPDATE SET
-         flags = EXCLUDED.flags,
-         source = EXCLUDED.source,
-         analyzed_at = EXCLUDED.analyzed_at,
-         expires_at = EXCLUDED.expires_at`,
-      [text, JSON.stringify(flags), source, now, expiresAt],
-    );
-  } catch (error) {
-    logger.error(
-      { error: error instanceof Error ? error.message : String(error) },
-      "Failed to upsert cached text",
-    );
-  }
-}
-
-/**
- * Increment hit count for a cached text entry (called on cache hit).
- */
-export async function incrementTextCacheHit(text: string): Promise<void> {
-  try {
-    await executeAll(
-      `UPDATE text_analysis_cache SET hit_count = hit_count + 1 WHERE text = $1`,
-      [text],
-    );
-  } catch (_error) {
-    // Silent fail — this is just a counter, not critical
-  }
 }
 
 /**
@@ -113,47 +39,6 @@ export async function pruneExpiredTexts(): Promise<number> {
       "Failed to prune expired texts",
     );
     return 0;
-  }
-}
-
-/**
- * Get cache statistics for observability.
- */
-export async function getTextCacheStats(): Promise<{
-  total: number;
-  expired: number;
-  bySource: Record<string, number>;
-}> {
-  try {
-    const now = Date.now();
-
-    const [totalRow, expiredRow, sourceRows] = await Promise.all([
-      executeAll(`SELECT count(*) as cnt FROM text_analysis_cache`),
-      executeAll(
-        `SELECT count(*) as cnt FROM text_analysis_cache WHERE expires_at < $1`,
-        [now],
-      ),
-      executeAll(
-        `SELECT source, count(*) as cnt FROM text_analysis_cache GROUP BY source`,
-      ),
-    ]);
-
-    const bySource: Record<string, number> = {};
-    for (const row of sourceRows) {
-      bySource[row.source] = row.cnt;
-    }
-
-    return {
-      total: totalRow[0]?.cnt ?? 0,
-      expired: expiredRow[0]?.cnt ?? 0,
-      bySource,
-    };
-  } catch (error) {
-    logger.error(
-      { error: error instanceof Error ? error.message : String(error) },
-      "Failed to get text cache stats",
-    );
-    return { total: 0, expired: 0, bySource: {} };
   }
 }
 
@@ -295,15 +180,67 @@ export async function deleteCachedMediaAnalysis(
 // ---------------------------------------------------------------------------
 
 /**
- * Generate a deterministic cache key for a per-user moderation result.
+ * Generate a deterministic cache key for a per-conversation moderation result.
  *
- * Format: user_mod:<userId>:<sha256(content).slice(0,16)>
- * Two users sending the same text get separate cache entries so that
- * per-user action history (e.g. repeated spam) can be tracked later.
+ * Format: text_mod:<context>:<sha256(content).slice(0,16)>
+ *
+ * `context` is "channel:thread" — the LLM verdict depends on conversation
+ * context, so the same text in a different channel/thread is analyzed
+ * separately instead of silently reusing a context-free verdict.
+ * (Previously the key was content-only, which made the "per-user" comment
+ * misleading — the user ID never participates in the key.)
  */
-export function makeTextModerationCacheKey(content: string): string {
+export function makeTextModerationCacheKey(
+  content: string,
+  context?: string,
+): string {
   const hash = createHash("sha256").update(content).digest("hex").slice(0, 16);
-  return `text_mod:${hash}`;
+  const ctx = context ? `${context}:` : "";
+  return `text_mod:${ctx}${hash}`;
+}
+
+/**
+ * Conversation context signature used in moderation cache keys.
+ * Thread-scoped messages use the thread id (discussions inside a thread
+ * share context), everything else uses the channel id.
+ */
+export function makeModerationContextKey(message: {
+  channel_id: string;
+  thread_id?: string | null;
+}): string {
+  return message.thread_id ?? message.channel_id;
+}
+
+/**
+ * Invalidate cached moderation verdicts for a piece of content: removes
+ * matching Postgres rows AND Qdrant points. Called when a moderator
+ * corrects a verdict so a stale/wrong cached decision cannot resurface.
+ *
+ * Handles both key formats:
+ * - legacy `text_mod:<hash>` (content-only, pre-context keys)
+ * - current `text_mod:<context>:<hash>` (channel/thread-scoped)
+ */
+export async function invalidateTextModerationCache(
+  content: string,
+): Promise<void> {
+  const bareHash = createHash("sha256")
+    .update(content)
+    .digest("hex")
+    .slice(0, 16);
+  const legacyKey = `text_mod:${bareHash}`;
+
+  const queries: Promise<unknown>[] = [
+    executeAll(`DELETE FROM text_analysis_cache WHERE text LIKE $1`, [
+      `text_mod:%${bareHash}`,
+    ]).catch(() => {}),
+  ];
+  if (isQdrantConfigured()) {
+    queries.push(
+      deleteQdrantPoint(legacyKey).catch(() => {}),
+      deleteQdrantPointsByContentHash(bareHash).catch(() => {}),
+    );
+  }
+  await Promise.all(queries).catch(() => {});
 }
 
 /**
@@ -361,6 +298,54 @@ export async function getCachedTextModeration(cacheKey: string): Promise<{
 }
 
 /**
+ * Parse a Qdrant verdict payload into the result shape shared by the
+ * semantic cache lookups. Returns null on malformed payloads (callers then
+ * fall through to the LLM).
+ */
+export function parseQdrantVerdict(
+  payload: QdrantVerdictPayload,
+  similarity: number,
+): {
+  text: string;
+  similarity: number;
+  status: "clean" | "warn" | "flagged";
+  flags: string[];
+  score: number;
+  analysis: string;
+  categories: string[];
+  severity: string;
+  confidence: number;
+  recommendedAction: string;
+} | null {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(payload.flags) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object") return null;
+
+  const storedStatus = (parsed.status as string) ?? "clean";
+  const status: "clean" | "warn" | "flagged" =
+    storedStatus === "warn" || storedStatus === "flagged"
+      ? storedStatus
+      : "clean";
+
+  return {
+    text: payload.text,
+    similarity,
+    status,
+    flags: (parsed.flags as string[]) ?? [],
+    score: (parsed.score as number) ?? 0,
+    analysis: (parsed.analysis as string) ?? "",
+    categories: (parsed.categories as string[]) ?? [],
+    severity: (parsed.severity as string) ?? "none",
+    confidence: (parsed.confidence as number) ?? 0,
+    recommendedAction: (parsed.recommendedAction as string) ?? "none",
+  };
+}
+
+/**
  * Semantic moderation cache lookup.
  *
  * Primary: Qdrant vector search (when QDRANT_URL configured) — nearest
@@ -389,29 +374,7 @@ export async function findSimilarTextModeration(
     const hits = await searchQdrant(embedding, limit, minSimilarity);
     if (hits.length > 0) {
       const hit = hits[0];
-      let parsed: Record<string, unknown>;
-      try {
-        parsed = JSON.parse(hit.payload.flags) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
-      const storedStatus = (parsed.status as string) ?? "clean";
-      const status: "clean" | "warn" | "flagged" =
-        storedStatus === "warn" || storedStatus === "flagged"
-          ? storedStatus
-          : "clean";
-      return {
-        text: hit.payload.text,
-        similarity: hit.score,
-        status,
-        flags: (parsed.flags as string[]) ?? [],
-        score: (parsed.score as number) ?? 0,
-        analysis: (parsed.analysis as string) ?? "",
-        categories: (parsed.categories as string[]) ?? [],
-        severity: (parsed.severity as string) ?? "none",
-        confidence: (parsed.confidence as number) ?? 0,
-        recommendedAction: (parsed.recommendedAction as string) ?? "none",
-      };
+      return parseQdrantVerdict(hit.payload, hit.score);
     }
     // No Qdrant hit — fall through to Postgres legacy rows.
   }
@@ -521,6 +484,7 @@ export async function setCachedTextModeration(
         flags: JSON.stringify(result),
         analyzed_at: now,
         expires_at: now + USER_MOD_CACHE_TTL_MS,
+        content_hash: cacheKey.split(":").pop() ?? "",
       });
     }
 
@@ -666,6 +630,12 @@ export async function getRecentCorrectedModerations(
 
 /**
  * Store a corrected moderation entry for future few-shot injection.
+ *
+ * Also invalidates any cached verdicts for the corrected content (both
+ * Postgres rows and Qdrant points) so the corrected decision propagates
+ * immediately instead of being shadowed by a stale cache entry. Full
+ * content is looked up by message_id when available — more precise than
+ * the (possibly truncated) snippet.
  */
 export async function insertCorrectedModeration(entry: {
   messageId: string;
@@ -696,5 +666,20 @@ export async function insertCorrectedModeration(entry: {
       { error: error instanceof Error ? error.message : String(error) },
       "Failed to insert corrected moderation",
     );
+    return;
+  }
+
+  // Best-effort invalidation: prefer full content from the messages table.
+  try {
+    const row = await executeGet(
+      `SELECT content, edited_content FROM messages WHERE id = $1`,
+      [entry.messageId],
+    );
+    const fullContent = (row?.edited_content ?? row?.content ?? "").trim();
+    await invalidateTextModerationCache(
+      fullContent || entry.contentSnippet,
+    ).catch(() => {});
+  } catch {
+    await invalidateTextModerationCache(entry.contentSnippet).catch(() => {});
   }
 }

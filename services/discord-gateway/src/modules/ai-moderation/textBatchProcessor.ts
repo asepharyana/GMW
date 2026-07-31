@@ -12,13 +12,13 @@ import type {
   MessageRecord,
 } from "../message-capture/types.js";
 import { getChannelCulture } from "./channelCultureStore.js";
+import type { ModerationPromptContent, RetryState } from "./llmCaller.js";
+import { callModerationLLM } from "./llmCaller.js";
 import {
   buildReferenceXml,
   escapeXml,
   getAnalysisContent,
 } from "./moderationBuilders.js";
-import type { RetryState } from "./llmCaller.js";
-import { callModerationLLM } from "./llmCaller.js";
 import {
   buildSystemPrompt as buildSystemPromptModular,
   sanitizeAiContent,
@@ -74,7 +74,7 @@ export async function runTextOnlyBatch(
   if (!targets.length) return { results: [], raw: null };
 
   const maxBatchSize = config.AI_LLM_TEXT_BATCH_SIZE ?? 20;
-  const timeoutMs = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
+  const timeoutMs = config.AI_LLM_TEXT_ANALYSIS_TIMEOUT_MS ?? 30000;
 
   // Parallel: URL fetch + SearXNG
   const urlFetchPromise = (async () => {
@@ -193,7 +193,9 @@ export async function runTextOnlyBatch(
       }
     }
 
-    const buildContent = async (state: RetryState): Promise<string> => {
+    const buildContent = async (
+      state: RetryState,
+    ): Promise<ModerationPromptContent> => {
       const correction = state.lastParseError
         ? {
             error: state.lastParseError,
@@ -241,7 +243,10 @@ export async function runTextOnlyBatch(
               )
               .join("\n")}\n</web_searches>`
           : "";
-      return `${systemText}${searxngBlock}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
+      return {
+        system: systemText,
+        user: `${searxngBlock}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`,
+      };
     };
 
     const abortController = new AbortController();
@@ -286,7 +291,15 @@ export async function runTextOnlyBatch(
       config.AI_LLM_MODEL,
       batchResult.results,
       0,
-      undefined,
+      (
+        batchResult.raw as {
+          usage?: {
+            prompt_tokens: number;
+            completion_tokens: number;
+            total_tokens: number;
+          };
+        } | null
+      )?.usage ?? undefined,
     );
   }
 

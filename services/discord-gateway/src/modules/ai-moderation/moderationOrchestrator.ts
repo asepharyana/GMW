@@ -12,15 +12,19 @@ import type {
   AttachmentRecord,
   MessageRecord,
 } from "../message-capture/types.js";
+import { embedTexts, isEmbeddingEnabled } from "./embeddingClient.js";
 import { hasMediaContent } from "./mediaAnalysisClient.js";
 import { runMediaBatch } from "./mediaBatchProcessor.js";
+import { isQdrantConfigured, searchQdrantBatch } from "./qdrantClient.js";
+import { logCacheEvent } from "./responseLogger.js";
 import { initSearxngCache } from "./searxngSearch.js";
 import { runTextOnlyBatch } from "./textBatchProcessor.js";
-import { embedText, isEmbeddingEnabled } from "./embeddingClient.js";
 import {
   findSimilarTextModeration,
   getCachedTextModeration,
+  makeModerationContextKey,
   makeTextModerationCacheKey,
+  parseQdrantVerdict,
   setCachedTextModeration,
 } from "./textCacheStore.js";
 
@@ -47,6 +51,13 @@ export interface ModerationOutput {
 /**
  * Runs LLM-based moderation analysis on messages.
  * Splits text-only vs media, runs both paths in parallel, applies caching.
+ *
+ * Cache strategy (two-phase, batched):
+ *  1. Exact-hash lookups (no API) — key is content + conversation context
+ *     (channel/thread) because LLM verdicts depend on context.
+ *  2. Semantic near-duplicate lookup — ONE embeddings call for all uncached
+ *     text targets, then ONE Qdrant batch search (index-aligned), instead of
+ *     N sequential embed→search round-trips.
  */
 export async function runModerationAnalysis(
   input: ModerationInput,
@@ -56,10 +67,11 @@ export async function runModerationAnalysis(
   initSearxngCache(config.REDIS_URL);
   if (!targets.length) throw new Error("No targets provided for analysis");
 
-  // Per-user moderation cache check (text-only)
+  // ── Phase 1: exact-hash cache (per conversation context) ────────────────
   const cacheHits: AnalysisResult[] = [];
   const uncachedTargets: MessageRecord[] = [];
-  const seenCacheKeys = new Set<string>();
+  // cacheKey → result for identical-content dedupe within one batch
+  const hitByKey = new Map<string, AnalysisResult>();
   // Embedding per exact cache key — computed once during lookup, reused
   // when the fresh LLM verdict is written back to the semantic cache.
   const embeddingsByKey = new Map<string, number[]>();
@@ -77,17 +89,16 @@ export async function runModerationAnalysis(
       continue;
     }
 
-    const cacheKey = makeTextModerationCacheKey(rawContent);
-    if (seenCacheKeys.has(cacheKey)) {
-      const previousHit = cacheHits.find((h) => h.messageId !== target.id);
-      if (previousHit) {
-        cacheHits.push({ ...previousHit, messageId: target.id });
-      } else {
-        uncachedTargets.push(target);
-      }
+    const cacheKey = makeTextModerationCacheKey(
+      rawContent,
+      makeModerationContextKey(target),
+    );
+    const seen = hitByKey.get(cacheKey);
+    if (seen) {
+      // Same content already resolved this batch — reuse the verdict.
+      cacheHits.push({ ...seen, messageId: target.id });
       continue;
     }
-    seenCacheKeys.add(cacheKey);
 
     try {
       const cached = await getCachedTextModeration(cacheKey);
@@ -122,7 +133,7 @@ export async function runModerationAnalysis(
             "Cache entry contains error artifact — treating as miss",
           );
         } else {
-          cacheHits.push({
+          const hit: AnalysisResult = {
             messageId: target.id,
             status: cached.status,
             flags: cached.flags,
@@ -135,7 +146,10 @@ export async function runModerationAnalysis(
               cached.recommendedAction as AnalysisResult["recommendedAction"],
             policyVersion: "cached-user-moderation-2026-06",
             evidence: [],
-          } as AnalysisResult);
+          };
+          cacheHits.push(hit);
+          hitByKey.set(cacheKey, hit);
+          logCacheEvent("hit", cacheKey, "text");
           continue;
         }
       }
@@ -143,47 +157,130 @@ export async function runModerationAnalysis(
       /* proceed */
     }
 
-    // Semantic cache: reuse verdicts for near-duplicate text (requires the
-    // configured embedding model). Only non-trivial text-only messages
-    // qualify — media and empty text never take this path.
-    if (isEmbeddingEnabled() && rawContent.trim().length >= 5) {
-      const embedding = await embedText(rawContent);
-      if (embedding) {
-        embeddingsByKey.set(cacheKey, embedding);
-        const semantic = await findSimilarTextModeration(
-          embedding,
-          config.AI_LLM_EMBEDDING_MIN_SIMILARITY,
-          config.AI_LLM_EMBEDDING_MAX_CANDIDATES,
+    uncachedTargets.push(target);
+  }
+
+  // ── Phase 2: semantic cache — batched (one embed call + one Qdrant
+  //    batch search for ALL uncached text targets) ─────────────────────────
+  if (isEmbeddingEnabled()) {
+    const semanticCandidates = uncachedTargets
+      .map((t) => ({
+        target: t,
+        cacheKey: makeTextModerationCacheKey(
+          t.edited_content ?? t.content,
+          makeModerationContextKey(t),
+        ),
+      }))
+      .filter(({ target }) => {
+        const raw = (target.edited_content ?? target.content).trim();
+        if (raw.length < 5) return false;
+        if (hasMediaContent(target, attachments)) return false;
+        return !hitByKey.has(
+          makeTextModerationCacheKey(raw, makeModerationContextKey(target)),
         );
-        if (semantic) {
-          log.debug(
-            {
-              messageId: target.id,
-              similarity: Number(semantic.similarity.toFixed(4)),
-              status: semantic.status,
-            },
-            "Semantic moderation cache hit — reusing stored verdict",
+      });
+
+    if (semanticCandidates.length > 0) {
+      const texts = semanticCandidates.map(
+        ({ target }) => target.edited_content ?? target.content,
+      );
+      const embeddings = await embedTexts(texts);
+      if (embeddings && embeddings.length === texts.length) {
+        // index-aligned with semanticCandidates
+        for (let i = 0; i < semanticCandidates.length; i++) {
+          const { target, cacheKey } = semanticCandidates[i];
+          embeddingsByKey.set(cacheKey, embeddings[i]);
+        }
+
+        if (isQdrantConfigured()) {
+          const batchHits = await searchQdrantBatch(
+            embeddings,
+            config.AI_LLM_EMBEDDING_MAX_CANDIDATES,
+            config.AI_LLM_EMBEDDING_MIN_SIMILARITY,
           );
-          cacheHits.push({
-            messageId: target.id,
-            status: semantic.status,
-            flags: semantic.flags,
-            score: semantic.score,
-            analysis: semantic.analysis,
-            categories: semantic.categories,
-            severity: semantic.severity as AnalysisResult["severity"],
-            confidence: semantic.confidence,
-            recommendedAction:
-              semantic.recommendedAction as AnalysisResult["recommendedAction"],
-            policyVersion: "semantic-cache-2026-07",
-            evidence: [],
-          } as AnalysisResult);
-          continue;
+          for (let i = 0; i < semanticCandidates.length; i++) {
+            const { target, cacheKey } = semanticCandidates[i];
+            const hits = batchHits[i] ?? [];
+            if (hits.length === 0) continue;
+            const verdict = parseQdrantVerdict(hits[0].payload, hits[0].score);
+            if (!verdict) continue;
+            log.debug(
+              {
+                messageId: target.id,
+                similarity: Number(verdict.similarity.toFixed(4)),
+                status: verdict.status,
+              },
+              "Semantic moderation cache hit — reusing stored verdict",
+            );
+            const hit: AnalysisResult = {
+              messageId: target.id,
+              status: verdict.status,
+              flags: verdict.flags,
+              score: verdict.score,
+              analysis: verdict.analysis,
+              categories: verdict.categories,
+              severity: verdict.severity as AnalysisResult["severity"],
+              confidence: verdict.confidence,
+              recommendedAction:
+                verdict.recommendedAction as AnalysisResult["recommendedAction"],
+              policyVersion: "semantic-cache-2026-07",
+              evidence: [],
+            };
+            cacheHits.push(hit);
+            hitByKey.set(cacheKey, hit);
+            logCacheEvent("hit", cacheKey, "text");
+          }
+        } else {
+          // Legacy Postgres fallback path (no Qdrant): per-candidate scan.
+          for (let i = 0; i < semanticCandidates.length; i++) {
+            const { target, cacheKey } = semanticCandidates[i];
+            const semantic = await findSimilarTextModeration(
+              embeddings[i],
+              config.AI_LLM_EMBEDDING_MIN_SIMILARITY,
+              config.AI_LLM_EMBEDDING_MAX_CANDIDATES,
+            );
+            if (!semantic) continue;
+            log.debug(
+              {
+                messageId: target.id,
+                similarity: Number(semantic.similarity.toFixed(4)),
+                status: semantic.status,
+              },
+              "Semantic moderation cache hit (PG fallback) — reusing stored verdict",
+            );
+            const hit: AnalysisResult = {
+              messageId: target.id,
+              status: semantic.status,
+              flags: semantic.flags,
+              score: semantic.score,
+              analysis: semantic.analysis,
+              categories: semantic.categories,
+              severity: semantic.severity as AnalysisResult["severity"],
+              confidence: semantic.confidence,
+              recommendedAction:
+                semantic.recommendedAction as AnalysisResult["recommendedAction"],
+              policyVersion: "semantic-cache-2026-07",
+              evidence: [],
+            };
+            cacheHits.push(hit);
+            hitByKey.set(cacheKey, hit);
+            logCacheEvent("hit", cacheKey, "text");
+          }
+        }
+
+        // Drop semantic hits from the LLM work queue.
+        for (let i = uncachedTargets.length - 1; i >= 0; i--) {
+          const t = uncachedTargets[i];
+          const key = makeTextModerationCacheKey(
+            t.edited_content ?? t.content,
+            makeModerationContextKey(t),
+          );
+          if (hitByKey.has(key)) {
+            uncachedTargets.splice(i, 1);
+          }
         }
       }
     }
-
-    uncachedTargets.push(target);
   }
 
   if (cacheHits.length > 0) {
@@ -248,7 +345,10 @@ export async function runModerationAnalysis(
         continue;
     }
 
-    const cacheKey = makeTextModerationCacheKey(rawContent);
+    const cacheKey = makeTextModerationCacheKey(
+      rawContent,
+      makeModerationContextKey(target),
+    );
     setCachedTextModeration(
       cacheKey,
       {

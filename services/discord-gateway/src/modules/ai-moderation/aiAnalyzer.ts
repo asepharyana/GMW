@@ -1,5 +1,5 @@
-import { createChildLogger } from "@/shared/logger/index";
 import type { Client } from "discord.js-selfbot-v13";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import type { EventBroadcaster } from "../event-broadcaster/index.js";
 import { messageStore } from "../message-capture/messageStore.js";
@@ -33,8 +33,16 @@ import {
   setModerationClient,
   setSharedEventBroadcaster,
 } from "./moderationState.js";
+import { deleteExpiredQdrantPoints } from "./qdrantClient.js";
+import { pruneExpiredTexts } from "./textCacheStore.js";
 
 const logger = createChildLogger("ai-analyzer");
+
+// ---------------------------------------------------------------------------
+// Cache hygiene (expired verdict sweep)
+// ---------------------------------------------------------------------------
+const CACHE_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000; // every 6 hours
+let lastCachePruneAt = 0;
 
 // ---------------------------------------------------------------------------
 // Re-exports from sub-modules (preserving original public API)
@@ -133,6 +141,26 @@ export function startPendingAIAnalysisWorker(
     .catch(console.error);
 
   setInterval(() => {
+    // [D] Periodic cache hygiene: purge expired moderation verdicts from
+    // Postgres and Qdrant. Expired entries are never reused (filters check
+    // expires_at) but accumulate forever without this sweep.
+    const now = Date.now();
+    if (now - lastCachePruneAt >= CACHE_PRUNE_INTERVAL_MS) {
+      lastCachePruneAt = now;
+      Promise.all([pruneExpiredTexts(), deleteExpiredQdrantPoints()])
+        .then(([pgDeleted, qdDeleted]) => {
+          if (pgDeleted > 0 || qdDeleted > 0) {
+            logger.info(
+              { pgDeleted, qdDeleted },
+              "Expired moderation cache pruned",
+            );
+          }
+        })
+        .catch((err: unknown) => {
+          logger.warn({ error: String(err) }, "Moderation cache prune failed");
+        });
+    }
+
     messageStore.revertStuckProcessingMessages(300000).catch((err: unknown) => {
       logger.error(
         { error: String(err) },

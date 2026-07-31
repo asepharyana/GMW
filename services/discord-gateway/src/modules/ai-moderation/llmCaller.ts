@@ -9,9 +9,10 @@
  *
  * Both sides now import from this module instead.
  */
+
+import type { ChatCompletion } from "openai/resources/chat/completions";
 import { createChildLogger } from "@/shared/logger/index";
 import { delay, retryWithBackoff } from "@/shared/utils/index";
-import type { ChatCompletion } from "openai/resources/chat/completions";
 import { config } from "../../shared/config/config.js";
 import type { AnalysisResult } from "../message-capture/types.js";
 import { llmChat } from "./llmClient.js";
@@ -27,11 +28,24 @@ export interface RetryState {
   lastInvalidContent: string | null;
 }
 
+/**
+ * Content builder contract: produces the moderation prompt split into
+ * SYSTEM (rules / output schema / context — stable) and USER (the actual
+ * `<messages_to_analyze>` payload). Kept as two roles so routers and
+ * providers that treat system messages differently get the correct framing.
+ */
+export interface ModerationPromptContent {
+  system: string;
+  user: string;
+}
+
 // ---------------------------------------------------------------------------
 // Shared LLM call + parse + fallback helper
 // ---------------------------------------------------------------------------
 export async function callModerationLLM(
-  buildContent: (state: RetryState) => Promise<string>,
+  buildContent: (
+    state: RetryState,
+  ) => Promise<string | ModerationPromptContent>,
   targetIds: string[],
   label: string,
   signal?: AbortSignal,
@@ -52,8 +66,15 @@ export async function callModerationLLM(
       async () => {
         try {
           const content = await buildContent(state);
+          const messages =
+            typeof content === "string"
+              ? [{ role: "user" as const, content }]
+              : [
+                  { role: "system" as const, content: content.system },
+                  { role: "user" as const, content: content.user },
+                ];
           const completion = await llmChat({
-            messages: [{ role: "user", content }],
+            messages,
             max_tokens: 16384,
             jsonResponse: { type: "json_object" },
             retries: 0,
@@ -133,6 +154,23 @@ export async function callModerationLLM(
     );
     parsed = analysis.parsed;
     result = analysis.result;
+
+    // [I] Token usage accounting — surface provider-reported usage per batch
+    // so cost per channel/guild can be tracked (routers bill per token).
+    const usage = result?.usage;
+    if (usage && (usage.prompt_tokens || usage.completion_tokens)) {
+      log.info(
+        {
+          label,
+          targetIds,
+          model: config.AI_LLM_MODEL,
+          prompt_tokens: usage.prompt_tokens,
+          completion_tokens: usage.completion_tokens,
+          total_tokens: usage.total_tokens,
+        },
+        `LLM usage (${label})`,
+      );
+    }
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") throw err;
 
