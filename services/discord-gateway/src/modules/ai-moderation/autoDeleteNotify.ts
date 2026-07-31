@@ -25,9 +25,7 @@ export async function sendDeletionNotification(
       const analysis = (message.ai_analysis ?? "").trim();
       const reason: string =
         (analysis.length > 240 ? `${analysis.slice(0, 240)}…` : analysis) ||
-        message.ai_categories ??
-        message.ai_moderation_flags ??
-        "(unknown)";
+        (message.ai_categories ?? message.ai_moderation_flags ?? "(unknown)");
       await targetUser.send(
         `Pesan Anda di **${guildName}** telah dihapus oleh sistem moderasi otomatis.\n` +
           `Alasan: ${reason}\n` +
