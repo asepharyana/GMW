@@ -15,6 +15,10 @@ http {
     listen 8080;
     server_name _;
 
+    # Use relative redirects (Location: /dashboard/) instead of absolute
+    # URLs that leak the internal listen port (8080) through Traefik.
+    absolute_redirect off;
+
     gzip on;
     gzip_types text/plain text/css application/json application/javascript application/wasm image/svg+xml;
     gzip_min_length 256;
