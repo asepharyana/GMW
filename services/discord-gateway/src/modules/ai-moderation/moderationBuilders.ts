@@ -7,6 +7,7 @@
 
 import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
+import { sanitizeDiscordTokens } from "./discordTokens.js";
 
 /** Simple XML-escaping for content text. */
 export function escapeXml(s: string): string {
@@ -29,7 +30,7 @@ export function getAnalysisContent(message: MessageRecord): string {
     /\[(?:Attachment|Sticker):[^\]]*\]|\[Embed\]/g,
     "",
   );
-  return stripped.trim();
+  return sanitizeDiscordTokens(stripped).trim();
 }
 
 /**

@@ -1,20 +1,15 @@
 /**
  * ai-analysis-worker.ts
  *
- * Two-pass AI moderation analysis worker (Piscina-compatible).
+ * AI moderation analysis worker (Piscina-compatible).
  *
  * ## Pipeline
  *
- *   Message → Layer 1 (fast classifier / heuristic)
- *              │
- *              ├─ clear match → final result (no LLM call)
- *              └─ ambiguous    → Layer 2 (LLM evaluator)
+ *   Message → LLM evaluator (with conversation context + media evidence)
  *
- * Layer 1 runs synchronously in-memory. Layer 2 calls the LLM API via
- * the existing moderation pipeline (moderationOrchestrator).
- *
- * This file replaces the old `aiAnalysisWorker.ts` (archived) with a
- * simpler, unified worker that combines both layers.
+ * Every message is judged by the LLM — there is no regex/heuristic
+ * pre-classification. A failed LLM call yields an explicit "error" status
+ * (never a heuristic verdict), and the recovery worker retries it later.
  */
 
 import { createChildLogger } from "@/shared/logger/index";
@@ -23,8 +18,6 @@ import { initializeDatabase } from "../../shared/database/drizzle.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
 import { buildConversationContext } from "./conversationContext.js";
-import { classifyMessage } from "./fastClassifier.js";
-import type { Layer1Result } from "./fastClassifier.js";
 import { runModerationAnalysis } from "./moderationOrchestrator.js";
 
 const logger = createChildLogger("ai-analysis-worker");
@@ -89,11 +82,7 @@ export interface MessageBatch {
 // Worker job types (Piscina entry point)
 type WorkerJob =
   | { type: "batch"; conversationKey: string; messages: MessageRecord[] }
-  | {
-      type: "individual";
-      message: MessageRecord;
-      skipNormalAnalysis: boolean;
-    };
+  | { type: "individual"; message: MessageRecord; skipNormalAnalysis: boolean };
 
 type BatchOkResponse = {
   ok: true;
@@ -186,39 +175,21 @@ export default async function workerRouter(
 }
 
 // ---------------------------------------------------------------------------
-// Two-pass pipeline
+// Single-pass LLM pipeline
 // ---------------------------------------------------------------------------
 
 /**
- * Runs the two-pass pipeline on a single message:
- *   1. Layer 1 — fast heuristic classifier
- *   2. Layer 2 (if cascade) — LLM-based evaluator
+ * Runs the LLM moderation analysis on a single message.
  *
- * Returns the combined AnalysisResult.
+ * The LLM verdict IS the result — confidence, severity, flags and
+ * explanation all come from the model. On failure the message is marked
+ * "error" (explicit, retryable) instead of receiving a heuristic verdict.
  */
-async function runTwoPassPipeline(
+async function runLLMAnalysis(
   message: MessageRecord,
   contextText: string,
   attachments: Awaited<ReturnType<typeof messageStore.getAttachmentsForMessages>>,
 ): Promise<AnalysisResult> {
-  // ── Layer 1: Fast classifier ──────────────────────────────────────────
-  const layer1Result: Layer1Result = classifyMessage(message);
-
-  logger.debug(
-    {
-      messageId: message.id,
-      layer1Flags: layer1Result.flags,
-      cascade: layer1Result.cascadeToLayer2,
-    },
-    "Layer 1 classification complete",
-  );
-
-  if (!layer1Result.cascadeToLayer2) {
-    // Layer 1 result is final — no LLM call needed
-    return buildResultFromLayer1(message.id, layer1Result);
-  }
-
-  // ── Layer 2: LLM-based evaluation ─────────────────────────────────────
   try {
     const moderationResult = await runModerationAnalysis({
       targets: [message],
@@ -231,45 +202,44 @@ async function runTwoPassPipeline(
     }
 
     const llmResult = moderationResult.results[0] as unknown as AnalysisResult;
-    return mergeLayers(layer1Result, llmResult);
+    if (llmResult.status === "error") {
+      return llmResult;
+    }
+
+    return {
+      messageId: llmResult.messageId,
+      status: llmResult.status ?? "clean",
+      flags: llmResult.flags ?? [],
+      categories: llmResult.categories ?? [],
+      severity: llmResult.severity ?? "none",
+      confidence: normalizeConfidence(llmResult.confidence),
+      recommendedAction: llmResult.recommendedAction ?? "none",
+      toxicityScore: llmResult.toxicityScore ?? 0,
+      harmScore: llmResult.harmScore ?? 0,
+      jailbreakScore: llmResult.jailbreakScore ?? 0,
+      safetyScore: llmResult.safetyScore ?? 0,
+      explanation:
+        llmResult.explanation?.trim() ||
+        (llmResult.status === "clean"
+          ? "Tidak ada indikasi pelanggaran."
+          : "Pesan terindikasi melanggar kebijakan (analisis AI)."),
+    };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     logger.warn(
       { messageId: message.id, error: errorMsg },
-      "Layer 2 (LLM) analysis failed — falling back to Layer 1 result",
+      "LLM analysis failed for message",
     );
-    // Fallback to Layer 1 with reduced confidence
-    const fallback = buildResultFromLayer1(message.id, layer1Result);
-    fallback.confidence = Math.min(fallback.confidence, 0.4);
-    return fallback;
+    return buildFallbackResult(message.id, errorMsg);
   }
 }
 
-// ---------------------------------------------------------------------------
-// Result builders
-// ---------------------------------------------------------------------------
-
-function buildResultFromLayer1(
-  messageId: string,
-  layer1: Layer1Result,
-): AnalysisResult {
-  const status = layer1.severity === "none" ? "clean" as const : "flagged" as const;
-  const recommendedAction = mapSeverityToAction(layer1.severity);
-
-  return {
-    messageId,
-    status,
-    flags: layer1.flags,
-    categories: layer1.flags,
-    severity: layer1.severity === "high" ? "high" as const : layer1.severity === "medium" ? "medium" as const : "low" as const,
-    confidence: layer1.confidence,
-    recommendedAction,
-    toxicityScore: layer1.toxicityScore,
-    harmScore: layer1.harmScore,
-    jailbreakScore: 0,
-    safetyScore: 0,
-    explanation: layer1.explanation,
-  };
+/** Clamp LLM-provided confidence to [0, 1]; default by status when missing. */
+function normalizeConfidence(raw: number | undefined | null): number {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return Math.min(Math.max(raw, 0), 1);
+  }
+  return 0.7;
 }
 
 function buildFallbackResult(
@@ -290,70 +260,6 @@ function buildFallbackResult(
     safetyScore: 0,
     explanation: reason,
   };
-}
-
-function mergeLayers(
-  layer1: Layer1Result,
-  llmResult: AnalysisResult,
-): AnalysisResult {
-  // Merge flags from both layers (deduplicate)
-  const flagSet = new Set<string>([...layer1.flags, ...(llmResult.flags || [])]);
-
-  // Take the max severity
-  const severityOrder = ["none", "low", "medium", "high", "critical"] as const;
-  const l1Idx = severityOrder.indexOf(layer1.severity);
-  const l2Idx = severityOrder.indexOf(
-    (llmResult.severity ?? "none") as (typeof severityOrder)[number],
-  );
-  const finalSeverity = severityOrder[Math.max(l1Idx, l2Idx)];
-
-  // Combined confidence: weighted average favoring LLM when available
-  const combinedConfidence =
-    0.3 * layer1.confidence + 0.7 * (llmResult.confidence ?? 0.5);
-
-  // Combine scores (take max per dimension)
-  const toxicityScore = Math.max(
-    layer1.toxicityScore,
-    llmResult.toxicityScore ?? 0,
-  );
-  const harmScore = Math.max(layer1.harmScore, llmResult.harmScore ?? 0);
-
-  return {
-    messageId: llmResult.messageId,
-    status: llmResult.status === "error" ? "error" as const : llmResult.status ?? "clean" as const,
-    flags: Array.from(flagSet),
-    categories: [
-      ...new Set([
-        ...layer1.flags,
-        ...(llmResult.categories ?? []),
-      ]),
-    ],
-    severity: finalSeverity,
-    confidence: Math.min(combinedConfidence, 1),
-    recommendedAction: llmResult.recommendedAction ?? mapSeverityToAction(finalSeverity),
-    toxicityScore,
-    harmScore,
-    jailbreakScore: llmResult.jailbreakScore ?? 0,
-    safetyScore: llmResult.safetyScore ?? 0,
-    explanation: llmResult.explanation ?? layer1.explanation,
-  };
-}
-
-function mapSeverityToAction(
-  severity: "none" | "low" | "medium" | "high" | "critical",
-): AnalysisResult["recommendedAction"] {
-  switch (severity) {
-    case "none":
-      return "none";
-    case "low":
-      return "monitor";
-    case "medium":
-      return "review";
-    case "high":
-      return "delete";
-    case "critical":
-      return "escalate";
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -391,16 +297,16 @@ async function processBatch(job: {
   const attachments =
     await messageStore.getAttachmentsForMessages(allMessageIds);
 
-  // Run two-pass pipeline for each message
+  // Run LLM analysis for each message
   const analysisResults = await Promise.all(
     messages.map(async (msg) => {
       try {
-        return await runTwoPassPipeline(msg, contextText, attachments);
+        return await runLLMAnalysis(msg, contextText, attachments);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         logger.error(
           { messageId: msg.id, error: errorMsg },
-          "Two-pass pipeline failed for message",
+          "LLM analysis failed for message",
         );
         return buildFallbackResult(msg.id, errorMsg);
       }
@@ -435,7 +341,7 @@ async function processBatch(job: {
       saved: allRows.length,
       conversationKey,
     },
-    "Two-pass batch analysis complete",
+    "LLM batch analysis complete",
   );
 
   return { ok: true, conversationKey, rows: allRows };
@@ -450,22 +356,11 @@ async function processIndividual(job: {
   message: MessageRecord;
   skipNormalAnalysis: boolean;
 }): Promise<IndividualOkResponse | IndividualErrorResponse> {
-  const { message, skipNormalAnalysis } = job;
+  const { message } = job;
 
-  if (skipNormalAnalysis) {
-    // Use Layer 1 only (fast)
-    const layer1Result = classifyMessage(message);
-
-    if (!layer1Result.cascadeToLayer2) {
-      // Layer 1 is sufficient
-      return {
-        ok: true,
-        results: [buildResultFromLayer1(message.id, layer1Result)],
-      };
-    }
-  }
-
-  // Full analysis (context + two-pass)
+  // Full analysis (context + LLM). `skipNormalAnalysis` is accepted for
+  // compatibility with the old two-pass protocol but always runs the LLM —
+  // there is no heuristic path anymore.
   const contextBefore = await messageStore.getConversationContextBefore({
     channelId: message.channel_id,
     threadId: message.thread_id,
@@ -487,13 +382,13 @@ async function processIndividual(job: {
   ]);
 
   try {
-    const result = await runTwoPassPipeline(message, contextText, attachments);
+    const result = await runLLMAnalysis(message, contextText, attachments);
     return { ok: true, results: [result] };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     logger.error(
       { messageId: message.id, error: errorMsg },
-      "Individual two-pass analysis failed",
+      "Individual LLM analysis failed",
     );
     return { ok: true, results: [buildFallbackResult(message.id, errorMsg)] };
   }

@@ -2,6 +2,7 @@ import { createChildLogger } from "@/shared/logger/index";
 import { encoding_for_model as encodingForModel } from "tiktoken";
 import { formatMediaEvidenceForPrompt } from "../message-capture/messageMetadata.js";
 import type { MessageRecord } from "../message-capture/types.js";
+import { sanitizeDiscordTokens } from "./discordTokens.js";
 
 const logger = createChildLogger("conversationContext");
 
@@ -67,7 +68,9 @@ export function formatMessageForPrompt(
   msg: MessageRecord,
   label: "context" | "target",
 ): string {
-  const content = msg.edited_content ?? msg.content;
+  const content = sanitizeDiscordTokens(
+    msg.edited_content ?? msg.content,
+  );
   const timestamp = formatTimestamp(msg.created_at);
   const mediaEvidence = formatMediaEvidenceForPrompt(msg.metadata);
   const mediaSuffix = mediaEvidence ? ` ${mediaEvidence}` : "";

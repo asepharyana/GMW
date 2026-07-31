@@ -82,7 +82,6 @@ async function processIndividualFallback(
       | { ok: false; results: AnalysisResult[]; error: string };
 
     let analysisResult: { results: AnalysisResult[] } | null = null;
-    let usedSimpleFallback = false;
 
     if (workerResult.ok) {
       const stillIncomplete = workerResult.results.some((r) =>
@@ -96,38 +95,12 @@ async function processIndividualFallback(
       }
     }
 
-    // Step 2: If normal analysis failed, try SIMPLE fallback via worker
-    if (!analysisResult) {
-      logger.info(
-        { messageId },
-        "Normal analysis failed -- trying simple text fallback via worker",
-      );
-
-      const simpleResult = (await workerPool.run({
-        type: "individual",
-        message,
-        skipNormalAnalysis: true,
-      } as unknown)) as
-        | { ok: true; results: AnalysisResult[] }
-        | { ok: false; results: AnalysisResult[]; error: string };
-
-      if (simpleResult.ok) {
-        analysisResult = simpleResult;
-        usedSimpleFallback = true;
-        exhaustedOnIncomplete = false;
-      }
-    }
-
+    // No heuristic fallback: an incomplete/errored LLM result stays a
+    // retryable error — the recovery worker picks it up later. Producing a
+    // regex/wordlist verdict here would reintroduce false positives.
     if (!analysisResult) {
       throw new Error(
-        `Both normal and simple analysis failed for message ${messageId}`,
-      );
-    }
-
-    if (usedSimpleFallback) {
-      logger.info(
-        { messageId, status: analysisResult.results[0]?.status },
-        "Used simple text fallback for individual message (via worker)",
+        `LLM analysis failed for message ${messageId}`,
       );
     }
 
