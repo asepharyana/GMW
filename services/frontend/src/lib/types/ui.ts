@@ -16,8 +16,15 @@ export interface ChatbotResponse {
   timestamp: string;
 }
 
-export interface ChatHistoryMessage {
-  role: string;
-  content: string;
-  timestamp: string;
+/**
+ * Chat history row as returned by the backend (GET /api/chat/history →
+ * { history: ChatbotHistoryRow[], total }).
+ */
+export interface ChatbotHistoryRow {
+  id: string;
+  user_id: string;
+  user_message: string;
+  bot_response: string;
+  context: Record<string, unknown> | null;
+  created_at: string;
 }

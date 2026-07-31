@@ -10,9 +10,15 @@ import {
   useState,
 } from "react";
 import { chatbotApi } from "@/lib/api";
-import type { ChatHistoryMessage } from "@/lib/types";
+import type { ChatbotHistoryRow } from "@/lib/types";
 
-export type ChatbotExpression = "idle" | "listening" | "surprise" | "happy" | "sad" | "talking";
+export type ChatbotExpression =
+  | "idle"
+  | "listening"
+  | "surprise"
+  | "happy"
+  | "sad"
+  | "talking";
 
 interface ChatbotMessage {
   role: "user" | "assistant";
@@ -74,16 +80,29 @@ export function ChatbotProvider({ children }: { children: ReactNode }) {
     if (historyFetched.current) return;
     historyFetched.current = true;
 
-    chatbotApi.getHistory().then((history) => {
-      const mapped = (history ?? []).map((msg: ChatHistoryMessage) => ({
-        role: msg.role as "user" | "assistant",
-        content: msg.content,
-        timestamp: msg.timestamp,
-      }));
-      setMessages(mapped);
-    }).catch(() => {
-      // API may not be available yet — silently ignore
-    });
+    chatbotApi
+      .getHistory()
+      .then((res) => {
+        // Backend returns rows {user_message, bot_response, created_at} —
+        // interleave each user message with its bot reply.
+        const withReplies: ChatbotMessage[] = [];
+        for (const row of res.history ?? []) {
+          withReplies.push({
+            role: "user",
+            content: row.user_message,
+            timestamp: row.created_at,
+          });
+          withReplies.push({
+            role: "assistant",
+            content: row.bot_response,
+            timestamp: row.created_at,
+          });
+        }
+        setMessages(withReplies);
+      })
+      .catch(() => {
+        // API may not be available yet — silently ignore
+      });
   }, []);
 
   const sendMessage = useCallback(async (content: string) => {

@@ -22,12 +22,11 @@ export function useUsers(search?: string) {
   });
 }
 
-export function useChannels(guildId: string, search?: string) {
+export function useChannels(guildId?: string, search?: string) {
   return useQuery({
-    queryKey: ["dashboard-channels", guildId, search ?? ""],
+    queryKey: ["dashboard-channels", guildId ?? "__all__", search ?? ""],
     queryFn: () => dashboardApi.listChannels(20, search, guildId || undefined),
     select: (data) => data.data,
-    enabled: !!guildId,
   });
 }
 

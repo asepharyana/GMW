@@ -8,7 +8,8 @@ export interface VoiceRecording {
   channel_name?: string | null;
   filename: string;
   size_bytes: number;
-  duration_bytes: number;
+  /** Present on REST rows; absent on WS voice_recording_uploaded events */
+  duration_bytes?: number | null;
   download_url?: string | null;
   upload_status: string;
   upload_error?: string | null;

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { GlassCard } from "@/components/glass/card";
-import { useWebSocket } from "@/lib/ws/context";
+import type { MessageRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useWebSocket } from "@/lib/ws/context";
 
 interface LiveMessage {
   id: string;
@@ -20,12 +21,23 @@ export function LiveStream() {
   const ws = useWebSocket();
 
   useEffect(() => {
-    const unsub = ws.on("message_created", (data: any) => {
+    const unsub = ws.on("message_created", (data: MessageRecord) => {
+      // channel name lives inside the metadata JSON (channel.channelName)
+      let channelName: string | undefined;
+      try {
+        const meta =
+          typeof data.metadata === "string"
+            ? JSON.parse(data.metadata)
+            : data.metadata;
+        channelName = meta?.channel?.channelName;
+      } catch {
+        channelName = undefined;
+      }
       const msg: LiveMessage = {
         id: data.id,
         content: data.content || "(attachment)",
         username: data.username || "unknown",
-        channelName: data.channelName,
+        channelName,
         timestamp: new Date().toLocaleTimeString(),
         flagged: data.ai_status === "flagged" || data.ai_status === "warn",
       };
@@ -33,12 +45,6 @@ export function LiveStream() {
     });
     return () => unsub();
   }, [ws]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = 0;
-    }
-  }, [messages]);
 
   return (
     <GlassCard variant="base" className="p-0 overflow-hidden">
@@ -51,7 +57,10 @@ export function LiveStream() {
           Live Stream
         </span>
       </div>
-      <div ref={scrollRef} className="overflow-y-auto max-h-[320px] space-y-0.5 p-2">
+      <div
+        ref={scrollRef}
+        className="overflow-y-auto max-h-[320px] space-y-0.5 p-2"
+      >
         {messages.length === 0 ? (
           <div className="flex items-center justify-center py-8 text-text-secondary/40 text-xs">
             Waiting for messages...

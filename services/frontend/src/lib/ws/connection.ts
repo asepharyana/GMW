@@ -2,21 +2,20 @@ import type { WsEvent, WsStatus } from "./types";
 
 type WsEventCallback = (event: WsEvent) => void;
 
-const REMOTE_WS = "wss://imphnen.asepharyana.my.id/ws";
-
+/**
+ * WebSocket URL resolution — same-origin by default (gmw-proxy nginx
+ * proxies /ws to the backend). Override for local dev with NEXT_PUBLIC_WS_URL.
+ */
 function getWsUrl(): string {
-  if (typeof window === "undefined") return REMOTE_WS;
-  const hostname = window.location.hostname;
+  const override =
+    typeof process !== "undefined" ? process.env.NEXT_PUBLIC_WS_URL : "";
+  if (override) return override.replace(/\/+$/, "");
 
-  // Always route WS through the remote server (even from local dev)
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return REMOTE_WS;
-  }
+  if (typeof window === "undefined") return "wss://localhost/ws";
 
-  // Production: nginx proxies /ws/* to backend on the same host
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   const port = window.location.port;
-  return `${protocol}://${hostname}${port ? `:${port}` : ""}/ws`;
+  return `${protocol}://${window.location.hostname}${port ? `:${port}` : ""}/ws`;
 }
 
 export class WsConnection {

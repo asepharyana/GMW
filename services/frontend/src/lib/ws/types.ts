@@ -28,7 +28,8 @@ export interface WsBinaryEvent {
 export interface WsEventMap {
   message_created: MessageRecord;
   message_updated: MessageRecord;
-  message_deleted: string; // message ID
+  /** Gateway emits { id, deleted_at } — NOT a bare string */
+  message_deleted: { id: string; deleted_at?: number };
   message_analyzed: MessageRecord;
   attachment_created: unknown;
   attachment_uploaded: unknown;

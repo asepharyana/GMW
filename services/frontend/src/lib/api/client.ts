@@ -8,21 +8,23 @@ export class ApiError extends Error {
   }
 }
 
-const REMOTE_API = "https://imphnen.asepharyana.my.id";
-
+/**
+ * API base URL resolution.
+ *
+ * Default: same-origin — the production nginx (gmw-proxy) proxies /api/* to
+ * the backend, so no cross-origin config is needed. For local dev against a
+ * remote deployment, set NEXT_PUBLIC_API_URL (e.g. https://imphnen.asepharyana.my.id).
+ */
 function getBaseUrl(): string {
-  if (typeof window === "undefined") return REMOTE_API;
-  const hostname = window.location.hostname;
+  const override =
+    typeof process !== "undefined" ? process.env.NEXT_PUBLIC_API_URL : "";
+  if (override) return override.replace(/\/+$/, "");
 
-  // In local dev, route API calls to the remote server
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return REMOTE_API;
-  }
+  if (typeof window === "undefined") return "";
 
-  // Production: nginx proxies /api/* to backend on the same host
   const protocol = window.location.protocol.replace(":", "");
   const port = window.location.port;
-  return `${protocol}://${hostname}${port ? `:${port}` : ""}`;
+  return `${protocol}://${window.location.hostname}${port ? `:${port}` : ""}`;
 }
 
 export async function apiRequest<T>(

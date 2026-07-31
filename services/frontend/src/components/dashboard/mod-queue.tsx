@@ -4,7 +4,7 @@ import { AlertCircle, Check, Trash2 } from "lucide-react";
 import { GlassCard } from "@/components/glass/card";
 import { cn } from "@/lib/utils";
 
-interface ModQueueItem {
+export interface ModQueueItem {
   id: string;
   content: string;
   username: string;
@@ -48,16 +48,30 @@ export function ModQueue({ items = [] }: { items?: ModQueueItem[] }) {
               )}
             >
               <div className="flex items-center gap-2">
-                <span className="font-medium text-xs text-text-primary">{item.username}</span>
-                <span className="text-[10px] font-mono uppercase text-text-secondary/60">{item.severity}</span>
+                <span className="font-medium text-xs text-text-primary">
+                  {item.username}
+                </span>
+                <span className="text-[10px] font-mono uppercase text-text-secondary/60">
+                  {item.severity}
+                </span>
               </div>
-              <p className="text-xs text-text-secondary line-clamp-1">{item.content}</p>
-              <p className="text-[10px] text-text-secondary/50">{item.reason}</p>
+              <p className="text-xs text-text-secondary line-clamp-1">
+                {item.content}
+              </p>
+              <p className="text-[10px] text-text-secondary/50">
+                {item.reason}
+              </p>
               <div className="flex gap-1 pt-1">
-                <button type="button" className="size-6 flex items-center justify-center rounded bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 text-xs">
+                <button
+                  type="button"
+                  className="size-6 flex items-center justify-center rounded bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 text-xs"
+                >
                   <Check className="size-3" />
                 </button>
-                <button type="button" className="size-6 flex items-center justify-center rounded bg-destructive/10 text-destructive hover:bg-destructive/20 text-xs">
+                <button
+                  type="button"
+                  className="size-6 flex items-center justify-center rounded bg-destructive/10 text-destructive hover:bg-destructive/20 text-xs"
+                >
                   <Trash2 className="size-3" />
                 </button>
               </div>

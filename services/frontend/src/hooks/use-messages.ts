@@ -182,7 +182,7 @@ export function useMessagesWsSync(ws: WsHook, guildId: string) {
     });
     const unsub3 = ws.on("message_deleted", (data) => {
       qc.setQueryData<MessageRecord[]>(key, (old) =>
-        old ? old.filter((m) => m.id !== (data as unknown as string)) : old,
+        old ? old.filter((m) => m.id !== (data as { id: string }).id) : old,
       );
     });
     const unsub4 = ws.on("message_analyzed", (data) => {
