@@ -25,6 +25,11 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          # Declarative env: source of truth = Gitea secrets, CI writes the
+          # service env files on the VPS. Update env by editing the secret,
+          # never by SSH-ing into the VPS by hand.
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+          GATEWAY_ENV: ${{ secrets.GATEWAY_ENV }}
         run: |
           set -eu
 
@@ -54,6 +59,30 @@ jobs:
 
           export NIX_SSHOPTS="-i $key_file -o StrictHostKeyChecking=no"
           nix copy --to "ssh://${VPS_USER}@${VPS_HOST}" "$STORE_PATH" 2>&1
+
+          # --- Deploy env (declarative, from Gitea secrets) ---
+          ENV_TARGET=""
+          ENV_VALUE=""
+          case "$SERVICE" in
+            backend)         ENV_TARGET="/etc/gmw/backend.env"; ENV_VALUE="$BACKEND_ENV" ;;
+            discord-gateway) ENV_TARGET="/etc/gmw/discord-gateway.env"; ENV_VALUE="$GATEWAY_ENV" ;;
+            proxy)           ;;  # nginx proxy has no env file
+          esac
+
+          if [ -n "$ENV_VALUE" ] && [ -n "$ENV_TARGET" ]; then
+            echo "=== Deploying env: $ENV_TARGET ==="
+            printf '%s\n' "$ENV_VALUE" | ssh -i "$key_file" -o StrictHostKeyChecking=no \
+              "${VPS_USER}@${VPS_HOST}" "
+              set -eu
+              mkdir -p /etc/gmw
+              cat > $ENV_TARGET
+              chown gmw:gmw $ENV_TARGET
+              chmod 600 $ENV_TARGET
+              echo \"env file lines: \$(grep -c '=' $ENV_TARGET)\"
+            "
+          else
+            echo "=== No env secret for $SERVICE — skipping env deploy ==="
+          fi
 
           ssh -i "$key_file" -o StrictHostKeyChecking=no \
             "${VPS_USER}@${VPS_HOST}" "
