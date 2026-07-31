@@ -2,6 +2,11 @@ import { createHash } from "node:crypto";
 import { createChildLogger } from "@/shared/logger/index";
 import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 import { findBestEmbeddingMatch } from "./embeddingClient.js";
+import {
+  isQdrantConfigured,
+  searchQdrant,
+  upsertQdrantPoint,
+} from "./qdrantClient.js";
 
 const logger = createChildLogger("text-cache-store");
 
@@ -358,10 +363,9 @@ export async function getCachedTextModeration(cacheKey: string): Promise<{
 /**
  * Semantic moderation cache lookup.
  *
- * Returns the most similar stored verdict whose cosine similarity to the
- * query embedding is at least `minSimilarity`. Only entries written by the
- * moderation pipeline (source='user_moderation') with a stored embedding are
- * considered, limited to the most recent `limit` rows to bound cost.
+ * Primary: Qdrant vector search (when QDRANT_URL configured) — nearest
+ * unexpired verdict above `minSimilarity`. Fallback: Postgres embedding
+ * column (legacy rows written before Qdrant was wired in).
  * Returns null on no match or any failure — callers then proceed to the LLM.
  */
 export async function findSimilarTextModeration(
@@ -380,6 +384,38 @@ export async function findSimilarTextModeration(
   confidence: number;
   recommendedAction: string;
 } | null> {
+  // Qdrant path (primary)
+  if (isQdrantConfigured()) {
+    const hits = await searchQdrant(embedding, limit, minSimilarity);
+    if (hits.length > 0) {
+      const hit = hits[0];
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(hit.payload.flags) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+      const storedStatus = (parsed.status as string) ?? "clean";
+      const status: "clean" | "warn" | "flagged" =
+        storedStatus === "warn" || storedStatus === "flagged"
+          ? storedStatus
+          : "clean";
+      return {
+        text: hit.payload.text,
+        similarity: hit.score,
+        status,
+        flags: (parsed.flags as string[]) ?? [],
+        score: (parsed.score as number) ?? 0,
+        analysis: (parsed.analysis as string) ?? "",
+        categories: (parsed.categories as string[]) ?? [],
+        severity: (parsed.severity as string) ?? "none",
+        confidence: (parsed.confidence as number) ?? 0,
+        recommendedAction: (parsed.recommendedAction as string) ?? "none",
+      };
+    }
+    // No Qdrant hit — fall through to Postgres legacy rows.
+  }
+
   try {
     const rows = await executeAll(
       `SELECT text, flags, embedding
@@ -477,6 +513,17 @@ export async function setCachedTextModeration(
   const USER_MOD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
   try {
+    // Qdrant is the primary vector store when configured: upsert the point
+    // with the verdict payload; skip the Postgres embedding column entirely.
+    if (isQdrantConfigured() && embedding && embedding.length > 0) {
+      await upsertQdrantPoint(cacheKey, embedding, {
+        text: cacheKey,
+        flags: JSON.stringify(result),
+        analyzed_at: now,
+        expires_at: now + USER_MOD_CACHE_TTL_MS,
+      });
+    }
+
     await executeAll(
       `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count, embedding)
        VALUES ($1, $2, $3, $4, $5, 0, $6)
@@ -492,6 +539,7 @@ export async function setCachedTextModeration(
         "user_moderation",
         now,
         now + USER_MOD_CACHE_TTL_MS,
+        // Postgres embedding stays as legacy fallback; Qdrant is primary.
         embedding && embedding.length > 0 ? JSON.stringify(embedding) : null,
       ],
     );

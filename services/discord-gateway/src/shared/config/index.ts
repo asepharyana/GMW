@@ -145,6 +145,12 @@ export const configSchema = z
       .int()
       .positive()
       .default(30),
+    // Qdrant vector store for the semantic moderation cache. When
+    // QDRANT_URL is set, embeddings are stored/searched there (Postgres
+    // embedding column remains as a legacy fallback).
+    QDRANT_URL: z.string().optional(),
+    QDRANT_COLLECTION: z.string().default("gmw_text_moderation"),
+    QDRANT_API_KEY: z.string().optional(),
     AI_LLM_MAX_CONCURRENT: z.coerce.number().int().positive().default(5),
     AI_LLM_IMAGE_MAX_DIMENSION: z.coerce
       .number()
