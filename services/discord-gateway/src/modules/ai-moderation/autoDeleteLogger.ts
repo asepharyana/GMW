@@ -33,6 +33,7 @@ export async function logDeletionToChannel(
       const severity = message.ai_severity ?? "none";
       const categories =
         message.ai_categories ?? message.ai_moderation_flags ?? "—";
+      const reason = message.ai_analysis ?? "—";
       const snippet = (message.edited_content ?? message.content).substring(
         0,
         200,
@@ -42,6 +43,7 @@ export async function logDeletionToChannel(
           `**Status:** ${message.ai_status}\n` +
           `**Severitas:** ${severity}\n` +
           `**Kategori:** ${categories}\n` +
+          `**Alasan:** ${reason}\n` +
           `**Isi:** ${snippet}\n` +
           `**Waktu:** <t:${Math.floor(Date.now() / 1000)}:R>`,
       );

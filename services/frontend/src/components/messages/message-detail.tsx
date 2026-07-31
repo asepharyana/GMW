@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowLeft, MessageSquare } from "lucide-react";
+import { ArrowLeft, MessageSquare, MessagesSquare } from "lucide-react";
 import { GlassCard } from "@/components/glass/card";
 import { AttachmentsGrid } from "./attachments-grid";
 import { AiAnalysisPanel } from "./ai-analysis-panel";
+import { getMessageChannelLabel } from "@/lib/format";
 import type { AttachmentRecord, MessageRecord } from "@/lib/types";
 
 interface MessageDetailProps {
@@ -25,7 +26,10 @@ export function MessageDetail({ message, attachments, onBack }: MessageDetailPro
       <div className="flex items-center gap-2 mb-3">
         <MessageSquare className="size-4 text-primary" />
         <span className="font-semibold text-sm text-text-primary">{message.username}</span>
-        <span className="text-[10px] text-text-secondary/40 font-mono">{message.channel_id?.slice(0, 8)}</span>
+        <span className="text-[10px] text-text-secondary/40 font-mono inline-flex items-center gap-1">
+          {message.thread_id && <MessagesSquare className="size-3" />}
+          {getMessageChannelLabel(message)}
+        </span>
       </div>
 
       {/* Content */}
@@ -49,6 +53,7 @@ export function MessageDetail({ message, attachments, onBack }: MessageDetailPro
         categories={message.ai_categories}
         action={message.ai_recommended_action}
         score={message.ai_moderation_score}
+        analysis={message.ai_analysis}
       />
     </GlassCard>
   );

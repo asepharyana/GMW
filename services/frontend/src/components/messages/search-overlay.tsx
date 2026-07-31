@@ -4,6 +4,7 @@ import { Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { messagesApi } from "@/lib/api";
+import { getMessageChannelLabel } from "@/lib/format";
 import type { MessageRecord } from "@/lib/types";
 
 interface SearchOverlayProps {
@@ -83,7 +84,7 @@ export function SearchOverlay({ open, onClose, onSelect }: SearchOverlayProps) {
               >
                 <div className="flex items-center gap-2 text-xs">
                   <span className="font-medium text-text-primary">{msg.username}</span>
-                  <span className="text-text-secondary/40">{msg.channel_id?.slice(0, 8)}</span>
+                  <span className="text-text-secondary/40">{getMessageChannelLabel(msg)}</span>
                 </div>
                 <p className="text-xs text-text-secondary/80 line-clamp-1 mt-0.5">{msg.content}</p>
               </button>

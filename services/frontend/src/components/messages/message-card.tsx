@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { safeParseJsonArray } from "@/lib/format";
+import { safeParseJsonArray, getMessageChannelLabel } from "@/lib/format";
 import type { MessageRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { AiStatusBadge } from "./ai-status-badge";
@@ -52,9 +52,16 @@ export function MessageCard({
               <span className="text-xs text-muted-foreground">
                 {new Date(msg.created_at).toLocaleString()}
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span
+                className="text-xs text-muted-foreground"
+                title={
+                  msg.thread_id
+                    ? `Thread ${getMessageChannelLabel(msg)} (${msg.thread_id.slice(0, 8)})`
+                    : undefined
+                }
+              >
                 <Hash className="size-3 inline mr-0.5" />
-                {msg.channel_id.slice(0, 8)}
+                {getMessageChannelLabel(msg)}
               </span>
               <AiStatusBadge status={msg.ai_status} />
               {msg.ai_severity && msg.ai_severity !== "none" && (

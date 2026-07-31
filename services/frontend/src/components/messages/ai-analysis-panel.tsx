@@ -11,6 +11,7 @@ interface AiAnalysisPanelProps {
   categories?: string[] | string | null;
   action?: string | null;
   score?: number | null;
+  analysis?: string | null;
 }
 
 const severityColor: Record<string, string> = {
@@ -29,6 +30,7 @@ export function AiAnalysisPanel({
   categories,
   action,
   score,
+  analysis,
 }: AiAnalysisPanelProps) {
   if (!status || status === "pending") {
     return (
@@ -91,6 +93,12 @@ export function AiAnalysisPanel({
             <span key={c} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary">{c}</span>
           ))}
         </div>
+      )}
+
+      {analysis && (
+        <p className="text-xs leading-relaxed text-text-secondary/90 border-l-2 border-glass-border pl-2">
+          {analysis}
+        </p>
       )}
 
       {action && action !== "none" && (

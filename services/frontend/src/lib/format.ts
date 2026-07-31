@@ -43,3 +43,32 @@ export function safeParseJsonObject(
     return {};
   }
 }
+
+/**
+ * Resolve a human-readable channel/thread label for a message.
+ *
+ * The channel name (and thread name, when the message lives in a thread)
+ * is captured by the gateway into the message metadata JSON under
+ * `metadata.channel.{channelName,threadName}`. Prefer names over raw IDs:
+ * a thread message shows its thread name, otherwise the channel name,
+ * falling back to a truncated channel ID only when names are unavailable.
+ */
+export function getMessageChannelLabel(msg: {
+  channel_id?: string;
+  metadata?: string | null;
+}): string {
+  let channelName: string | undefined;
+  let threadName: string | undefined;
+  try {
+    const m = JSON.parse(msg.metadata ?? "");
+    const ch = m?.channel;
+    channelName =
+      typeof ch?.channelName === "string" ? ch.channelName : undefined;
+    threadName = typeof ch?.threadName === "string" ? ch.threadName : undefined;
+  } catch {
+    // metadata malformed — fall through to ID fallback
+  }
+  if (threadName) return threadName;
+  if (channelName) return channelName;
+  return msg.channel_id?.slice(0, 8) ?? "";
+}

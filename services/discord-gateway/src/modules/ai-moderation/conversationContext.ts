@@ -42,12 +42,44 @@ export function estimateTokens(text: string): number {
 }
 
 /**
- * Formats reference info for a message (reply/forward/crosspost)
+ * Formats reference info for a message (reply/forward/crosspost).
+ *
+ * The replied-to content is stored in the message metadata
+ * (`metadata.reference.content` / `repliedUsername`) at capture time, so
+ * include it here — the LLM can then explain WHAT the user is replying to
+ * instead of only seeing a raw message ID it cannot resolve.
  */
 function formatReferenceInfo(msg: MessageRecord): string {
   const parts: string[] = [];
+
+  let repliedContent: string | null = null;
+  let repliedUsername: string | null = null;
+  try {
+    const meta = JSON.parse(msg.metadata ?? "") as {
+      reference?: {
+        content?: string | null;
+        repliedUsername?: string | null;
+      } | null;
+    };
+    repliedContent = meta?.reference?.content ?? null;
+    repliedUsername = meta?.reference?.repliedUsername ?? null;
+  } catch {
+    // metadata malformed — fall back to ID-only reference
+  }
+
+  const repliedText = (repliedContent ?? "").trim();
+  const repliedSnippet = repliedText
+    ? sanitizeDiscordTokens(
+        repliedText.length > 200
+          ? `${repliedText.slice(0, 200)}…`
+          : repliedText,
+      )
+    : null;
+
   if (msg.is_reply && msg.reference_message_id) {
-    parts.push(`[reply_to: ${msg.reference_message_id}]`);
+    const who = repliedUsername ? ` oleh ${repliedUsername}` : "";
+    const what = repliedSnippet ? `: "${repliedSnippet}"` : "";
+    parts.push(`[reply_to: ${msg.reference_message_id}${who}${what}]`);
     if (msg.reference_channel_id) {
       parts.push(`(reply_channel: ${msg.reference_channel_id})`);
     }

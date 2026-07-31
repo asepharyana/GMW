@@ -58,11 +58,8 @@ export interface AnalysisResult {
     | "review"
     | "delete"
     | "escalate";
-  toxicityScore: number;
-  harmScore: number;
-  jailbreakScore: number;
-  safetyScore: number;
-  explanation: string;
+  score: number;
+  analysis: string;
   correctedFlags?: string[];
 }
 
@@ -182,7 +179,7 @@ export default async function workerRouter(
  * Runs the LLM moderation analysis on a single message.
  *
  * The LLM verdict IS the result — confidence, severity, flags and
- * explanation all come from the model. On failure the message is marked
+ * analysis all come from the model. On failure the message is marked
  * "error" (explicit, retryable) instead of receiving a heuristic verdict.
  */
 async function runLLMAnalysis(
@@ -214,15 +211,10 @@ async function runLLMAnalysis(
       severity: llmResult.severity ?? "none",
       confidence: normalizeConfidence(llmResult.confidence),
       recommendedAction: llmResult.recommendedAction ?? "none",
-      toxicityScore: llmResult.toxicityScore ?? 0,
-      harmScore: llmResult.harmScore ?? 0,
-      jailbreakScore: llmResult.jailbreakScore ?? 0,
-      safetyScore: llmResult.safetyScore ?? 0,
-      explanation:
-        llmResult.explanation?.trim() ||
-        (llmResult.status === "clean"
-          ? "Tidak ada indikasi pelanggaran."
-          : "Pesan terindikasi melanggar kebijakan (analisis AI)."),
+      score: llmResult.score ?? 0,
+      analysis:
+        llmResult.analysis?.trim() ||
+        buildFallbackAnalysis(message, llmResult.status ?? "clean"),
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
@@ -242,6 +234,28 @@ function normalizeConfidence(raw: number | undefined | null): number {
   return 0.7;
 }
 
+/**
+ * Content-aware fallback when the LLM returns an empty `analysis` field.
+ * Quotes the actual message content so the log still explains WHAT was said
+ * instead of a bare template like "Tidak ada indikasi pelanggaran."
+ */
+function buildFallbackAnalysis(
+  message: MessageRecord,
+  status: string,
+): string {
+  const raw = (message.edited_content ?? message.content ?? "").trim();
+  const snippet = raw.length > 120 ? `${raw.slice(0, 120).trimEnd()}…` : raw;
+
+  if (status === "clean") {
+    return snippet
+      ? `Tidak ada indikasi pelanggaran. Pesan: "${snippet}" dinilai wajar dalam konteks percakapan.`
+      : "Tidak ada indikasi pelanggaran. Isi pesan dinilai wajar dalam konteks percakapan.";
+  }
+  return snippet
+    ? `Pesan terindikasi melanggar kebijakan: "${snippet}".`
+    : "Pesan terindikasi melanggar kebijakan (analisis AI).";
+}
+
 function buildFallbackResult(
   messageId: string,
   reason: string,
@@ -254,11 +268,8 @@ function buildFallbackResult(
     severity: "none",
     confidence: 0,
     recommendedAction: "review",
-    toxicityScore: 0,
-    harmScore: 0,
-    jailbreakScore: 0,
-    safetyScore: 0,
-    explanation: reason,
+    score: 0,
+    analysis: reason,
   };
 }
 
@@ -319,14 +330,14 @@ async function processBatch(job: {
     result: {
       status: result.status,
       flags: JSON.stringify(result.flags),
-      score: result.toxicityScore,
-      analysis: result.explanation,
+      score: result.score,
+      analysis: result.analysis,
       categories: result.categories,
       severity: result.severity,
       confidence: result.confidence,
       recommendedAction: result.recommendedAction,
       analyzedAt: Date.now(),
-      error: result.status === "error" ? result.explanation : null,
+      error: result.status === "error" ? result.analysis : null,
     },
   }));
 
