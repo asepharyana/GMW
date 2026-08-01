@@ -7,6 +7,7 @@ import { MessageList } from "@/components/messages/message-list";
 import { MessageDetailView } from "@/components/messages/message-detail-view";
 import { SearchOverlay } from "@/components/messages/search-overlay";
 import { extractFirstImage } from "@/components/messages/message-card";
+import { renderMessageContent } from "@/lib/format";
 import { SubNav } from "@/components/layout/sub-nav";
 import { ErrorState, LoadingSkeleton } from "@/components/shared";
 import { GlassCard } from "@/components/glass/card";
@@ -317,7 +318,7 @@ function ReviewList({
             <Flag className="mt-0.5 size-3.5 shrink-0 text-accent-purple" />
             <div className="min-w-0 flex-1">
               <p className="line-clamp-2 text-xs text-text-secondary">
-                {item.content || item.id}
+                {renderMessageContent(item.content, item.metadata) || item.id}
               </p>
             </div>
           </div>

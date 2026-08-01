@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { GlassCard } from "@/components/glass/card";
+import { renderMessageContent } from "@/lib/format";
 import type { MessageRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
@@ -13,6 +14,7 @@ interface LiveMessage {
   channelName?: string;
   timestamp: string;
   flagged?: boolean;
+  metadata?: string | null;
 }
 
 export function LiveStream() {
@@ -40,6 +42,7 @@ export function LiveStream() {
         channelName,
         timestamp: new Date().toLocaleTimeString(),
         flagged: data.ai_status === "flagged" || data.ai_status === "warn",
+        metadata: data.metadata ?? null,
       };
       setMessages((prev) => [msg, ...prev].slice(0, 50));
     });
@@ -80,7 +83,7 @@ export function LiveStream() {
                 {msg.username}
               </span>
               <span className="text-xs text-text-secondary truncate flex-1">
-                {msg.content}
+                {renderMessageContent(msg.content, msg.metadata)}
               </span>
               <span className="text-[10px] text-text-secondary/40 shrink-0">
                 {msg.timestamp}

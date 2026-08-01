@@ -4,7 +4,7 @@ import { ArrowLeft, MessageSquare, MessagesSquare } from "lucide-react";
 import { GlassCard } from "@/components/glass/card";
 import { AttachmentsGrid } from "./attachments-grid";
 import { AiAnalysisPanel } from "./ai-analysis-panel";
-import { getMessageChannelLabel } from "@/lib/format";
+import { getMessageChannelLabel, renderMessageContent } from "@/lib/format";
 import type { AttachmentRecord, MessageRecord } from "@/lib/types";
 
 interface MessageDetailProps {
@@ -34,7 +34,7 @@ export function MessageDetail({ message, attachments, onBack }: MessageDetailPro
 
       {/* Content */}
       <div className="text-sm text-text-primary/90 leading-relaxed mb-4 whitespace-pre-wrap">
-        {message.content || "(no text content)"}
+        {renderMessageContent(message.content, message.metadata) || "(no text content)"}
       </div>
 
       {/* Attachments */}

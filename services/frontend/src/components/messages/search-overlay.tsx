@@ -4,7 +4,7 @@ import { Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { messagesApi } from "@/lib/api";
-import { getMessageChannelLabel } from "@/lib/format";
+import { getMessageChannelLabel, renderMessageContent } from "@/lib/format";
 import type { MessageRecord } from "@/lib/types";
 
 interface SearchOverlayProps {
@@ -86,7 +86,7 @@ export function SearchOverlay({ open, onClose, onSelect }: SearchOverlayProps) {
                   <span className="font-medium text-text-primary">{msg.username}</span>
                   <span className="text-text-secondary/40">{getMessageChannelLabel(msg)}</span>
                 </div>
-                <p className="text-xs text-text-secondary/80 line-clamp-1 mt-0.5">{msg.content}</p>
+                <p className="text-xs text-text-secondary/80 line-clamp-1 mt-0.5">{renderMessageContent(msg.content, msg.metadata)}</p>
               </button>
             ))
           )}

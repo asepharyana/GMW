@@ -28,6 +28,16 @@ export interface CustomEmojiEvidence {
   url: string;
 }
 
+export interface MentionedRoleEvidence {
+  id: string;
+  name: string;
+}
+
+export interface MentionedUserEvidence {
+  id: string;
+  username: string;
+}
+
 export interface EmbedEvidence {
   title: string | null;
   description: string | null;
@@ -64,6 +74,8 @@ export interface RichMessageMetadata {
   embeds: Array<EmbedEvidence>;
   attachments: Array<AttachmentEvidence>;
   customEmojis: Array<CustomEmojiEvidence>;
+  mentionedRoles: Array<MentionedRoleEvidence>;
+  mentionedUsers: Array<MentionedUserEvidence>;
   author: {
     id: string;
     username: string;
@@ -268,6 +280,12 @@ export function getMessageMetadata(message: Message): RichMessageMetadata {
     embeds: getEmbedMetadata(message),
     attachments: getAttachmentMetadata(message),
     customEmojis: getCustomEmojiMetadata(message),
+    mentionedRoles: Array.from(message.mentions?.roles?.values() ?? []).map(
+      (role) => ({ id: role.id, name: role.name }),
+    ),
+    mentionedUsers: Array.from(message.mentions?.users?.values() ?? []).map(
+      (user) => ({ id: user.id, username: user.username }),
+    ),
     author: {
       id: message.author.id,
       username: message.author.username,
@@ -314,6 +332,12 @@ export function parseRichMessageMetadata(
       attachments: Array.isArray(parsed.attachments) ? parsed.attachments : [],
       customEmojis: Array.isArray(parsed.customEmojis)
         ? parsed.customEmojis
+        : [],
+      mentionedRoles: Array.isArray(parsed.mentionedRoles)
+        ? parsed.mentionedRoles
+        : [],
+      mentionedUsers: Array.isArray(parsed.mentionedUsers)
+        ? parsed.mentionedUsers
         : [],
       author: parsed.author as RichMessageMetadata["author"],
       member: (parsed.member ?? null) as RichMessageMetadata["member"],
@@ -462,4 +486,45 @@ export function getDisplayContent(message: Message): string {
   }
 
   return "";
+}
+
+/**
+ * Renders Discord mention/emoji tokens in message content to readable names
+ * using the captured metadata (mentionedRoles / mentionedUsers / customEmojis).
+ *
+ * - `<@&id>`          → `@RoleName` (falls back to `@role`)
+ * - `<@id>` / `<@!id>` → `@Username` (falls back to `@user`)
+ * - `<:name:id>`      → `:name:`    (falls back to the literal name)
+ *
+ * Unresolvable tokens keep Discord's own name from the token, so no numeric
+ * snowflake ever reaches the reader. Content without "<" is returned untouched.
+ * Used by both the LLM prompt pipeline (conversationContext / moderationBuilders)
+ * and mirrored in the frontend (lib/format.ts renderMessageContent).
+ */
+export function renderDiscordMentions(
+  content: string,
+  metadata: string | null | undefined,
+): string {
+  if (!content || !content.includes("<")) return content;
+  const parsed = parseRichMessageMetadata(metadata);
+  const roleName = new Map(
+    (parsed?.mentionedRoles ?? []).map((r) => [r.id, r.name] as const),
+  );
+  const userName = new Map(
+    (parsed?.mentionedUsers ?? []).map((u) => [u.id, u.username] as const),
+  );
+  const emojiName = new Map(
+    (parsed?.customEmojis ?? []).map((e) => [e.id, e.name] as const),
+  );
+  return content.replace(
+    /<(?:a)?:([a-zA-Z0-9_]+):(\d{17,20})>|<@!?(\d{17,20})>|<@&(\d{17,20})>/g,
+    (_full, emojiTokenName, emojiId, userId, roleId) => {
+      if (emojiId !== undefined) {
+        return `:${emojiName.get(emojiId) ?? emojiTokenName}:`;
+      }
+      if (roleId !== undefined) return `@${roleName.get(roleId) ?? "role"}`;
+      if (userId !== undefined) return `@${userName.get(userId) ?? "user"}`;
+      return _full;
+    },
+  );
 }

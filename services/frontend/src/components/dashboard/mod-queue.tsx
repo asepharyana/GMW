@@ -2,6 +2,7 @@
 
 import { AlertCircle, Check, Trash2 } from "lucide-react";
 import { GlassCard } from "@/components/glass/card";
+import { renderMessageContent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export interface ModQueueItem {
@@ -10,6 +11,7 @@ export interface ModQueueItem {
   username: string;
   severity: "low" | "medium" | "high" | "critical";
   reason: string;
+  metadata?: string | null;
 }
 
 export function ModQueue({ items = [] }: { items?: ModQueueItem[] }) {
@@ -56,7 +58,7 @@ export function ModQueue({ items = [] }: { items?: ModQueueItem[] }) {
                 </span>
               </div>
               <p className="text-xs text-text-secondary line-clamp-1">
-                {item.content}
+                {renderMessageContent(item.content, item.metadata)}
               </p>
               <p className="text-[10px] text-text-secondary/50">
                 {item.reason}

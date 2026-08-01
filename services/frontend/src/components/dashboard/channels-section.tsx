@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useChannelDetail, useChannels } from "@/hooks";
+import { renderMessageContent } from "@/lib/format";
 import type { DashboardChannel } from "@/lib/types";
 
 export function ChannelsSection({ guildId }: { guildId?: string }) {
@@ -123,7 +124,7 @@ export function ChannelsSection({ guildId }: { guildId?: string }) {
                     className="rounded-lg border border-border/40 bg-card/40 px-3 py-2"
                   >
                     <p className="text-xs leading-relaxed text-text-secondary line-clamp-2">
-                      {msg.username}: {msg.content || "(no text content)"}
+                      {msg.username}: {renderMessageContent(msg.content, msg.metadata) || "(no text content)"}
                     </p>
                     <p className="mt-1 text-[10px] font-mono text-text-secondary/40">
                       {new Date(msg.created_at).toLocaleString()}

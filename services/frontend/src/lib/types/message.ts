@@ -43,6 +43,23 @@ export interface StickerInfo {
   url?: string | null;
 }
 
+export interface CustomEmojiInfo {
+  id: string;
+  name: string;
+  animated?: boolean;
+  url?: string | null;
+}
+
+export interface MentionedRoleInfo {
+  id: string;
+  name: string;
+}
+
+export interface MentionedUserInfo {
+  id: string;
+  username: string;
+}
+
 export interface AttachmentRef {
   name: string;
   url: string;
@@ -70,6 +87,9 @@ export interface MessageMetadata {
   stickers?: StickerInfo[] | null;
   attachments?: AttachmentRef[] | null;
   embeds?: EmbedInfo[] | null;
+  customEmojis?: CustomEmojiInfo[] | null;
+  mentionedRoles?: MentionedRoleInfo[] | null;
+  mentionedUsers?: MentionedUserInfo[] | null;
   channel?: ChannelRef | null;
   reference?: ReferenceInfo | null;
 }

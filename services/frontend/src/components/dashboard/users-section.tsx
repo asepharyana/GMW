@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useUserDetail, useUsers } from "@/hooks";
+import { renderMessageContent } from "@/lib/format";
 import type { DashboardUser } from "@/lib/types";
 
 export function UsersSection() {
@@ -134,7 +135,7 @@ export function UsersSection() {
                     className="rounded-lg border border-border/40 bg-card/40 px-3 py-2"
                   >
                     <p className="text-xs leading-relaxed text-text-secondary line-clamp-2">
-                      {msg.content || "(no text content)"}
+                      {renderMessageContent(msg.content, msg.metadata) || "(no text content)"}
                     </p>
                     <p className="mt-1 text-[10px] font-mono text-text-secondary/40">
                       {msg.channel_id?.slice(0, 8)} ·{" "}

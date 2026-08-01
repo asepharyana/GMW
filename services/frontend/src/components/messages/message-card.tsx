@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { safeParseJsonArray, getMessageChannelLabel } from "@/lib/format";
+import { safeParseJsonArray, getMessageChannelLabel, renderMessageContent } from "@/lib/format";
 import type { MessageRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { AiStatusBadge } from "./ai-status-badge";
@@ -96,7 +96,7 @@ export function MessageCard({
                   "italic text-muted-foreground line-through",
               )}
             >
-              {msg.content}
+              {renderMessageContent(msg.content, msg.metadata)}
             </p>
             {(() => {
               const u = extractFirstImage(msg.metadata);

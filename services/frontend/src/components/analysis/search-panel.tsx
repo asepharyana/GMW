@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useReanalyze } from "@/hooks";
 import { messagesApi } from "@/lib/api";
-import { safeParseJsonArray } from "@/lib/format";
+import { renderMessageContent, safeParseJsonArray } from "@/lib/format";
 import type { MessageRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -100,7 +100,7 @@ export function SearchPanel() {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm leading-relaxed">{msg.content}</p>
+                        <p className="text-sm leading-relaxed">{renderMessageContent(msg.content, msg.metadata)}</p>
                         {msg.ai_moderation_flags &&
                           msg.ai_moderation_flags !== "[]" && (
                             <div className="flex flex-wrap gap-1">

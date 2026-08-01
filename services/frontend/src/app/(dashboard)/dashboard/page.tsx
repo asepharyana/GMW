@@ -31,6 +31,7 @@ export default function DashboardPage() {
     id: msg.id,
     content: msg.content || msg.id,
     username: msg.username,
+    metadata: msg.metadata ?? null,
     severity:
       msg.ai_severity && msg.ai_severity !== "none"
         ? (msg.ai_severity as ModQueueItem["severity"])

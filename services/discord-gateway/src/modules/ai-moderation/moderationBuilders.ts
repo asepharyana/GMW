@@ -7,6 +7,7 @@
 
 import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
+import { renderDiscordMentions } from "../message-capture/messageMetadata.js";
 import { sanitizeDiscordTokens } from "./discordTokens.js";
 
 /** Simple XML-escaping for content text. */
@@ -30,7 +31,9 @@ export function getAnalysisContent(message: MessageRecord): string {
     /\[(?:Attachment|Sticker):[^\]]*\]|\[Embed\]/g,
     "",
   );
-  return sanitizeDiscordTokens(stripped).trim();
+  return sanitizeDiscordTokens(
+    renderDiscordMentions(stripped, message.metadata),
+  ).trim();
 }
 
 /**
