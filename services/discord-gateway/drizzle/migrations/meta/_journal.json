@@ -92,6 +92,13 @@
       "when": 1785500000000,
       "tag": "0012_add_embedding_to_text_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785551832190,
+      "tag": "0013_rename_mascot_chat_to_chatbot",
+      "breakpoints": true
     }
   ]
 }
