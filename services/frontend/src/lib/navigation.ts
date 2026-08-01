@@ -6,7 +6,6 @@ import {
   Mic,
   Music,
   Search,
-  Settings,
 } from "lucide-react";
 
 export interface NavItem {
@@ -56,12 +55,6 @@ export const navItems: NavItem[] = [
     label: "Search",
     icon: Search,
     matchPrefix: "/analysis",
-  },
-  {
-    href: "/settings",
-    label: "Settings",
-    icon: Settings,
-    matchPrefix: "/settings",
   },
 ];
 
