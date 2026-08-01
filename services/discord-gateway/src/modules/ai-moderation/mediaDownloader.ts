@@ -198,7 +198,7 @@ async function extractVideoFrames(
   try {
     await writeFile(inputPath, videoBytes);
     const { stdout: durationStr } = await execFileAsync(
-      "/usr/bin/ffprobe",
+      "ffprobe",
       [
         "-v",
         "error",
@@ -213,7 +213,7 @@ async function extractVideoFrames(
     const duration = parseFloat(durationStr.trim()) || 1;
     const fps = (3 / duration).toFixed(6);
     await execFileAsync(
-      "/usr/bin/ffmpeg",
+      "ffmpeg",
       [
         "-i",
         inputPath,

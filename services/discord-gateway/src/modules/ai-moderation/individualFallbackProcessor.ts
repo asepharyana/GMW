@@ -155,13 +155,16 @@ async function processIndividualFallback(
     }
 
     const resultSummary = analysisResult.results[0];
-    logModerationError([messageId], config.AI_LLM_MODEL, new Error("Success"), {
-      phase: "individual_fallback",
-      status: resultSummary?.status,
-      flags: resultSummary?.flags,
-      severity: resultSummary?.severity,
-      confidence: resultSummary?.confidence,
-    });
+    logger.info(
+      {
+        phase: "individual_fallback",
+        status: resultSummary?.status,
+        flags: resultSummary?.flags,
+        severity: resultSummary?.severity,
+        confidence: resultSummary?.confidence,
+      },
+      `Individual fallback moderation complete for ${messageId} (${resultSummary?.status})`,
+    );
 
     individualConsecutiveErrors = 0;
 

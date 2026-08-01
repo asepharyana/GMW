@@ -157,6 +157,22 @@ export function sanitizeErrorMessage(
   return `Analisis gagal dan memerlukan pemeriksaan manual. Error code: MOD_${Date.now().toString(36).slice(0, 6)}`;
 }
 
+/**
+ * Strip generic clean-verdict closing phrases the LLM sometimes appends
+ * ("Tidak ada indikasi pelanggaran.") even when it already described the
+ * message content specifically. Keeps the substance, drops the boilerplate.
+ * Only matches a TRAILING standalone phrase — never mid-analysis text.
+ */
+export const GENERIC_CLEAN_CLOSER =
+  /\s*(?:(?:tidak ada (?:indikasi|tanda|temuan)(?: adanya)? pelanggaran(?: kebijakan| aturan)?)|(?:tidak ada (?:indikasi|tanda|temuan)(?: konten| pesan)? (?:yang )?melanggar)|(?:pesan (?:dianggap|tergolong|dinilai) bersih)|(?:tidak ditemukan (?:adanya )?pelanggaran))\.?\s*$/i;
+
+export function sanitizeGenericCleanCloser(analysis: string): string {
+  if (!analysis) return analysis;
+  const cleaned = analysis.replace(GENERIC_CLEAN_CLOSER, "").trim();
+  // Drop a dangling separator the removal may have left behind.
+  return cleaned.replace(/(\s[.\-–—]\s*)$/, "").trim();
+}
+
 export function parseModerationResponse(
   content: string,
   targetIds: string[],
@@ -250,7 +266,7 @@ export function parseModerationResponse(
       status: status as "clean" | "warn" | "flagged",
       flags: flags ?? [],
       score: normalizedScore,
-      analysis: coalescedAnalysis,
+      analysis: sanitizeGenericCleanCloser(coalescedAnalysis),
       categories: categories ?? flags ?? [],
       severity: normalizedSeverity,
       confidence: normalizedConfidence,
