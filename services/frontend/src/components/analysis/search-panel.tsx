@@ -70,7 +70,7 @@ export function SearchPanel() {
                       <Avatar className="size-8 shrink-0 mt-0.5">
                         <AvatarImage src={msg.avatar_url ?? undefined} />
                         <AvatarFallback className="text-xs">
-                          {msg.username.charAt(0).toUpperCase()}
+                          {msg.username?.charAt(0).toUpperCase() ?? "?"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0 space-y-2">
@@ -79,7 +79,9 @@ export function SearchPanel() {
                             {msg.username}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(msg.created_at).toLocaleString()}
+                            {msg.created_at
+                              ? new Date(msg.created_at).toLocaleString()
+                              : ""}
                           </span>
                           {msg.ai_status && (
                             <Badge

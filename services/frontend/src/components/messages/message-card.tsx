@@ -6,7 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { safeParseJsonArray, getMessageChannelLabel, renderMessageContent } from "@/lib/format";
+import {
+  getMessageChannelLabel,
+  renderMessageContent,
+  safeParseJsonArray,
+} from "@/lib/format";
 import type { MessageRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { AiStatusBadge } from "./ai-status-badge";
@@ -43,14 +47,16 @@ export function MessageCard({
           <Avatar className="size-8 shrink-0 mt-0.5">
             <AvatarImage src={msg.avatar_url ?? undefined} />
             <AvatarFallback className="text-xs">
-              {msg.username.charAt(0).toUpperCase()}
+              {msg.username?.charAt(0).toUpperCase() ?? "?"}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium">{msg.username}</span>
               <span className="text-xs text-muted-foreground">
-                {new Date(msg.created_at).toLocaleString()}
+                {msg.created_at
+                  ? new Date(msg.created_at).toLocaleString()
+                  : ""}
               </span>
               <span
                 className="text-xs text-muted-foreground"
