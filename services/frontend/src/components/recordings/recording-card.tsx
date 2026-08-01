@@ -1,16 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Loader2, Play } from "lucide-react";
+import { Download, Loader2, Pause, Play } from "lucide-react";
 import { GlassCard } from "@/components/glass/card";
 import type { VoiceRecording } from "@/lib/types";
 
 interface RecordingCardProps {
   recording: VoiceRecording;
-  onPlay: (id: string) => void;
+  active: boolean;
+  playing: boolean;
+  loading: boolean;
+  onTogglePlay: (id: string) => void;
 }
 
-export function RecordingCard({ recording, onPlay }: RecordingCardProps) {
+const BAR_COUNT = 40;
+const barBase = (i: number) => 22 + Math.sin(i * 0.45) * 14 + ((i * 7) % 11);
+
+export function RecordingCard({
+  recording,
+  active,
+  playing,
+  loading,
+  onTogglePlay,
+}: RecordingCardProps) {
   const [downloading, setDownloading] = useState(false);
   const durationStr = recording.duration_bytes
     ? `${Math.floor(recording.duration_bytes / 60)}:${String(recording.duration_bytes % 60).padStart(2, "0")}`
@@ -42,50 +54,94 @@ export function RecordingCard({ recording, onPlay }: RecordingCardProps) {
   };
 
   return (
-    <GlassCard variant="interactive" className="p-4" onClick={() => onPlay(recording.id)}>
+    <GlassCard
+      variant="interactive"
+      className={`p-4 transition-all ${
+        active
+          ? "ring-1 ring-primary/40 border-primary/30 animate-card-glow"
+          : "hover:ring-1 hover:ring-border/60"
+      }`}
+      onClick={() => onTogglePlay(recording.id)}
+    >
       <div className="flex items-start gap-3">
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); onPlay(recording.id); }}
-          className="size-10 flex items-center justify-center rounded-full glass-elevated shrink-0 hover:scale-105 transition-transform"
+          onClick={(e) => {
+            e.stopPropagation();
+            onTogglePlay(recording.id);
+          }}
+          aria-label={playing ? "Pause" : loading ? "Loading" : "Play"}
+          className={`flex size-10 shrink-0 items-center justify-center rounded-full glass-elevated transition-transform hover:scale-105 ${
+            active ? "ring-1 ring-primary/50" : ""
+          }`}
         >
-          <Play className="size-4 text-primary ml-0.5" />
+          {loading ? (
+            <Loader2 className="size-4 animate-spin text-primary" />
+          ) : playing ? (
+            <Pause className="size-4 text-primary" />
+          ) : (
+            <Play className="size-4 text-primary ml-0.5" />
+          )}
         </button>
 
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-semibold text-text-primary">{recording.username}</span>
-            <span className="text-[10px] text-text-secondary/40 font-mono">{recording.channel_name}</span>
+            <span className="font-semibold text-text-primary">
+              {recording.username}
+            </span>
+            <span className="text-[10px] text-text-secondary/40 font-mono">
+              {recording.channel_name}
+            </span>
+            {active && (
+              <span className="ml-auto inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-widest text-primary/90">
+                {loading
+                  ? "Loading"
+                  : playing
+                    ? "Now Playing"
+                    : "Paused"}
+              </span>
+            )}
           </div>
 
-          {/* Mini waveform bar */}
-          <div className="flex items-end gap-0.5 h-8 my-2">
-            {Array.from({ length: 40 }, (_, i) => (
+          {/* Waveform — bounces while playing, pulses while loading */}
+          <div className="my-2 flex h-8 items-end gap-0.5 overflow-hidden">
+            {Array.from({ length: BAR_COUNT }, (_, i) => (
               <div
                 key={i}
-                className="flex-1 rounded-t-sm bg-primary/60"
-                style={{ height: `${20 + Math.sin(i * 0.5) * 15 + Math.random() * 10}%` }}
+                className={`flex-1 rounded-t-sm transition-colors ${
+                  active ? "bg-primary" : "bg-primary/50"
+                } ${loading ? "animate-pulse opacity-40" : ""} ${
+                  playing ? "animate-eq" : ""
+                }`}
+                style={{
+                  height: `${barBase(i)}%`,
+                  animationDelay: playing ? `${(i % 8) * 0.09}s` : undefined,
+                }}
               />
             ))}
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-text-secondary/60">{durationStr}</span>
-            <span className="text-[10px] text-text-secondary/40">{new Date(recording.created_at).toLocaleString()}</span>
+            <span className="text-[10px] font-mono text-text-secondary/60">
+              {durationStr}
+            </span>
+            <span className="text-[10px] text-text-secondary/40">
+              {new Date(recording.created_at).toLocaleString()}
+            </span>
           </div>
         </div>
 
-        <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
           {recording.download_url && (
             <button
               type="button"
               onClick={handleDownload}
               disabled={downloading}
               title="Download"
-              className="size-7 flex items-center justify-center rounded glass hover:glass-elevated transition-all disabled:opacity-50"
+              className="flex size-7 items-center justify-center rounded glass hover:glass-elevated transition-all disabled:opacity-50"
             >
               {downloading ? (
-                <Loader2 className="size-3 text-text-secondary/60 animate-spin" />
+                <Loader2 className="size-3 animate-spin text-text-secondary/60" />
               ) : (
                 <Download className="size-3 text-text-secondary/60" />
               )}

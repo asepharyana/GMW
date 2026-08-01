@@ -1,7 +1,7 @@
 "use client";
 
 import { Clock, Database, Mic, Users } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { SubNav } from "@/components/layout/sub-nav";
 import { RecordingCard } from "@/components/recordings/recording-card";
@@ -22,8 +22,11 @@ export default function RecordingsPage() {
     mutate: refetch,
   } = useRecordings();
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [tab, setTab] = useState<RecordingsTab>("library");
   const ws = useWebSocket();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Live-update the library when the gateway publishes voice_recording_uploaded
   useRecordingsWsSync(ws);
@@ -32,6 +35,17 @@ export default function RecordingsPage() {
     playingId && recordings
       ? recordings.find((r: VoiceRecording) => r.id === playingId)
       : null;
+
+  const togglePlay = (id: string) => {
+    if (playingId !== id) {
+      setPlayingId(id); // RecordingPlayer picks up the new url + autoplays
+    } else {
+      const audio = audioRef.current;
+      if (!audio) return;
+      if (audio.paused) audio.play().catch(() => {});
+      else audio.pause();
+    }
+  };
 
   const stats = useMemo(() => {
     const list = recordings ?? [];
@@ -80,7 +94,10 @@ export default function RecordingsPage() {
               <RecordingCard
                 key={rec.id}
                 recording={rec}
-                onPlay={(id) => setPlayingId(id === playingId ? null : id)}
+                active={playingId === rec.id}
+                playing={playingId === rec.id && isPlaying}
+                loading={playingId === rec.id && isLoadingAudio}
+                onTogglePlay={togglePlay}
               />
             ))}
             {(recordings ?? []).length === 0 && (
@@ -154,6 +171,14 @@ export default function RecordingsPage() {
       <RecordingPlayer
         url={currentTrack?.download_url ?? undefined}
         filename={currentTrack?.filename ?? undefined}
+        playing={isPlaying}
+        loading={isLoadingAudio}
+        audioRef={audioRef}
+        onToggle={() => togglePlay(playingId!)}
+        onStateChange={(s) => {
+          setIsPlaying(s.playing);
+          setIsLoadingAudio(s.loading);
+        }}
         onClose={() => setPlayingId(null)}
       />
     </div>

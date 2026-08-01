@@ -167,6 +167,38 @@
   animation: shimmer 1.5s infinite;
 }
 
+/* Equalizer bars — bouncing heights for the "now playing" waveform */
+@keyframes eq-bounce {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  30% {
+    transform: scaleY(1);
+  }
+  60% {
+    transform: scaleY(0.5);
+  }
+}
+.animate-eq {
+  animation: eq-bounce 0.9s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+/* Soft pulsing glow for the active/loading card */
+@keyframes card-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.62 0.17 215 / 0);
+  }
+  50% {
+    box-shadow: 0 0 22px 0 oklch(0.62 0.17 215 / 0.25);
+  }
+}
+.animate-card-glow {
+  animation: card-glow 1.8s ease-in-out infinite;
+}
+
 /* ── Utility classes ─────────────────────── */
 
 /* Gradient text */
