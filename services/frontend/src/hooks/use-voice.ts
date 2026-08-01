@@ -1,7 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useAction } from "@/hooks/use-action";
 import { voiceApi } from "@/lib/api";
+import { MicTransmitter } from "@/lib/audio/mic-transmit";
 import type { ActiveSpeaker, Channel, VoiceStatus } from "@/lib/types";
 import type { WsHook } from "@/lib/ws-hook";
 
@@ -65,10 +66,27 @@ export function useVoiceDisconnect() {
   return useAction(() => voiceApi.disconnect(), { onSuccess: invalidate });
 }
 
-export function useMicTransmit() {
-  return useAction((active: boolean) =>
-    voiceApi.sendCommand(
-      active ? "voice:transmit:start" : "voice:transmit:stop",
-    ),
-  );
+export function useMicTransmit(ws: {
+  sendBinary: (data: ArrayBufferLike) => void;
+}) {
+  const transmitterRef = useRef<MicTransmitter | null>(null);
+
+  const action = useAction(async (active: boolean) => {
+    if (active) {
+      const transmitter = new MicTransmitter((frame) => ws.sendBinary(frame));
+      transmitterRef.current = transmitter;
+      await transmitter.start();
+      await voiceApi.sendCommand("voice:transmit:start");
+    } else {
+      transmitterRef.current?.stop();
+      transmitterRef.current = null;
+      await voiceApi.sendCommand("voice:transmit:stop");
+    }
+  });
+
+  const setVolume = useCallback((volume: number) => {
+    transmitterRef.current?.setVolume(volume / 100);
+  }, []);
+
+  return { ...action, setVolume };
 }

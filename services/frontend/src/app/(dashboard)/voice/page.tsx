@@ -28,7 +28,7 @@ export default function VoicePage() {
   const { speakers, subscribe } = useSpeakers();
   const connectMut = useVoiceConnect();
   const disconnectMut = useVoiceDisconnect();
-  const micMut = useMicTransmit();
+  const micMut = useMicTransmit(ws);
   const [selectedChannel, setSelectedChannel] = useState("");
   const [micActive, setMicActive] = useState(false);
   const [volume, setVolume] = useState(75);
@@ -41,12 +41,29 @@ export default function VoicePage() {
 
   const handleMicToggle = useCallback(
     async (checked: boolean) => {
-      setMicActive(checked);
-      try {
-        await micMut.mutateAsync(checked);
-      } catch {
-        setMicActive(!checked);
+      if (checked) {
+        try {
+          await micMut.mutateAsync(true);
+          setMicActive(true);
+        } catch {
+          setMicActive(false);
+        }
+      } else {
+        setMicActive(false);
+        try {
+          await micMut.mutateAsync(false);
+        } catch {
+          // Stop already tore down the local transmitter — ignore remote errors
+        }
       }
+    },
+    [micMut],
+  );
+
+  const handleVolumeChange = useCallback(
+    (v: number) => {
+      setVolume(v);
+      micMut.setVolume(v);
     },
     [micMut],
   );
@@ -89,7 +106,13 @@ export default function VoicePage() {
             channelId: selectedChannel,
           })
         }
-        onDisconnect={() => disconnectMut.mutate(undefined)}
+        onDisconnect={() => {
+          if (micActive) {
+            setMicActive(false);
+            void micMut.mutateAsync(false).catch(() => {});
+          }
+          disconnectMut.mutate(undefined);
+        }}
         connecting={connectMut.isPending}
       />
 
@@ -101,7 +124,7 @@ export default function VoicePage() {
             active={micActive}
             onToggle={handleMicToggle}
             volume={volume}
-            onVolumeChange={setVolume}
+            onVolumeChange={handleVolumeChange}
           />
         </div>
       )}
