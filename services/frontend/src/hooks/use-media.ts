@@ -24,7 +24,10 @@ function useMediaAction<TArgs>(fn: (args: TArgs) => Promise<MediaState>) {
 }
 
 export function useMediaQueue() {
-  return useMediaAction((url: string) => mediaApi.queue(url, "music"));
+  return useMediaAction(
+    (input: { url: string; mode?: "music" | "screen" }) =>
+      mediaApi.queue(input.url, input.mode ?? "music"),
+  );
 }
 
 export function useMediaSkip() {

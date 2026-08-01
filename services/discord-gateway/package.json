@@ -28,12 +28,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@dank074/discord-video-stream": "6.0.0",
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.2",
     "@snazzah/davey": "^0.1.11",
     "axios": "^1.16.1",
     "discord.js-selfbot-v13": "^3.7.1",
-    "@dank074/discord-video-stream": "latest",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "imghash": "^1.1.4",

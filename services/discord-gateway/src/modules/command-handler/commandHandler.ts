@@ -82,7 +82,7 @@ export class CommandHandler {
 
     // Create domain-specific handlers with their dependencies
     this.voiceHandler = new VoiceHandler(client, voiceController);
-    this.mediaHandler = new MediaHandler();
+    this.mediaHandler = new MediaHandler(client, () => voiceController.getStatus());
     this.guildHandler = new GuildHandler(client);
     this.moderationHandler = new ModerationHandler(client);
 

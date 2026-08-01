@@ -29,15 +29,19 @@ export function MusicPlayer({ ws }: MusicPlayerProps) {
   const stopMut = useMediaStop();
   const volumeMut = useMediaVolume();
   const [queueUrl, setQueueUrl] = useState("");
+  const [screenMode, setScreenMode] = useState(false);
 
   // Sync WS media_state into the query cache
   useMediaWsSync(ws);
 
   const handleQueue = useCallback(() => {
     if (!queueUrl.trim()) return;
-    queueMut.mutate(queueUrl.trim());
+    queueMut.mutate({
+      url: queueUrl.trim(),
+      mode: screenMode ? "screen" : "music",
+    });
     setQueueUrl("");
-  }, [queueUrl, queueMut]);
+  }, [queueUrl, queueMut, screenMode]);
 
   const handleVolume = useCallback(
     (value: number | readonly number[]) => {
@@ -65,6 +69,15 @@ export function MusicPlayer({ ws }: MusicPlayerProps) {
             className="flex-1 h-9"
           />
           <Button
+            variant={screenMode ? "default" : "secondary"}
+            size="sm"
+            onClick={() => setScreenMode((v) => !v)}
+            title="Queue as Discord GoLive screenshare instead of audio playback"
+            className="h-9"
+          >
+            Screen
+          </Button>
+          <Button
             onClick={handleQueue}
             disabled={!queueUrl.trim() || queueMut.isPending}
           >
@@ -72,6 +85,14 @@ export function MusicPlayer({ ws }: MusicPlayerProps) {
             Queue
           </Button>
         </div>
+
+        {mediaState?.activeMode && (
+          <p className="text-[10px] font-mono text-primary/80 uppercase tracking-wider">
+            {mediaState.activeMode === "screen"
+              ? "Screen share active"
+              : "Music playing"}
+          </p>
+        )}
 
         {mediaState?.current ? (
           <div className="rounded-lg bg-gradient-to-br from-primary/5 to-primary/[0.02] border border-primary/10 p-4 space-y-2">

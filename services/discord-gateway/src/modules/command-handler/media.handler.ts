@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Client } from "discord.js-selfbot-v13";
 import type { CommandMessage, CommandReply } from "../../shared/index.js";
 import { createChildLogger } from "../../shared/logger/index.js";
 import { StreamType } from "@discordjs/voice";
@@ -11,6 +12,10 @@ import type {
   MediaQueueItem,
 } from "../voice-recording/mediaTypes.js";
 import { discordPlayer } from "../voice-recording/player.js";
+import {
+  ScreenShareController,
+  type ScreenShareVoiceStatus,
+} from "../voice-recording/screenShareController.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,6 +32,7 @@ interface MediaStatusItem {
 
 export interface MediaStatusPayload {
   playing: boolean;
+  activeMode: MediaMode | null;
   musicVolume: number;
   current: MediaStatusItem | null;
   queue: MediaStatusItem[];
@@ -58,6 +64,7 @@ function buildStatusPayload(): MediaStatusPayload {
   return {
     playing:
       currentTrackItem !== null && discordPlayer.getStatus() === "playing",
+    activeMode: currentTrackItem?.mode ?? null,
     musicVolume: discordPlayer.getMusicVolume(),
     current: currentTrackItem ? mapToStatusItem(currentTrackItem) : null,
     queue: mediaQueue.map(mapToStatusItem),
@@ -70,8 +77,17 @@ function buildStatusPayload(): MediaStatusPayload {
 
 export class MediaHandler {
   private logger = createChildLogger("media-handler");
+  private screenController: ScreenShareController | null = null;
+  private screenPlayback: { stop(): void } | null = null;
 
-  constructor() {
+  constructor(
+    private readonly client: Client | null = null,
+    private readonly getVoiceStatus: () => ScreenShareVoiceStatus = () => ({
+      connected: false,
+      activeGuildId: null,
+      activeChannelId: null,
+    }),
+  ) {
     // Register auto-advance on natural track end
     discordPlayer.onIdle(() => {
       this.advanceQueue().catch((err) => {
@@ -107,6 +123,50 @@ export class MediaHandler {
         data: null,
         error: "Not connected to a voice channel. Connect to voice first.",
       };
+    }
+
+    // Screen share (GoLive) path — bypasses the audio queue entirely.
+    if (mode === "screen") {
+      try {
+        if (!this.client) {
+          return {
+            id: cmd.id,
+            success: false,
+            data: null,
+            error: "Gateway client not initialized",
+          };
+        }
+        if (!this.screenController) {
+          this.screenController = new ScreenShareController(
+            this.client,
+            this.getVoiceStatus,
+          );
+        }
+        const playback = await this.screenController.start(url);
+        this.screenPlayback = playback;
+        currentTrackItem = {
+          id: randomUUID(),
+          source: url,
+          title: url,
+          kind: "url",
+          mode: "screen",
+          requestedBy,
+          addedAt: Date.now(),
+          status: "playing",
+        };
+        playback.done.finally(() => {
+          this.screenPlayback = null;
+          if (currentTrackItem?.mode === "screen") {
+            currentTrackItem = null;
+          }
+        });
+        this.logger.info({ url }, "Screen share started");
+        return { id: cmd.id, success: true, data: buildStatusPayload() };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error({ error: message }, "Screen share failed to start");
+        return { id: cmd.id, success: false, data: null, error: message };
+      }
     }
 
     // Lightweight metadata fetch for display — the full resolve happens in playNext
@@ -174,6 +234,12 @@ export class MediaHandler {
   }
 
   async handleMediaStop(cmd: CommandMessage): Promise<CommandReply<unknown>> {
+    // Stop screen share if active — playback.done.finally clears the item.
+    this.screenPlayback?.stop();
+    this.screenPlayback = null;
+    if (currentTrackItem?.mode === "screen") {
+      currentTrackItem = null;
+    }
     discordPlayer.stop("music");
     currentTrackItem = null;
     mediaQueue.length = 0; // Clear entire queue

@@ -283,6 +283,87 @@ export function resolveMediaUrl(
 }
 
 /**
+ * Resolve a media URL to a directly playable video URL (for screen share /
+ * GoLive streaming). Uses yt-dlp `--get-url` with bestvideo+bestaudio.
+ *
+ * @throws If yt-dlp is not installed or the process exits with a non-zero code.
+ */
+export function getDirectVideoUrl(url: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const args = [
+      url,
+      "--get-url",
+      "--format",
+      "bestvideo[protocol^=http]+bestaudio[protocol^=http]/best[protocol^=http]/best",
+      "--no-playlist",
+      "--no-warnings",
+      "--quiet",
+    ];
+
+    logger.info({ url }, "Spawning yt-dlp for direct video URL");
+
+    const proc = spawn("yt-dlp", args, {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    activeProcesses.add(proc);
+
+    let stdoutBuf = "";
+    let stderrBuf = "";
+    const MAX_STDERR = 4096;
+    const MAX_STDOUT = 1_048_576;
+
+    if (proc.stdout) {
+      proc.stdout.on("data", (chunk: Buffer) => {
+        if (stdoutBuf.length < MAX_STDOUT) {
+          stdoutBuf += chunk
+            .toString("utf8")
+            .slice(0, MAX_STDOUT - stdoutBuf.length);
+        }
+      });
+    }
+
+    if (proc.stderr) {
+      proc.stderr.on("data", (chunk: Buffer) => {
+        if (stderrBuf.length < MAX_STDERR) {
+          stderrBuf += chunk
+            .toString("utf8")
+            .slice(0, MAX_STDERR - stderrBuf.length);
+        }
+      });
+    }
+
+    proc.on("error", (err: NodeJS.ErrnoException) => {
+      activeProcesses.delete(proc);
+      if (err.code === "ENOENT") {
+        reject(buildNotInstalledError());
+      } else {
+        reject(new Error(`yt-dlp failed to start: ${err.message}`));
+      }
+    });
+
+    proc.on("close", (code) => {
+      activeProcesses.delete(proc);
+
+      if (code !== 0) {
+        const detail = stderrBuf.trim() ? `: ${stderrBuf.trim()}` : "";
+        reject(
+          new Error(`yt-dlp direct URL resolution exited with code ${code}${detail}`),
+        );
+        return;
+      }
+
+      const firstLine = stdoutBuf.trim().split("\n")[0];
+      if (!firstLine) {
+        reject(new Error("yt-dlp returned no direct video URL"));
+        return;
+      }
+      resolve(firstLine);
+    });
+  });
+}
+
+/**
  * Extract metadata (title, duration, thumbnail) from a media URL
  * without downloading the audio stream.
  *
