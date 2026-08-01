@@ -136,7 +136,9 @@ export function useMessageDetail(id: string | null) {
       // can race the detail load and see detail.data === undefined.
       const cid = detail.data?.channel_id;
       if (!cid) return [];
-      const res = await messagesApi.getAttachments(cid, 10);
+      // messageId filter: attachment list must show only this message's
+      // images, not the latest images from everyone in the channel.
+      const res = await messagesApi.getAttachments(cid, 10, undefined, id ?? "");
       return res.data;
     },
   );

@@ -8,6 +8,8 @@ export const messageQuerySchema = z.object({
   limit: z.coerce.number().int().positive().default(50),
   offset: z.coerce.number().int().nonnegative().default(0),
   cursor: z.string().optional(),
+  // Filter attachments to a single message (used by the message detail view)
+  messageId: z.string().optional(),
 });
 
 export const messageCreateSchema = z.object({

@@ -385,6 +385,12 @@ export class MessagesRepository {
     const limit = query.limit ?? 50;
     const conditions: SQL[] = [eq(pgAttachmentsTable.channel_id, channelId)];
 
+    // Detail view: narrow to the selected message so we don't show
+    // everyone else's images from the same channel.
+    if (query.messageId) {
+      conditions.push(eq(pgAttachmentsTable.message_id, query.messageId));
+    }
+
     if (query.cursor) {
       conditions.push(lt(pgAttachmentsTable.created_at, Number(query.cursor)));
     }

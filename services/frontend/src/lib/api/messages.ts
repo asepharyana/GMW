@@ -40,10 +40,16 @@ export const messagesApi = {
     );
   },
 
-  getAttachments: (channelId: string, limit?: number, cursor?: string) => {
+  getAttachments: (
+    channelId: string,
+    limit?: number,
+    cursor?: string,
+    messageId?: string,
+  ) => {
     const params = new URLSearchParams();
     if (limit) params.set("limit", String(limit));
     if (cursor) params.set("cursor", cursor);
+    if (messageId) params.set("messageId", messageId);
     const qs = params.toString();
     return api.get<{ data: AttachmentRecord[]; nextCursor: string | null }>(
       `/api/messages/${channelId}/attachments${qs ? `?${qs}` : ""}`,
