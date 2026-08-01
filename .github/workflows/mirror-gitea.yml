@@ -1,0 +1,26 @@
+name: Mirror to Gitea
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Mirror to Gitea
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          git remote add gitea "https://oauth2:${GITEA_TOKEN}@git.imrnes.team/MythEclipse/GMW.git"
+          git push --mirror gitea
+          echo "✅ Mirrored to Gitea (MythEclipse/GMW)"

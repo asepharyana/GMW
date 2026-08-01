@@ -1,0 +1,76 @@
+name: Build & Deploy (Nix)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: gmw-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  VPS_HOST: ${{ secrets.VPS_HOST }}
+  VPS_USER: ${{ secrets.VPS_USER }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, discord-gateway, proxy]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          determinate: false
+          extra-conf: |
+            sandbox = false
+            accept-flake-config = true
+
+      - name: Cache Nix
+        uses: DeterminateSystems/magic-nix-cache-action@v14
+
+      - name: Build ${{ matrix.service }}
+        id: build
+        run: |
+          nix build .#${{ matrix.service }} --impure --option sandbox false --print-build-logs
+          STORE_PATH=$(readlink result)
+          echo "store-path=$STORE_PATH" >> "$GITHUB_OUTPUT"
+          echo "Build OK ${{ matrix.service }}: $STORE_PATH"
+
+      - name: Setup SSH key
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          sed -i 's/\r$//' ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1 || { echo "SSH key invalid"; exit 1; }
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      # NOTE: env files /etc/gmw/backend.env & /etc/gmw/discord-gateway.env are
+      # managed MANUALLY on the VPS (source of truth). CI only builds & deploys.
+      - name: Deploy ${{ matrix.service }} to VPS
+        run: |
+          STORE_PATH="${{ steps.build.outputs.store-path }}"
+          echo "=== Copying ${{ matrix.service }}: $STORE_PATH ==="
+          nix copy --to "ssh://$VPS_USER@$VPS_HOST" "$STORE_PATH"
+
+          echo "=== Updating profile ==="
+          ssh "$VPS_USER@$VPS_HOST" "sudo /nix/var/nix/profiles/default/bin/nix-env --profile /nix/var/nix/profiles/gmw-${{ matrix.service }} --set '$STORE_PATH'"
+
+          echo "=== Restarting service ==="
+          ssh "$VPS_USER@$VPS_HOST" "sudo systemctl daemon-reload && sudo systemctl restart gmw-${{ matrix.service }} && sleep 3 && sudo systemctl is-active gmw-${{ matrix.service }}"
+          echo "✅ gmw-${{ matrix.service }} deployed"
