@@ -42,7 +42,8 @@ jobs:
         working-directory: services/backend
         run: |
           ./node_modules/.bin/tsc --noEmit
-          ./node_modules/.bin/vitest run
+          # e2e.test.ts requires a live backend (API_BASE) — run unit tests only
+          ./node_modules/.bin/vitest run --exclude "src/e2e.test.ts"
 
       - name: Install deps (discord-gateway)
         working-directory: services/discord-gateway
