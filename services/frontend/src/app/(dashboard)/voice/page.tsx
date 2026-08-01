@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { VoiceConnectionCard } from "@/components/voice/connection-card";
-import { SpeakerWaveform } from "@/components/voice/speaker-waveform";
-import { MicControl } from "@/components/voice/mic-control";
-import { VoiceActivityTimeline } from "@/components/voice/activity-timeline";
 import { SubNav } from "@/components/layout/sub-nav";
-import { useWebSocket } from "@/lib/ws/context";
+import { VoiceActivityTimeline } from "@/components/voice/activity-timeline";
+import { VoiceConnectionCard } from "@/components/voice/connection-card";
+import { MicControl } from "@/components/voice/mic-control";
+import { SpeakerWaveform } from "@/components/voice/speaker-waveform";
 import {
   useGuilds,
   useMicTransmit,
@@ -16,6 +15,7 @@ import {
   useVoiceDisconnect,
   useVoiceStatus,
 } from "@/hooks";
+import { useWebSocket } from "@/lib/ws/context";
 
 type VoiceTab = "connection" | "activity";
 
@@ -83,7 +83,12 @@ export default function VoicePage() {
         selectedChannel={selectedChannel}
         onGuildChange={handleGuildChange}
         onChannelChange={(v) => setSelectedChannel(v ?? "")}
-        onConnect={() => connectMut.mutate({ guildId: selectedGuild, channelId: selectedChannel })}
+        onConnect={() =>
+          connectMut.mutate({
+            guildId: selectedGuild,
+            channelId: selectedChannel,
+          })
+        }
         onDisconnect={() => disconnectMut.mutate(undefined)}
         connecting={connectMut.isPending}
       />

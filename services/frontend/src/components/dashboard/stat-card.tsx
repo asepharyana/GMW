@@ -1,9 +1,9 @@
 "use client";
 
-import { type LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { GlassCard } from "@/components/glass/card";
 import { cn } from "@/lib/utils";
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
 
 interface StatCardProps {
   label: string;
@@ -43,7 +43,10 @@ export function StatCard({
           <Icon className="size-4" />
         </div>
       </div>
-      <div className="text-2xl font-mono font-semibold tracking-tight" style={{ color: accentColor }}>
+      <div
+        className="text-2xl font-mono font-semibold tracking-tight"
+        style={{ color: accentColor }}
+      >
         {formatter(numValue)}
       </div>
       <div className="text-[11px] text-text-secondary font-medium mt-0.5 tracking-wide uppercase">
@@ -56,7 +59,13 @@ export function StatCard({
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={sparklineData}>
               <defs>
-                <linearGradient id={`spark-grad-${label}`} x1="0" y1="0" x2="0" y2="1">
+                <linearGradient
+                  id={`spark-grad-${label}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
                   <stop offset="0%" stopColor={accentColor} stopOpacity={0.5} />
                   <stop offset="100%" stopColor={accentColor} stopOpacity={0} />
                 </linearGradient>

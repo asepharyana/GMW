@@ -1,0 +1,7 @@
+allowBuilds:
+  sharp: set this to true or false
+# pnpm 11 requires build-script approvals here (the legacy `pnpm` field in
+# package.json is ignored). Only packages that genuinely need a postinstall
+# build are listed; everything else installs with scripts skipped.
+onlyBuiltDependencies:
+  - sharp

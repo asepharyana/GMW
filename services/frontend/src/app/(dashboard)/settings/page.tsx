@@ -7,8 +7,8 @@ import { GlassDivider } from "@/components/glass/divider";
 import { SubNav } from "@/components/layout/sub-nav";
 import { LoadingSkeleton } from "@/components/shared";
 import { useConfig } from "@/hooks";
-import { useWebSocket } from "@/lib/ws/context";
 import { cn } from "@/lib/utils";
+import { useWebSocket } from "@/lib/ws/context";
 
 type SettingsTab = "connection" | "appearance" | "config" | "about";
 
@@ -32,7 +32,8 @@ export default function SettingsPage() {
   };
 
   const statusDot = {
-    connected: "bg-emerald-500 shadow-[0_0_8px] shadow-emerald-500/60 animate-pulse",
+    connected:
+      "bg-emerald-500 shadow-[0_0_8px] shadow-emerald-500/60 animate-pulse",
     connecting: "bg-accent-amber animate-pulse",
     disconnected: "bg-destructive",
     error: "bg-destructive",
@@ -49,9 +50,21 @@ export default function SettingsPage() {
     <div className="space-y-4 animate-fade-in-up max-w-2xl">
       <SubNav
         tabs={[
-          { id: "connection", label: "Connection", icon: <Wifi className="size-3" /> },
-          { id: "appearance", label: "Appearance", icon: <Sun className="size-3" /> },
-          { id: "config", label: "Config", icon: <Server className="size-3" /> },
+          {
+            id: "connection",
+            label: "Connection",
+            icon: <Wifi className="size-3" />,
+          },
+          {
+            id: "appearance",
+            label: "Appearance",
+            icon: <Sun className="size-3" />,
+          },
+          {
+            id: "config",
+            label: "Config",
+            icon: <Server className="size-3" />,
+          },
           { id: "about", label: "About", icon: <Shield className="size-3" /> },
         ]}
         activeTab={tab}
@@ -62,11 +75,15 @@ export default function SettingsPage() {
         <GlassCard variant="base">
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-sm font-semibold text-text-primary">WebSocket</span>
+              <span className="text-sm font-semibold text-text-primary">
+                WebSocket
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className={cn("size-2 rounded-full", statusDot)} />
-              <span className="text-xs font-mono text-text-secondary">{statusLabel}</span>
+              <span className="text-xs font-mono text-text-secondary">
+                {statusLabel}
+              </span>
             </div>
           </div>
         </GlassCard>
@@ -76,8 +93,14 @@ export default function SettingsPage() {
         <GlassCard variant="base">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {theme === "dark" ? <Moon className="size-4 text-primary" /> : <Sun className="size-4 text-primary" />}
-              <span className="text-sm font-semibold text-text-primary">Theme</span>
+              {theme === "dark" ? (
+                <Moon className="size-4 text-primary" />
+              ) : (
+                <Sun className="size-4 text-primary" />
+              )}
+              <span className="text-sm font-semibold text-text-primary">
+                Theme
+              </span>
             </div>
             <button
               type="button"
@@ -97,18 +120,37 @@ export default function SettingsPage() {
               <LoadingSkeleton count={6} height="h-6" />
             ) : config ? (
               <>
-                <ConfigRow label="Monitor Guild" value={config.monitorGuildId || "Not configured"} />
+                <ConfigRow
+                  label="Monitor Guild"
+                  value={config.monitorGuildId || "Not configured"}
+                />
                 <GlassDivider />
-                <ConfigRow label="Voice Guild" value={config.voiceGuildId || "Not configured"} />
+                <ConfigRow
+                  label="Voice Guild"
+                  value={config.voiceGuildId || "Not configured"}
+                />
                 <GlassDivider />
-                <ConfigRow label="Voice Channel" value={config.voiceChannelId || "Not configured"} />
+                <ConfigRow
+                  label="Voice Channel"
+                  value={config.voiceChannelId || "Not configured"}
+                />
                 <GlassDivider />
-                <ConfigRow label="AI Analysis" value={config.aiAnalysisEnabled ? "Enabled" : "Disabled"} />
+                <ConfigRow
+                  label="AI Analysis"
+                  value={config.aiAnalysisEnabled ? "Enabled" : "Disabled"}
+                />
                 <GlassDivider />
-                <ConfigRow label="Auto-Delete Flagged" value={config.autoDeleteFlaggedEnabled ? "Enabled" : "Disabled"} />
+                <ConfigRow
+                  label="Auto-Delete Flagged"
+                  value={
+                    config.autoDeleteFlaggedEnabled ? "Enabled" : "Disabled"
+                  }
+                />
               </>
             ) : (
-              <p className="text-xs text-text-secondary/60">Unable to load config.</p>
+              <p className="text-xs text-text-secondary/60">
+                Unable to load config.
+              </p>
             )}
           </div>
         </GlassCard>
@@ -117,9 +159,12 @@ export default function SettingsPage() {
       {tab === "about" && (
         <GlassCard variant="base">
           <div className="space-y-2">
-            <h2 className="text-base font-bold text-primary">Discord Automod</h2>
+            <h2 className="text-base font-bold text-primary">
+              Discord Automod
+            </h2>
             <p className="text-xs text-text-secondary/80 leading-relaxed">
-              AI-powered message moderation, voice recording, and real-time monitoring for Discord communities.
+              AI-powered message moderation, voice recording, and real-time
+              monitoring for Discord communities.
             </p>
             <div className="text-[10px] font-mono text-text-secondary/40 mt-4">
               v0.1.0
@@ -135,7 +180,9 @@ function ConfigRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between py-0.5">
       <span className="text-xs text-text-secondary">{label}</span>
-      <span className="text-[11px] font-mono text-text-primary/80 max-w-[240px] truncate text-right">{value}</span>
+      <span className="text-[11px] font-mono text-text-primary/80 max-w-[240px] truncate text-right">
+        {value}
+      </span>
     </div>
   );
 }

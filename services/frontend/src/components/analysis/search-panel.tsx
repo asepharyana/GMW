@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Search, Sparkles } from "lucide-react";
 import { useCallback, useState } from "react";
 
@@ -11,8 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { useReanalyze } from "@/hooks";
-import { messagesApi } from "@/lib/api";
+import { useMessageSearch, useReanalyze } from "@/hooks";
 import { renderMessageContent, safeParseJsonArray } from "@/lib/format";
 import type { MessageRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -22,14 +20,10 @@ export function SearchPanel() {
   const [enabled, setEnabled] = useState(false);
   const reanalyzeMut = useReanalyze();
 
-  const { data: results, isFetching } = useQuery<MessageRecord[]>({
-    queryKey: ["analysis-search", query],
-    queryFn: async () => {
-      const result = await messagesApi.search(query, 50);
-      return result.results;
-    },
+  const { data: results, isValidating: isFetching } = useMessageSearch(
+    query,
     enabled,
-  });
+  );
 
   const handleSearch = useCallback(() => {
     if (!query.trim()) return;
@@ -100,7 +94,9 @@ export function SearchPanel() {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm leading-relaxed">{renderMessageContent(msg.content, msg.metadata)}</p>
+                        <p className="text-sm leading-relaxed">
+                          {renderMessageContent(msg.content, msg.metadata)}
+                        </p>
                         {msg.ai_moderation_flags &&
                           msg.ai_moderation_flags !== "[]" && (
                             <div className="flex flex-wrap gap-1">

@@ -24,7 +24,7 @@ type DashboardTab = "stats" | "live" | "users" | "channels";
 
 export default function DashboardPage() {
   const [tab, setTab] = useState<DashboardTab>("stats");
-  const { data: stats, isLoading, error, refetch } = useStats();
+  const { data: stats, isLoading, error, mutate: refetch } = useStats();
   const { data: review = [] } = useReview();
 
   const modQueueItems: ModQueueItem[] = review.slice(0, 10).map((msg) => ({

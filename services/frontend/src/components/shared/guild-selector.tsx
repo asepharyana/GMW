@@ -33,7 +33,7 @@ export function GuildSelector({
   onChange,
   autoHide = true,
 }: GuildSelectorProps) {
-  const { data: guilds = [], isLoading, error, refetch } = useGuilds();
+  const { data: guilds = [], isLoading, error, mutate: refetch } = useGuilds();
   const { data: config } = useConfig();
 
   const initDone = useRef(false);

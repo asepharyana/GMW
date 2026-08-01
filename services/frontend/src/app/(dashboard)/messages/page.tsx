@@ -1,17 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
 import { Flag, Image, Loader2, RefreshCw, Search } from "lucide-react";
-import { MessageList } from "@/components/messages/message-list";
-import { MessageDetailView } from "@/components/messages/message-detail-view";
-import { SearchOverlay } from "@/components/messages/search-overlay";
-import { extractFirstImage } from "@/components/messages/message-card";
-import { renderMessageContent } from "@/lib/format";
-import { SubNav } from "@/components/layout/sub-nav";
-import { ErrorState, LoadingSkeleton } from "@/components/shared";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/glass/card";
 import { GlassPanel } from "@/components/glass/panel";
+import { SubNav } from "@/components/layout/sub-nav";
+import { extractFirstImage } from "@/components/messages/message-card";
+import { MessageDetailView } from "@/components/messages/message-detail-view";
+import { MessageList } from "@/components/messages/message-list";
+import { SearchOverlay } from "@/components/messages/search-overlay";
+import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/shared";
+import { GuildSelector } from "@/components/shared/guild-selector";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -32,10 +32,10 @@ import {
   useReview,
   useTextChannels,
 } from "@/hooks";
+import { renderMessageContent } from "@/lib/format";
 import type { MessageRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
-import { GuildSelector } from "@/components/shared/guild-selector";
 
 type MessagesTab = "all" | "images" | "review";
 
@@ -185,10 +185,7 @@ export default function MessagesPage() {
         <div className="flex gap-4">
           {/* Left pane */}
           <div
-            className={cn(
-              "space-y-2",
-              detailId ? "w-1/2 lg:w-2/5" : "w-full",
-            )}
+            className={cn("space-y-2", detailId ? "w-1/2 lg:w-2/5" : "w-full")}
           >
             {tab === "all" && (
               <MessageList
@@ -205,10 +202,7 @@ export default function MessagesPage() {
               <ImageGrid items={images ?? []} onSelect={setDetailId} />
             )}
             {tab === "review" && (
-              <ReviewList
-                items={reviews ?? []}
-                onSelect={setDetailId}
-              />
+              <ReviewList items={reviews ?? []} onSelect={setDetailId} />
             )}
           </div>
 
@@ -216,7 +210,10 @@ export default function MessagesPage() {
           {detailId && (
             <div className="sticky top-16 hidden w-1/2 self-start md:block lg:w-3/5">
               {detailLoading ? (
-                <GlassPanel dense className="flex items-center justify-center py-12">
+                <GlassPanel
+                  dense
+                  className="flex items-center justify-center py-12"
+                >
                   <Loader2 className="size-5 animate-spin text-text-secondary/60" />
                 </GlassPanel>
               ) : detailMessage ? (
@@ -288,9 +285,12 @@ function ImageGrid({
         );
       })}
       {items.length === 0 && (
-        <div className="col-span-3 py-12 text-center text-xs text-text-secondary/40">
-          No images
-        </div>
+        <EmptyState
+          icon={Image}
+          title="No images"
+          description="Messages with image attachments will show up here."
+          className="col-span-3"
+        />
       )}
     </div>
   );
@@ -325,9 +325,11 @@ function ReviewList({
         </GlassCard>
       ))}
       {items.length === 0 && (
-        <div className="py-12 text-center text-xs text-text-secondary/40">
-          No flagged messages
-        </div>
+        <EmptyState
+          icon={Flag}
+          title="No flagged messages"
+          description="Messages flagged by AI moderation will appear here for review."
+        />
       )}
     </div>
   );

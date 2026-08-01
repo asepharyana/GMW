@@ -19,6 +19,7 @@ export {
   useImages,
   useLoadMore,
   useMessageDetail,
+  useMessageSearch,
   useMessages,
   useMessagesHasMore,
   useMessagesWsSync,

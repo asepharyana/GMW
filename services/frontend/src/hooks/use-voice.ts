@@ -1,24 +1,22 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-
+import useSWR, { useSWRConfig } from "swr";
+import { useAction } from "@/hooks/use-action";
 import { voiceApi } from "@/lib/api";
 import type { ActiveSpeaker, Channel, VoiceStatus } from "@/lib/types";
 import type { WsHook } from "@/lib/ws-hook";
 
+const STATUS_KEY = ["voice-status"] as const;
+
 export function useVoiceStatus() {
-  return useQuery<VoiceStatus>({
-    queryKey: ["voice-status"],
-    queryFn: () => voiceApi.getStatus(),
-    retry: false,
+  return useSWR<VoiceStatus>(STATUS_KEY, () => voiceApi.getStatus(), {
+    shouldRetryOnError: false,
   });
 }
 
 export function useVoiceChannels(guildId: string) {
-  return useQuery<Channel[]>({
-    queryKey: ["voice-channels", guildId],
-    queryFn: () => voiceApi.getVoiceChannels(guildId),
-    enabled: !!guildId,
-  });
+  return useSWR<Channel[]>(guildId ? ["voice-channels", guildId] : null, () =>
+    voiceApi.getVoiceChannels(guildId),
+  );
 }
 
 export function useSpeakers() {
@@ -46,33 +44,31 @@ export function useSpeakers() {
   return { speakers, subscribe };
 }
 
+function useStatusInvalidator() {
+  const { mutate } = useSWRConfig();
+  return () => {
+    void mutate(STATUS_KEY);
+  };
+}
+
 export function useVoiceConnect() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      guildId,
-      channelId,
-    }: {
-      guildId: string;
-      channelId: string;
-    }) => voiceApi.connect(guildId, channelId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["voice-status"] }),
-  });
+  const invalidate = useStatusInvalidator();
+  return useAction(
+    ({ guildId, channelId }: { guildId: string; channelId: string }) =>
+      voiceApi.connect(guildId, channelId),
+    { onSuccess: invalidate },
+  );
 }
 
 export function useVoiceDisconnect() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => voiceApi.disconnect(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["voice-status"] }),
-  });
+  const invalidate = useStatusInvalidator();
+  return useAction(() => voiceApi.disconnect(), { onSuccess: invalidate });
 }
 
 export function useMicTransmit() {
-  return useMutation({
-    mutationFn: (active: boolean) =>
-      voiceApi.sendCommand(
-        active ? "voice:transmit:start" : "voice:transmit:stop",
-      ),
-  });
+  return useAction((active: boolean) =>
+    voiceApi.sendCommand(
+      active ? "voice:transmit:start" : "voice:transmit:stop",
+    ),
+  );
 }

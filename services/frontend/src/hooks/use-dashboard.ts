@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import useSWR from "swr";
 
 import { dashboardApi } from "@/lib/api";
 import type {
@@ -8,40 +8,51 @@ import type {
 } from "@/lib/types";
 
 export function useStats() {
-  return useQuery<DashboardStats>({
-    queryKey: ["dashboard-stats"],
-    queryFn: () => dashboardApi.getStats(),
-  });
+  return useSWR<DashboardStats>(["dashboard-stats"], () =>
+    dashboardApi.getStats(),
+  );
 }
 
 export function useUsers(search?: string) {
-  return useQuery({
-    queryKey: ["dashboard-users", search ?? ""],
-    queryFn: () => dashboardApi.listUsers(20, undefined, search),
-    select: (data) => data.data,
-  });
+  return useSWR(
+    ["dashboard-users", search ?? ""],
+    async () => {
+      const res = await dashboardApi.listUsers(20, undefined, search);
+      return res.data;
+    },
+    {
+      keepPreviousData: true,
+    },
+  );
 }
 
 export function useChannels(guildId?: string, search?: string) {
-  return useQuery({
-    queryKey: ["dashboard-channels", guildId ?? "__all__", search ?? ""],
-    queryFn: () => dashboardApi.listChannels(20, search, guildId || undefined),
-    select: (data) => data.data,
-  });
+  return useSWR(
+    ["dashboard-channels", guildId ?? "__all__", search ?? ""],
+    async () => {
+      const res = await dashboardApi.listChannels(
+        20,
+        search,
+        guildId || undefined,
+      );
+      return res.data;
+    },
+    {
+      keepPreviousData: true,
+    },
+  );
 }
 
 export function useUserDetail(userId: string | null) {
-  return useQuery<DashboardUserDetail>({
-    queryKey: ["dashboard-user", userId],
-    queryFn: () => dashboardApi.getUserDetail(userId!),
-    enabled: !!userId,
-  });
+  return useSWR<DashboardUserDetail>(
+    userId ? ["dashboard-user", userId] : null,
+    () => dashboardApi.getUserDetail(userId!),
+  );
 }
 
 export function useChannelDetail(channelId: string | null) {
-  return useQuery<DashboardChannelDetail>({
-    queryKey: ["dashboard-channel", channelId],
-    queryFn: () => dashboardApi.getChannelDetail(channelId!),
-    enabled: !!channelId,
-  });
+  return useSWR<DashboardChannelDetail>(
+    channelId ? ["dashboard-channel", channelId] : null,
+    () => dashboardApi.getChannelDetail(channelId!),
+  );
 }

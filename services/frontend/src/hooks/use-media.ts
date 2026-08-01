@@ -1,58 +1,51 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-
+import useSWR, { useSWRConfig } from "swr";
+import { useAction } from "@/hooks/use-action";
 import { mediaApi } from "@/lib/api";
 import type { MediaState } from "@/lib/types";
 import type { WsHook } from "@/lib/ws-hook";
 
+const MEDIA_KEY = ["media-state"] as const;
+
 export function useMediaState() {
-  return useQuery<MediaState>({
-    queryKey: ["media-state"],
-    queryFn: () => mediaApi.getStatus(),
-    retry: false,
-    refetchInterval: 10_000,
+  return useSWR<MediaState>(MEDIA_KEY, () => mediaApi.getStatus(), {
+    refreshInterval: 10_000,
+    shouldRetryOnError: false,
+  });
+}
+
+function useMediaAction<TArgs>(fn: (args: TArgs) => Promise<MediaState>) {
+  const { mutate } = useSWRConfig();
+  return useAction(fn, {
+    onSuccess: (data) => {
+      void mutate(MEDIA_KEY, data, { revalidate: false });
+    },
   });
 }
 
 export function useMediaQueue() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (url: string) => mediaApi.queue(url, "music"),
-    onSuccess: (data) => qc.setQueryData(["media-state"], data),
-  });
+  return useMediaAction((url: string) => mediaApi.queue(url, "music"));
 }
 
 export function useMediaSkip() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => mediaApi.skip(),
-    onSuccess: (data) => qc.setQueryData(["media-state"], data),
-  });
+  return useMediaAction(() => mediaApi.skip());
 }
 
 export function useMediaStop() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => mediaApi.stop(),
-    onSuccess: (data) => qc.setQueryData(["media-state"], data),
-  });
+  return useMediaAction(() => mediaApi.stop());
 }
 
 export function useMediaVolume() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (volume: number) => mediaApi.volume(volume),
-    onSuccess: (data) => qc.setQueryData(["media-state"], data),
-  });
+  return useMediaAction((volume: number) => mediaApi.volume(volume));
 }
 
 /** Subscribe to WS media_state events to keep cache fresh */
 export function useMediaWsSync(ws: WsHook) {
-  const qc = useQueryClient();
+  const { mutate } = useSWRConfig();
   useEffect(() => {
     const unsub = ws.on("media_state", (data) => {
-      qc.setQueryData(["media-state"], data as MediaState);
+      void mutate(MEDIA_KEY, data as MediaState, { revalidate: false });
     });
     return unsub;
-  }, [ws, qc]);
+  }, [ws, mutate]);
 }

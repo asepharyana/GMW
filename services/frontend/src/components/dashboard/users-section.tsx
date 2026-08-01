@@ -17,7 +17,12 @@ export function UsersSection() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data: users = [], isLoading, error, refetch } = useUsers(search);
+  const {
+    data: users = [],
+    isLoading,
+    error,
+    mutate: refetch,
+  } = useUsers(search);
   const { data: detail } = useUserDetail(selectedId);
 
   const handleSearch = useCallback((v: string) => {
@@ -135,7 +140,8 @@ export function UsersSection() {
                     className="rounded-lg border border-border/40 bg-card/40 px-3 py-2"
                   >
                     <p className="text-xs leading-relaxed text-text-secondary line-clamp-2">
-                      {renderMessageContent(msg.content, msg.metadata) || "(no text content)"}
+                      {renderMessageContent(msg.content, msg.metadata) ||
+                        "(no text content)"}
                     </p>
                     <p className="mt-1 text-[10px] font-mono text-text-secondary/40">
                       {msg.channel_id?.slice(0, 8)} ·{" "}

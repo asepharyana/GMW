@@ -1,25 +1,18 @@
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Suspense, useEffect, useState } from "react";
-import { TopNav } from "@/components/layout/top-nav";
-import { MobileNav } from "@/components/layout/mobile-nav";
-import { WsProvider, useWebSocket } from "@/lib/ws/context";
-import { ChatbotProvider, useChatbot } from "@/components/chatbot/chatbot-context";
+import { SWRConfig } from "swr";
 import { ChatbotContainer } from "@/components/chatbot/chatbot-container";
+import {
+  ChatbotProvider,
+  useChatbot,
+} from "@/components/chatbot/chatbot-context";
+import { HiddenSidebar } from "@/components/layout/hidden-sidebar";
+import { MobileNav } from "@/components/layout/mobile-nav";
+import { TopNav } from "@/components/layout/top-nav";
 import { MiniPlayer } from "@/components/media/mini-player";
 import { MediaPlayerProvider } from "@/lib/hooks/use-media-player";
-import { HiddenSidebar } from "@/components/layout/hidden-sidebar";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 10_000,
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+import { useWebSocket, WsProvider } from "@/lib/ws/context";
 
 function ChatbotExpressionSync() {
   const ws = useWebSocket();
@@ -54,14 +47,24 @@ export default function DashboardLayout({
   const [guildId, setGuildId] = useState("");
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <SWRConfig
+      value={{
+        revalidateOnFocus: false,
+        dedupingInterval: 10_000,
+        shouldRetryOnError: (err) =>
+          (err as { statusCode?: number })?.statusCode !== 404,
+      }}
+    >
       <WsProvider>
         <MediaPlayerProvider>
           <ChatbotProvider>
             <ChatbotExpressionSync />
             <div className="min-h-screen bg-canvas">
               <TopNav />
-              <HiddenSidebar guildId={guildId} onGuildChange={(g) => setGuildId(g ?? "")} />
+              <HiddenSidebar
+                guildId={guildId}
+                onGuildChange={(g) => setGuildId(g ?? "")}
+              />
 
               {/* Sub-nav space — filled per-page */}
               <div className="pt-11">
@@ -85,6 +88,6 @@ export default function DashboardLayout({
           </ChatbotProvider>
         </MediaPlayerProvider>
       </WsProvider>
-    </QueryClientProvider>
+    </SWRConfig>
   );
 }
