@@ -112,6 +112,11 @@ WRAPPER
             pkgs.cacert
           ];
 
+          # Runtime tools for the voice pipeline: ffmpeg (mic transmit encode,
+          # music stream decode, segment muxing) and yt-dlp (YouTube/Spotify/
+          # search media resolution). Must be on PATH inside the wrapper below.
+          buildInputs = [ pkgs.ffmpeg-headless pkgs.yt-dlp ];
+
           buildPhase = pnpmInstall + ''
             echo "=== Compiling TypeScript ==="
             npx tsc 2>&1
@@ -154,6 +159,7 @@ WRAPPER
             cat > $out/bin/gmw-discord-gateway << WRAPPER
 #!${pkgs.runtimeShell}
 cd $out/lib/gmw-discord-gateway
+export PATH=${pkgs.ffmpeg-headless}/bin:${pkgs.yt-dlp}/bin:\$PATH
 exec ${nodejs}/bin/node dist/index.js
 WRAPPER
             chmod +x $out/bin/gmw-discord-gateway
