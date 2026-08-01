@@ -592,5 +592,4 @@ export type DbRetentionPolicyInsert =
 
 // Chatbot Messages
 export type ChatbotMessage = typeof chatbotMessagesTable.$inferSelect;
-export type ChatbotMessageInsert =
-  typeof chatbotMessagesTable.$inferInsert;
+export type ChatbotMessageInsert = typeof chatbotMessagesTable.$inferInsert;

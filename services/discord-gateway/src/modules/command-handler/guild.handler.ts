@@ -1,6 +1,6 @@
+import type { Client } from "discord.js-selfbot-v13";
 import type { CommandMessage, CommandReply } from "../../shared/index.js";
 import { createChildLogger } from "../../shared/logger/index.js";
-import type { Client } from "discord.js-selfbot-v13";
 
 // ---------------------------------------------------------------------------
 // GuildHandler

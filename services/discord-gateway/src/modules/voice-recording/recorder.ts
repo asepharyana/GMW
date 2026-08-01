@@ -1,6 +1,4 @@
 import { promises as fsPromises } from "node:fs";
-import { createChildLogger } from "@/shared/logger/index";
-import { retryWithBackoff } from "@/shared/utils/index";
 import {
   type DiscordGatewayAdapterCreator,
   entersState,
@@ -10,6 +8,8 @@ import {
   VoiceConnectionStatus,
 } from "@discordjs/voice";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
+import { createChildLogger } from "@/shared/logger/index";
+import { retryWithBackoff } from "@/shared/utils/index";
 import { config } from "../../shared/config/config.js";
 import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";
 import type { VoicePcmWsClient } from "../voice-pcm-ws/index.js";

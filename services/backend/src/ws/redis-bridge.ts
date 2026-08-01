@@ -1,7 +1,10 @@
-import { DISCORD_CHANNEL_TO_WS_EVENT, DISCORD_VOICE_PCM } from "../shared/index.js";
-import { createChildLogger } from "../shared/logger/index.js";
 import Redis from "ioredis";
 import { config } from "../shared/config/index.js";
+import {
+  DISCORD_CHANNEL_TO_WS_EVENT,
+  DISCORD_VOICE_PCM,
+} from "../shared/index.js";
+import { createChildLogger } from "../shared/logger/index.js";
 import { broadcastBinary, broadcastEvent } from "./broadcast.js";
 
 const logger = createChildLogger("ws.redis-bridge");

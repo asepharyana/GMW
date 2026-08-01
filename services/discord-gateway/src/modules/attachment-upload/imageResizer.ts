@@ -1,5 +1,5 @@
-import { createChildLogger } from "@/shared/logger/index";
 import sharp from "sharp";
+import { createChildLogger } from "@/shared/logger/index";
 
 const log = createChildLogger("imageResizer");
 

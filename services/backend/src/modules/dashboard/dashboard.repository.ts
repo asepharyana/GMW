@@ -1,3 +1,6 @@
+import type { SQL } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import { getDatabase } from "../../shared/database/index.js";
 import {
   pgChannelCulturesTable,
   pgMessagesTable,
@@ -5,9 +8,6 @@ import {
   pgUserReputationsTable,
   pgVoiceRecordingsTable,
 } from "../../shared/index.js";
-import type { SQL } from "drizzle-orm";
-import { sql } from "drizzle-orm";
-import { getDatabase } from "../../shared/database/index.js";
 import type { ListUsersQuery } from "./dashboard.service.js";
 
 export class DashboardRepository {

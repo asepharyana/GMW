@@ -1,6 +1,9 @@
-import type { AttachmentRecord, MessageRecord } from "../../shared/index.js";
-import { type CustomLogger, createChildLogger } from "../../shared/logger/index.js";
 import Redis from "ioredis";
+import type { AttachmentRecord, MessageRecord } from "../../shared/index.js";
+import {
+  type CustomLogger,
+  createChildLogger,
+} from "../../shared/logger/index.js";
 import { type DiscordGatewayEvent, EventChannels } from "./eventTypes.js";
 
 export class RedisEventPublisher {

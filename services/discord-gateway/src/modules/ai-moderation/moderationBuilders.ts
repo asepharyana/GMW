@@ -5,9 +5,9 @@
  * Used by both mediaAnalysisClient.ts and moderationOrchestrator.ts.
  */
 
+import { renderDiscordMentions } from "../message-capture/messageMetadata.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
-import { renderDiscordMentions } from "../message-capture/messageMetadata.js";
 import { sanitizeDiscordTokens } from "./discordTokens.js";
 
 /** Simple XML-escaping for content text. */

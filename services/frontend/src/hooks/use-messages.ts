@@ -138,7 +138,12 @@ export function useMessageDetail(id: string | null) {
       if (!cid) return [];
       // messageId filter: attachment list must show only this message's
       // images, not the latest images from everyone in the channel.
-      const res = await messagesApi.getAttachments(cid, 10, undefined, id ?? "");
+      const res = await messagesApi.getAttachments(
+        cid,
+        10,
+        undefined,
+        id ?? "",
+      );
       return res.data;
     },
   );

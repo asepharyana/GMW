@@ -1,5 +1,5 @@
-import { createChildLogger } from "@/shared/logger/index";
 import { and, desc, eq, sql } from "drizzle-orm";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import { messagesTable } from "../../shared/database/schema.js";

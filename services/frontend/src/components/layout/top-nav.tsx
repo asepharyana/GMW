@@ -1,9 +1,9 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
 import { Moon, Sun } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { navItems, isActivePath } from "@/lib/navigation";
+import { isActivePath, navItems } from "@/lib/navigation";
 
 export function TopNav() {
   const pathname = usePathname();

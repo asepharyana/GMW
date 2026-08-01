@@ -7,8 +7,8 @@
  * The backend forwards these unchanged to frontend clients.
  */
 
-import { createChildLogger } from "@/shared/logger/index";
 import WebSocket from "ws";
+import { createChildLogger } from "@/shared/logger/index";
 
 const logger = createChildLogger("voice-pcm-ws");
 

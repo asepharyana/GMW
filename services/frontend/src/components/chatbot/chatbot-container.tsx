@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
 import { Bot, MessageCircle, Minimize2 } from "lucide-react";
-import { useChatbot } from "./chatbot-context";
-import { ChatbotCanvas } from "./chatbot-canvas";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatPanel } from "./chat-panel";
+import { ChatbotCanvas } from "./chatbot-canvas";
+import { useChatbot } from "./chatbot-context";
 
 export function ChatbotContainer() {
   const { minimized, setMinimized, chatOpen, setChatOpen } = useChatbot();
@@ -13,15 +13,21 @@ export function ChatbotContainer() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    setDragging(true);
-    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
-  }, [position]);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      setDragging(true);
+      setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+    },
+    [position],
+  );
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragging) return;
-    setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
-  }, [dragging, dragStart]);
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!dragging) return;
+      setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    },
+    [dragging, dragStart],
+  );
 
   const handleMouseUp = useCallback(() => setDragging(false), []);
 
@@ -35,6 +41,7 @@ export function ChatbotContainer() {
   }, [chatOpen]);
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: drag container — mouse-move gesture surface, not keyboard-interactive content
     <div
       className="fixed bottom-4 right-4 z-40 select-none"
       style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
@@ -62,6 +69,7 @@ export function ChatbotContainer() {
         ) : (
           <>
             {/* Drag handle + controls */}
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: drag handle — mouse-only gesture, keyboard users use the buttons in this header */}
             <div
               className="flex items-center justify-between px-3 py-1.5 border-b border-glass-border cursor-grab active:cursor-grabbing"
               onMouseDown={handleMouseDown}

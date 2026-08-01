@@ -1,5 +1,5 @@
-import { createChildLogger } from "@/shared/logger/index";
 import type { Client, PermissionString } from "discord.js-selfbot-v13";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";

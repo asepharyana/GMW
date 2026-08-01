@@ -1,5 +1,5 @@
-import { createChildLogger } from "@/shared/logger/index";
 import type { Client, Message } from "discord.js-selfbot-v13";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import { queueMessageAnalysis } from "../ai-moderation/aiAnalyzer.js";
 import { processAttachmentUpload } from "../attachment-upload/attachmentUploader.js";

@@ -1,5 +1,4 @@
 import type { Readable } from "node:stream";
-import { createChildLogger } from "@/shared/logger/index";
 import {
   type AudioPlayer,
   AudioPlayerStatus,
@@ -9,6 +8,7 @@ import {
   StreamType,
   type VoiceConnection,
 } from "@discordjs/voice";
+import { createChildLogger } from "@/shared/logger/index";
 import type { DiscordPlayerOwner, DiscordPlayOptions } from "./mediaTypes.js";
 
 const logger = createChildLogger("player");

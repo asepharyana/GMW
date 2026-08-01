@@ -1,5 +1,5 @@
-import { createChildLogger } from "@/shared/logger/index";
 import { encoding_for_model as encodingForModel } from "tiktoken";
+import { createChildLogger } from "@/shared/logger/index";
 import {
   formatMediaEvidenceForPrompt,
   renderDiscordMentions,

@@ -1,7 +1,7 @@
-import { pgChatbotMessagesTable, pgMessagesTable } from "../../shared/index.js";
-import { createChildLogger } from "../../shared/logger/index.js";
 import { and, desc, eq, type SQL, sql } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/index.js";
+import { pgChatbotMessagesTable, pgMessagesTable } from "../../shared/index.js";
+import { createChildLogger } from "../../shared/logger/index.js";
 
 const logger = createChildLogger("chatbot.repository");
 

@@ -1,5 +1,5 @@
-import { createChildLogger } from "@/shared/logger/index";
 import { LRUCache } from "lru-cache";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type {
@@ -99,9 +99,7 @@ async function processIndividualFallback(
     // retryable error — the recovery worker picks it up later. Producing a
     // regex/wordlist verdict here would reintroduce false positives.
     if (!analysisResult) {
-      throw new Error(
-        `LLM analysis failed for message ${messageId}`,
-      );
+      throw new Error(`LLM analysis failed for message ${messageId}`);
     }
 
     // Main thread: DB writes + broadcast

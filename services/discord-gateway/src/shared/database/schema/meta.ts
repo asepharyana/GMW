@@ -25,5 +25,4 @@ export type UIStateInsert = typeof uiStateTable.$inferInsert;
 export type RetentionPolicy = typeof retentionPoliciesTable.$inferSelect;
 export type RetentionPolicyInsert = typeof retentionPoliciesTable.$inferInsert;
 export type ChatbotMessage = typeof chatbotMessagesTable.$inferSelect;
-export type ChatbotMessageInsert =
-  typeof chatbotMessagesTable.$inferInsert;
+export type ChatbotMessageInsert = typeof chatbotMessagesTable.$inferInsert;

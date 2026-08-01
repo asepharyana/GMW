@@ -1,10 +1,10 @@
 import "dotenv/config";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createChildLogger } from "@/shared/logger/index";
 import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
 import { migrate as migratePostgres } from "drizzle-orm/node-postgres/migrator";
 import type { PoolClient } from "pg";
+import { createChildLogger } from "@/shared/logger/index";
 import {
   closeDatabase,
   initializeDatabase,

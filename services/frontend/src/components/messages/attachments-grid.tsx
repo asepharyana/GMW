@@ -12,7 +12,10 @@ export function AttachmentsGrid({ attachments }: AttachmentsGridProps) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {attachments.map((att) => (
-        <div key={att.id} className="glass rounded-lg overflow-hidden group relative">
+        <div
+          key={att.id}
+          className="glass rounded-lg overflow-hidden group relative"
+        >
           {att.type?.startsWith("image/") ? (
             <img
               src={att.uploaded_url || att.discord_url}

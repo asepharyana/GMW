@@ -1,6 +1,6 @@
 "use client";
 
-import { Disc3, Music, Play, SkipForward, Square, Volume2 } from "lucide-react";
+import { Disc3, Music, SkipForward, Square, Volume2 } from "lucide-react";
 import { useMediaPlayer } from "@/lib/hooks/use-media-player";
 
 export function MiniPlayer() {
@@ -16,7 +16,10 @@ export function MiniPlayer() {
       <div className="flex items-center gap-2.5 min-w-0 flex-1 max-w-[280px]">
         <div className="size-8 rounded-md bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10 flex items-center justify-center shrink-0">
           {playing ? (
-            <Disc3 className="size-4 text-primary animate-spin" style={{ animationDuration: "4s" }} />
+            <Disc3
+              className="size-4 text-primary animate-spin"
+              style={{ animationDuration: "4s" }}
+            />
           ) : (
             <Music className="size-4 text-text-secondary" />
           )}
@@ -27,9 +30,7 @@ export function MiniPlayer() {
           </p>
           {queue.length > 0 && (
             <p className="text-[10px] text-text-secondary/60">
-              {queue.length > 1
-                ? `${queue.length} in queue`
-                : "1 in queue"}
+              {queue.length > 1 ? `${queue.length} in queue` : "1 in queue"}
             </p>
           )}
         </div>

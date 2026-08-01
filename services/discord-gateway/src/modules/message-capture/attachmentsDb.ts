@@ -1,6 +1,6 @@
-import { createChildLogger, type Logger } from "@/shared/logger/index";
 import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { createChildLogger, type Logger } from "@/shared/logger/index";
 import type * as schema from "../../shared/database/schema.js";
 import { attachmentsTable } from "../../shared/database/schema.js";
 import type { AttachmentRecord } from "../message-capture/types.js";

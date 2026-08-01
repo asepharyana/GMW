@@ -66,7 +66,12 @@ export class PcmPlayer {
     if (!this.started || samples.length === 0) return;
     let ring = this.rings.get(userIdHash);
     if (!ring) {
-      ring = { data: new Float32Array(RING_LEN), write: 0, readPos: 0, lastActive: Date.now() };
+      ring = {
+        data: new Float32Array(RING_LEN),
+        write: 0,
+        readPos: 0,
+        lastActive: Date.now(),
+      };
       this.rings.set(userIdHash, ring);
     }
     ring.lastActive = Date.now();

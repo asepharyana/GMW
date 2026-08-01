@@ -4,7 +4,6 @@ import { Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useMessageSearch } from "@/hooks";
 import { getMessageChannelLabel, renderMessageContent } from "@/lib/format";
-import type { MessageRecord } from "@/lib/types";
 
 interface SearchOverlayProps {
   open: boolean;

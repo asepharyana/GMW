@@ -1,9 +1,9 @@
-import { createChildLogger } from "@/shared/logger/index";
 import type {
   Client,
   GuildMember,
   PartialGuildMember,
 } from "discord.js-selfbot-v13";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";
 

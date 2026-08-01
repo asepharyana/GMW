@@ -33,7 +33,14 @@ export function ChatbotCanvas() {
     ctx.clearRect(0, 0, w, h);
 
     // Background circle
-    const gradient = ctx.createRadialGradient(w / 2, h / 2 - 10, 10, w / 2, h / 2, 80);
+    const gradient = ctx.createRadialGradient(
+      w / 2,
+      h / 2 - 10,
+      10,
+      w / 2,
+      h / 2,
+      80,
+    );
     gradient.addColorStop(0, "oklch(0.62 0.17 215 / 0.8)");
     gradient.addColorStop(0.6, "oklch(0.12 0.02 245 / 0.9)");
     gradient.addColorStop(1, "oklch(0.07 0.015 250 / 1)");
@@ -112,11 +119,6 @@ export function ChatbotCanvas() {
       ctx.arc(w / 2, 75, 6, 0.1, Math.PI - 0.1);
       ctx.stroke();
     }
-
-    // Breathing animation — subtle canvas shift
-    const breath = Math.sin(Date.now() / 1000) * 1.5;
-    // Applied via CSS transform on container instead
-
   }, [expression]);
 
   return (

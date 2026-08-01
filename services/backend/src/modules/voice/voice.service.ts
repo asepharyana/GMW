@@ -1,3 +1,9 @@
+import { eq } from "drizzle-orm";
+import {
+  createChildLogger,
+  tryCommandThenFallback,
+} from "../../shared/commandHelper.js";
+import { getDatabase } from "../../shared/database/index.js";
 import {
   COMMAND_GUILDS_LIST,
   COMMAND_GUILDS_TEXT_CHANNELS,
@@ -8,12 +14,6 @@ import {
   pgMessagesTable,
   VOICE_STATUS_KEY,
 } from "../../shared/index.js";
-import { eq } from "drizzle-orm";
-import {
-  createChildLogger,
-  tryCommandThenFallback,
-} from "../../shared/commandHelper.js";
-import { getDatabase } from "../../shared/database/index.js";
 import { publishCommand, readRedisStatus } from "../../shared/redis/index.js";
 
 const logger = createChildLogger("voice.service");

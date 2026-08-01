@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useEffect } from "react";
 import { Send } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useChatbot } from "./chatbot-context";
 
 interface ChatPanelProps {
@@ -15,11 +15,12 @@ export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
   const inputRef = externalInputRef ?? internalInputRef;
 
   // Auto-scroll to bottom on new messages
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-run on message arrival; scroll is a visual effect keyed on new content
   useEffect(() => {
     if (listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
-  }, [messages, isTyping]);
+  }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +36,9 @@ export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
       <div ref={listRef} className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
-            <p className="text-[10px] text-text-secondary/40">Ask chatbot anything</p>
+            <p className="text-[10px] text-text-secondary/40">
+              Ask chatbot anything
+            </p>
           </div>
         )}
         {messages.slice(-8).map((msg, i) => (
@@ -58,9 +61,18 @@ export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
           <div className="flex justify-start">
             <div className="glass rounded-lg px-2 py-1">
               <span className="inline-flex gap-0.5">
-                <span className="size-1 rounded-full bg-text-secondary animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="size-1 rounded-full bg-text-secondary animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="size-1 rounded-full bg-text-secondary animate-bounce" style={{ animationDelay: "300ms" }} />
+                <span
+                  className="size-1 rounded-full bg-text-secondary animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <span
+                  className="size-1 rounded-full bg-text-secondary animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <span
+                  className="size-1 rounded-full bg-text-secondary animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                />
               </span>
             </div>
           </div>
@@ -68,7 +80,10 @@ export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
       </div>
 
       {/* Input bar */}
-      <form onSubmit={handleSubmit} className="flex items-center gap-1 px-2 py-1.5 border-t border-glass-border shrink-0">
+      <form
+        onSubmit={handleSubmit}
+        className="flex items-center gap-1 px-2 py-1.5 border-t border-glass-border shrink-0"
+      >
         <input
           ref={inputRef}
           type="text"

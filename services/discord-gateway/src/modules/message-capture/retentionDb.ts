@@ -1,6 +1,6 @@
-import { createChildLogger, type Logger } from "@/shared/logger/index";
 import { and, eq, isNull, or } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { createChildLogger, type Logger } from "@/shared/logger/index";
 import type * as schema from "../../shared/database/schema.js";
 import { retentionPoliciesTable } from "../../shared/database/schema.js";
 import type { RetentionPolicy } from "../message-capture/types.js";
@@ -45,8 +45,7 @@ export class RetentionDb {
             ),
           );
 
-        if (channelRows.length > 0)
-          return channelRows[0] as RetentionPolicy;
+        if (channelRows.length > 0) return channelRows[0] as RetentionPolicy;
       }
 
       // Fall back to the guild default (channel_id IS NULL)

@@ -1,4 +1,3 @@
-import { createChildLogger } from "@/shared/logger/index";
 import type {
   Client,
   MessageReaction,
@@ -6,6 +5,7 @@ import type {
   PartialUser,
   User,
 } from "discord.js-selfbot-v13";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import { reactionsTable } from "../../shared/database/schema.js";

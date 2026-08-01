@@ -1,8 +1,8 @@
-import { ConfigError, DatabaseError } from "@/shared/errors/index";
-import { createChildLogger } from "@/shared/logger/index";
 import { Client } from "discord.js-selfbot-v13";
 import { inArray, lt } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { ConfigError, DatabaseError } from "@/shared/errors/index";
+import { createChildLogger } from "@/shared/logger/index";
 import { startPendingAIAnalysisWorker } from "../modules/ai-moderation/aiAnalyzer.js";
 import { registerChannelTopicCapture } from "../modules/channel-topic/index.js";
 import { CommandHandler } from "../modules/command-handler/commandHandler.js";

@@ -1,6 +1,6 @@
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../../shared/config/config.js";

@@ -10,7 +10,6 @@ import {
   useState,
 } from "react";
 import { chatbotApi } from "@/lib/api";
-import type { ChatbotHistoryRow } from "@/lib/types";
 
 export type ChatbotExpression =
   | "idle"

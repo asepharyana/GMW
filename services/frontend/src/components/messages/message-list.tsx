@@ -1,9 +1,9 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { MessageCard } from "./message-card";
 import { Button } from "@/components/ui/button";
 import type { MessageRecord } from "@/lib/types";
+import { MessageCard } from "./message-card";
 
 interface MessageListProps {
   messages: MessageRecord[];

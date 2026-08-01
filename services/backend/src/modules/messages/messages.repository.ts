@@ -1,6 +1,3 @@
-import type { PageResult } from "../../shared/index.js";
-import { pgAttachmentsTable, pgMessagesTable } from "../../shared/index.js";
-import { createChildLogger } from "../../shared/logger/index.js";
 import {
   and,
   desc,
@@ -16,6 +13,9 @@ import {
 } from "drizzle-orm";
 import { config } from "../../shared/config/index.js";
 import { getDatabase } from "../../shared/database/index.js";
+import type { PageResult } from "../../shared/index.js";
+import { pgAttachmentsTable, pgMessagesTable } from "../../shared/index.js";
+import { createChildLogger } from "../../shared/logger/index.js";
 import { mapMessageRow } from "../../shared/utils/messageMapper.js";
 import type {
   MessageCreate,

@@ -1,5 +1,5 @@
-import { createChildLogger } from "@/shared/logger/index";
 import type { Request, Response } from "express";
+import { createChildLogger } from "@/shared/logger/index";
 import { asyncHandler } from "../../shared/middlewares/index.js";
 import { messageQuerySchema } from "./messages.schema.js";
 import { messagesService } from "./messages.service.js";

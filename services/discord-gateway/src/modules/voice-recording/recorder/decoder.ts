@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
-import { createChildLogger } from "@/shared/logger/index";
 import * as prism from "prism-media";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../../shared/config/config.js";
 
 const require = createRequire(import.meta.url);

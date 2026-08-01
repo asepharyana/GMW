@@ -1,5 +1,5 @@
-import { createChildLogger } from "@/shared/logger/index";
 import { eq } from "drizzle-orm";
+import { createChildLogger } from "@/shared/logger/index";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import {
   type UserProfile,

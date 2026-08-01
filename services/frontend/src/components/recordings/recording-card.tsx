@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { Download, Loader2, Pause, Play } from "lucide-react";
+import { useState } from "react";
 import { GlassCard } from "@/components/glass/card";
 import type { VoiceRecording } from "@/lib/types";
 
@@ -94,11 +94,7 @@ export function RecordingCard({
             </span>
             {active && (
               <span className="ml-auto inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-widest text-primary/90">
-                {loading
-                  ? "Loading"
-                  : playing
-                    ? "Now Playing"
-                    : "Paused"}
+                {loading ? "Loading" : playing ? "Now Playing" : "Paused"}
               </span>
             )}
           </div>
@@ -131,7 +127,12 @@ export function RecordingCard({
           </div>
         </div>
 
-        <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: stopPropagation container — prevents card play toggle when clicking action buttons */}
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: no keyboard interaction — container only swallows clicks destined for the action buttons */}
+        <div
+          className="flex shrink-0 gap-1"
+          onClick={(e) => e.stopPropagation()}
+        >
           {recording.download_url && (
             <button
               type="button"

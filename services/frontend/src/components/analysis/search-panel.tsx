@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useMessageSearch, useReanalyze } from "@/hooks";
 import { renderMessageContent, safeParseJsonArray } from "@/lib/format";
-import type { MessageRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function SearchPanel() {

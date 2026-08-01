@@ -1,4 +1,5 @@
 import type fs from "node:fs";
+import type prism from "prism-media";
 import type {
   AnalysisQueueStatus,
   AttachmentRecord,
@@ -6,7 +7,6 @@ import type {
   UserMetadata,
   VoiceRecordingUploadData,
 } from "../../shared/index.js";
-import type prism from "prism-media";
 
 // Re-export all shared types for backward compatibility
 export type {

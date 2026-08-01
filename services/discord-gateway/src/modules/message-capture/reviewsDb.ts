@@ -1,9 +1,9 @@
-import { buildCursorCondition, pageResult } from "../../shared/index.js";
-import { createChildLogger, type Logger } from "../../shared/logger/index.js";
 import { and, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "../../shared/database/schema.js";
 import { messageReviewsTable } from "../../shared/database/schema.js";
+import { buildCursorCondition, pageResult } from "../../shared/index.js";
+import { createChildLogger, type Logger } from "../../shared/logger/index.js";
 import type { MessageReview, PageResult } from "../message-capture/types.js";
 
 // ─── ReviewsDb Class ────────────────────────────────────────────────────────
@@ -94,7 +94,9 @@ export class ReviewsDb {
         conditions.push(
           inArray(
             messageReviewsTable.status,
-            query.status as Array<"pending" | "approved" | "rejected" | "escalated">,
+            query.status as Array<
+              "pending" | "approved" | "rejected" | "escalated"
+            >,
           ),
         );
       }

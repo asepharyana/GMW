@@ -1,5 +1,5 @@
-import { createChildLogger } from "@/shared/logger/index";
 import { sql } from "drizzle-orm";
+import { createChildLogger } from "@/shared/logger/index";
 import { getDatabase } from "../../shared/database/index.js";
 
 const logger = createChildLogger("health.repository");

@@ -46,7 +46,9 @@ export function SpeakerWaveform({ speakers }: SpeakerWaveformProps) {
   if (speakers.length === 0) {
     return (
       <GlassPanel dense>
-        <span className="text-xs text-text-secondary/40">No speakers detected</span>
+        <span className="text-xs text-text-secondary/40">
+          No speakers detected
+        </span>
       </GlassPanel>
     );
   }
@@ -57,7 +59,11 @@ export function SpeakerWaveform({ speakers }: SpeakerWaveformProps) {
         {speakers.map((s) => (
           <div key={s.userId} className="flex items-center gap-2 text-xs">
             <span
-              className={s.speaking ? "text-primary font-medium" : "text-text-secondary/60"}
+              className={
+                s.speaking
+                  ? "text-primary font-medium"
+                  : "text-text-secondary/60"
+              }
             >
               {s.username}
             </span>

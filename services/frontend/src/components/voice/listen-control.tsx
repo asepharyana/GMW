@@ -1,11 +1,11 @@
 "use client";
 
+import { HeadphoneOff, Headphones } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { GlassCard } from "@/components/glass/card";
 import { Button } from "@/components/ui/button";
 import { hashUserId } from "@/hooks";
 import type { ActiveSpeaker } from "@/lib/types";
-import { Headphones, HeadphoneOff } from "lucide-react";
 
 interface ListenControlProps {
   connected: boolean;
@@ -103,7 +103,9 @@ export function ListenControl({
           {active ? "Listening" : "Listen"}
         </Button>
         <div className="flex-1 flex items-center gap-2">
-          <span className="text-[10px] text-text-secondary/60 font-mono">Vol</span>
+          <span className="text-[10px] text-text-secondary/60 font-mono">
+            Vol
+          </span>
           <input
             type="range"
             min={0}

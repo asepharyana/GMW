@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { PassThrough, type Readable } from "node:stream";
-import { createChildLogger } from "@/shared/logger/index";
 import { StreamType } from "@discordjs/voice";
+import { createChildLogger } from "@/shared/logger/index";
 
 const logger = createChildLogger("media-source");
 
@@ -348,7 +348,9 @@ export function getDirectVideoUrl(url: string): Promise<string> {
       if (code !== 0) {
         const detail = stderrBuf.trim() ? `: ${stderrBuf.trim()}` : "";
         reject(
-          new Error(`yt-dlp direct URL resolution exited with code ${code}${detail}`),
+          new Error(
+            `yt-dlp direct URL resolution exited with code ${code}${detail}`,
+          ),
         );
         return;
       }

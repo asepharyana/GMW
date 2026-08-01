@@ -1,5 +1,5 @@
-import { createChildLogger } from "@/shared/logger/index";
 import { LRUCache } from "lru-cache";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import { LAST_ERROR } from "./moderationState.js";
 

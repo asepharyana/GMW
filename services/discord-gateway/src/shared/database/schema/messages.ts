@@ -1,9 +1,4 @@
 import {
-  pgAttachmentsTable,
-  pgMessageReviewsTable,
-  pgMessagesTable,
-} from "../../../shared/index.js";
-import {
   bigint as pgBigint,
   boolean as pgBoolean,
   index as pgIndex,
@@ -11,6 +6,11 @@ import {
   text as pgText,
   uuid as pgUuid,
 } from "drizzle-orm/pg-core";
+import {
+  pgAttachmentsTable,
+  pgMessageReviewsTable,
+  pgMessagesTable,
+} from "../../../shared/index.js";
 
 // Re-export shared message/attachment/review tables
 export { pgAttachmentsTable, pgMessageReviewsTable, pgMessagesTable };

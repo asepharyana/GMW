@@ -1,4 +1,3 @@
-import { createChildLogger } from "@/shared/logger/index";
 import express, {
   type Express,
   type NextFunction,
@@ -6,11 +5,12 @@ import express, {
   type Response,
 } from "express";
 import helmet from "helmet";
+import { createChildLogger } from "@/shared/logger/index";
 import { createAnalysisRouter } from "../modules/analysis/index.js";
+import { createChatbotRouter } from "../modules/chatbot/index.js";
 import { createConfigRouter } from "../modules/config/index.js";
 import { createDashboardRouter } from "../modules/dashboard/index.js";
 import { createHealthRouter } from "../modules/health/index.js";
-import { createChatbotRouter } from "../modules/chatbot/index.js";
 import { createMediaRouter } from "../modules/media/index.js";
 import { createMessagesRouter } from "../modules/messages/index.js";
 import { createRecordingsRouter } from "../modules/recordings/index.js";

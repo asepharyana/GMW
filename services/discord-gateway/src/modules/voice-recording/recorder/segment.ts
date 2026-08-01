@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { createChildLogger } from "@/shared/logger/index";
 import * as prism from "prism-media";
+import { createChildLogger } from "@/shared/logger/index";
 import type { SegmentState } from "../../message-capture/types.js";
 
 const logger = createChildLogger("voice-segment");

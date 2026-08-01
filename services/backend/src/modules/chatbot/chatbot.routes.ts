@@ -10,11 +10,7 @@ import { chatRequestSchema } from "./chatbot.schema.js";
 export function createChatbotRouter(): Router {
   const router = express.Router();
 
-  router.post(
-    "/chat",
-    validateBody(chatRequestSchema),
-    handleChatbotChat,
-  );
+  router.post("/chat", validateBody(chatRequestSchema), handleChatbotChat);
   router.get("/chat/history", getChatbotHistory);
   router.delete("/chat/history", clearChatbotHistory);
 

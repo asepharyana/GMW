@@ -1,3 +1,6 @@
+import type { Client } from "discord.js-selfbot-v13";
+import Redis from "ioredis";
+import { config } from "../../shared/config/config.js";
 import {
   BACKEND_COMMAND,
   type CommandMessage,
@@ -6,9 +9,6 @@ import {
   VOICE_STATUS_KEY,
 } from "../../shared/index.js";
 import { createChildLogger } from "../../shared/logger/index.js";
-import type { Client } from "discord.js-selfbot-v13";
-import Redis from "ioredis";
-import { config } from "../../shared/config/config.js";
 import type { VoiceController } from "../voice-recording/voiceController.js";
 import { GuildHandler } from "./guild.handler.js";
 import {
@@ -82,7 +82,9 @@ export class CommandHandler {
 
     // Create domain-specific handlers with their dependencies
     this.voiceHandler = new VoiceHandler(client, voiceController);
-    this.mediaHandler = new MediaHandler(client, () => voiceController.getStatus());
+    this.mediaHandler = new MediaHandler(client, () =>
+      voiceController.getStatus(),
+    );
     this.guildHandler = new GuildHandler(client);
     this.moderationHandler = new ModerationHandler(client);
 

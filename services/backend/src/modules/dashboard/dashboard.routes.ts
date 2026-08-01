@@ -1,6 +1,6 @@
-import { createChildLogger } from "@/shared/logger/index";
 import type { Request, Response, Router } from "express";
 import express from "express";
+import { createChildLogger } from "@/shared/logger/index";
 import { asyncHandler } from "../../shared/middlewares/index.js";
 import { dashboardService } from "./dashboard.service.js";
 

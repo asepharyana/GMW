@@ -1,7 +1,7 @@
-import { pgMessagesTable } from "../../shared/index.js";
-import { createChildLogger } from "../../shared/logger/index.js";
 import { and, desc, eq, ilike, type SQL } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/index.js";
+import { pgMessagesTable } from "../../shared/index.js";
+import { createChildLogger } from "../../shared/logger/index.js";
 import {
   type MappedMessage,
   mapMessageRow,

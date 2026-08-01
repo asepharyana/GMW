@@ -1,6 +1,6 @@
-import { createChildLogger, type Logger } from "@/shared/logger/index";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { createChildLogger, type Logger } from "@/shared/logger/index";
 import type * as schema from "../../shared/database/schema.js";
 import { messagesTable } from "../../shared/database/schema.js";
 import type { MessageRecord } from "../message-capture/types.js";

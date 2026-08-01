@@ -1,5 +1,5 @@
-import { createChildLogger, type Logger } from "@/shared/logger/index";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { createChildLogger, type Logger } from "@/shared/logger/index";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import type * as schema from "../../shared/database/schema.js";
 import type {
@@ -327,7 +327,9 @@ export const messageStore: MessageStore = new Proxy<MessageStore>(
   {
     get(_, prop: string | symbol) {
       const store = resolveStore();
-      const value = (store as unknown as Record<string | symbol, unknown>)[prop];
+      const value = (store as unknown as Record<string | symbol, unknown>)[
+        prop
+      ];
       return typeof value === "function" ? value.bind(store) : value;
     },
   },

@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import Redis from "ioredis";
+import { config } from "../config/index.js";
 import {
   BACKEND_COMMAND,
   BACKEND_COMMAND_REPLY_PREFIX,
@@ -6,8 +8,6 @@ import {
   type CommandReply,
 } from "../index.js";
 import { createChildLogger } from "../logger/index.js";
-import Redis from "ioredis";
-import { config } from "../config/index.js";
 
 const logger = createChildLogger("redis.command-channel");
 

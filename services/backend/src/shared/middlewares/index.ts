@@ -1,7 +1,7 @@
-import { AppError, ValidationError } from "@/shared/errors/index";
-import { createChildLogger } from "@/shared/logger/index";
 import type { NextFunction, Request, Response } from "express";
 import type { ZodSchema } from "zod";
+import { AppError, ValidationError } from "@/shared/errors/index";
+import { createChildLogger } from "@/shared/logger/index";
 
 const logger = createChildLogger("middleware");
 

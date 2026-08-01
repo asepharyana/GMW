@@ -42,11 +42,18 @@ export function VoiceConnectionCard({
   return (
     <GlassCard variant={connected ? "elevated" : "base"}>
       <div className="flex items-center gap-3 mb-4">
-        <span className={cn("relative flex size-3", connected && "text-emerald-500")}>
+        <span
+          className={cn(
+            "relative flex size-3",
+            connected && "text-emerald-500",
+          )}
+        >
           <span
             className={cn(
               "absolute inline-flex size-full rounded-full opacity-75",
-              connected ? "bg-emerald-500 animate-pulse-ring" : "bg-destructive",
+              connected
+                ? "bg-emerald-500 animate-pulse-ring"
+                : "bg-destructive",
             )}
           />
           <span
@@ -57,9 +64,13 @@ export function VoiceConnectionCard({
           />
         </span>
         <div>
-          <span className="text-sm font-semibold text-text-primary">Voice Connection</span>
+          <span className="text-sm font-semibold text-text-primary">
+            Voice Connection
+          </span>
           {activeChannelName && (
-            <span className="text-xs text-text-secondary/60 ml-2 font-mono">{activeChannelName}</span>
+            <span className="text-xs text-text-secondary/60 ml-2 font-mono">
+              {activeChannelName}
+            </span>
           )}
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -68,7 +79,11 @@ export function VoiceConnectionCard({
               Disconnect
             </Button>
           ) : (
-            <Button size="sm" onClick={onConnect} disabled={!selectedGuild || !selectedChannel || connecting}>
+            <Button
+              size="sm"
+              onClick={onConnect}
+              disabled={!selectedGuild || !selectedChannel || connecting}
+            >
               {connecting ? "Connecting..." : "Connect"}
             </Button>
           )}

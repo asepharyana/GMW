@@ -2,10 +2,10 @@
 
 import { ArrowLeft, MessageSquare, MessagesSquare } from "lucide-react";
 import { GlassCard } from "@/components/glass/card";
-import { AttachmentsGrid } from "./attachments-grid";
-import { AiAnalysisPanel } from "./ai-analysis-panel";
 import { getMessageChannelLabel, renderMessageContent } from "@/lib/format";
 import type { AttachmentRecord, MessageRecord } from "@/lib/types";
+import { AiAnalysisPanel } from "./ai-analysis-panel";
+import { AttachmentsGrid } from "./attachments-grid";
 
 interface MessageDetailProps {
   message: MessageRecord;
@@ -13,11 +13,19 @@ interface MessageDetailProps {
   onBack?: () => void;
 }
 
-export function MessageDetail({ message, attachments, onBack }: MessageDetailProps) {
+export function MessageDetail({
+  message,
+  attachments,
+  onBack,
+}: MessageDetailProps) {
   return (
     <GlassCard variant="base" className="h-full">
       {onBack && (
-        <button type="button" onClick={onBack} className="flex items-center gap-1 text-xs text-text-secondary/60 hover:text-text-primary mb-3 transition-colors">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1 text-xs text-text-secondary/60 hover:text-text-primary mb-3 transition-colors"
+        >
           <ArrowLeft className="size-3" /> Back
         </button>
       )}
@@ -25,7 +33,9 @@ export function MessageDetail({ message, attachments, onBack }: MessageDetailPro
       {/* Message header */}
       <div className="flex items-center gap-2 mb-3">
         <MessageSquare className="size-4 text-primary" />
-        <span className="font-semibold text-sm text-text-primary">{message.username}</span>
+        <span className="font-semibold text-sm text-text-primary">
+          {message.username}
+        </span>
         <span className="text-[10px] text-text-secondary/40 font-mono inline-flex items-center gap-1">
           {message.thread_id && <MessagesSquare className="size-3" />}
           {getMessageChannelLabel(message)}
@@ -34,7 +44,8 @@ export function MessageDetail({ message, attachments, onBack }: MessageDetailPro
 
       {/* Content */}
       <div className="text-sm text-text-primary/90 leading-relaxed mb-4 whitespace-pre-wrap">
-        {renderMessageContent(message.content, message.metadata) || "(no text content)"}
+        {renderMessageContent(message.content, message.metadata) ||
+          "(no text content)"}
       </div>
 
       {/* Attachments */}

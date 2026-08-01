@@ -1,8 +1,8 @@
 "use client";
 
+import { Loader2, Pause, Play, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GlassPanel } from "@/components/glass/panel";
-import { Loader2, Pause, Play, X } from "lucide-react";
 
 interface RecordingPlayerProps {
   url?: string;
@@ -50,7 +50,8 @@ export function RecordingPlayer({
     timerRef.current = setInterval(() => {
       const audio = audioRef.current;
       if (!audio) return;
-      if (duration === 0 && !Number.isNaN(audio.duration)) setDuration(audio.duration);
+      if (duration === 0 && !Number.isNaN(audio.duration))
+        setDuration(audio.duration);
       if (!Number.isNaN(audio.currentTime)) setProgress(audio.currentTime);
     }, 250);
     return () => {
@@ -69,7 +70,10 @@ export function RecordingPlayer({
   const pct = duration > 0 ? Math.min(100, (progress / duration) * 100) : 0;
 
   return (
-    <GlassPanel dense className="fixed bottom-20 left-4 z-30 w-80 flex flex-col gap-1.5">
+    <GlassPanel
+      dense
+      className="fixed bottom-20 left-4 z-30 w-80 flex flex-col gap-1.5"
+    >
       <div className="flex items-center gap-2.5">
         <button
           type="button"
@@ -99,7 +103,9 @@ export function RecordingPlayer({
               <span className="text-[10px] text-primary/80">loading…</span>
             )}
             {error && (
-              <span className="text-[10px] text-red-400/90">playback failed</span>
+              <span className="text-[10px] text-red-400/90">
+                playback failed
+              </span>
             )}
           </div>
         </div>

@@ -9,9 +9,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { useWebSocket } from "@/lib/ws/context";
 import { mediaApi } from "@/lib/api";
-import type { MediaState, MediaItem } from "@/lib/types";
+import type { MediaItem, MediaState } from "@/lib/types";
+import { useWebSocket } from "@/lib/ws/context";
 
 interface MediaPlayerContextValue {
   /** Current play state */
@@ -52,11 +52,14 @@ export function MediaPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (fetched.current) return;
     fetched.current = true;
-    mediaApi.getStatus().then((data) => {
-      if (data) setState(data as MediaState);
-    }).catch(() => {
-      // API not yet available
-    });
+    mediaApi
+      .getStatus()
+      .then((data) => {
+        if (data) setState(data as MediaState);
+      })
+      .catch(() => {
+        // API not yet available
+      });
   }, []);
 
   // Subscribe to live media_state events via WS
@@ -69,37 +72,52 @@ export function MediaPlayerProvider({ children }: { children: ReactNode }) {
 
   const skip = useCallback(() => {
     setPending(true);
-    mediaApi.skip().then((data) => {
-      if (data) setState(data as MediaState);
-    }).catch(() => {
-      // ignore
-    }).finally(() => setPending(false));
+    mediaApi
+      .skip()
+      .then((data) => {
+        if (data) setState(data as MediaState);
+      })
+      .catch(() => {
+        // ignore
+      })
+      .finally(() => setPending(false));
   }, []);
 
   const stop = useCallback(() => {
     setPending(true);
-    mediaApi.stop().then((data) => {
-      if (data) setState(data as MediaState);
-    }).catch(() => {
-      // ignore
-    }).finally(() => setPending(false));
+    mediaApi
+      .stop()
+      .then((data) => {
+        if (data) setState(data as MediaState);
+      })
+      .catch(() => {
+        // ignore
+      })
+      .finally(() => setPending(false));
   }, []);
 
   const setVolume = useCallback((vol: number) => {
-    mediaApi.volume(vol).then((data) => {
-      if (data) setState(data as MediaState);
-    }).catch(() => {
-      // ignore
-    });
+    mediaApi
+      .volume(vol)
+      .then((data) => {
+        if (data) setState(data as MediaState);
+      })
+      .catch(() => {
+        // ignore
+      });
   }, []);
 
   const queueUrl = useCallback((url: string) => {
     setPending(true);
-    mediaApi.queue(url, "music").then((data) => {
-      if (data) setState(data as MediaState);
-    }).catch(() => {
-      // ignore
-    }).finally(() => setPending(false));
+    mediaApi
+      .queue(url, "music")
+      .then((data) => {
+        if (data) setState(data as MediaState);
+      })
+      .catch(() => {
+        // ignore
+      })
+      .finally(() => setPending(false));
   }, []);
 
   return (

@@ -1,6 +1,6 @@
-import { createChildLogger } from "@/shared/logger/index";
 import type { Client } from "discord.js-selfbot-v13";
 import { LRUCache } from "lru-cache";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import type { EventBroadcaster } from "../event-broadcaster/index.js";
 import type { MessageRecord } from "../message-capture/types.js";

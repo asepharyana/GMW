@@ -1,14 +1,14 @@
 import {
   Encoders,
-  prepareStream,
   playStream,
+  prepareStream,
   Streamer,
   Utils,
 } from "@dank074/discord-video-stream";
 import type { Client } from "discord.js-selfbot-v13";
 import { createChildLogger } from "@/shared/logger/index";
-import type { ScreenSharePlayback } from "./mediaTypes.js";
 import { getDirectVideoUrl } from "./mediaSource.js";
+import type { ScreenSharePlayback } from "./mediaTypes.js";
 import { discordPlayer } from "./player.js";
 
 const logger = createChildLogger("screen-share");
@@ -46,11 +46,7 @@ export class ScreenShareController {
 
   async start(source: string): Promise<ScreenSharePlayback> {
     const status = this.getVoiceStatus();
-    if (
-      !status.connected ||
-      !status.activeGuildId ||
-      !status.activeChannelId
-    ) {
+    if (!status.connected || !status.activeGuildId || !status.activeChannelId) {
       throw new Error("Connect to a voice channel before sharing screen");
     }
 
@@ -81,15 +77,13 @@ export class ScreenShareController {
       }).finally(() => {
         this.active = null;
       });
-
-      const controller = this;
       this.active = {
         done,
         stop: () => {
           if (stopped) return;
           stopped = true;
           command.kill("SIGTERM");
-          controller.active = null;
+          this.active = null;
         },
       };
 

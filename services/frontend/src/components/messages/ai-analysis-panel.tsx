@@ -35,25 +35,37 @@ export function AiAnalysisPanel({
   if (!status || status === "pending") {
     return (
       <GlassPanel dense>
-        <span className="text-xs text-text-secondary/50">AI analysis pending</span>
+        <span className="text-xs text-text-secondary/50">
+          AI analysis pending
+        </span>
       </GlassPanel>
     );
   }
 
-  const flagsArray = typeof flags === "string" ? (flags ? JSON.parse(flags) : []) : (flags || []);
-  const categoriesArray = typeof categories === "string" ? (categories ? JSON.parse(categories) : []) : (categories || []);
+  const flagsArray =
+    typeof flags === "string" ? (flags ? JSON.parse(flags) : []) : flags || [];
+  const categoriesArray =
+    typeof categories === "string"
+      ? categories
+        ? JSON.parse(categories)
+        : []
+      : categories || [];
 
   return (
     <GlassPanel dense className="space-y-2">
       <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">AI Analysis</span>
-        <span className={cn(
-          "text-[10px] font-mono px-1.5 py-0.5 rounded",
-          status === "clean" && "bg-emerald-500/10 text-emerald-500",
-          status === "flagged" && "bg-accent-purple/10 text-accent-purple",
-          status === "warn" && "bg-accent-amber/10 text-accent-amber",
-          status === "error" && "bg-destructive/10 text-destructive",
-        )}>
+        <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">
+          AI Analysis
+        </span>
+        <span
+          className={cn(
+            "text-[10px] font-mono px-1.5 py-0.5 rounded",
+            status === "clean" && "bg-emerald-500/10 text-emerald-500",
+            status === "flagged" && "bg-accent-purple/10 text-accent-purple",
+            status === "warn" && "bg-accent-amber/10 text-accent-amber",
+            status === "error" && "bg-destructive/10 text-destructive",
+          )}
+        >
           {status}
         </span>
       </div>
@@ -61,7 +73,14 @@ export function AiAnalysisPanel({
       {severity && (
         <div className="flex items-center gap-2 text-xs">
           <span className="text-text-secondary/60">Severity:</span>
-          <span className={cn("font-mono font-medium", severityColor[severity] || "")}>{severity}</span>
+          <span
+            className={cn(
+              "font-mono font-medium",
+              severityColor[severity] || "",
+            )}
+          >
+            {severity}
+          </span>
         </div>
       )}
 
@@ -82,7 +101,12 @@ export function AiAnalysisPanel({
       {flagsArray.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {flagsArray.map((f: string) => (
-            <span key={f} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">{f}</span>
+            <span
+              key={f}
+              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-destructive/10 text-destructive"
+            >
+              {f}
+            </span>
           ))}
         </div>
       )}
@@ -90,7 +114,12 @@ export function AiAnalysisPanel({
       {categoriesArray.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {categoriesArray.map((c: string) => (
-            <span key={c} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary">{c}</span>
+            <span
+              key={c}
+              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary"
+            >
+              {c}
+            </span>
           ))}
         </div>
       )}

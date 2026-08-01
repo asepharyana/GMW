@@ -26,7 +26,9 @@ export function MobileNav() {
               )}
             >
               <Icon className="size-5" />
-              <span className="text-[10px] font-medium leading-tight">{label}</span>
+              <span className="text-[10px] font-medium leading-tight">
+                {label}
+              </span>
               {active && (
                 <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 size-1 rounded-full bg-primary shadow-[0_0_6px] shadow-primary/80" />
               )}

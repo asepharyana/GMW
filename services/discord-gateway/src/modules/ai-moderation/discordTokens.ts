@@ -27,7 +27,16 @@ export function sanitizeDiscordTokens(content: string): string {
   if (!content.includes("<")) return content;
   return content.replace(
     DISCORD_TOKEN_RE,
-    (_full, emojiName, _emojiId, _userId, _roleId, _channelId, _time, _style) => {
+    (
+      _full,
+      emojiName,
+      _emojiId,
+      _userId,
+      _roleId,
+      _channelId,
+      _time,
+      _style,
+    ) => {
       if (emojiName) return `[emoji:${emojiName}]`;
       // Capture groups tell us which alternative matched by position:
       // 3=user, 4=role, 5=channel, 6=time

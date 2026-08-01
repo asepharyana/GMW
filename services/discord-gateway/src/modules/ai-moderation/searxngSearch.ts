@@ -1,6 +1,6 @@
+import Redis from "ioredis";
 import { createChildLogger } from "@/shared/logger/index";
 import { createAbortControllerWithTimeout } from "@/shared/utils/index";
-import Redis from "ioredis";
 
 const log = createChildLogger("searxng-search");
 

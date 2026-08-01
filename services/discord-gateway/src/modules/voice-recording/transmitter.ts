@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process";
 import { PassThrough } from "node:stream";
-import { BACKEND_VOICE_TRANSMIT } from "../../shared/index.js";
-import { createChildLogger } from "../../shared/logger/index.js";
 import { StreamType } from "@discordjs/voice";
 import type Redis from "ioredis";
+import { BACKEND_VOICE_TRANSMIT } from "../../shared/index.js";
+import { createChildLogger } from "../../shared/logger/index.js";
 import { discordPlayer } from "./player.js";
 
 const logger = createChildLogger("transmitter");

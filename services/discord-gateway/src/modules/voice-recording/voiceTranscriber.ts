@@ -1,8 +1,8 @@
 // ─── Voice Transcription — AI-powered speech-to-text for voice recordings ────
 
 import { createReadStream } from "node:fs";
-import { createChildLogger } from "@/shared/logger/index";
 import OpenAI from "openai";
+import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 
 const logger = createChildLogger("voice-transcriber");

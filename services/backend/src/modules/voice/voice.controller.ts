@@ -1,5 +1,5 @@
-import { createChildLogger } from "@/shared/logger/index";
 import type { Request, Response } from "express";
+import { createChildLogger } from "@/shared/logger/index";
 import { asyncHandler } from "../../shared/middlewares/index.js";
 import { publishCommandNoReply } from "../../shared/redis/index.js";
 import type { ConnectVoiceInput, VoiceCommandInput } from "./voice.schema.js";
