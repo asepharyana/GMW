@@ -10,38 +10,21 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { ChannelsSection } from "@/components/dashboard/channels-section";
-import { LiveStream } from "@/components/dashboard/live-stream";
-import type { ModQueueItem } from "@/components/dashboard/mod-queue";
-import { ModQueue } from "@/components/dashboard/mod-queue";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { TopChannelsChart } from "@/components/dashboard/top-channels-chart";
 import { UsersSection } from "@/components/dashboard/users-section";
 import { SubNav } from "@/components/layout/sub-nav";
 import { ErrorState, LoadingSkeleton } from "@/components/shared";
-import { useReview, useStats } from "@/hooks";
+import { useStats } from "@/hooks";
 
-type DashboardTab = "stats" | "live" | "users" | "channels";
+type DashboardTab = "stats" | "users" | "channels";
 
 export default function DashboardPage() {
   const [tab, setTab] = useState<DashboardTab>("stats");
   const { data: stats, isLoading, error, mutate: refetch } = useStats();
-  const { data: review = [] } = useReview();
-
-  const modQueueItems: ModQueueItem[] = review.slice(0, 10).map((msg) => ({
-    id: msg.id,
-    content: msg.content || msg.id,
-    username: msg.username,
-    metadata: msg.metadata ?? null,
-    severity:
-      msg.ai_severity && msg.ai_severity !== "none"
-        ? (msg.ai_severity as ModQueueItem["severity"])
-        : "medium",
-    reason: msg.ai_analysis ?? "AI moderation flag",
-  }));
 
   const subNavTabs = [
     { id: "stats", label: "Stats", icon: <Hash className="size-3" /> },
-    { id: "live", label: "Live", icon: <Sparkles className="size-3" /> },
     { id: "users", label: "Users", icon: <Users className="size-3" /> },
     { id: "channels", label: "Channels", icon: <Hash className="size-3" /> },
   ];
@@ -105,13 +88,6 @@ export default function DashboardPage() {
               />
             </>
           )}
-        </div>
-      )}
-
-      {tab === "live" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <LiveStream />
-          <ModQueue items={modQueueItems} />
         </div>
       )}
 
