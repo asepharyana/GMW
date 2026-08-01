@@ -116,6 +116,7 @@ atau konten SARA, itu akan SANGAT tidak sesuai dengan karakternya dan patut dicu
       max_tokens: 2000,
       temperature: 0.7, // Higher temp for summarization
       retries: 2,
+      stream: true, // router always streams SSE; non-stream waits for full body and times out
     });
 
     if (!completion) throw new Error("Empty response from LLM");

@@ -272,6 +272,7 @@ export async function llmVision(
     temperature: 0.1,
     top_p: 0.9,
     retries: 0,
+    stream: true, // router always streams SSE; non-stream waits for full body and times out
   });
 
   if (!completion) return null;

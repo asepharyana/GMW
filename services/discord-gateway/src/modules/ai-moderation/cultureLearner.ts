@@ -87,6 +87,7 @@ hal dasar ke newbie tanpa judge."`;
       max_tokens: 500,
       temperature: 0.7, // Higher temp for summarization
       retries: 2,
+      stream: true, // router always streams SSE; non-stream waits for full body and times out
     });
 
     if (!completion) throw new Error("Empty response from LLM");
