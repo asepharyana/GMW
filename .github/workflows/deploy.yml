@@ -17,7 +17,50 @@ env:
   VPS_USER: ${{ secrets.VPS_USER }}
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: corepack enable && corepack prepare pnpm@11 --activate
+
+      - name: Install deps (backend)
+        working-directory: services/backend
+        run: pnpm install --ignore-scripts --no-frozen-lockfile
+
+      - name: Typecheck + test (backend)
+        working-directory: services/backend
+        run: |
+          ./node_modules/.bin/tsc --noEmit
+          ./node_modules/.bin/vitest run
+
+      - name: Install deps (discord-gateway)
+        working-directory: services/discord-gateway
+        run: pnpm install --ignore-scripts --no-frozen-lockfile
+
+      - name: Typecheck + test (discord-gateway)
+        working-directory: services/discord-gateway
+        run: |
+          ./node_modules/.bin/tsc --noEmit
+          ./node_modules/.bin/vitest run
+
+      - name: Biome check (all services)
+        run: |
+          cd services/backend && ./node_modules/.bin/biome check src/ tests/
+          cd ../discord-gateway && ./node_modules/.bin/biome check src/
+
   build-and-deploy:
+    needs: test
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
