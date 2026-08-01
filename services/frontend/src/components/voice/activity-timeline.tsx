@@ -1,6 +1,5 @@
 "use client";
 
-import { GlassCard } from "@/components/glass/card";
 import {
   Bar,
   BarChart,
@@ -9,12 +8,16 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { GlassCard } from "@/components/glass/card";
+import { useMounted } from "@/lib/hooks/use-mounted";
 
 interface ActivityTimelineProps {
   data?: { user: string; duration: number }[];
 }
 
 export function VoiceActivityTimeline({ data = [] }: ActivityTimelineProps) {
+  const mounted = useMounted();
+
   return (
     <GlassCard variant="base">
       <div className="flex items-center gap-2 mb-3">
@@ -23,39 +26,51 @@ export function VoiceActivityTimeline({ data = [] }: ActivityTimelineProps) {
         </span>
       </div>
       <div className="h-40">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical">
-            <XAxis
-              type="number"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "oklch(0.55 0.02 245)", fontSize: 10 }}
-            />
-            <YAxis
-              type="category"
-              dataKey="user"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "oklch(0.55 0.02 245)", fontSize: 10 }}
-              width={80}
-            />
-            <Tooltip
-              contentStyle={{
-                background: "oklch(0.11 0.02 245 / 0.9)",
-                border: "1px solid oklch(1 0 0 / 0.08)",
-                borderRadius: 8,
-                fontSize: 12,
-                color: "oklch(0.93 0.01 245)",
-              }}
-              formatter={(value) => [`${(Number(value) / 60).toFixed(1)}m`, "Duration"]}
-            />
-            <Bar
-              dataKey="duration"
-              fill="var(--color-primary)"
-              radius={[0, 4, 4, 0]}
-            />
-          </BarChart>
-        </ResponsiveContainer>
+        {mounted ? (
+          <ResponsiveContainer
+            width="100%"
+            height={160}
+            minWidth={0}
+            minHeight={0}
+          >
+            <BarChart data={data} layout="vertical">
+              <XAxis
+                type="number"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "oklch(0.55 0.02 245)", fontSize: 10 }}
+              />
+              <YAxis
+                type="category"
+                dataKey="user"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "oklch(0.55 0.02 245)", fontSize: 10 }}
+                width={80}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "oklch(0.11 0.02 245 / 0.9)",
+                  border: "1px solid oklch(1 0 0 / 0.08)",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  color: "oklch(0.93 0.01 245)",
+                }}
+                formatter={(value) => [
+                  `${(Number(value) / 60).toFixed(1)}m`,
+                  "Duration",
+                ]}
+              />
+              <Bar
+                dataKey="duration"
+                fill="var(--color-primary)"
+                radius={[0, 4, 4, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full w-full animate-pulse rounded-md bg-card/40" />
+        )}
       </div>
     </GlassCard>
   );

@@ -3,6 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { GlassCard } from "@/components/glass/card";
+import { useMounted } from "@/lib/hooks/use-mounted";
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {
@@ -22,6 +23,7 @@ export function StatCard({
   sparklineData,
   formatter = (v) => (typeof v === "number" ? v.toLocaleString() : v),
 }: StatCardProps) {
+  const mounted = useMounted();
   const accentColor = {
     default: "var(--color-primary)",
     danger: "var(--color-destructive)",
@@ -54,9 +56,14 @@ export function StatCard({
       </div>
 
       {/* Sparkline background */}
-      {sparklineData && sparklineData.length > 0 && (
+      {sparklineData && sparklineData.length > 0 && mounted && (
         <div className="absolute bottom-0 left-0 right-0 h-12 opacity-20">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer
+            width="100%"
+            height={48}
+            minWidth={0}
+            minHeight={0}
+          >
             <AreaChart data={sparklineData}>
               <defs>
                 <linearGradient

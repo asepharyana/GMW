@@ -126,14 +126,17 @@ export function useReview(channelId?: string) {
 
 export function useMessageDetail(id: string | null) {
   const detail = useSWR<MessageRecord>(id ? msgKeys.detail(id) : null, () =>
-    messagesApi.getDetail(id!),
+    messagesApi.getDetail(id ?? ""),
   );
+  const channelId = id ? detail.data?.channel_id : undefined;
   const attachments = useSWR<AttachmentRecord[]>(
-    id && detail.data?.channel_id
-      ? [...msgKeys.detail(id), "attachments"]
-      : null,
+    channelId ? [...msgKeys.detail(id ?? ""), "attachments"] : null,
     async () => {
-      const res = await messagesApi.getAttachments(detail.data!.channel_id, 10);
+      // Guard: only fetch when we actually have a channel id — a revalidate
+      // can race the detail load and see detail.data === undefined.
+      const cid = detail.data?.channel_id;
+      if (!cid) return [];
+      const res = await messagesApi.getAttachments(cid, 10);
       return res.data;
     },
   );
