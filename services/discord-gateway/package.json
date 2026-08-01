@@ -10,13 +10,9 @@
       "@lng2004/node-datachannel",
       "esbuild",
       "node-av",
-      "node-crc",
       "sharp",
       "zeromq"
-    ],
-    "patchedDependencies": {
-      "node-crc@4.0.0": "./patches/node-crc@4.0.0.patch"
-    }
+    ]
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -40,7 +36,6 @@
     "ioredis": "^5.11.0",
     "libsodium-wrappers": "^0.8.4",
     "lru-cache": "^11.5.1",
-    "node-crc": "^4.0.0",
     "openai": "^6.38.0",
     "opusscript": "^0.0.8",
     "p-limit": "^7.3.0",

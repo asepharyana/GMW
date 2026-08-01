@@ -3,16 +3,16 @@ allowBuilds:
   "@lng2004/node-datachannel": true
   esbuild: true
   node-av: true
-  node-crc: true
-  sharp: true
   zeromq: true
 # pnpm 11 requires build-script approvals here (the legacy `pnpm` field in
 # package.json is ignored). Native voice deps need their postinstall build.
+# NOTE: sharp sengaja TIDAK ada — binary-nya dari @img/sharp-linux-x64
+# (prebuilt), install script-nya cuma validasi dan gagal di Nix sandbox.
+# Kalau script sharp dijalankan pnpm rebuild abort sebelum opus/datachannel
+# kebangun. node-crc dihapus dari deps (tidak pernah di-import).
 onlyBuiltDependencies:
   - "@discordjs/opus"
   - "@lng2004/node-datachannel"
   - esbuild
   - node-av
-  - node-crc
-  - sharp
   - zeromq

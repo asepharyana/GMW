@@ -11,6 +11,15 @@
       let
         pkgs = import nixpkgs { inherit system; };
 
+        # OpenSSL headers (.dev output) + STATIC libs (pkgsStatic.openssl.out —
+        # node-datachannel's CMakeLists sets OPENSSL_USE_STATIC_LIBS=TRUE, and
+        # the default `pkgs.openssl` resolves to `bin` which has no lib/) merged
+        # into one tree so FindOpenSSL resolves both via OPENSSL_ROOT_DIR.
+        opensslDevEnv = pkgs.symlinkJoin {
+          name = "openssl-dev-env";
+          paths = [ pkgs.pkgsStatic.openssl.out pkgs.openssl.dev ];
+        };
+
         # ---- Shared build tools ----
         nodejs = pkgs.nodejs_22;
         pnpm = pkgs.pnpm.override { nodejs = nodejs; };
@@ -105,10 +114,12 @@ WRAPPER
 
           nativeBuildInputs = [
             nodejs pnpm
-            pkgs.python3 pkgs.gnumake pkgs.gcc
+            pkgs.python3 pkgs.gnumake pkgs.gcc pkgs.cmake
             pkgs.rustc pkgs.cargo
             pkgs.pkg-config
             pkgs.openssl
+            pkgs.openssl.dev
+            pkgs.git # libdatachannel FetchContent clones from GitHub
             pkgs.cacert
           ];
 
@@ -117,7 +128,35 @@ WRAPPER
           # search media resolution). Must be on PATH inside the wrapper below.
           buildInputs = [ pkgs.ffmpeg-headless pkgs.yt-dlp ];
 
+          # cmake is only needed for node-datachannel's postinstall build —
+          # do NOT let stdenv run its own cmake configure phase on the source.
+          dontUseCmakeConfigure = true;
+
           buildPhase = pnpmInstall + ''
+            echo "=== Building native voice deps ==="
+            # pnpm rebuild aborts on the first failing package and runs scripts
+            # from the wrong cwd — build each native dep explicitly with its own
+            # install script. Each failure is tolerated (|| true); the packages
+            # that matter (opus, datachannel, node-av) are verified at runtime.
+            for pkg in \
+              node_modules/.pnpm/@discordjs+opus@*/node_modules/@discordjs/opus \
+              node_modules/.pnpm/@lng2004+node-datachannel@*/node_modules/@lng2004/node-datachannel \
+              node_modules/.pnpm/zeromq@*/node_modules/zeromq
+            do
+              if [ -d "$pkg" ]; then
+                echo "--- native build: $pkg ---"
+                (cd "$pkg" && npm run install 2>&1 || true)
+                # node-datachannel's `prebuild -r napi` CLI is broken (TypeError:
+                # expected first argument to be an array) — the install fallback
+                # populates devDeps incl. cmake-js; build directly via cmake-js.
+                if [ "$(basename "$pkg")" = "node-datachannel" ]; then
+                  echo "--- datachannel cmake-js compile ---"
+                  # Nix splits OpenSSL headers/libs across outputs — merge them
+                  # (opensslDevEnv) so FindOpenSSL finds both include + libcrypto.
+                  (cd "$pkg" && OPENSSL_ROOT_DIR="${opensslDevEnv}" npm run compile 2>&1 || true)
+                fi
+              fi
+            done
             echo "=== Compiling TypeScript ==="
             npx tsc 2>&1
             echo "=== Fixing @/ path aliases to relative paths ==="
