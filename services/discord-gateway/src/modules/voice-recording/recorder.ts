@@ -220,7 +220,7 @@ export function stopRecording(guildId: string): void {
     // Auto-enqueue muxer job if there are multiple segments
     const segments = snapshot.segments;
     if (segments.length >= 2) {
-      const outputFile = `${config.RECORDINGS_DIR}/merged/${session.sessionId}.ogg`;
+      const outputFile = `${config.RECORDINGS_DIR}/merged/${session.sessionId}.mp3`;
       import("./muxer.js")
         .then(({ enqueueMuxerJob }) => {
           enqueueMuxerJob({

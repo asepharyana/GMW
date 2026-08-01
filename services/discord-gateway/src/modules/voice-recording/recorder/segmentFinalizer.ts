@@ -6,6 +6,7 @@ import type {
   UserMetadata,
 } from "../../message-capture/types.js";
 import { createSegmentMetadata } from "./metadata.js";
+import { fixOggCrc } from "./oggCrc.js";
 import type { RecordingSession } from "./sessionRecording.js";
 import { uploadRecordingSegment } from "./uploader.js";
 
@@ -52,6 +53,27 @@ export function finalizeSegment(input: SegmentFinalizerInput): void {
 
   if (config.VERBOSE) {
     logger.info({ filename: currentSegment.filename }, "Segment saved");
+  }
+
+  // Fix Ogg page CRCs before anything reads the file (upload/merge/transcode).
+  // prism-media writes pages with crc:false → checksums are zero → strict
+  // players (ffmpeg, iOS) reject the file. Re-compute in place, pure JS.
+  try {
+    const fixed = fixOggCrc(currentSegment.filename);
+    if (config.VERBOSE) {
+      logger.info(
+        { filename: currentSegment.filename, pages: fixed },
+        "Ogg page CRCs fixed",
+      );
+    }
+  } catch (err: unknown) {
+    logger.error(
+      {
+        filename: currentSegment.filename,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      "Failed to fix Ogg CRCs — segment may be unplayable",
+    );
   }
 
   // Register segment with the active recording session

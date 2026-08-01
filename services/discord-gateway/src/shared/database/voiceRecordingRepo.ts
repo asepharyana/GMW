@@ -81,6 +81,8 @@ export async function updateVoiceRecordingAsUploaded(
   id: string,
   downloadUrl: string,
   uploadedAt: number,
+  filename?: string,
+  sizeBytes?: number,
 ): Promise<void> {
   try {
     await db()
@@ -89,6 +91,8 @@ export async function updateVoiceRecordingAsUploaded(
         download_url: downloadUrl,
         upload_status: "uploaded",
         uploaded_at: uploadedAt,
+        ...(filename !== undefined ? { filename } : {}),
+        ...(sizeBytes !== undefined ? { size_bytes: sizeBytes } : {}),
       })
       .where(eq(voiceRecordingsTable.id, id));
   } catch (error) {

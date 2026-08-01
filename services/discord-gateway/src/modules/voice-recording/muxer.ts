@@ -142,7 +142,7 @@ async function processJob(
       inputs: data.inputs,
       filter: filterComplex,
       output: data.output,
-      codec: "libopus",
+      codec: "libmp3lame",
       audioFrequency: 48000,
       audioChannels: 2,
     });
