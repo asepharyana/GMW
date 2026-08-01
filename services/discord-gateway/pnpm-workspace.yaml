@@ -1,0 +1,18 @@
+allowBuilds:
+  "@discordjs/opus": true
+  "@lng2004/node-datachannel": true
+  esbuild: true
+  node-av: true
+  node-crc: true
+  sharp: true
+  zeromq: true
+# pnpm 11 requires build-script approvals here (the legacy `pnpm` field in
+# package.json is ignored). Native voice deps need their postinstall build.
+onlyBuiltDependencies:
+  - "@discordjs/opus"
+  - "@lng2004/node-datachannel"
+  - esbuild
+  - node-av
+  - node-crc
+  - sharp
+  - zeromq
