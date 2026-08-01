@@ -82,6 +82,52 @@ export class DashboardRepository {
     };
   }
 
+  async getActivity(days: number) {
+    const db = getDatabase();
+    const sinceMs = Date.now() - days * 86400000;
+    const dayAgoMs = Date.now() - 86400000;
+
+    // Daily buckets (last N days)
+    const daily = await db.execute(sql`
+      SELECT
+        to_char(to_timestamp(created_at / 1000), 'YYYY-MM-DD') AS day,
+        COUNT(*)::int AS messages,
+        COUNT(*) FILTER (WHERE ai_status = 'flagged')::int AS flagged,
+        COUNT(DISTINCT user_id)::int AS active_users
+      FROM ${pgMessagesTable}
+      WHERE created_at >= ${sinceMs}
+      GROUP BY day
+      ORDER BY day
+    `);
+
+    // Hourly distribution (last 24h)
+    const hourly = await db.execute(sql`
+      SELECT
+        EXTRACT(HOUR FROM to_timestamp(created_at / 1000))::int AS hour,
+        COUNT(*)::int AS messages,
+        COUNT(*) FILTER (WHERE ai_status = 'flagged')::int AS flagged
+      FROM ${pgMessagesTable}
+      WHERE created_at >= ${dayAgoMs}
+      GROUP BY hour
+      ORDER BY hour
+    `);
+
+    return {
+      days,
+      daily: (daily.rows as Record<string, unknown>[]).map((r) => ({
+        day: String(r.day),
+        messages: Number(r.messages),
+        flagged: Number(r.flagged),
+        active_users: Number(r.active_users),
+      })),
+      hourly: (hourly.rows as Record<string, unknown>[]).map((r) => ({
+        hour: Number(r.hour),
+        messages: Number(r.messages),
+        flagged: Number(r.flagged),
+      })),
+    };
+  }
+
   async listUsers(query: ListUsersQuery) {
     const db = getDatabase();
     const limit = query.limit ?? 20;

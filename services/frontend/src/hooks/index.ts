@@ -1,5 +1,6 @@
 export { useConfig } from "./use-config";
 export {
+  useActivity,
   useChannelDetail,
   useChannels,
   useStats,

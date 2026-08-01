@@ -19,6 +19,16 @@ export function createDashboardRouter(): Router {
     }),
   );
 
+  // GET /api/dashboard/activity?days=14 — message volume over time
+  router.get(
+    "/dashboard/activity",
+    asyncHandler(async (req: Request, res: Response) => {
+      const days = Math.min(Math.max(Number(req.query.days) || 14, 1), 90);
+      const activity = await dashboardService.getActivity(days);
+      res.json(activity);
+    }),
+  );
+
   // GET /api/dashboard/users — paginated user list with profiles
   router.get(
     "/dashboard/users",

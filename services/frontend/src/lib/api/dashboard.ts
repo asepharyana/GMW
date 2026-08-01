@@ -1,4 +1,5 @@
 import type {
+  DashboardActivity,
   DashboardChannelDetail,
   DashboardStats,
   DashboardUserDetail,
@@ -9,6 +10,9 @@ import { api } from "./client";
 
 export const dashboardApi = {
   getStats: () => api.get<DashboardStats>("/api/dashboard/stats"),
+
+  getActivity: (days = 14) =>
+    api.get<DashboardActivity>(`/api/dashboard/activity?days=${days}`),
 
   listUsers: (limit?: number, cursor?: string, search?: string) => {
     const params = new URLSearchParams();

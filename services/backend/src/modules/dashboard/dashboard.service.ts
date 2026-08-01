@@ -15,6 +15,11 @@ export class DashboardService {
     return dashboardRepository.getStats();
   }
 
+  async getActivity(days: number) {
+    logger.debug({ days }, "Fetching dashboard activity");
+    return dashboardRepository.getActivity(days);
+  }
+
   async listUsers(query: ListUsersQuery) {
     logger.debug({ query }, "Listing dashboard users");
     return dashboardRepository.listUsers(query);

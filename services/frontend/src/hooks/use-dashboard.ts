@@ -2,6 +2,7 @@ import useSWR from "swr";
 
 import { dashboardApi } from "@/lib/api";
 import type {
+  DashboardActivity,
   DashboardChannelDetail,
   DashboardStats,
   DashboardUserDetail,
@@ -10,6 +11,12 @@ import type {
 export function useStats() {
   return useSWR<DashboardStats>(["dashboard-stats"], () =>
     dashboardApi.getStats(),
+  );
+}
+
+export function useActivity(days = 14) {
+  return useSWR<DashboardActivity>(["dashboard-activity", days], () =>
+    dashboardApi.getActivity(days),
   );
 }
 

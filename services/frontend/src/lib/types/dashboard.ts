@@ -28,6 +28,25 @@ export interface ModerationOverview {
   error: number;
 }
 
+export interface DashboardActivity {
+  days: number;
+  daily: DailyActivityPoint[];
+  hourly: HourlyActivityPoint[];
+}
+
+export interface DailyActivityPoint {
+  day: string; // YYYY-MM-DD
+  messages: number;
+  flagged: number;
+  active_users: number;
+}
+
+export interface HourlyActivityPoint {
+  hour: number; // 0-23
+  messages: number;
+  flagged: number;
+}
+
 export interface DashboardUser {
   user_id: string;
   username?: string | null;
