@@ -1,4 +1,6 @@
 // ─── Shared Error Classes ────────────────────────────────────────────────────
+
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AppError,
   ConfigError,
@@ -6,7 +8,9 @@ import {
   NotFoundError,
   UnauthorizedError,
   ValidationError,
-} from "@bete/shared/errors";
+} from "../src/shared/errors/index.js";
+// ─── Backend middleware ──────────────────────────────────────────────────────
+import { asyncHandler, requireParam } from "../src/shared/middlewares/index.js";
 // ─── Shared utilities ─────────────────────────────────────────────────────────
 import {
   decodeCursor,
@@ -14,11 +18,7 @@ import {
   encodeCursor,
   pageResult,
   retryWithBackoff,
-} from "@bete/shared/utils";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-// ─── Backend middleware ──────────────────────────────────────────────────────
-import { asyncHandler, requireParam } from "../src/shared/middlewares/index.js";
+} from "../src/shared/utils/index.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. AppError / Error Hierarchy Tests

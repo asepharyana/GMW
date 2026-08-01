@@ -8,7 +8,7 @@ import {
   NotFoundError,
   UnauthorizedError,
   ValidationError,
-} from "@bete/shared/errors";
+} from "../src/shared/errors/index.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 describe("AppError subclasses", () => {
@@ -52,7 +52,7 @@ import {
   encodeCursor,
   pageResult,
   retryWithBackoff,
-} from "@bete/shared/utils";
+} from "../src/shared/utils/index.js";
 
 describe("delay", () => {
   afterEach(() => {
@@ -146,7 +146,7 @@ import {
   DISCORD_VOICE_STARTED,
   MEDIA_STATUS_KEY,
   VOICE_STATUS_KEY,
-} from "@bete/shared/redis-channels";
+} from "../src/shared/redis-channels.js";
 
 describe("Redis channel constants", () => {
   it("define event channel names", () => {
@@ -186,7 +186,7 @@ vi.hoisted(() => {
   process.env.DATABASE_URL = "postgres://test:test@localhost:5432/test";
 });
 
-import { configSchema, loadConfig } from "@bete/shared/config";
+import { configSchema, loadConfig } from "../src/shared/config/index.js";
 
 describe("Config validation", () => {
   it("loadConfig succeeds with minimal valid env", () => {
