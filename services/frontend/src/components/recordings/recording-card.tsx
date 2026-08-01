@@ -1,6 +1,7 @@
 "use client";
 
-import { Download, Play } from "lucide-react";
+import { useState } from "react";
+import { Download, Loader2, Play } from "lucide-react";
 import { GlassCard } from "@/components/glass/card";
 import type { VoiceRecording } from "@/lib/types";
 
@@ -10,9 +11,35 @@ interface RecordingCardProps {
 }
 
 export function RecordingCard({ recording, onPlay }: RecordingCardProps) {
+  const [downloading, setDownloading] = useState(false);
   const durationStr = recording.duration_bytes
     ? `${Math.floor(recording.duration_bytes / 60)}:${String(recording.duration_bytes % 60).padStart(2, "0")}`
     : "--:--";
+
+  // Fetch the file (CORS is open on the uploader) → blob → force download with
+  // the real filename. Falls back to opening the URL in a new tab.
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!recording.download_url || downloading) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(recording.download_url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = recording.filename ?? `recording-${recording.id}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 30_000);
+    } catch {
+      window.open(recording.download_url, "_blank", "noopener,noreferrer");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <GlassCard variant="interactive" className="p-4" onClick={() => onPlay(recording.id)}>
@@ -50,9 +77,19 @@ export function RecordingCard({ recording, onPlay }: RecordingCardProps) {
 
         <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
           {recording.download_url && (
-            <a href={recording.download_url} target="_blank" rel="noopener noreferrer" className="size-7 flex items-center justify-center rounded glass hover:glass-elevated transition-all">
-              <Download className="size-3 text-text-secondary/60" />
-            </a>
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={downloading}
+              title="Download"
+              className="size-7 flex items-center justify-center rounded glass hover:glass-elevated transition-all disabled:opacity-50"
+            >
+              {downloading ? (
+                <Loader2 className="size-3 text-text-secondary/60 animate-spin" />
+              ) : (
+                <Download className="size-3 text-text-secondary/60" />
+              )}
+            </button>
           )}
         </div>
       </div>

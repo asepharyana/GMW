@@ -153,6 +153,7 @@ export default function RecordingsPage() {
 
       <RecordingPlayer
         url={currentTrack?.download_url ?? undefined}
+        filename={currentTrack?.filename ?? undefined}
         onClose={() => setPlayingId(null)}
       />
     </div>

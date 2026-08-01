@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { SubNav } from "@/components/layout/sub-nav";
 import { VoiceActivityTimeline } from "@/components/voice/activity-timeline";
 import { VoiceConnectionCard } from "@/components/voice/connection-card";
+import { ListenControl } from "@/components/voice/listen-control";
 import { MicControl } from "@/components/voice/mic-control";
 import { SpeakerWaveform } from "@/components/voice/speaker-waveform";
 import {
@@ -13,6 +14,7 @@ import {
   useVoiceChannels,
   useVoiceConnect,
   useVoiceDisconnect,
+  useVoiceListen,
   useVoiceStatus,
 } from "@/hooks";
 import { useWebSocket } from "@/lib/ws/context";
@@ -29,9 +31,11 @@ export default function VoicePage() {
   const connectMut = useVoiceConnect();
   const disconnectMut = useVoiceDisconnect();
   const micMut = useMicTransmit(ws);
+  const listen = useVoiceListen(ws);
   const [selectedChannel, setSelectedChannel] = useState("");
   const [micActive, setMicActive] = useState(false);
   const [volume, setVolume] = useState(75);
+  const [listenVolume, setListenVolume] = useState(75);
   const [tab, setTab] = useState<VoiceTab>("connection");
 
   useEffect(() => {
@@ -111,6 +115,7 @@ export default function VoicePage() {
             setMicActive(false);
             void micMut.mutateAsync(false).catch(() => {});
           }
+          if (listen.active) listen.toggle(false);
           disconnectMut.mutate(undefined);
         }}
         connecting={connectMut.isPending}
@@ -119,13 +124,27 @@ export default function VoicePage() {
       {tab === "connection" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <SpeakerWaveform speakers={activeSpeakers} />
-          <MicControl
-            connected={connected}
-            active={micActive}
-            onToggle={handleMicToggle}
-            volume={volume}
-            onVolumeChange={handleVolumeChange}
-          />
+          <div className="space-y-4">
+            <ListenControl
+              connected={connected}
+              active={listen.active}
+              levels={listen.levels}
+              speakers={speakers}
+              onToggle={(on) => listen.toggle(on)}
+              volume={listenVolume}
+              onVolumeChange={(v) => {
+                setListenVolume(v);
+                listen.setVolume(v);
+              }}
+            />
+            <MicControl
+              connected={connected}
+              active={micActive}
+              onToggle={handleMicToggle}
+              volume={volume}
+              onVolumeChange={handleVolumeChange}
+            />
+          </div>
         </div>
       )}
 

@@ -1,10 +1,22 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useAction } from "@/hooks/use-action";
 import { voiceApi } from "@/lib/api";
 import { MicTransmitter } from "@/lib/audio/mic-transmit";
+import { PcmPlayer } from "@/lib/audio/pcm-player";
 import type { ActiveSpeaker, Channel, VoiceStatus } from "@/lib/types";
+import type { PcmChunk } from "@/lib/ws/types";
 import type { WsHook } from "@/lib/ws-hook";
+
+/** FNV-1a 32-bit — same hash the gateway uses to tag PCM frames. */
+export function hashUserId(userId: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < userId.length; i++) {
+    hash ^= userId.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
 
 const STATUS_KEY = ["voice-status"] as const;
 
@@ -89,4 +101,61 @@ export function useMicTransmit(ws: {
   }, []);
 
   return { ...action, setVolume };
+}
+
+/**
+ * Receive + play Discord voice in the browser.
+ *
+ * Toggling on (from a user gesture) starts a PcmPlayer, subscribes to the WS
+ * binary PCM stream, and exposes per-user activity levels for the waveform UI.
+ * `toggle(false)` tears everything down.
+ */
+export function useVoiceListen(ws: {
+  onPcm: (handler: (chunk: PcmChunk) => void) => () => void;
+}) {
+  const playerRef = useRef<PcmPlayer | null>(null);
+  const unsubRef = useRef<(() => void) | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [active, setActive] = useState(false);
+  const [levels, setLevels] = useState<Map<number, number>>(new Map());
+
+  const stop = useCallback(() => {
+    unsubRef.current?.();
+    unsubRef.current = null;
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+    playerRef.current?.stop();
+    playerRef.current = null;
+    setActive(false);
+    setLevels(new Map());
+  }, []);
+
+  const toggle = useCallback(
+    (on: boolean) => {
+      if (on) {
+        const player = new PcmPlayer();
+        playerRef.current = player;
+        player.setVolume(0.75);
+        player.start(); // called from the click gesture
+        unsubRef.current = ws.onPcm((chunk) => {
+          player.push(chunk.userIdHash, chunk.samples);
+        });
+        timerRef.current = setInterval(() => {
+          setLevels(player.getLevels());
+        }, 100);
+        setActive(true);
+      } else {
+        stop();
+      }
+    },
+    [ws, stop],
+  );
+
+  const setVolume = useCallback((v: number) => {
+    playerRef.current?.setVolume(v / 100);
+  }, []);
+
+  useEffect(() => stop, [stop]);
+
+  return { active, levels, toggle, setVolume };
 }

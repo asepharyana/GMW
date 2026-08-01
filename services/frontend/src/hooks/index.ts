@@ -34,10 +34,12 @@ export {
   useRecordingsWsSync,
 } from "./use-recordings";
 export {
+  hashUserId,
   useMicTransmit,
   useSpeakers,
   useVoiceChannels,
   useVoiceConnect,
   useVoiceDisconnect,
+  useVoiceListen,
   useVoiceStatus,
 } from "./use-voice";
