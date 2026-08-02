@@ -230,7 +230,7 @@ NODE_ENV=development
 LOG_LEVEL=info
 
 # Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/discord_moderation
+DATABASE_URL=postgresql://asephs:***@100.121.180.82:6432/discord_moderation
 # OR
 DATABASE_HOST=localhost
 DATABASE_PORT=6432
