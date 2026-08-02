@@ -233,13 +233,13 @@ LOG_LEVEL=info
 DATABASE_URL=postgresql://user:pass@localhost:5432/discord_moderation
 # OR
 DATABASE_HOST=localhost
-DATABASE_PORT=5432
+DATABASE_PORT=6432
 DATABASE_NAME=discord_moderation
 DATABASE_USER=postgres
 DATABASE_PASSWORD=secret
 
 # Redis (optional, for pub/sub)
-REDIS_URL=redis://localhost:6379
+REDIS_URL=redis://100.121.180.82:6379
 
 # Discord
 MONITOR_GUILD_ID=123456789

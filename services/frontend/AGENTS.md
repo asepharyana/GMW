@@ -12,7 +12,7 @@ Key points:
 ## Data flow (match these — do not invent endpoints)
 
 ```
-Discord → discord-gateway → Redis pub/sub → backend (Express :3001) ←→ frontend
+Discord → discord-gateway → Redis pub/sub → backend (Express :4001) ←→ frontend
                                                 ↑ REST /api/*        (same-origin)
                                                 └ WS /ws (events + PCM binary)
 ```

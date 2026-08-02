@@ -15,7 +15,7 @@ export default defineConfig({
     // (DISCORD_TOKEN required) and DB-agnostic pure-function tests.
     env: {
       DISCORD_TOKEN: "test-discord-token",
-      DATABASE_URL: "postgres://localhost:5432/test",
+      DATABASE_URL: "postgres://localhost:6432/test",
       AI_ANALYSIS_ENABLED: "true",
       AI_LLM_API_KEY: "sk-test",
     },

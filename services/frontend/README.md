@@ -36,6 +36,6 @@ src/
 
 ## API
 
-Backend berjalan di port 3001. Frontend mengakses API via `window.location` (same-origin atau proxy).
+Backend berjalan di port 4001. Frontend mengakses API via `window.location` (same-origin atau proxy).
 
 WebSocket terhubung otomatis ke `/ws` di host yang sama.

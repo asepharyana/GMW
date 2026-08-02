@@ -34,7 +34,7 @@ if [ ! -f .env ]; then
     echo "📝 Creating .env file..."
     cp .env.example .env
     echo "⚠️  Please update .env with your PostgreSQL connection string"
-    echo "   DATABASE_URL=postgresql://user:password@localhost:5432/discord_bot"
+    echo "   DATABASE_URL=postgresql://asephs:***@100.121.180.82:6432/dcbot"
     echo ""
 fi
 
@@ -58,10 +58,10 @@ read -p "Enter database name (default: discord_bot): " DB_NAME
 DB_NAME=${DB_NAME:-discord_bot}
 
 read -p "Enter PostgreSQL host (default: localhost): " PG_HOST
-PG_HOST=${PG_HOST:-localhost}
+PG_HOST=${PG_HOST:-100.121.180.82}
 
 read -p "Enter PostgreSQL port (default: 5432): " PG_PORT
-PG_PORT=${PG_PORT:-5432}
+PG_PORT=${PG_PORT:-6432}
 
 echo ""
 echo "🗄️  Creating database..."
