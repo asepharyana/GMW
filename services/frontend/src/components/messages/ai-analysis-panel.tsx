@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { GlassPanel } from "@/components/glass/panel";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,8 @@ export function AiAnalysisPanel({
   score,
   analysis,
 }: AiAnalysisPanelProps) {
+  const [expanded, setExpanded] = useState(false);
+
   if (!status || status === "pending") {
     return (
       <GlassPanel dense>
@@ -125,9 +128,25 @@ export function AiAnalysisPanel({
       )}
 
       {analysis && (
-        <p className="text-xs leading-relaxed text-text-secondary/90 border-l-2 border-glass-border pl-2">
-          {analysis}
-        </p>
+        <div className="border-l-2 border-glass-border pl-2">
+          <p
+            className={cn(
+              "text-xs leading-relaxed text-text-secondary/90",
+              !expanded && "line-clamp-3",
+            )}
+          >
+            {analysis}
+          </p>
+          {analysis.length > 120 && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="mt-1 text-[10px] font-medium uppercase tracking-wide text-text-secondary/50 transition-colors hover:text-text-primary"
+            >
+              {expanded ? "Show less" : "Show more"}
+            </button>
+          )}
+        </div>
       )}
 
       {action && action !== "none" && (

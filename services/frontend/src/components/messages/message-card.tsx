@@ -111,11 +111,23 @@ export function MessageCard({
               const u = extractFirstImage(msg.metadata);
               if (!u) return null;
               return (
-                <img
-                  src={u}
-                  alt=""
-                  className="mt-2 max-h-48 rounded-lg border border-border/50 object-cover"
-                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClick(msg.id);
+                  }}
+                  className="mt-2 block w-full max-w-[320px] overflow-hidden rounded-lg border border-border/50 group/image"
+                  aria-label="Open image"
+                >
+                  <img
+                    src={u}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="max-h-48 w-full object-cover transition-transform duration-300 group-hover/image:scale-[1.02]"
+                  />
+                </button>
               );
             })()}
             {msg.ai_moderation_flags && msg.ai_moderation_flags !== "[]" && (

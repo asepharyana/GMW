@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/glass/card";
 import { GlassPanel } from "@/components/glass/panel";
 import { SubNav } from "@/components/layout/sub-nav";
+import { Lightbox } from "@/components/messages/lightbox";
 import { extractFirstImage } from "@/components/messages/message-card";
 import { MessageDetailView } from "@/components/messages/message-detail-view";
 import { MessageList } from "@/components/messages/message-list";
@@ -53,6 +54,10 @@ export default function MessagesPage() {
     (searchParams.get("tab") as MessagesTab) || "all",
   );
   const [searchOpen, setSearchOpen] = useState(false);
+  const [lightbox, setLightbox] = useState<{
+    images: Array<{ src: string; alt?: string }>;
+    index: number;
+  } | null>(null);
 
   const ws = useWebSocket();
   const { data: channels = [] } = useTextChannels(guildId);
@@ -228,6 +233,17 @@ export default function MessagesPage() {
                   <MessageDetailView
                     message={detailMessage}
                     attachments={detailAttachments}
+                    onImageClick={(index) => {
+                      const imgs = (detailAttachments ?? [])
+                        .filter((a) => a.type?.startsWith("image/"))
+                        .map((a) => ({
+                          src: a.uploaded_url || a.discord_url,
+                          alt: a.filename,
+                        }));
+                      if (imgs.length > 0) {
+                        setLightbox({ images: imgs, index });
+                      }
+                    }}
                   />
                 </div>
               ) : null}
@@ -245,6 +261,16 @@ export default function MessagesPage() {
           setTab("all");
         }}
       />
+
+      {/* ── Lightbox ── */}
+      {lightbox && (
+        <Lightbox
+          images={lightbox.images}
+          initialIndex={lightbox.index}
+          open
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </div>
   );
 }

@@ -11,12 +11,14 @@ interface MessageDetailViewProps {
   message: MessageRecord;
   attachments?: AttachmentRecord[];
   onBack?: () => void;
+  onImageClick?: (index: number) => void;
 }
 
 export function MessageDetailView({
   message,
   attachments,
   onBack,
+  onImageClick,
 }: MessageDetailViewProps) {
   return (
     <GlassCard variant="base" className="h-full">
@@ -53,7 +55,10 @@ export function MessageDetailView({
       {/* Attachments */}
       {attachments && attachments.length > 0 && (
         <div className="mb-4">
-          <AttachmentsGrid attachments={attachments} />
+          <AttachmentsGrid
+            attachments={attachments}
+            onImageClick={onImageClick}
+          />
         </div>
       )}
 
