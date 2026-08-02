@@ -6,6 +6,7 @@ import type {
   SaveConversationInput,
 } from "./chatbot.repository.js";
 import { chatbotRepository } from "./chatbot.repository.js";
+import { executeTool, tools } from "./chatbot.tools.js";
 
 const logger = createChildLogger("chatbot.service");
 
@@ -118,45 +119,195 @@ Gaya ngobrol:
     try {
       const { default: axios } = await import("axios");
 
-      // Gateway tidak handle role system — gabung konteks ke user message
+      // Gateway tidak handle role system — gabung konteks ke user message.
+      // The system section stays visible to the model as the first user turn.
       const contextPrefixed = `${systemPrompt}\n\nPertanyaan user: ${userMessage}`;
 
-      const messages: Array<{ role: "user" | "assistant"; content: string }> = [
-        ...history,
-        { role: "user", content: contextPrefixed },
-      ];
+      // Seed conversation: prior turns + current question.
+      const messages: Array<
+        | { role: "user" | "assistant"; content: string }
+        | {
+            role: "assistant";
+            content: string | null;
+            tool_calls: Array<{
+              id: string;
+              type: "function";
+              function: { name: string; arguments: string };
+            }>;
+          }
+        | { role: "tool"; tool_call_id: string; content: string }
+      > = [...history, { role: "user", content: contextPrefixed }];
 
-      const response = await axios.post(
-        `${baseUrl}/chat/completions`,
-        {
-          model,
-          messages,
-          max_tokens: 500,
-          temperature: 0.4,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
+      // ── Agentic tool loop ─────────────────────────────────────────
+      const MAX_TOOL_ROUNDS = 4;
+      for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
+        const response = await axios.post(
+          `${baseUrl}/chat/completions`,
+          {
+            model,
+            messages,
+            tools,
+            tool_choice: "auto",
+            max_tokens: 600,
+            temperature: 0.4,
+            stream: true,
           },
-          timeout: 30_000,
-        },
-      );
+          {
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            timeout: 45_000,
+            // 9router returns SSE even without stream:true; force stream:true
+            // in the body and read the raw SSE text.
+            responseType: "text",
+          },
+        );
 
-      const result = response.data as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-      const content = result?.choices?.[0]?.message?.content?.trim();
+        // Parse SSE `data:` lines → content + tool_calls.
+        const { content, toolCalls } = this.parseSse(response.data as string);
 
-      if (content) {
-        return content;
+        logger.debug(
+          {
+            round,
+            hasToolCalls: toolCalls.length > 0,
+            toolNames: toolCalls.map((t) => t.name),
+          },
+          "LLM round parsed",
+        );
+
+        if (toolCalls.length > 0) {
+          // Execute each tool, append tool results, continue loop.
+          for (const tc of toolCalls) {
+            messages.push({
+              role: "assistant",
+              content: null,
+              tool_calls: [
+                {
+                  id: tc.id,
+                  type: "function",
+                  function: { name: tc.name, arguments: tc.arguments },
+                },
+              ],
+            });
+            let result = "";
+            try {
+              result = await executeTool(tc.name, tc.args);
+            } catch (e) {
+              result = `Tool error: ${(e as Error).message}`;
+            }
+            messages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: result,
+            });
+          }
+          if (round === MAX_TOOL_ROUNDS) {
+            logger.warn("Hit max tool rounds; returning what we have");
+          }
+          continue;
+        }
+
+        if (content?.trim()) {
+          return content.trim();
+        }
+
+        logger.warn("LLM returned empty response (no tools, no content)");
+        return this.fallbackResponse(userMessage);
       }
 
-      logger.warn({ response: result }, "LLM returned empty response");
+      logger.warn("Tool loop exhausted without final content");
       return this.fallbackResponse(userMessage);
     } catch (error) {
       logger.warn({ error }, "LLM call failed, using fallback response");
       return this.fallbackResponse(userMessage);
+    }
+  }
+
+  /**
+   * Parse an SSE stream body into accumulated content + any tool_calls.
+   * 9router (and most OpenAI-compatible routers) emit `data: {json}` lines
+   * even when stream is only implied; we must collect deltas manually.
+   */
+  private parseSse(body: string): {
+    content: string;
+    toolCalls: Array<{
+      id: string;
+      name: string;
+      arguments: string;
+      args: Record<string, unknown>;
+    }>;
+  } {
+    const contentParts: string[] = [];
+    const toolById = new Map<
+      string,
+      { id: string; name: string; arguments: string }
+    >();
+
+    const lines = body.split("\n");
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      try {
+        const json = JSON.parse(payload) as {
+          choices?: Array<{
+            delta?: {
+              content?: string;
+              tool_calls?: Array<{
+                id?: string;
+                index?: number;
+                type?: string;
+                function?: { name?: string; arguments?: string };
+              }>;
+            };
+            finish_reason?: string | null;
+          }>;
+        };
+        const delta = json.choices?.[0]?.delta;
+        if (!delta) continue;
+        if (delta.content) contentParts.push(delta.content);
+        if (delta.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            const idx = String(tc.index ?? 0);
+            const cur = toolById.get(idx) ?? {
+              id: tc.id ?? "",
+              name: "",
+              arguments: "",
+            };
+            // Keep the first non-empty id for this call index.
+            if (tc.id && !cur.id) cur.id = tc.id;
+            if (tc.function?.name) cur.name += tc.function.name;
+            if (tc.function?.arguments) cur.arguments += tc.function.arguments;
+            toolById.set(idx, cur);
+          }
+        }
+      } catch {
+        // Skip malformed lines (keepalives, etc.)
+      }
+    }
+
+    // Build a de-duplicated id for any call the stream never assigned one.
+    let fallbackId = 0;
+    const toolCalls = Array.from(toolById.values()).map((tc) => {
+      const id = tc.id || `tool_${fallbackId++}_${Date.now()}`;
+      return {
+        id,
+        name: tc.name,
+        arguments: tc.arguments,
+        args: this.safeJsonParse(tc.arguments),
+      };
+    });
+
+    return { content: contentParts.join(""), toolCalls };
+  }
+
+  private safeJsonParse(s: string): Record<string, unknown> {
+    try {
+      return JSON.parse(s) as Record<string, unknown>;
+    } catch {
+      return {};
     }
   }
 

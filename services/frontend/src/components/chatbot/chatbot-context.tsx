@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useChatbotUserId } from "@/hooks/use-chatbot-user";
 import { chatbotApi } from "@/lib/api";
 
 export type ChatbotExpression =
@@ -67,6 +68,7 @@ export function ChatbotProvider({ children }: { children: ReactNode }) {
   const [isTyping, setIsTyping] = useState(false);
   const [guildId, setGuildId] = useState("");
   const historyFetched = useRef(false);
+  const userId = useChatbotUserId();
 
   // Derived legacy state
   const isOpen = !minimized;
@@ -79,13 +81,13 @@ export function ChatbotProvider({ children }: { children: ReactNode }) {
     setMinimized((prev) => !prev);
   }, []);
 
-  // Load chat history on first mount
+  // Load chat history on first mount (per-device user history)
   useEffect(() => {
-    if (historyFetched.current) return;
+    if (historyFetched.current || !userId) return;
     historyFetched.current = true;
 
     chatbotApi
-      .getHistory()
+      .getHistory(userId)
       .then((res) => {
         // Backend returns rows {user_message, bot_response, created_at} —
         // interleave each user message with its bot reply.
@@ -107,7 +109,7 @@ export function ChatbotProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         // API may not be available yet — silently ignore
       });
-  }, []);
+  }, [userId]);
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -124,8 +126,9 @@ export function ChatbotProvider({ children }: { children: ReactNode }) {
 
       try {
         // Send active guild as context so the backend can answer with
-        // real server insights (serverInsights path in chatbot.service).
-        const res = await chatbotApi.send(content.trim(), guildId);
+        // real server insights (serverInsights path in chatbot.service),
+        // and the per-device user id so the history stays isolated.
+        const res = await chatbotApi.send(content.trim(), guildId, userId);
         const botMsg: ChatbotMessage = {
           role: "assistant",
           content: res.response,
@@ -146,17 +149,17 @@ export function ChatbotProvider({ children }: { children: ReactNode }) {
         setIsTyping(false);
       }
     },
-    [guildId],
+    [guildId, userId],
   );
 
   const clearMessages = useCallback(async () => {
     try {
-      await chatbotApi.clearHistory();
+      await chatbotApi.clearHistory(userId);
     } catch {
       // Best-effort clear
     }
     setMessages([]);
-  }, []);
+  }, [userId]);
 
   return (
     <ChatbotContext.Provider

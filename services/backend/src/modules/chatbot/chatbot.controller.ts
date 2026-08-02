@@ -9,6 +9,18 @@ interface AuthenticatedRequest extends Request {
   userId?: string;
 }
 
+/**
+ * Resolve the actor id for a request. Frontend (no-login) sends a per-device
+ * UUID via X-User-Id so chat history stays isolated per visitor; a registered
+ * auth middleware userId takes precedence when present.
+ */
+function resolveUserId(req: Request): string {
+  const authId = (req as AuthenticatedRequest).userId;
+  if (authId) return authId;
+  const header = (req.headers["x-user-id"] as string | undefined)?.trim();
+  return header || "anonymous";
+}
+
 export const handleChatbotChat = asyncHandler(
   async (req: Request, res: Response) => {
     const { message, context } = req.body as {
@@ -24,8 +36,8 @@ export const handleChatbotChat = asyncHandler(
       });
     }
 
-    // Get user ID from auth middleware (if available)
-    const userId = (req as AuthenticatedRequest).userId || "anonymous";
+    // Get user ID from X-User-Id header (no-login device uuid) or auth
+    const userId = resolveUserId(req);
 
     logger.debug(
       { userId, messageLength: message.length, context },
@@ -59,7 +71,7 @@ export const handleChatbotChat = asyncHandler(
 
 export const getChatbotHistory = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = (req as AuthenticatedRequest).userId || "anonymous";
+    const userId = resolveUserId(req);
     const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 100);
 
     const history = await chatbotService.getChatHistory(userId, limit);
@@ -73,7 +85,7 @@ export const getChatbotHistory = asyncHandler(
 
 export const clearChatbotHistory = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = (req as AuthenticatedRequest).userId || "anonymous";
+    const userId = resolveUserId(req);
 
     await chatbotService.clearChatHistory(userId);
 

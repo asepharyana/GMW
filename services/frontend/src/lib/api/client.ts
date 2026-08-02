@@ -31,17 +31,18 @@ export async function apiRequest<T>(
   method: string,
   path: string,
   body?: unknown,
+  headers?: Record<string, string>,
 ): Promise<T> {
   const url = `${getBaseUrl()}${path}`;
 
-  const headers: Record<string, string> = {};
+  const finalHeaders: Record<string, string> = { ...(headers ?? {}) };
   if (body !== undefined) {
-    headers["Content-Type"] = "application/json";
+    finalHeaders["Content-Type"] ??= "application/json";
   }
 
   const response = await fetch(url, {
     method,
-    headers,
+    headers: finalHeaders,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
@@ -59,7 +60,10 @@ export async function apiRequest<T>(
 }
 
 export const api = {
-  get: <T>(path: string) => apiRequest<T>("GET", path),
-  post: <T>(path: string, body?: unknown) => apiRequest<T>("POST", path, body),
-  delete: <T>(path: string) => apiRequest<T>("DELETE", path),
+  get: <T>(path: string, headers?: Record<string, string>) =>
+    apiRequest<T>("GET", path, undefined, headers),
+  post: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
+    apiRequest<T>("POST", path, body, headers),
+  delete: <T>(path: string, headers?: Record<string, string>) =>
+    apiRequest<T>("DELETE", path, undefined, headers),
 };
