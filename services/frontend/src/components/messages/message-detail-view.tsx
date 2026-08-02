@@ -44,8 +44,10 @@ export function MessageDetailView({
 
       {/* Content */}
       <div className="text-sm text-text-primary/90 leading-relaxed mb-4 whitespace-pre-wrap">
-        {renderMessageContent(message.content, message.metadata) ||
-          "(no text content)"}
+        {renderMessageContent(
+          message.edited_content ?? message.content,
+          message.metadata,
+        ) || "(no text content)"}
       </div>
 
       {/* Attachments */}

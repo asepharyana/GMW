@@ -27,7 +27,12 @@ export interface WsBinaryEvent {
 
 export interface WsEventMap {
   message_created: MessageRecord;
-  message_updated: MessageRecord;
+  /**
+   * The gateway broadcasts a PARTIAL update: { id } plus the changed fields
+   * (edited_content, edited_at, type, and the reset ai_* fields). It is NOT a
+   * full MessageRecord — merge it, never rely on it carrying the full row.
+   */
+  message_updated: Partial<MessageRecord> & { id: string };
   /** Gateway emits { id, deleted_at } — NOT a bare string */
   message_deleted: { id: string; deleted_at?: number };
   message_analyzed: MessageRecord;

@@ -343,6 +343,20 @@ export function registerMessageCapture(client: Client): void {
             id: newMessage.id,
             edited_content: getDisplayContent(newMessage as Message),
             edited_at: editedAt,
+            type: "edited",
+            // Match the DB update (updateMessageAsEdited resets analysis to
+            // pending) so the live UI reflects the same state instead of
+            // lingering on the stale pre-edit verdict.
+            ai_status: "pending",
+            ai_moderation_flags: null,
+            ai_moderation_score: null,
+            ai_analysis: null,
+            ai_categories: null,
+            ai_severity: null,
+            ai_confidence: null,
+            ai_recommended_action: null,
+            ai_analyzed_at: null,
+            ai_error: null,
           });
         }
       } else if (newMessage.author) {

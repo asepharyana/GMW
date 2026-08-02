@@ -86,7 +86,7 @@ export function MessageCard({
                   deleted
                 </Badge>
               )}
-              {msg.type === "edited" && (
+              {(msg.type === "edited" || msg.edited_content) && (
                 <Badge
                   variant="outline"
                   className="text-[10px] px-1.5 py-0 h-4"
@@ -102,7 +102,10 @@ export function MessageCard({
                   "italic text-muted-foreground line-through",
               )}
             >
-              {renderMessageContent(msg.content, msg.metadata)}
+              {renderMessageContent(
+                msg.edited_content ?? msg.content,
+                msg.metadata,
+              )}
             </p>
             {(() => {
               const u = extractFirstImage(msg.metadata);

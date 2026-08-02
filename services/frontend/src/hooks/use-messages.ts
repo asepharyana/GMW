@@ -183,43 +183,87 @@ export function useMessagesWsSync(ws: WsHook, guildId: string) {
   const { mutate } = useSWRConfig();
   useEffect(() => {
     if (!guildId) return;
-    // Patch every message-list key for this guild (all channels + "__all__")
+    // Patch every message-list key for this guild (all channels + "**filtered**").
+    // The updater receives the SWR key so we can honor its channel filter:
+    // a live `message_created`/updated for channel B must NOT be prepended to
+    // a list that is filtered down to channel A.
     const patchLists = (
+      matcher: (key: unknown, msg: { channel_id?: string }) => boolean,
       updater: (old: MessagePage | undefined) => MessagePage | undefined,
+      msg: { channel_id?: string },
     ) => {
       void mutate(
         (key) =>
-          Array.isArray(key) && key[0] === "messages" && key[1] === guildId,
+          Array.isArray(key) &&
+          key[0] === "messages" &&
+          key[1] === guildId &&
+          matcher(key, msg),
         updater,
         { revalidate: false },
       );
     };
+    // A list key [messages, guildId, channelId] is "channel N" when channelId
+    // is a non-empty string and matches the incoming message; "__all__" (or
+    // any non-channel) lists accept every message of the guild.
+    const matchesFilter = (key: unknown[], msg: { channel_id?: string }) => {
+      const channelId = key[2] as string | undefined;
+      if (!channelId || channelId === "__all__") return true;
+      return msg.channel_id === channelId;
+    };
 
     const unsub1 = ws.on("message_created", (data) => {
       const msg = data as MessageRecord;
-      patchLists((old) => (old ? { ...old, data: [msg, ...old.data] } : old));
+      patchLists(
+        (_k, m) => matchesFilter(_k as unknown[], m),
+        (old) => (old ? { ...old, data: [msg, ...old.data] } : old),
+        msg,
+      );
     });
     const unsub2 = ws.on("message_updated", (data) => {
-      const msg = data as MessageRecord;
-      patchLists((old) =>
-        old
-          ? { ...old, data: old.data.map((m) => (m.id === msg.id ? msg : m)) }
-          : old,
+      const msg = data as Partial<MessageRecord> & { id: string };
+      // The gateway broadcasts a PARTIAL update ({ id, edited_content,
+      // edited_at, ... }) — merge it over the existing record instead of
+      // replacing it, or the card would lose username/content/channel/etc.
+      patchLists(
+        (_k, m) =>
+          (m as Partial<MessageRecord>).channel_id === undefined ||
+          matchesFilter(_k as unknown[], m),
+        (old) =>
+          old
+            ? {
+                ...old,
+                data: old.data.map((m) =>
+                  m.id === msg.id ? { ...m, ...msg } : m,
+                ),
+              }
+            : old,
+        msg,
       );
-      void mutate(msgKeys.detail(msg.id), msg, { revalidate: false });
+      void mutate(
+        msgKeys.detail(msg.id),
+        (old: MessageRecord | undefined) => (old ? { ...old, ...msg } : old),
+        { revalidate: false },
+      );
     });
     const unsub3 = ws.on("message_deleted", (data) => {
       const { id } = data as { id: string };
-      patchLists((old) =>
-        old ? { ...old, data: old.data.filter((m) => m.id !== id) } : old,
+      patchLists(
+        () => true,
+        (old) =>
+          old ? { ...old, data: old.data.filter((m) => m.id !== id) } : old,
+        { channel_id: undefined },
       );
     });
     const unsub4 = ws.on("message_analyzed", (data) => {
       const msg = data as MessageRecord;
-      patchLists((old) =>
-        old
-          ? { ...old, data: old.data.map((m) => (m.id === msg.id ? msg : m)) }
-          : old,
+      // message_analyzed carries the FULL record — replace is fine.
+      patchLists(
+        (_k, m) => matchesFilter(_k as unknown[], m),
+        (old) =>
+          old
+            ? { ...old, data: old.data.map((m) => (m.id === msg.id ? msg : m)) }
+            : old,
+        msg,
       );
       void mutate(msgKeys.detail(msg.id), msg, { revalidate: false });
     });
