@@ -11,6 +11,19 @@
       let
         pkgs = import nixpkgs { inherit system; };
 
+        # Source filter: `path:` literals do NOT respect .gitignore by default,
+        # so a dirty local out/ (stale chunks from previous builds) leaks into
+        # the sandbox. Filter out build artifacts explicitly.
+        filterSource = { dir, ignore }: builtins.path {
+          path = dir;
+          name = "source";
+          filter = (path: type: let base = baseNameOf path; in !(builtins.elem base ignore));
+        };
+        frontendSrc = filterSource {
+          dir = ./services/frontend;
+          ignore = [ "out" ".next" "node_modules" "pnpm-lock.yaml" ];
+        };
+
         # OpenSSL headers (.dev output) + STATIC libs (pkgsStatic.openssl.out —
         # node-datachannel's CMakeLists sets OPENSSL_USE_STATIC_LIBS=TRUE, and
         # the default `pkgs.openssl` resolves to `bin` which has no lib/) merged
@@ -215,7 +228,7 @@ WRAPPER
           pname = "gmw-frontend";
           version = "1.0.0";
 
-          src = ./services/frontend;
+          src = frontendSrc;
 
           nativeBuildInputs = [ nodejs pnpm pkgs.gnumake pkgs.gcc pkgs.cacert ];
 
