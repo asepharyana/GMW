@@ -1,5 +1,5 @@
 -- Fix: missing messages and attachments tables on VPS
--- Run: PGPASSWORD=hunterz psql -h 100.108.1.124 -U asephs -d hub -f scripts/fix-missing-tables.sql
+-- Run: PGPASSWORD=hunterz psql -h 100.121.180.82 -U asephs -d hub -f scripts/fix-missing-tables.sql
 
 BEGIN;
 
