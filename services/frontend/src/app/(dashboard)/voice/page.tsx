@@ -148,7 +148,7 @@ export default function VoicePage() {
         </div>
       )}
 
-      {tab === "activity" && <VoiceActivityTimeline />}
+      {tab === "activity" && <VoiceActivityTimeline data={speakers} />}
     </div>
   );
 }
