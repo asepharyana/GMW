@@ -3,7 +3,6 @@
 import { Bot, MessageCircle, Minimize2, PanelLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatPanel } from "./chat-panel";
-import { ChatbotCanvas } from "./chatbot-canvas";
 import { useChatbot } from "./chatbot-context";
 
 export function ChatbotContainer() {
@@ -53,7 +52,7 @@ export function ChatbotContainer() {
         className={`glass-intense rounded-2xl overflow-hidden transition-all duration-200 ${
           minimized ? "w-14 h-14 cursor-pointer" : "w-[320px]"
         }`}
-        style={{ height: minimized ? 56 : 440 }}
+        style={{ height: minimized ? 56 : 400 }}
       >
         {minimized ? (
           <button
@@ -98,15 +97,10 @@ export function ChatbotContainer() {
               </div>
             </div>
 
-            {/* Canvas area */}
-            <div className="h-[140px] flex items-center justify-center">
-              <ChatbotCanvas />
-            </div>
-
             {/* Chat panel (expandable) */}
             <div
               className={`transition-all duration-200 overflow-hidden ${
-                chatOpen ? "h-[248px]" : "h-0"
+                chatOpen ? "h-[300px]" : "h-0"
               }`}
             >
               <ChatPanel inputRef={inputRef} />
