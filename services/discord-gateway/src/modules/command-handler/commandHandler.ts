@@ -16,6 +16,7 @@ import {
   createHandlerRegistry,
 } from "./handler-registry.js";
 import { MediaHandler } from "./media.handler.js";
+import { wireMediaStatusWriter } from "./mediaStatusSink.js";
 import { ModerationHandler } from "./moderation.handler.js";
 import { VoiceHandler } from "./voice.handler.js";
 
@@ -87,6 +88,10 @@ export class CommandHandler {
     );
     this.guildHandler = new GuildHandler(client);
     this.moderationHandler = new ModerationHandler(client);
+
+    // Wire the media status sink so MediaHandler can persist status on
+    // queue advances that happen outside a command (natural track end).
+    wireMediaStatusWriter(this.redisPub);
 
     // Build the command registry
     this.registry = createHandlerRegistry(

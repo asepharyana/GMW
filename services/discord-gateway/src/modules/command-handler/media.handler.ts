@@ -16,6 +16,7 @@ import {
   ScreenShareController,
   type ScreenShareVoiceStatus,
 } from "../voice-recording/screenShareController.js";
+import { setMediaStatusKey } from "./mediaStatusSink.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -88,12 +89,34 @@ export class MediaHandler {
       activeChannelId: null,
     }),
   ) {
-    // Register auto-advance on natural track end
+    // Register auto-advance on natural track end. advanceQueue mutates the
+    // module-level currentTrackItem/queue, so we must re-publish the status
+    // key afterward: otherwise the backend's Redis `media:status` cache (and
+    // the frontend's 10s polling) stays stuck on the finished track.
     discordPlayer.onIdle(() => {
-      this.advanceQueue().catch((err) => {
-        this.logger.error({ err }, "Auto-advance failed");
-      });
+      this.advanceQueue()
+        .then(() => this.publishStatus())
+        .catch((err) => {
+          this.logger.error({ err }, "Auto-advance failed");
+        });
     });
+  }
+
+  /**
+   * Persist the latest media state to Redis so the backend/frontend see queue
+   * advances that happen outside a command (natural track end, screen-share
+   * done). CommandHandler owns the Redis status-key writes for command-triggered
+   * changes; this covers the side-effect-only path.
+   */
+  private publishStatus(): void {
+    try {
+      setMediaStatusKey(this.getCurrentMediaStatus());
+    } catch (err: unknown) {
+      this.logger.warn(
+        { error: err instanceof Error ? err.message : String(err) },
+        "Failed to publish media status on track end",
+      );
+    }
   }
 
   getCurrentMediaStatus(): MediaStatusPayload {
