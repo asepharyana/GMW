@@ -20,7 +20,6 @@ export interface RecordingRow {
   upload_error: string | null;
   created_at: number;
   uploaded_at: number | null;
-  duration_bytes: number;
 }
 
 export interface PaginatedRecordings {
@@ -69,7 +68,6 @@ export class RecordingsService {
         upload_error: pgVoiceRecordingsTable.upload_error,
         created_at: pgVoiceRecordingsTable.created_at,
         uploaded_at: pgVoiceRecordingsTable.uploaded_at,
-        duration_bytes: pgVoiceRecordingsTable.size_bytes,
       })
       .from(pgVoiceRecordingsTable)
       .where(where)

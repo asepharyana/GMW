@@ -96,7 +96,10 @@ export function SearchPanel() {
                           )}
                         </div>
                         <p className="text-sm leading-relaxed">
-                          {renderMessageContent(msg.content, msg.metadata)}
+                          {renderMessageContent(
+                            msg.edited_content ?? msg.content,
+                            msg.metadata,
+                          )}
                         </p>
                         {msg.ai_moderation_flags &&
                           msg.ai_moderation_flags !== "[]" && (

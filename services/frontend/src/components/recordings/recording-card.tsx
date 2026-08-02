@@ -3,6 +3,7 @@
 import { Download, Loader2, Pause, Play } from "lucide-react";
 import { useState } from "react";
 import { GlassCard } from "@/components/glass/card";
+import { formatBytes } from "@/lib/format";
 import type { VoiceRecording } from "@/lib/types";
 
 interface RecordingCardProps {
@@ -24,9 +25,9 @@ export function RecordingCard({
   onTogglePlay,
 }: RecordingCardProps) {
   const [downloading, setDownloading] = useState(false);
-  const durationStr = recording.duration_bytes
-    ? `${Math.floor(recording.duration_bytes / 60)}:${String(recording.duration_bytes % 60).padStart(2, "0")}`
-    : "--:--";
+  const sizeStr = recording.size_bytes
+    ? formatBytes(recording.size_bytes)
+    : "--";
 
   // Fetch the file (CORS is open on the uploader) → blob → force download with
   // the real filename. Falls back to opening the URL in a new tab.
@@ -119,7 +120,7 @@ export function RecordingCard({
 
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono text-text-secondary/60">
-              {durationStr}
+              {sizeStr}
             </span>
             <span className="text-[10px] text-text-secondary/40">
               {new Date(recording.created_at).toLocaleString()}
