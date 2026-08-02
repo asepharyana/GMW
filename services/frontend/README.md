@@ -7,7 +7,7 @@ Next.js 16 (React 19) dashboard untuk Discord Moderation Watcher.
 ## Dev
 
 ```bash
-bun run dev        # next dev — port 3000
+bun run dev        # next dev — port 3000 (lokal; prod via nginx 4009)
 bun run build      # next build — static export ke out/
 bun run lint       # Biome check
 ```
