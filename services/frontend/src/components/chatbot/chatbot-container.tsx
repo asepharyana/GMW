@@ -1,12 +1,12 @@
 "use client";
 
-import { Bot, MessageCircle, Minimize2, PanelLeft } from "lucide-react";
+import { Bot, Minimize2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatPanel } from "./chat-panel";
 import { useChatbot } from "./chatbot-context";
 
 export function ChatbotContainer() {
-  const { minimized, setMinimized, chatOpen, setChatOpen } = useChatbot();
+  const { minimized, setMinimized } = useChatbot();
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -32,11 +32,11 @@ export function ChatbotContainer() {
 
   // Focus input when chat opens
   useEffect(() => {
-    if (chatOpen) {
+    if (!minimized) {
       const id = setTimeout(() => inputRef.current?.focus(), 150);
       return () => clearTimeout(id);
     }
-  }, [chatOpen]);
+  }, [minimized]);
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: drag container — mouse-move gesture surface, not keyboard-interactive content
@@ -47,12 +47,11 @@ export function ChatbotContainer() {
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {/* Main chatbot bubble */}
+      {/* Main chatbot bubble — minimized FAB opens the full chat directly */}
       <div
         className={`glass-intense rounded-2xl overflow-hidden transition-all duration-200 ${
-          minimized ? "w-14 h-14 cursor-pointer" : "w-[320px]"
+          minimized ? "w-14 h-14 cursor-pointer" : "w-[320px] h-[460px]"
         }`}
-        style={{ height: minimized ? 56 : 400 }}
       >
         {minimized ? (
           <button
@@ -60,16 +59,17 @@ export function ChatbotContainer() {
             onClick={() => setMinimized(false)}
             className="w-full h-full flex items-center justify-center"
             onMouseDown={handleMouseDown}
-            aria-label="Open chatbot"
+            aria-label="Buka chatbot"
+            title="Buka chatbot"
           >
             <Bot className="size-6 text-primary" />
           </button>
         ) : (
-          <>
+          <div className="flex flex-col h-full">
             {/* Drag handle + controls */}
             {/* biome-ignore lint/a11y/noStaticElementInteractions: drag handle — mouse-only gesture, keyboard users use the buttons in this header */}
             <div
-              className="flex items-center justify-between px-3 py-2 border-b border-glass-border cursor-grab active:cursor-grabbing"
+              className="flex items-center justify-between px-3 py-2 border-b border-glass-border cursor-grab active:cursor-grabbing shrink-0"
               onMouseDown={handleMouseDown}
             >
               <span className="flex items-center gap-1.5 text-[10px] font-semibold text-text-secondary tracking-wide uppercase">
@@ -79,45 +79,21 @@ export function ChatbotContainer() {
               <div className="flex items-center gap-0.5">
                 <button
                   type="button"
-                  onClick={() => setChatOpen(!chatOpen)}
-                  className="size-6 flex items-center justify-center rounded hover:bg-glass-bg transition-colors"
-                  aria-label={chatOpen ? "Sembunyikan chat" : "Buka chat"}
-                  title={chatOpen ? "Sembunyikan chat" : "Buka chat"}
-                >
-                  <PanelLeft className="size-3.5 text-text-secondary/60 hover:text-text-primary" />
-                </button>
-                <button
-                  type="button"
                   onClick={() => setMinimized(true)}
                   className="size-6 flex items-center justify-center rounded hover:bg-glass-bg transition-colors"
                   aria-label="Kecilkan chatbot"
+                  title="Kecilkan chatbot"
                 >
                   <Minimize2 className="size-3.5 text-text-secondary/60 hover:text-text-primary" />
                 </button>
               </div>
             </div>
 
-            {/* Chat panel (expandable) */}
-            <div
-              className={`transition-all duration-200 overflow-hidden ${
-                chatOpen ? "h-[300px]" : "h-0"
-              }`}
-            >
+            {/* Chat panel — always open when bubble is expanded */}
+            <div className="flex-1 min-h-0">
               <ChatPanel inputRef={inputRef} />
             </div>
-
-            {/* Quick prompt row when chat is closed */}
-            {!chatOpen && (
-              <button
-                type="button"
-                onClick={() => setChatOpen(true)}
-                className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-glass-border px-2.5 py-1.5 text-[10px] text-text-secondary/60 transition-colors hover:bg-glass-bg hover:text-text-primary"
-              >
-                <MessageCircle className="size-3 shrink-0 text-primary/60" />
-                Tanya soal server, pesan, atau statistik…
-              </button>
-            )}
-          </>
+          </div>
         )}
       </div>
     </div>

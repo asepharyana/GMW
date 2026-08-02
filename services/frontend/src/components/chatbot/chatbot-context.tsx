@@ -35,10 +35,6 @@ interface ChatbotContextValue {
   minimized: boolean;
   setMinimized: (v: boolean) => void;
 
-  /** Whether the chat panel inside the bubble is open */
-  chatOpen: boolean;
-  setChatOpen: (v: boolean) => void;
-
   /**
    * @deprecated Use `minimized` / `setMinimized` instead.
    * Legacy toggle alias kept for compatibility.
@@ -63,7 +59,6 @@ const ChatbotContext = createContext<ChatbotContextValue | null>(null);
 export function ChatbotProvider({ children }: { children: ReactNode }) {
   const [expression, setExpression] = useState<ChatbotExpression>("idle");
   const [minimized, setMinimized] = useState(true);
-  const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<ChatbotMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [guildId, setGuildId] = useState("");
@@ -168,8 +163,6 @@ export function ChatbotProvider({ children }: { children: ReactNode }) {
         setExpression,
         minimized,
         setMinimized,
-        chatOpen,
-        setChatOpen,
         isOpen,
         setOpen,
         toggle,
