@@ -14,10 +14,19 @@ import { MiniPlayer } from "@/components/media/mini-player";
 import { MediaPlayerProvider } from "@/lib/hooks/use-media-player";
 import { useWebSocket, WsProvider } from "@/lib/ws/context";
 
+function ChatbotGuildSync({ guildId }: { guildId: string }) {
+  const { setGuildId } = useChatbot();
+
+  useEffect(() => {
+    setGuildId(guildId);
+  }, [guildId, setGuildId]);
+
+  return null;
+}
+
 function ChatbotExpressionSync() {
   const ws = useWebSocket();
   const { setExpression } = useChatbot();
-
   useEffect(() => {
     const unsub1 = ws.on("message_created", (data: any) => {
       if (data.ai_status === "flagged" || data.ai_status === "warn") {
@@ -58,6 +67,7 @@ export default function DashboardLayout({
       <WsProvider>
         <MediaPlayerProvider>
           <ChatbotProvider>
+            <ChatbotGuildSync guildId={guildId} />
             <ChatbotExpressionSync />
             <div className="min-h-screen bg-canvas">
               <TopNav />

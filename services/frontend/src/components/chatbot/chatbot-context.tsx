@@ -51,6 +51,10 @@ interface ChatbotContextValue {
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => Promise<void>;
   isTyping: boolean;
+
+  /** Active guild context sent to the backend so answers reference the server */
+  guildId: string;
+  setGuildId: (g: string) => void;
 }
 
 const ChatbotContext = createContext<ChatbotContextValue | null>(null);
@@ -61,6 +65,7 @@ export function ChatbotProvider({ children }: { children: ReactNode }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<ChatbotMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [guildId, setGuildId] = useState("");
   const historyFetched = useRef(false);
 
   // Derived legacy state
@@ -104,39 +109,45 @@ export function ChatbotProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
-  const sendMessage = useCallback(async (content: string) => {
-    if (!content.trim()) return;
+  const sendMessage = useCallback(
+    async (content: string) => {
+      if (!content.trim()) return;
 
-    const userMsg: ChatbotMessage = {
-      role: "user",
-      content: content.trim(),
-      timestamp: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setExpression("listening");
-    setIsTyping(true);
-
-    try {
-      const res = await chatbotApi.send(content.trim());
-      const botMsg: ChatbotMessage = {
-        role: "assistant",
-        content: res.response,
-        timestamp: res.timestamp ?? new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, botMsg]);
-      setExpression("happy");
-    } catch {
-      const errorMsg: ChatbotMessage = {
-        role: "assistant",
-        content: "Sorry, I couldn't process that request. Please try again.",
+      const userMsg: ChatbotMessage = {
+        role: "user",
+        content: content.trim(),
         timestamp: new Date().toISOString(),
       };
-      setMessages((prev) => [...prev, errorMsg]);
-      setExpression("sad");
-    } finally {
-      setIsTyping(false);
-    }
-  }, []);
+      setMessages((prev) => [...prev, userMsg]);
+      setExpression("listening");
+      setIsTyping(true);
+
+      try {
+        // Send active guild as context so the backend can answer with
+        // real server insights (serverInsights path in chatbot.service).
+        const res = await chatbotApi.send(content.trim(), guildId);
+        const botMsg: ChatbotMessage = {
+          role: "assistant",
+          content: res.response,
+          timestamp: res.timestamp ?? new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, botMsg]);
+        setExpression("happy");
+      } catch {
+        const errorMsg: ChatbotMessage = {
+          role: "assistant",
+          content:
+            "Maaf, aku lagi gagal nyambung ke server. Coba tanya lagi ya 🙏",
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+        setExpression("sad");
+      } finally {
+        setIsTyping(false);
+      }
+    },
+    [guildId],
+  );
 
   const clearMessages = useCallback(async () => {
     try {
@@ -163,6 +174,8 @@ export function ChatbotProvider({ children }: { children: ReactNode }) {
         sendMessage,
         clearMessages,
         isTyping,
+        guildId,
+        setGuildId,
       }}
     >
       {children}
