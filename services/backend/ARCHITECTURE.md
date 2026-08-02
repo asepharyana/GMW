@@ -225,14 +225,14 @@ All config via environment variables (`.env`), validated with Zod in `shared/con
 
 ```env
 # Server
-WEBSERVER_PORT=3001
+WEBSERVER_PORT=4001
 NODE_ENV=development
 LOG_LEVEL=info
 
 # Database
 DATABASE_URL=postgresql://asephs:***@100.121.180.82:6432/discord_moderation
 # OR
-DATABASE_HOST=localhost
+DATABASE_HOST=100.121.180.82
 DATABASE_PORT=6432
 DATABASE_NAME=discord_moderation
 DATABASE_USER=postgres
@@ -263,7 +263,7 @@ Use Vitest with mocked database and services.
 2. **Implement repository queries** for each module using Drizzle ORM
 3. **Add WebSocket server** in `src/ws/server.ts` with Redis pub/sub listener
 4. **Create Discord Gateway service** in `services/discord-gateway/` (separate microservice)
-5. **Add Docker & CI/CD** for multi-service deployment
+5. **Add Nix & CI/CD** for multi-service deployment (flake.nix + GitHub Actions → nix copy → systemd)
 6. **Write integration tests** for full request flow
 
 ## Circular Dependency Check

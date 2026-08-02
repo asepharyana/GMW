@@ -243,10 +243,10 @@ On SIGINT/SIGTERM/uncaughtException/unhandledRejection:
    - Connect to Backend HTTP API
    - Subscribe to WebSocket events
 
-3. **Docker & CI/CD**
-   - Dockerfile for Discord Gateway
-   - Docker Compose for multi-service setup
-   - GitHub Actions for build/deploy
+3. **Nix & CI/CD**
+   - flake.nix package for Discord Gateway
+   - systemd services (gmw-backend, gmw-discord-gateway)
+   - GitHub Actions for build/deploy (nix copy → systemctl restart)
 
 4. **Documentation**
    - API documentation

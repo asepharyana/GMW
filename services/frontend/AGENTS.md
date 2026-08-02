@@ -17,9 +17,9 @@ Discord → discord-gateway → Redis pub/sub → backend (Express :4001) ←→
                                                 └ WS /ws (events + PCM binary)
 ```
 
-- **Base URL**: API + WS default to same-origin. `gmw-proxy` nginx (:8080)
-  proxies `/api` and `/ws` to the backend on :3001. Public host:
-  `imphnen.asepharyana.my.id` (Cloudflare SSL in front of Traefik → :8080).
+- **Base URL**: API + WS default to same-origin. `gmw-proxy` nginx (:4009)
+  proxies `/api` and `/ws` to the backend on :4001. Public host:
+  `imphnen.asepharyana.my.id` (Caddy reverse proxy → :4009).
 - Local dev overrides: `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL`
   (e.g. https://imphnen.asepharyana.my.id).
 - **Never hardcode a host** in api/ws clients — same-origin or env override only.
