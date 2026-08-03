@@ -28,6 +28,8 @@ export interface Channel {
   id: string;
   name: string;
   type: "voice" | "text";
+  /** Whether the selfbot account can actually join this voice channel. */
+  joinable?: boolean;
 }
 
 export interface GuildVoiceEntry {

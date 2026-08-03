@@ -124,7 +124,8 @@ export class MediaHandler {
   }
 
   async handleMediaQueue(cmd: CommandMessage): Promise<CommandReply<unknown>> {
-    const url = String(cmd.payload.url ?? "").trim();
+    // Accept both `url` (canonical) and `source` (legacy FE) for resilience.
+    const url = String(cmd.payload.url ?? cmd.payload.source ?? "").trim();
     const mode: MediaMode = cmd.payload.mode === "screen" ? "screen" : "music";
     const requestedBy = String(cmd.payload.requestedBy ?? "unknown");
 

@@ -8,6 +8,8 @@ export interface Channel {
   id: string;
   name: string;
   type: "voice" | "text";
+  /** Whether the selfbot account can actually join this voice channel. */
+  joinable?: boolean;
 }
 
 /** Shape of the /api/config response (camelCase keys from backend). */

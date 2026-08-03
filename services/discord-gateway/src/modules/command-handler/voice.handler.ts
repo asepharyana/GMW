@@ -128,6 +128,9 @@ export class VoiceHandler {
           id: c.id,
           name: c.name,
           type: "voice" as const,
+          // selfbot exposes joinable (permission check) — let FE filter
+          // channels the account actually may join.
+          joinable: (c as { joinable?: boolean }).joinable ?? true,
         }));
 
       return { id: cmd.id, success: true, data: voiceChannels };

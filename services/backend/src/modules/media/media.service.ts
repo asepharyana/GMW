@@ -99,7 +99,9 @@ export async function queue(
     () =>
       publishCommand<MediaState>(
         COMMAND_MEDIA_QUEUE,
-        { source, mode },
+        // NOTE: gateway MediaHandler reads `payload.url` (not `source`) —
+        // keep the field name aligned or playback silently no-ops.
+        { url: source, mode },
         DEFAULT_COMMAND_TIMEOUT_MS,
       ),
     () => readStatusFallback(),

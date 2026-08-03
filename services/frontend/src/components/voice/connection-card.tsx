@@ -119,10 +119,19 @@ export function VoiceConnectionCard({
           </SelectTrigger>
           <SelectContent>
             {voiceChannels.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
+              <SelectItem
+                key={c.id}
+                value={c.id}
+                disabled={c.joinable === false}
+              >
+                {c.joinable === false ? `${c.name} (no akses)` : c.name}
               </SelectItem>
             ))}
+            {voiceChannels.length === 0 && (
+              <div className="px-3 py-2 text-xs text-text-secondary/60">
+                Tidak ada voice channel
+              </div>
+            )}
           </SelectContent>
         </Select>
       </div>

@@ -18,6 +18,7 @@ import {
   useVoiceStatus,
 } from "@/hooks";
 import { useWebSocket } from "@/lib/ws/context";
+import { toast } from "sonner";
 
 type VoiceTab = "connection" | "activity";
 
@@ -104,12 +105,22 @@ export default function VoicePage() {
         selectedChannel={selectedChannel}
         onGuildChange={handleGuildChange}
         onChannelChange={(v) => setSelectedChannel(v ?? "")}
-        onConnect={() =>
-          connectMut.mutate({
-            guildId: selectedGuild,
-            channelId: selectedChannel,
-          })
-        }
+        onConnect={() => {
+          void connectMut
+            .mutateAsync({
+              guildId: selectedGuild,
+              channelId: selectedChannel,
+            })
+            .catch((err: unknown) => {
+              const msg =
+                err instanceof Error
+                  ? err.message
+                  : "Gagal connect ke voice channel";
+              toast.error("Voice connect gagal", {
+                description: msg,
+              });
+            });
+        }}
         onDisconnect={() => {
           if (micActive) {
             setMicActive(false);
