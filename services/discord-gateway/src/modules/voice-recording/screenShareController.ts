@@ -87,9 +87,7 @@ export class ScreenShareController {
           setTimeout(
             () =>
               reject(
-                new Error(
-                  "Timed out joining voice channel for screen share",
-                ),
+                new Error("Timed out joining voice channel for screen share"),
               ),
             15000,
           ),

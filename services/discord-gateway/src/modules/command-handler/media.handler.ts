@@ -107,11 +107,16 @@ export class MediaHandler {
    * disconnect/reconnect the @discordjs audio connection around a GoLive
    * stream (Discord allows only one voice session per user).
    */
-  private voiceControllerAccessor: (() => {
-    disconnectGuild(guildId: string): Promise<void>;
-    connect(guildId: string, channelId: string): Promise<unknown>;
-    getStatus(): { activeGuildId: string | null; activeChannelId: string | null };
-  }) | null = null;
+  private voiceControllerAccessor:
+    | (() => {
+        disconnectGuild(guildId: string): Promise<void>;
+        connect(guildId: string, channelId: string): Promise<unknown>;
+        getStatus(): {
+          activeGuildId: string | null;
+          activeChannelId: string | null;
+        };
+      })
+    | null = null;
 
   setVoiceController(accessor: typeof this.voiceControllerAccessor): void {
     this.voiceControllerAccessor = accessor;
