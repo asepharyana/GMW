@@ -28,6 +28,8 @@ export interface MediaItem {
 
 export interface MediaState {
   playing: boolean;
+  /** null/absent when idle; "music" | "screen" while a track is active. */
+  activeMode?: "music" | "screen" | null;
   musicVolume: number;
   current: MediaItem | null;
   queue: MediaItem[];
@@ -41,6 +43,7 @@ const DEFAULT_COMMAND_TIMEOUT_MS = 5000;
 
 const DEFAULT_STATE: MediaState = {
   playing: false,
+  activeMode: null,
   musicVolume: 1.0,
   current: null,
   queue: [],
@@ -56,8 +59,12 @@ function normalizeMediaState(raw: Record<string, unknown>): MediaState {
     rawPlaying === true ||
     rawPlaying === "playing" ||
     rawPlaying === "buffering";
+  const mode = raw.activeMode;
+  const activeMode: "music" | "screen" | null =
+    mode === "music" || mode === "screen" ? mode : null;
   return {
     playing,
+    activeMode,
     musicVolume: Number(raw.musicVolume ?? 1.0),
     current: (raw.current as MediaItem | null) ?? null,
     queue: (raw.queue as MediaItem[]) ?? [],
