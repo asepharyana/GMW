@@ -127,12 +127,17 @@ export class ScreenShareController {
           /* already gone */
         }
         if (this.restoreVoice) {
-          Promise.resolve(this.restoreVoice(status)).catch((err) => {
-            this.logger.warn(
-              { error: err instanceof Error ? err.message : String(err) },
-              "Failed to restore voice connection after screen share",
-            );
-          });
+          // Wait for Discord to fully release the Streamer's voice session
+          // before re-joining with @discordjs/voice — an immediate join races
+          // the session teardown and times out with AbortError.
+          setTimeout(() => {
+            Promise.resolve(this.restoreVoice(status)).catch((err) => {
+              this.logger.warn(
+                { error: err instanceof Error ? err.message : String(err) },
+                "Failed to restore voice connection after screen share",
+              );
+            });
+          }, 4000);
         }
       };
       const done = playStream(output, this.streamer, {
