@@ -60,6 +60,22 @@ export class ScreenShareController {
         this.streamer = new Streamer(this.client);
       }
 
+      // The dank074 Streamer needs its OWN voice connection — it cannot reuse
+      // the @discordjs/voice connection owned by VoiceController/recorder.
+      // Resolve the channel object and join via the Streamer's raw gateway
+      // path (joinVoiceChannel → joinVoice → WebRTC).
+      const guild = this.client.guilds.cache.get(status.activeGuildId);
+      const channel = guild?.channels.cache.get(status.activeChannelId);
+      if (
+        !channel ||
+        (channel.type !== "GUILD_VOICE" && channel.type !== "GUILD_STAGE_VOICE")
+      ) {
+        throw new Error(
+          `Voice channel ${status.activeChannelId} not found for screen share`,
+        );
+      }
+      await this.streamer.joinVoiceChannel(channel);
+
       const { command, output } = prepareStream(directUrl, {
         encoder: Encoders.software({ x264: { preset: "superfast" } }),
         width: 1280,
@@ -74,15 +90,43 @@ export class ScreenShareController {
       let stopped = false;
       const done = playStream(output, this.streamer, {
         type: "go-live",
-      }).finally(() => {
-        this.active = null;
-      });
+      })
+        .catch((err) => {
+          // Never let a stream failure become an unhandledRejection — that
+          // crashed the whole gateway. Log + surface via the done promise.
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.error(
+            { error: message, source },
+            "Screen stream failed during playback",
+          );
+          if (!stopped) {
+            stopped = true;
+            try {
+              command.kill("SIGTERM");
+            } catch {
+              /* already dead */
+            }
+          }
+        })
+        .finally(() => {
+          this.active = null;
+        });
       this.active = {
         done,
         stop: () => {
           if (stopped) return;
           stopped = true;
-          command.kill("SIGTERM");
+          try {
+            command.kill("SIGTERM");
+          } catch {
+            /* already dead */
+          }
+          // Leave the voice channel the Streamer joined (its own connection).
+          try {
+            this.streamer?.voiceConnection?.stop();
+          } catch {
+            /* already gone */
+          }
           this.active = null;
         },
       };

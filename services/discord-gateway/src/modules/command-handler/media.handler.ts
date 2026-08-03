@@ -178,12 +178,19 @@ export class MediaHandler {
           addedAt: Date.now(),
           status: "playing",
         };
-        playback.done.finally(() => {
-          this.screenPlayback = null;
-          if (currentTrackItem?.mode === "screen") {
-            currentTrackItem = null;
-          }
-        });
+        playback.done
+          .catch((err) => {
+            this.logger.error(
+              { error: err instanceof Error ? err.message : String(err) },
+              "Screen playback promise rejected",
+            );
+          })
+          .finally(() => {
+            this.screenPlayback = null;
+            if (currentTrackItem?.mode === "screen") {
+              currentTrackItem = null;
+            }
+          });
         this.logger.info({ url }, "Screen share started");
         return { id: cmd.id, success: true, data: buildStatusPayload() };
       } catch (err) {

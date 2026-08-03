@@ -55,6 +55,12 @@ export interface ScreenSharePlayback {
   stop(): void;
 }
 
+export interface ScreenShareVoiceStatus {
+  connected: boolean;
+  activeGuildId: string | null;
+  activeChannelId: string | null;
+}
+
 export interface ScreenShareController {
   isActive(): boolean;
   start(source: string): Promise<ScreenSharePlayback>;
