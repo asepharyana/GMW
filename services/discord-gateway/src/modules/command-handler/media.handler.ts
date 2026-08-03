@@ -186,19 +186,18 @@ export class MediaHandler {
             this.getVoiceStatus,
             // releaseVoice — disconnect the @discordjs/voice connection so the
             // dank074 Streamer can take over (Discord: one voice session/user).
-            async () => {
+            async (status) => {
               const vc = this.voiceControllerAccessor?.();
-              const guildId = vc?.getStatus().activeGuildId ?? null;
+              const guildId = status.activeGuildId ?? null;
               if (vc && guildId) {
                 await vc.disconnectGuild(guildId);
               }
             },
             // restoreVoice — reconnect the @discordjs audio connection after
             // the stream ends so mic/listen keep working.
-            async () => {
+            async (status) => {
               const vc = this.voiceControllerAccessor?.();
-              const status = vc?.getStatus();
-              if (vc && status?.activeGuildId && status.activeChannelId) {
+              if (vc && status.activeGuildId && status.activeChannelId) {
                 await vc.connect(status.activeGuildId, status.activeChannelId);
               }
             },

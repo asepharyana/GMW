@@ -41,9 +41,13 @@ export class ScreenShareController {
     /** Disconnect the @discordjs/voice connection so the Streamer can take
      *  over the voice channel (Discord allows only ONE voice session per user
      *  — two connections collide and the Streamer never gets VOICE_SERVER_UPDATE). */
-    private readonly releaseVoice: () => void | Promise<void>,
+    private readonly releaseVoice: (
+      status: ScreenShareVoiceStatus,
+    ) => void | Promise<void>,
     /** Reconnect the @discordjs/voice connection after the stream ends. */
-    private readonly restoreVoice: () => void | Promise<void>,
+    private readonly restoreVoice: (
+      status: ScreenShareVoiceStatus,
+    ) => void | Promise<void>,
   ) {}
 
   isActive(): boolean {
@@ -79,7 +83,7 @@ export class ScreenShareController {
 
       // Free the @discordjs/voice connection BEFORE the Streamer joins, so
       // the user has only one voice session (Discord requirement).
-      await this.releaseVoice();
+      await this.releaseVoice(status);
 
       await Promise.race([
         this.streamer.joinVoiceChannel(channel),
@@ -123,7 +127,7 @@ export class ScreenShareController {
           /* already gone */
         }
         if (this.restoreVoice) {
-          Promise.resolve(this.restoreVoice()).catch((err) => {
+          Promise.resolve(this.restoreVoice(status)).catch((err) => {
             this.logger.warn(
               { error: err instanceof Error ? err.message : String(err) },
               "Failed to restore voice connection after screen share",
