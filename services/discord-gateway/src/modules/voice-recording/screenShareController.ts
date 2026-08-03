@@ -127,17 +127,19 @@ export class ScreenShareController {
           /* already gone */
         }
         if (this.restoreVoice) {
-          // Wait for Discord to fully release the Streamer's voice session
-          // before re-joining with @discordjs/voice — an immediate join races
-          // the session teardown and times out with AbortError.
+          // Best-effort restore after a short delay. Discord often needs the
+          // Streamer's session fully torn down before @discordjs/voice can
+          // re-join; if that races, the reconnect times out — the FE shows
+          // disconnected and the user just clicks Connect again. This is an
+          // accepted UX tradeoff for GoLive (single voice session per user).
           setTimeout(() => {
             Promise.resolve(this.restoreVoice(status)).catch((err) => {
               this.logger.warn(
                 { error: err instanceof Error ? err.message : String(err) },
-                "Failed to restore voice connection after screen share",
+                "Failed to restore voice connection after screen share (user can reconnect manually)",
               );
             });
-          }, 4000);
+          }, 5000);
         }
       };
       const done = playStream(output, this.streamer, {
