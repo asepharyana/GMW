@@ -4,41 +4,51 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@theme inline {
-  /* Canvas — deep navy */
-  --color-canvas: oklch(0.07 0.015 250);
-  --color-surface: oklch(0.11 0.02 245 / 0.6);
-  --color-surface-hover: oklch(0.15 0.02 245 / 0.7);
+/*
+ * Theme variables — light mode lives in :root (default), dark mode overrides
+ * via `.dark`. Toggle in TopNav swaps the class on <html>.
+ *
+ * NOTE: this is `@theme` (NOT `@theme inline`) on purpose — inline inlines
+ * literal values into utilities, so a `.dark` class override of the custom
+ * property would NOT re-skin utilities. With plain `@theme`, utilities
+ * reference `var(--color-*)`, so runtime theme switching works.
+ */
+@theme {
+  /* ── Light (default) ── */
+  /* Canvas — soft off-white */
+  --color-canvas: oklch(0.97 0.005 250);
+  --color-surface: oklch(1 0 0 / 0.7);
+  --color-surface-hover: oklch(0.93 0.01 250 / 0.8);
 
   /* Glass */
-  --color-glass-bg: oklch(1 0 0 / 0.04);
-  --color-glass-border: oklch(1 0 0 / 0.08);
-  --glass-shadow: 0 8px 32px oklch(0 0 0 / 0.4);
+  --color-glass-bg: oklch(0 0 0 / 0.04);
+  --color-glass-border: oklch(0.2 0.02 250 / 0.12);
+  --glass-shadow: 0 8px 32px oklch(0.2 0.02 250 / 0.12);
 
   /* Primary — teal-cyan */
-  --color-primary: oklch(0.62 0.17 215);
-  --color-primary-glow: oklch(0.62 0.17 215 / 0.4);
+  --color-primary: oklch(0.52 0.17 215);
+  --color-primary-glow: oklch(0.52 0.17 215 / 0.35);
   --color-primary-foreground: oklch(0.98 0 0);
-  --color-border: oklch(1 0 0 / 0.06);
-  --color-border-glow: oklch(0.62 0.17 215 / 0.3);
+  --color-border: oklch(0.2 0.02 250 / 0.08);
+  --color-border-glow: oklch(0.52 0.17 215 / 0.35);
 
   /* Accents */
-  --color-accent-purple: oklch(0.65 0.2 280);
-  --color-accent-amber: oklch(0.7 0.17 75);
+  --color-accent-purple: oklch(0.55 0.2 280);
+  --color-accent-amber: oklch(0.65 0.17 75);
   --color-destructive: oklch(0.577 0.245 27.325);
-  --color-success: oklch(0.6 0.18 160);
+  --color-success: oklch(0.55 0.18 160);
 
   /* Text */
-  --color-text-primary: oklch(0.93 0.01 245);
-  --color-text-secondary: oklch(0.55 0.02 245);
-  --color-text-mono: oklch(0.62 0.17 215);
+  --color-text-primary: oklch(0.25 0.02 250);
+  --color-text-secondary: oklch(0.48 0.02 250);
+  --color-text-mono: oklch(0.52 0.17 215);
 
   /* Legacy overrides for shadcn compatibility */
   --color-background: var(--color-canvas);
   --color-foreground: var(--color-text-primary);
   --color-card: var(--color-surface);
   --color-card-foreground: var(--color-text-primary);
-  --color-muted: oklch(0.17 0.015 245);
+  --color-muted: oklch(0.9 0.01 250);
   --color-muted-foreground: var(--color-text-secondary);
   --color-accent: var(--color-primary);
   --color-accent-foreground: var(--color-primary-foreground);
@@ -58,6 +68,42 @@
   --font-mono: "JetBrains Mono", monospace;
 }
 
+/* ── Dark theme overrides ── */
+.dark {
+  --color-canvas: oklch(0.07 0.015 250);
+  --color-surface: oklch(0.11 0.02 245 / 0.6);
+  --color-surface-hover: oklch(0.15 0.02 245 / 0.7);
+
+  --color-glass-bg: oklch(1 0 0 / 0.04);
+  --color-glass-border: oklch(1 0 0 / 0.08);
+  --glass-shadow: 0 8px 32px oklch(0 0 0 / 0.4);
+
+  --color-primary: oklch(0.62 0.17 215);
+  --color-primary-glow: oklch(0.62 0.17 215 / 0.4);
+  --color-primary-foreground: oklch(0.98 0 0);
+  --color-border: oklch(1 0 0 / 0.06);
+  --color-border-glow: oklch(0.62 0.17 215 / 0.3);
+
+  --color-accent-purple: oklch(0.65 0.2 280);
+  --color-accent-amber: oklch(0.7 0.17 75);
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-success: oklch(0.6 0.18 160);
+
+  --color-text-primary: oklch(0.93 0.01 245);
+  --color-text-secondary: oklch(0.55 0.02 245);
+  --color-text-mono: oklch(0.62 0.17 215);
+
+  --color-background: var(--color-canvas);
+  --color-foreground: var(--color-text-primary);
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-text-primary);
+  --color-muted: oklch(0.17 0.015 245);
+  --color-muted-foreground: var(--color-text-secondary);
+  --color-accent: var(--color-primary);
+  --color-accent-foreground: var(--color-primary-foreground);
+  --color-ring: var(--color-primary);
+}
+
 @layer utilities {
   .glass {
     background: var(--color-glass-bg);
@@ -70,19 +116,35 @@
     background: var(--color-glass-bg);
     backdrop-filter: blur(16px);
     border: 1px solid var(--color-border-glow);
-    box-shadow: 0 8px 32px oklch(0 0 0 / 0.5), 0 0 20px var(--color-primary-glow);
+    box-shadow: 0 8px 32px var(--glass-shadow), 0 0 20px var(--color-primary-glow);
   }
   .glass-intense {
-    background: oklch(1 0 0 / 0.08);
+    background: oklch(1 0 0 / 0.75);
     backdrop-filter: blur(20px);
-    border: 1px solid oklch(1 0 0 / 0.12);
+    border: 1px solid oklch(0.2 0.02 250 / 0.12);
+    box-shadow: 0 8px 32px oklch(0.2 0.02 250 / 0.12);
   }
+}
+
+/* Dark variant of glass-intense (reads better on dark canvas) */
+.dark .glass-intense {
+  background: oklch(1 0 0 / 0.08);
+  border: 1px solid oklch(1 0 0 / 0.12);
+  box-shadow: none;
 }
 
 @layer base {
   * { @apply border-border; }
   body {
     @apply bg-canvas text-text-primary font-sans antialiased;
+    background-image:
+      radial-gradient(circle, oklch(0.3 0.02 250 / 0.05) 1px, transparent 1px),
+      radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.52 0.17 215 / 0.08), transparent),
+      radial-gradient(ellipse 50% 40% at 80% 80%, oklch(0.55 0.2 280 / 0.05), transparent);
+    background-size: 24px 24px, 100% 100%, 100% 100%;
+  }
+  /* Dark body background */
+  .dark body {
     background-image:
       radial-gradient(circle, oklch(1 0 0 / 0.025) 1px, transparent 1px),
       radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.62 0.17 215 / 0.06), transparent),
@@ -108,16 +170,16 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: oklch(1 0 0 / 0.1);
+    background: oklch(0.4 0.02 250 / 0.2);
     border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: oklch(1 0 0 / 0.2);
+    background: oklch(0.4 0.02 250 / 0.35);
   }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: oklch(1 0 0 / 0.1); border-radius: 999px; }
-  ::-webkit-scrollbar-thumb:hover { background: oklch(1 0 0 / 0.2); }
+  ::-webkit-scrollbar-thumb { background: oklch(0.4 0.02 250 / 0.2); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: oklch(0.4 0.02 250 / 0.35); }
 }
 
 /* ── Animations ──────────────────────────── */

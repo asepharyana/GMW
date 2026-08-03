@@ -54,7 +54,7 @@ export function AttachmentsGrid({
           {others.map((att) => (
             <div
               key={att.id}
-              className="flex items-center gap-1.5 rounded-md bg-white/5 px-2 py-1 text-xs text-text-secondary"
+              className="flex items-center gap-1.5 rounded-md bg-glass-bg px-2 py-1 text-xs text-text-secondary"
             >
               <ImageIcon className="size-3 text-text-secondary/50" />
               <span className="font-mono max-w-40 truncate">

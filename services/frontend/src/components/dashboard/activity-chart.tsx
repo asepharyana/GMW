@@ -74,7 +74,7 @@ export function ActivityChart({ data = [] }: ActivityChartProps) {
               </defs>
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="oklch(1 0 0 / 0.05)"
+                stroke="var(--color-border)"
                 vertical={false}
               />
               <XAxis

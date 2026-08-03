@@ -10,9 +10,15 @@ export function TopNav() {
   const router = useRouter();
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
+  // Apply persisted theme on mount (client-side only — avoids SSR hydration
+  // mismatch from touching <html> during server render).
   useEffect(() => {
     const stored = localStorage.getItem("theme") as "light" | "dark" | null;
-    if (stored) setTheme(stored);
+    const initial =
+      stored === "light" ? "light" : stored === "dark" ? "dark" : "light";
+    setTheme(initial);
+    document.documentElement.classList.remove("light", "dark");
+    document.documentElement.classList.add(initial);
   }, []);
 
   const toggleTheme = () => {
