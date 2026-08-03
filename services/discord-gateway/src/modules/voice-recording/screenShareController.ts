@@ -38,6 +38,12 @@ export class ScreenShareController {
   constructor(
     private readonly client: Client,
     private readonly getVoiceStatus: () => ScreenShareVoiceStatus,
+    /** Disconnect the @discordjs/voice connection so the Streamer can take
+     *  over the voice channel (Discord allows only ONE voice session per user
+     *  — two connections collide and the Streamer never gets VOICE_SERVER_UPDATE). */
+    private readonly releaseVoice: () => void | Promise<void>,
+    /** Reconnect the @discordjs/voice connection after the stream ends. */
+    private readonly restoreVoice: () => void | Promise<void>,
   ) {}
 
   isActive(): boolean {
@@ -60,10 +66,6 @@ export class ScreenShareController {
         this.streamer = new Streamer(this.client);
       }
 
-      // The dank074 Streamer needs its OWN voice connection — it cannot reuse
-      // the @discordjs/voice connection owned by VoiceController/recorder.
-      // Resolve the channel object and join via the Streamer's raw gateway
-      // path (joinVoiceChannel → joinVoice → WebRTC).
       const guild = this.client.guilds.cache.get(status.activeGuildId);
       const channel = guild?.channels.cache.get(status.activeChannelId);
       if (
@@ -74,6 +76,11 @@ export class ScreenShareController {
           `Voice channel ${status.activeChannelId} not found for screen share`,
         );
       }
+
+      // Free the @discordjs/voice connection BEFORE the Streamer joins, so
+      // the user has only one voice session (Discord requirement).
+      await this.releaseVoice();
+
       await Promise.race([
         this.streamer.joinVoiceChannel(channel),
         new Promise<never>((_, reject) =>
@@ -81,7 +88,7 @@ export class ScreenShareController {
             () =>
               reject(
                 new Error(
-                  "Timed out joining voice channel for screen share (2 koneksi voice bertabrakan?)",
+                  "Timed out joining voice channel for screen share",
                 ),
               ),
             15000,
@@ -101,6 +108,31 @@ export class ScreenShareController {
       });
 
       let stopped = false;
+      // Restore the @discordjs/voice connection after the stream ends (both
+      // natural end and failure), so the user can keep using audio/mic.
+      const restoreAfter = () => {
+        if (!stopped) {
+          stopped = true;
+          try {
+            command.kill("SIGTERM");
+          } catch {
+            /* already dead */
+          }
+        }
+        try {
+          this.streamer?.voiceConnection?.stop();
+        } catch {
+          /* already gone */
+        }
+        if (this.restoreVoice) {
+          Promise.resolve(this.restoreVoice()).catch((err) => {
+            this.logger.warn(
+              { error: err instanceof Error ? err.message : String(err) },
+              "Failed to restore voice connection after screen share",
+            );
+          });
+        }
+      };
       const done = playStream(output, this.streamer, {
         type: "go-live",
       })
@@ -112,16 +144,9 @@ export class ScreenShareController {
             { error: message, source },
             "Screen stream failed during playback",
           );
-          if (!stopped) {
-            stopped = true;
-            try {
-              command.kill("SIGTERM");
-            } catch {
-              /* already dead */
-            }
-          }
         })
         .finally(() => {
+          restoreAfter();
           this.active = null;
         });
       this.active = {

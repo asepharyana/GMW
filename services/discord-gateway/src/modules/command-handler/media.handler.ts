@@ -103,6 +103,21 @@ export class MediaHandler {
   }
 
   /**
+   * Give MediaHandler access to the VoiceController so screen-share can
+   * disconnect/reconnect the @discordjs audio connection around a GoLive
+   * stream (Discord allows only one voice session per user).
+   */
+  private voiceControllerAccessor: (() => {
+    disconnectGuild(guildId: string): Promise<void>;
+    connect(guildId: string, channelId: string): Promise<unknown>;
+    getStatus(): { activeGuildId: string | null; activeChannelId: string | null };
+  }) | null = null;
+
+  setVoiceController(accessor: typeof this.voiceControllerAccessor): void {
+    this.voiceControllerAccessor = accessor;
+  }
+
+  /**
    * Persist the latest media state to Redis so the backend/frontend see queue
    * advances that happen outside a command (natural track end, screen-share
    * done). CommandHandler owns the Redis status-key writes for command-triggered
@@ -164,6 +179,24 @@ export class MediaHandler {
           this.screenController = new ScreenShareController(
             this.client,
             this.getVoiceStatus,
+            // releaseVoice — disconnect the @discordjs/voice connection so the
+            // dank074 Streamer can take over (Discord: one voice session/user).
+            async () => {
+              const vc = this.voiceControllerAccessor?.();
+              const guildId = vc?.getStatus().activeGuildId ?? null;
+              if (vc && guildId) {
+                await vc.disconnectGuild(guildId);
+              }
+            },
+            // restoreVoice — reconnect the @discordjs audio connection after
+            // the stream ends so mic/listen keep working.
+            async () => {
+              const vc = this.voiceControllerAccessor?.();
+              const status = vc?.getStatus();
+              if (vc && status?.activeGuildId && status.activeChannelId) {
+                await vc.connect(status.activeGuildId, status.activeChannelId);
+              }
+            },
           );
         }
         const playback = await this.screenController.start(url);

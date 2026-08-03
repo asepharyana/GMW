@@ -86,6 +86,9 @@ export class CommandHandler {
     this.mediaHandler = new MediaHandler(client, () =>
       voiceController.getStatus(),
     );
+    // Give media handler access to disconnect/reconnect voice around screen
+    // share (GoLive needs its own WebRTC connection).
+    this.mediaHandler.setVoiceController(() => voiceController);
     this.guildHandler = new GuildHandler(client);
     this.moderationHandler = new ModerationHandler(client);
 
