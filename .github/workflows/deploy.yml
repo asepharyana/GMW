@@ -86,7 +86,7 @@ jobs:
       - name: Cache Nix
         uses: DeterminateSystems/magic-nix-cache-action@v14
         with:
-          use-flakehub: true
+          use-flakehub: false
 
       - name: Build ${{ matrix.service }}
         id: build
