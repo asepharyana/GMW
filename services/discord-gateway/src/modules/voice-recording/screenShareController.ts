@@ -74,7 +74,20 @@ export class ScreenShareController {
           `Voice channel ${status.activeChannelId} not found for screen share`,
         );
       }
-      await this.streamer.joinVoiceChannel(channel);
+      await Promise.race([
+        this.streamer.joinVoiceChannel(channel),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  "Timed out joining voice channel for screen share (2 koneksi voice bertabrakan?)",
+                ),
+              ),
+            15000,
+          ),
+        ),
+      ]);
 
       const { command, output } = prepareStream(directUrl, {
         encoder: Encoders.software({ x264: { preset: "superfast" } }),
