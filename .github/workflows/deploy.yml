@@ -121,3 +121,22 @@ jobs:
           echo "=== Restarting service ==="
           ssh "$VPS_USER@$VPS_HOST" "sudo systemctl daemon-reload && sudo systemctl restart gmw-${{ matrix.service }} && sleep 3 && sudo systemctl is-active gmw-${{ matrix.service }}"
           echo "✅ gmw-${{ matrix.service }} deployed"
+
+  cleanup:
+    # Bersihkan sampah Nix di VPS SETELAH semua deploy selesai: hapus generasi
+    # profile lama + nix store gc. Profil yang sedang dipakai tidak disentuh.
+    needs: build-and-deploy
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nix GC on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh "$VPS_USER@$VPS_HOST" "sudo /usr/local/bin/nix-gc-vps.sh" || echo "⚠️ Nix GC gagal (non-fatal)"
