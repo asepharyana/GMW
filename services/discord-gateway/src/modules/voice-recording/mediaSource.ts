@@ -283,24 +283,39 @@ export function resolveMediaUrl(
 }
 
 /**
- * Resolve a media URL to a directly playable video URL (for screen share /
- * GoLive streaming). Uses yt-dlp `--get-url` with bestvideo+bestaudio.
+ * Resolve a media URL to a single playable input stream for screen share /
+ * GoLive streaming.
  *
- * @throws If yt-dlp is not installed or the process exits with a non-zero code.
+ * yt-dlp `--get-url` with `bestvideo+bestaudio` prints the video-only and
+ * audio-only URLs on SEPARATE lines. The old code took only the first line
+ * (video-only) → ffmpeg had no audio track → GoLive stream had no sound.
+ *
+ * This returns a single input that `prepareStream` (which accepts only ONE
+ * ffmpeg input) can consume while STILL including audio:
+ *  - If yt-dlp offers a merged progressive URL (one URL, video+audio) it is
+ *    returned directly.
+ *  - Otherwise the video-only + audio-only DASH URLs are fetched in the SAME
+ *    yt-dlp run (signature URLs expire quickly) and merged locally by an
+ *    ffmpeg process into a single NUT stream, which is streamed to the
+ *    consumer over a Readable. NUT over stdin auto-probes cleanly (verified:
+ *    av1+opus merge → H264+opus transcode).
+ *
+ * @returns a direct video URL (string) or a Readable of the merged NUT stream.
  */
-export function getDirectVideoUrl(url: string): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
+export function getDirectScreenInput(url: string): Promise<string | Readable> {
+  return new Promise<string | Readable>((resolve, reject) => {
     const args = [
       url,
-      "--get-url",
+      "--dump-single-json",
       "--format",
       "bestvideo[protocol^=http]+bestaudio[protocol^=http]/best[protocol^=http]/best",
       "--no-playlist",
       "--no-warnings",
       "--quiet",
+      "--no-simulate",
     ];
 
-    logger.info({ url }, "Spawning yt-dlp for direct video URL");
+    logger.info({ url }, "Spawning yt-dlp for screen share input resolution");
 
     const proc = spawn("yt-dlp", args, {
       stdio: ["pipe", "pipe", "pipe"],
@@ -311,7 +326,7 @@ export function getDirectVideoUrl(url: string): Promise<string> {
     let stdoutBuf = "";
     let stderrBuf = "";
     const MAX_STDERR = 4096;
-    const MAX_STDOUT = 1_048_576;
+    const MAX_STDOUT = 8 * 1024 * 1024; // JSON metadata + requested format URLs
 
     if (proc.stdout) {
       proc.stdout.on("data", (chunk: Buffer) => {
@@ -349,20 +364,158 @@ export function getDirectVideoUrl(url: string): Promise<string> {
         const detail = stderrBuf.trim() ? `: ${stderrBuf.trim()}` : "";
         reject(
           new Error(
-            `yt-dlp direct URL resolution exited with code ${code}${detail}`,
+            `yt-dlp screen input resolution exited with code ${code}${detail}`,
           ),
         );
         return;
       }
 
-      const firstLine = stdoutBuf.trim().split("\n")[0];
-      if (!firstLine) {
-        reject(new Error("yt-dlp returned no direct video URL"));
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(stdoutBuf.trim()) as Record<string, unknown>;
+      } catch (parseErr) {
+        reject(
+          new Error(
+            `Failed to parse yt-dlp JSON for screen input: ${(parseErr as Error).message}`,
+          ),
+        );
         return;
       }
-      resolve(firstLine);
+
+      resolveScreenInput(parsed).then(resolve, (err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        reject(
+          new Error(`Failed to build screen input for "${url}": ${message}`),
+        );
+      });
     });
   });
+}
+
+/**
+ * From a parsed yt-dlp JSON info dict, decide how to feed a single ffmpeg
+ * input with both video and audio.
+ */
+async function resolveScreenInput(
+  info: Record<string, unknown>,
+): Promise<string | Readable> {
+  const requested = info.requested_formats as
+    | Array<Record<string, unknown>>
+    | undefined;
+
+  // Merged/progressive single URL (video+audio in one). Common when yt-dlp
+  // selects a single format (e.g. format 18 progressive mp4) or when a direct
+  // muxed URL is available.
+  const singleUrl = info.url as string | undefined;
+  const singleHasAudio =
+    info.acodec !== "none" &&
+    typeof info.acodec === "string" &&
+    info.acodec.length > 0;
+
+  if (typeof singleUrl === "string" && singleUrl && singleHasAudio) {
+    logger.debug("Screen share uses merged progressive single URL");
+    return singleUrl;
+  }
+
+  // Separate video-only + audio-only DASH formats → merge locally via ffmpeg.
+  if (Array.isArray(requested) && requested.length >= 2) {
+    const video = requested.find(
+      (rf) => rf.vcodec && String(rf.vcodec) !== "none",
+    );
+    const audio = requested.find(
+      (rf) => rf.acodec && String(rf.acodec) !== "none",
+    );
+    const videoUrl = video?.url as string | undefined;
+    const audioUrl = audio?.url as string | undefined;
+
+    if (
+      typeof videoUrl === "string" &&
+      videoUrl.length > 0 &&
+      typeof audioUrl === "string" &&
+      audioUrl.length > 0
+    ) {
+      return mergeScreenStreams(videoUrl, audioUrl);
+    }
+  }
+
+  throw new Error(
+    "yt-dlp returned neither a merged progressive URL nor a video+audio format pair",
+  );
+}
+
+/**
+ * Merge a video-only URL and an audio-only URL into a single NUT stream using
+ * a child ffmpeg process. Both URLs come from the same yt-dlp run, so they
+ * share the same signature/expiry and are consumed immediately.
+ */
+function mergeScreenStreams(videoUrl: string, audioUrl: string): Readable {
+  logger.info("Merging video+audio DASH streams into a single NUT input");
+
+  const ffmpeg = spawn(
+    "ffmpeg",
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-reconnect",
+      "1",
+      "-reconnect_streamed",
+      "1",
+      "-reconnect_delay_max",
+      "5",
+      "-i",
+      videoUrl,
+      "-i",
+      audioUrl,
+      "-map",
+      "0:v:0",
+      "-map",
+      "1:a:0",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "copy",
+      "-f",
+      "nut",
+      "pipe:1",
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+
+  // Track so cleanup() can terminate the merge during graceful shutdown.
+  activeProcesses.add(ffmpeg);
+  ffmpeg.once("exit", () => {
+    activeProcesses.delete(ffmpeg);
+  });
+
+  // Prevent the ffmpeg stderr from filling the pipe buffer / leaking.
+  let stderrBuf = "";
+  const MAX_STDERR = 4096;
+  ffmpeg.stderr?.on("data", (chunk: Buffer) => {
+    if (stderrBuf.length < MAX_STDERR) {
+      stderrBuf += chunk.toString("utf8");
+    }
+  });
+
+  ffmpeg.on("error", (err) => {
+    const msg =
+      err.message === "spawn ffmpeg ENOENT"
+        ? "FFmpeg not found! Install ffmpeg in the container."
+        : err.message;
+    logger.error({ error: msg }, "Screen stream merge ffmpeg error");
+  });
+
+  ffmpeg.on("exit", (code) => {
+    const stderr = stderrBuf.trim();
+    logger.warn(
+      { code, stderr: stderr.slice(-500) || undefined },
+      "Screen stream merge ffmpeg exited",
+    );
+  });
+
+  const stream = ffmpeg.stdout;
+  stream.setMaxListeners(32);
+  return stream;
 }
 
 /**
@@ -452,7 +605,7 @@ export async function extractMediaInfo(url: string): Promise<MediaInfo> {
 }
 
 /**
- * Kill all active yt-dlp child processes.
+ * Kill all active yt-dlp / screen-share merge ffmpeg child processes.
  *
  * Call during graceful shutdown to ensure no orphan processes remain.
  */

@@ -7,7 +7,7 @@ import {
 } from "@dank074/discord-video-stream";
 import type { Client } from "discord.js-selfbot-v13";
 import { createChildLogger } from "@/shared/logger/index";
-import { getDirectVideoUrl } from "./mediaSource.js";
+import { getDirectScreenInput } from "./mediaSource.js";
 import type { ScreenSharePlayback } from "./mediaTypes.js";
 import { discordPlayer } from "./player.js";
 
@@ -65,7 +65,7 @@ export class ScreenShareController {
     }
 
     try {
-      const directUrl = await getDirectVideoUrl(source);
+      const input = await getDirectScreenInput(source);
       if (!this.streamer) {
         this.streamer = new Streamer(this.client);
       }
@@ -98,7 +98,7 @@ export class ScreenShareController {
         ),
       ]);
 
-      const { command, output } = prepareStream(directUrl, {
+      const { command, output } = prepareStream(input, {
         encoder: Encoders.software({ x264: { preset: "superfast" } }),
         width: 1280,
         height: 720,
