@@ -6,7 +6,6 @@ import {
   isNull,
   like,
   lt,
-  ne,
   notInArray,
   or,
   type SQL,
@@ -221,58 +220,6 @@ export class MessagesRepository {
 
     if (!row) return null;
     return mapMessageRow(row as Record<string, unknown>);
-  }
-
-  /**
-   * Bulk-reset ai_status from 'error' to 'pending' so the DG recovery worker
-   * picks them up on its next poll cycle.
-   *
-   * Accepts optional scope filters (guildId, channelId) or a list of explicit
-   * message IDs. Returns the count of rows that were actually updated.
-   */
-  async reanalyzeErrorBatch(opts: {
-    guildId?: string;
-    channelId?: string;
-    messageIds?: string[];
-  }): Promise<number> {
-    const db = getDatabase();
-    const conditions: SQL[] = [eq(pgMessagesTable.ai_status, "error")];
-
-    if (opts.messageIds && opts.messageIds.length > 0) {
-      conditions.push(inArray(pgMessagesTable.id, opts.messageIds));
-    }
-    if (opts.guildId) {
-      conditions.push(eq(pgMessagesTable.guild_id, opts.guildId));
-    }
-    if (opts.channelId) {
-      conditions.push(eq(pgMessagesTable.channel_id, opts.channelId));
-    }
-
-    const result = await db
-      .update(pgMessagesTable)
-      .set({ ai_status: "pending" })
-      .where(and(...conditions));
-
-    const count = result.rowCount ?? 0;
-    logger.info({ count, ...opts }, "Batch reanalyze triggered");
-    return count;
-  }
-
-  /**
-   * Mark a single message for re-analysis by resetting ai_status to 'pending'.
-   * Skips messages already in 'pending' state to avoid write amplification.
-   */
-  async markForReanalysis(id: string): Promise<void> {
-    const db = getDatabase();
-    await db
-      .update(pgMessagesTable)
-      .set({ ai_status: "pending" })
-      .where(
-        and(
-          eq(pgMessagesTable.id, id),
-          ne(pgMessagesTable.ai_status, "pending"),
-        ),
-      );
   }
 
   /**

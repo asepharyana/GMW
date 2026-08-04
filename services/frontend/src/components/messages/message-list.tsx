@@ -9,7 +9,6 @@ interface MessageListProps {
   messages: MessageRecord[];
   selectedId: string | null;
   onSelect: (id: string) => void;
-  onReanalyze?: (id: string) => void;
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
@@ -19,7 +18,6 @@ export function MessageList({
   messages,
   selectedId: _selectedId,
   onSelect,
-  onReanalyze,
   hasMore,
   onLoadMore,
   isLoadingMore,
@@ -27,12 +25,7 @@ export function MessageList({
   return (
     <>
       {messages.map((msg) => (
-        <MessageCard
-          key={msg.id}
-          message={msg}
-          onClick={onSelect}
-          onReanalyze={(id) => onReanalyze?.(id)}
-        />
+        <MessageCard key={msg.id} message={msg} onClick={onSelect} />
       ))}
       {hasMore && (
         <div className="flex justify-center py-4">

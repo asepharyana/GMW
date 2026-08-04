@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, RefreshCw, Search, Sparkles } from "lucide-react";
+import { Loader2, Search, Sparkles } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { EmptyState, LoadingSkeleton } from "@/components/shared";
@@ -10,14 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { useMessageSearch, useReanalyze } from "@/hooks";
+import { useMessageSearch } from "@/hooks";
 import { renderMessageContent, safeParseJsonArray } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export function SearchPanel() {
   const [query, setQuery] = useState("");
   const [enabled, setEnabled] = useState(false);
-  const reanalyzeMut = useReanalyze();
 
   const { data: results, isValidating: isFetching } = useMessageSearch(
     query,
@@ -134,14 +133,6 @@ export function SearchPanel() {
                             </span>
                           </div>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          onClick={() => reanalyzeMut.mutate(msg.id)}
-                        >
-                          <RefreshCw className="size-3 mr-1" />
-                          Reanalyze
-                        </Button>
                       </div>
                     </div>
                   </CardContent>

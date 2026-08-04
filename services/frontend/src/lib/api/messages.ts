@@ -65,15 +65,6 @@ export const messagesApi = {
     );
   },
 
-  reanalyze: (id: string) =>
-    api.post<{ ok: boolean }>(`/api/messages/${id}/reanalyze`, {}),
-
-  reanalyzeBatch: (guildId?: string, channelId?: string) =>
-    api.post<{ ok: boolean; count: number }>("/api/messages/reanalyze-batch", {
-      guildId,
-      channelId,
-    }),
-
   search: (query: string, limit?: number) => {
     const params = new URLSearchParams({ q: query });
     if (limit) params.set("limit", String(limit));

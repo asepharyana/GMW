@@ -1,6 +1,6 @@
 "use client";
 
-import { Flag, Image, Loader2, RefreshCw, Search } from "lucide-react";
+import { Flag, Image, Loader2, Search } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/glass/card";
@@ -13,7 +13,6 @@ import { MessageList } from "@/components/messages/message-list";
 import { SearchOverlay } from "@/components/messages/search-overlay";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/shared";
 import { GuildSelector } from "@/components/shared/guild-selector";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -28,8 +27,6 @@ import {
   useMessages,
   useMessagesHasMore,
   useMessagesWsSync,
-  useReanalyze,
-  useReanalyzeBatch,
   useReview,
   useTextChannels,
 } from "@/hooks";
@@ -74,8 +71,6 @@ export default function MessagesPage() {
   const loadMoreMut = useLoadMore();
   const { data: images } = useImages(guildId);
   const { data: reviews } = useReview(selectedChannel || undefined);
-  const reanalyzeMut = useReanalyze();
-  const reanalyzeBatchMut = useReanalyzeBatch();
 
   const {
     message: detailMessage,
@@ -164,14 +159,6 @@ export default function MessagesPage() {
             &#8984;K
           </span>
         </button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => reanalyzeBatchMut.mutate(guildId)}
-          className="h-8 text-xs"
-        >
-          <RefreshCw className="mr-1 size-3" /> Reanalyze
-        </Button>
       </div>
 
       {/* ── Sub navigation ── */}
@@ -197,7 +184,6 @@ export default function MessagesPage() {
                 messages={currentMessages}
                 selectedId={detailId}
                 onSelect={setDetailId}
-                onReanalyze={(id) => reanalyzeMut.mutate(id)}
                 hasMore={cursorData?.hasMore}
                 onLoadMore={handleLoadMore}
                 isLoadingMore={loadMoreMut.isPending}

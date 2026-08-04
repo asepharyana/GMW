@@ -155,16 +155,6 @@ export function useMessageDetail(id: string | null) {
   };
 }
 
-// ── Mutations ────────────────────────────────────
-
-export function useReanalyze() {
-  return useAction((id: string) => messagesApi.reanalyze(id));
-}
-
-export function useReanalyzeBatch() {
-  return useAction((guildId: string) => messagesApi.reanalyzeBatch(guildId));
-}
-
 // ── Search ───────────────────────────────────────
 
 export function useMessageSearch(query: string, enabled: boolean) {

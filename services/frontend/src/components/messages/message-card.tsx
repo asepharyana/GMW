@@ -1,9 +1,8 @@
 "use client";
 
-import { Hash, RefreshCw } from "lucide-react";
+import { Hash } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -18,11 +17,9 @@ import { AiStatusBadge } from "./ai-status-badge";
 export function MessageCard({
   message: msg,
   onClick,
-  onReanalyze,
 }: {
   message: MessageRecord;
   onClick: (id: string) => void;
-  onReanalyze: (id: string) => void;
 }) {
   const severity = (
     {
@@ -156,16 +153,6 @@ export function MessageCard({
                 </span>
               </div>
             )}
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                onReanalyze(msg.id);
-              }}
-            >
-              <RefreshCw className="size-3 mr-1" /> Reanalyze
-            </Button>
           </div>
         </div>
       </CardContent>
