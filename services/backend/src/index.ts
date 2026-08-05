@@ -24,6 +24,15 @@ async function main() {
 async function shutdown(signal: string) {
   logger.info({ signal }, "Shutting down gracefully");
 
+  // Failsafe: graceful shutdown must never hang the process forever.
+  // httpServer.close() waits for ALL open connections (including lingering
+  // WebSocket/keep-alive sockets), so on a stuck connection the process would
+  // otherwise sit zombie and systemd (Restart=always) can never revive it.
+  const forceExitTimer = setTimeout(() => {
+    logger.error({ signal }, "Graceful shutdown timed out; forcing exit");
+    process.exit(1);
+  }, 10_000);
+
   try {
     // 1. Stop accepting new HTTP connections
     if (httpServer) {
@@ -54,9 +63,11 @@ async function shutdown(signal: string) {
     );
 
     logger.info("Graceful shutdown completed");
+    clearTimeout(forceExitTimer);
     process.exit(0);
   } catch (err) {
     logger.error({ err }, "Error during graceful shutdown");
+    clearTimeout(forceExitTimer);
     process.exit(1);
   }
 }
