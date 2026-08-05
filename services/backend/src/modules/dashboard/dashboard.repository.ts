@@ -395,6 +395,36 @@ export class DashboardRepository {
     }));
   }
 
+  async getTopReactors(limit: number) {
+    const db = getDatabase();
+    const cap = Math.min(Math.max(limit || 20, 1), 50);
+
+    // Top users by net reactions given (adds minus removes)
+    const result = await db.execute(sql`
+      SELECT
+        user_id,
+        username,
+        (COUNT(*) FILTER (WHERE reaction_type = 'add')
+         - COUNT(*) FILTER (WHERE reaction_type = 'remove'))::int AS net_count,
+        COUNT(*) FILTER (WHERE reaction_type = 'add')::int AS adds_count,
+        COUNT(DISTINCT message_id)::int AS messages_reacted,
+        COUNT(DISTINCT emoji)::int AS emojis_used
+      FROM message_reactions
+      GROUP BY user_id, username
+      ORDER BY net_count DESC
+      LIMIT ${cap}
+    `);
+
+    return ((result.rows as Record<string, unknown>[]) || []).map((r) => ({
+      user_id: String(r.user_id),
+      username: String(r.username ?? "unknown"),
+      net_count: Number(r.net_count),
+      adds_count: Number(r.adds_count),
+      messages_reacted: Number(r.messages_reacted),
+      emojis_used: Number(r.emojis_used),
+    }));
+  }
+
   async getUserDetail(userId: string) {
     const db = getDatabase();
 

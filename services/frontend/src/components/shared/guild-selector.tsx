@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw, Server } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -93,7 +93,7 @@ export function GuildSelector({
         Guild
       </Badge>
       <Select value={value} onValueChange={(v) => v && onChange(v)}>
-        <SelectTrigger className="h-8 w-full max-w-xs">
+        <SelectTrigger className="h-10 w-full max-w-sm">
           <SelectValue placeholder="Select a guild…">
             {guilds.find((g) => g.id === value)?.name}
           </SelectValue>
@@ -101,7 +101,19 @@ export function GuildSelector({
         <SelectContent>
           {guilds.map((g) => (
             <SelectItem key={g.id} value={g.id}>
-              {g.name}
+              <span className="flex items-center gap-2">
+                {g.icon ? (
+                  // biome-ignore lint/performance/noImgElement: guild icon is a remote Discord CDN URL
+                  <img
+                    src={g.icon}
+                    alt=""
+                    className="size-4 rounded-full object-cover"
+                  />
+                ) : (
+                  <Server className="size-4 text-muted-foreground" />
+                )}
+                <span className="line-clamp-1">{g.name}</span>
+              </span>
             </SelectItem>
           ))}
         </SelectContent>

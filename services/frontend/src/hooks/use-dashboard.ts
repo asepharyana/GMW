@@ -7,6 +7,7 @@ import type {
   DashboardStats,
   DashboardUserDetail,
   TopReactedMessage,
+  TopReactor,
 } from "@/lib/types";
 
 export function useStats() {
@@ -65,8 +66,14 @@ export function useChannelDetail(channelId: string | null) {
   );
 }
 
-export function useTopReactions(limit = 20) {
-  return useSWR<TopReactedMessage[]>(["dashboard-reactions", limit], () =>
-    dashboardApi.getTopReactions(limit),
+export function useTopReactions() {
+  return useSWR<TopReactedMessage[]>(["dashboard-reactions"], () =>
+    dashboardApi.getTopReactions(20),
+  );
+}
+
+export function useTopReactors() {
+  return useSWR<TopReactor[]>(["dashboard-reactors"], () =>
+    dashboardApi.getTopReactors(20),
   );
 }

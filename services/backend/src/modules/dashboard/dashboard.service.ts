@@ -48,6 +48,11 @@ export class DashboardService {
     logger.debug({ limit }, "Fetching top reactions");
     return dashboardRepository.getTopReactions(limit);
   }
+
+  async getTopReactors(limit: number) {
+    logger.debug({ limit }, "Fetching top reactors");
+    return dashboardRepository.getTopReactors(limit);
+  }
 }
 
 export const dashboardService = new DashboardService();

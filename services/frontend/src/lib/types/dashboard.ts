@@ -116,3 +116,12 @@ export interface TopReactedMessage {
   reaction_count: number;
   top_emojis: TopReactedEmoji[];
 }
+
+export interface TopReactor {
+  user_id: string;
+  username: string;
+  net_count: number;
+  adds_count: number;
+  messages_reacted: number;
+  emojis_used: number;
+}

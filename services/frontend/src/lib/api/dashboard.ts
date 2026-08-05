@@ -6,6 +6,7 @@ import type {
   PaginatedChannels,
   PaginatedUsers,
   TopReactedMessage,
+  TopReactor,
 } from "@/lib/types";
 import { api } from "./client";
 
@@ -44,4 +45,7 @@ export const dashboardApi = {
 
   getTopReactions: (limit = 20) =>
     api.get<TopReactedMessage[]>(`/api/dashboard/reactions?limit=${limit}`),
+
+  getTopReactors: (limit = 20) =>
+    api.get<TopReactor[]>(`/api/dashboard/reactors?limit=${limit}`),
 };

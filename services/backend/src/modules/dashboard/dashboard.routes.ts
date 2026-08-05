@@ -97,5 +97,15 @@ export function createDashboardRouter(): Router {
     }),
   );
 
+  // GET /api/dashboard/reactors — top users by reactions given
+  router.get(
+    "/dashboard/reactors",
+    asyncHandler(async (req: Request, res: Response) => {
+      const limit = Number(req.query.limit) || 20;
+      const reactors = await dashboardService.getTopReactors(limit);
+      res.json(reactors);
+    }),
+  );
+
   return router;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { Headphones, Server, Volume2 } from "lucide-react";
 import { GlassCard } from "@/components/glass/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -90,50 +91,102 @@ export function VoiceConnectionCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Select
-          value={selectedGuild}
-          onValueChange={(v) => {
-            onGuildChange(v);
-            onChannelChange("");
-          }}
-        >
-          <SelectTrigger className="h-8 glass border-glass-border text-xs">
-            <SelectValue placeholder="Select guild" />
-          </SelectTrigger>
-          <SelectContent>
-            {guilds.map((g) => (
-              <SelectItem key={g.id} value={g.id}>
-                {g.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={selectedChannel}
-          onValueChange={onChannelChange}
-          disabled={!selectedGuild}
-        >
-          <SelectTrigger className="h-8 glass border-glass-border text-xs">
-            <SelectValue placeholder="Select channel" />
-          </SelectTrigger>
-          <SelectContent>
-            {voiceChannels.map((c) => (
-              <SelectItem
-                key={c.id}
-                value={c.id}
-                disabled={c.joinable === false}
-              >
-                {c.joinable === false ? `${c.name} (no akses)` : c.name}
-              </SelectItem>
-            ))}
-            {voiceChannels.length === 0 && (
-              <div className="px-3 py-2 text-xs text-text-secondary/60">
-                Tidak ada voice channel
-              </div>
-            )}
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Guild select */}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="voice-guild-select"
+            className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-secondary/50"
+          >
+            <Server className="size-3" />
+            Server / Guild
+          </label>
+          <Select
+            value={selectedGuild}
+            onValueChange={(v) => {
+              onGuildChange(v);
+              onChannelChange("");
+            }}
+          >
+            <SelectTrigger id="voice-guild-select" className="h-10">
+              <SelectValue placeholder="Pilih server…">
+                {guilds.find((g) => g.id === selectedGuild)?.name}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {guilds.map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  <span className="flex items-center gap-2">
+                    {g.icon ? (
+                      // biome-ignore lint/performance/noImgElement: guild icon is a remote Discord CDN URL
+                      <img
+                        src={g.icon}
+                        alt=""
+                        className="size-4 rounded-full object-cover"
+                      />
+                    ) : (
+                      <Server className="size-4 text-muted-foreground" />
+                    )}
+                    <span className="line-clamp-1">{g.name}</span>
+                  </span>
+                </SelectItem>
+              ))}
+              {guilds.length === 0 && (
+                <div className="px-3 py-2 text-xs text-text-secondary/60">
+                  Tidak ada server — pastikan gateway Discord terhubung.
+                </div>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Channel select */}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="voice-channel-select"
+            className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-secondary/50"
+          >
+            <Volume2 className="size-3" />
+            Voice Channel
+          </label>
+          <Select
+            value={selectedChannel}
+            onValueChange={onChannelChange}
+            disabled={!selectedGuild}
+          >
+            <SelectTrigger id="voice-channel-select" className="h-10">
+              <SelectValue placeholder="Pilih channel…">
+                {voiceChannels.find((c) => c.id === selectedChannel)?.name}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {voiceChannels.map((c) => (
+                <SelectItem
+                  key={c.id}
+                  value={c.id}
+                  disabled={c.joinable === false}
+                >
+                  <span className="flex items-center gap-2">
+                    <Headphones className="size-4 text-muted-foreground" />
+                    <span className="line-clamp-1">{c.name}</span>
+                    {c.joinable === false && (
+                      <span className="ml-auto text-[10px] text-muted-foreground">
+                        no akses
+                      </span>
+                    )}
+                  </span>
+                </SelectItem>
+              ))}
+              {voiceChannels.length === 0 && (
+                <div className="px-3 py-2 text-xs text-text-secondary/60">
+                  {selectedGuild
+                    ? "Tidak ada voice channel di server ini"
+                    : "Pilih server dulu"}
+                </div>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </GlassCard>
   );

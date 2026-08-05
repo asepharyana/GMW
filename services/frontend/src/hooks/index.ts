@@ -4,6 +4,7 @@ export {
   useChannelDetail,
   useChannels,
   useStats,
+  useTopReactors,
   useTopReactions,
   useUserDetail,
   useUsers,

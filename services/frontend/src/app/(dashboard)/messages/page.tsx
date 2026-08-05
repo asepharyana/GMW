@@ -135,7 +135,7 @@ export default function MessagesPage() {
             value={selectedChannel}
             onValueChange={(v) => setSelectedChannel(v ?? "")}
           >
-            <SelectTrigger className="h-8 w-40 glass border-glass-border text-xs">
+            <SelectTrigger className="h-9 w-48">
               <SelectValue placeholder="All channels" />
             </SelectTrigger>
             <SelectContent>
