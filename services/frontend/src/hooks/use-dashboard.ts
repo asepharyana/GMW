@@ -6,6 +6,7 @@ import type {
   DashboardChannelDetail,
   DashboardStats,
   DashboardUserDetail,
+  TopReactedMessage,
 } from "@/lib/types";
 
 export function useStats() {
@@ -61,5 +62,11 @@ export function useChannelDetail(channelId: string | null) {
   return useSWR<DashboardChannelDetail>(
     channelId ? ["dashboard-channel", channelId] : null,
     () => dashboardApi.getChannelDetail(channelId!),
+  );
+}
+
+export function useTopReactions(limit = 20) {
+  return useSWR<TopReactedMessage[]>(["dashboard-reactions", limit], () =>
+    dashboardApi.getTopReactions(limit),
   );
 }

@@ -331,6 +331,70 @@ export class DashboardRepository {
     };
   }
 
+  async getTopReactions(limit: number) {
+    const db = getDatabase();
+    const cap = Math.min(Math.max(limit || 20, 1), 50);
+
+    // Top messages by net reactions (adds minus removes), joined to message content
+    const result = await db.execute(sql`
+      SELECT
+        m.id AS message_id,
+        m.content,
+        m.username,
+        m.channel_id,
+        m.created_at,
+        COALESCE(NULLIF((m.metadata::jsonb -> 'channel' ->> 'channelName'), ''), m.channel_id) AS channel_name,
+        r.reaction_count::int
+      FROM (
+        SELECT message_id,
+               (COUNT(*) FILTER (WHERE reaction_type = 'add')
+                - COUNT(*) FILTER (WHERE reaction_type = 'remove'))::int AS reaction_count
+        FROM message_reactions
+        GROUP BY message_id
+      ) r
+      JOIN messages m ON m.id = r.message_id
+      WHERE r.reaction_count > 0
+      ORDER BY r.reaction_count DESC
+      LIMIT ${cap}
+    `);
+
+    const rows = (result.rows as Record<string, unknown>[]) || [];
+
+    if (rows.length === 0) return [];
+
+    // Top emoji per message (adds only) for the breakdown
+    const ids = rows.map((r) => String(r.message_id));
+    const emojiResult = await db.execute(sql`
+      SELECT message_id, emoji, COUNT(*)::int AS c
+      FROM message_reactions
+      WHERE reaction_type = 'add' AND message_id IN (${sql.join(ids, sql`, `)})
+      GROUP BY message_id, emoji
+      ORDER BY message_id, c DESC
+    `);
+
+    const emojiByMessage = new Map<
+      string,
+      Array<{ emoji: string; count: number }>
+    >();
+    for (const e of emojiResult.rows as Record<string, unknown>[]) {
+      const mid = String(e.message_id);
+      const list = emojiByMessage.get(mid) ?? [];
+      list.push({ emoji: String(e.emoji), count: Number(e.c) });
+      emojiByMessage.set(mid, list);
+    }
+
+    return rows.map((r) => ({
+      message_id: String(r.message_id),
+      content: r.content ? String(r.content) : "",
+      username: r.username ? String(r.username) : null,
+      channel_id: String(r.channel_id),
+      channel_name: r.channel_name ? String(r.channel_name) : null,
+      created_at: r.created_at ? Number(r.created_at) : null,
+      reaction_count: Number(r.reaction_count),
+      top_emojis: (emojiByMessage.get(String(r.message_id)) ?? []).slice(0, 3),
+    }));
+  }
+
   async getUserDetail(userId: string) {
     const db = getDatabase();
 

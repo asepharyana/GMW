@@ -5,6 +5,7 @@ import type {
   DashboardUserDetail,
   PaginatedChannels,
   PaginatedUsers,
+  TopReactedMessage,
 } from "@/lib/types";
 import { api } from "./client";
 
@@ -40,4 +41,7 @@ export const dashboardApi = {
 
   getChannelDetail: (channelId: string) =>
     api.get<DashboardChannelDetail>(`/api/dashboard/channels/${channelId}`),
+
+  getTopReactions: (limit = 20) =>
+    api.get<TopReactedMessage[]>(`/api/dashboard/reactions?limit=${limit}`),
 };

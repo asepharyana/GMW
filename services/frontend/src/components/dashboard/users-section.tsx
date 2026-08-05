@@ -13,6 +13,41 @@ import { useUserDetail, useUsers } from "@/hooks";
 import { renderMessageContent } from "@/lib/format";
 import type { DashboardUser } from "@/lib/types";
 
+const TRUST_TIERS = [
+  {
+    min: 75,
+    label: "Trusted",
+    className: "border-green-500/40 text-green-500",
+  },
+  { min: 40, label: "Netral", className: "border-sky-500/40 text-sky-500" },
+  {
+    min: 10,
+    label: "At Risk",
+    className: "border-orange-500/40 text-orange-500",
+  },
+  { min: 0, label: "Kritis", className: "border-red-500/40 text-red-500" },
+] as const;
+
+export function trustTier(score: number) {
+  return (
+    TRUST_TIERS.find((t) => score >= t.min) ??
+    TRUST_TIERS[TRUST_TIERS.length - 1]
+  );
+}
+
+function TrustBadge({ score }: { score: number }) {
+  const tier = trustTier(score);
+  return (
+    <Badge
+      variant="outline"
+      className={tier.className}
+      title={`Trust score ${score}`}
+    >
+      {tier.label}: {score}
+    </Badge>
+  );
+}
+
 export function UsersSection() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -109,7 +144,7 @@ export function UsersSection() {
                 Clean: {detail.clean_count}
               </Badge>
               {detail.trust_score != null && (
-                <Badge variant="outline">Trust: {detail.trust_score}</Badge>
+                <TrustBadge score={detail.trust_score} />
               )}
               {detail.clean_message_streak != null && (
                 <Badge variant="outline">
@@ -200,6 +235,7 @@ function UserRow({
           {user.flagged_count > 0 && (
             <Badge variant="destructive">{user.flagged_count}</Badge>
           )}
+          {user.trust_score != null && <TrustBadge score={user.trust_score} />}
         </div>
       </CardContent>
     </Card>

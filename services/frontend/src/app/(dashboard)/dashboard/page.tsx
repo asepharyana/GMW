@@ -4,6 +4,7 @@ import {
   AlertCircle,
   Clock,
   Hash,
+  Heart,
   Shield,
   Sparkles,
   Users,
@@ -13,6 +14,7 @@ import { ActivityChart } from "@/components/dashboard/activity-chart";
 import { ChannelsSection } from "@/components/dashboard/channels-section";
 import { HourlyActivityChart } from "@/components/dashboard/hourly-activity-chart";
 import { ModerationDonut } from "@/components/dashboard/moderation-donut";
+import { ReactionsSection } from "@/components/dashboard/reactions-section";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { TopChannelsChart } from "@/components/dashboard/top-channels-chart";
 import { UsersSection } from "@/components/dashboard/users-section";
@@ -21,7 +23,7 @@ import { ErrorState, LoadingSkeleton } from "@/components/shared";
 import { useActivity, useStats } from "@/hooks";
 import { cn } from "@/lib/utils";
 
-type DashboardTab = "stats" | "users" | "channels";
+type DashboardTab = "stats" | "users" | "channels" | "reactions";
 
 const DAY_RANGES = [7, 14, 30] as const;
 
@@ -42,6 +44,7 @@ export default function DashboardPage() {
     { id: "stats", label: "Stats", icon: <Hash className="size-3" /> },
     { id: "users", label: "Users", icon: <Users className="size-3" /> },
     { id: "channels", label: "Channels", icon: <Hash className="size-3" /> },
+    { id: "reactions", label: "Reactions", icon: <Heart className="size-3" /> },
   ];
 
   const moderationData = stats
@@ -172,6 +175,8 @@ export default function DashboardPage() {
       {tab === "users" && <UsersSection />}
 
       {tab === "channels" && <ChannelsSection />}
+
+      {tab === "reactions" && <ReactionsSection />}
     </div>
   );
 }

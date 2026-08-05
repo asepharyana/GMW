@@ -43,6 +43,11 @@ export class DashboardService {
     logger.debug({ channelId }, "Fetching channel detail");
     return dashboardRepository.getChannelDetail(channelId);
   }
+
+  async getTopReactions(limit: number) {
+    logger.debug({ limit }, "Fetching top reactions");
+    return dashboardRepository.getTopReactions(limit);
+  }
 }
 
 export const dashboardService = new DashboardService();

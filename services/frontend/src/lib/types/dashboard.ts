@@ -100,3 +100,19 @@ export interface PaginatedChannels {
   data: DashboardChannel[];
   nextCursor: string | null;
 }
+
+export interface TopReactedEmoji {
+  emoji: string;
+  count: number;
+}
+
+export interface TopReactedMessage {
+  message_id: string;
+  content: string;
+  username: string | null;
+  channel_id: string;
+  channel_name: string | null;
+  created_at: number | null;
+  reaction_count: number;
+  top_emojis: TopReactedEmoji[];
+}

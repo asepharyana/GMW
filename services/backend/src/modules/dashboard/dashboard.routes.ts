@@ -87,5 +87,15 @@ export function createDashboardRouter(): Router {
     }),
   );
 
+  // GET /api/dashboard/reactions — top reacted messages
+  router.get(
+    "/dashboard/reactions",
+    asyncHandler(async (req: Request, res: Response) => {
+      const limit = Number(req.query.limit) || 20;
+      const reactions = await dashboardService.getTopReactions(limit);
+      res.json(reactions);
+    }),
+  );
+
   return router;
 }
