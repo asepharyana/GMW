@@ -127,6 +127,10 @@ export interface MessageRecord {
   ai_recommended_action?: AiRecommendedAction | null;
   ai_error?: string | null;
   ai_analyzed_at?: number | null;
+  /** Detail-only: number of past edits (message_edits snapshots) */
+  edit_count?: number;
+  /** Detail-only: previous content snapshots, newest first */
+  edit_history?: Array<{ old_content: string; edited_at: number }>;
 }
 
 // ── Pagination ──────────────────────────────────────────────

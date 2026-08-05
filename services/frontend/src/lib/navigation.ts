@@ -6,6 +6,7 @@ import {
   Mic,
   Music,
   Search,
+  Shield,
 } from "lucide-react";
 
 export interface NavItem {
@@ -49,6 +50,12 @@ export const navItems: NavItem[] = [
     label: "Recordings",
     icon: Headphones,
     matchPrefix: "/recordings",
+  },
+  {
+    href: "/moderation",
+    label: "Moderation",
+    icon: Shield,
+    matchPrefix: "/moderation",
   },
   {
     href: "/analysis",

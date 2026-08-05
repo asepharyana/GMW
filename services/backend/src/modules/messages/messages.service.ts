@@ -34,7 +34,12 @@ export class MessagesService {
       throw new NotFoundError(`Message with ID ${id} not found`);
     }
 
-    return message;
+    const editHistory = await messagesRepository.getEditHistory(id);
+    return {
+      ...message,
+      edit_count: editHistory.length,
+      edit_history: editHistory,
+    };
   }
 
   async getAttachmentsByChannel(channelId: string, query: MessageQuery) {

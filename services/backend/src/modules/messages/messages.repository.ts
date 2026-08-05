@@ -9,6 +9,7 @@ import {
   notInArray,
   or,
   type SQL,
+  sql,
 } from "drizzle-orm";
 import { config } from "../../shared/config/index.js";
 import { getDatabase } from "../../shared/database/index.js";
@@ -112,6 +113,27 @@ export class MessagesRepository {
 
     if (!row) return null;
     return mapMessageRow(row as Record<string, unknown>);
+  }
+
+  /**
+   * Edit history for a message: previous content snapshots (newest first).
+   * Stored in message_edits by the gateway's message-capture module.
+   */
+  async getEditHistory(
+    messageId: string,
+  ): Promise<Array<{ old_content: string; edited_at: number }>> {
+    const db = getDatabase();
+    const result = await db.execute(sql`
+      SELECT old_content, edited_at
+      FROM message_edits
+      WHERE message_id = ${messageId}
+      ORDER BY edited_at DESC
+      LIMIT 50
+    `);
+    return ((result.rows as Record<string, unknown>[]) || []).map((r) => ({
+      old_content: String(r.old_content ?? ""),
+      edited_at: Number(r.edited_at ?? 0),
+    }));
   }
 
   async findByChannel(

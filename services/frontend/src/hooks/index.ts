@@ -29,6 +29,10 @@ export {
   useTextChannels,
 } from "./use-messages";
 export {
+  useModerationActions,
+  useModerationStats,
+} from "./use-moderation";
+export {
   useDeleteRecording,
   useRecordings,
   useRecordingsWsSync,

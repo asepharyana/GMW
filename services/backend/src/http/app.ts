@@ -13,6 +13,7 @@ import { createDashboardRouter } from "../modules/dashboard/index.js";
 import { createHealthRouter } from "../modules/health/index.js";
 import { createMediaRouter } from "../modules/media/index.js";
 import { createMessagesRouter } from "../modules/messages/index.js";
+import { createModerationRouter } from "../modules/moderation/index.js";
 import { createRecordingsRouter } from "../modules/recordings/index.js";
 import { createUiStateRouter } from "../modules/ui-state/index.js";
 import { createVoiceRouter } from "../modules/voice/index.js";
@@ -69,6 +70,7 @@ export function createHttpApp(): Express {
   app.use("/api", createUiStateRouter());
   app.use("/api", createMediaRouter());
   app.use("/api", createVoiceRouter());
+  app.use("/api", createModerationRouter());
 
   // 404 handler
   app.use((_req: Request, res: Response) => {

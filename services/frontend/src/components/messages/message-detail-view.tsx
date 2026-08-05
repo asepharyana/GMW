@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, MessageSquare, MessagesSquare } from "lucide-react";
+import { ArrowLeft, MessageSquare, MessagesSquare, Pencil } from "lucide-react";
 import { GlassCard } from "@/components/glass/card";
 import { getMessageChannelLabel, renderMessageContent } from "@/lib/format";
 import type { AttachmentRecord, MessageRecord } from "@/lib/types";
@@ -51,6 +51,27 @@ export function MessageDetailView({
           message.metadata,
         ) || "(no text content)"}
       </div>
+
+      {/* Edit history */}
+      {message.edit_history && message.edit_history.length > 0 && (
+        <div className="mb-4 space-y-2 rounded-lg border border-border/40 bg-card/30 p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary/50 flex items-center gap-1">
+            <Pencil className="size-3" />
+            Riwayat edit · {message.edit_history.length} versi sebelumnya
+          </p>
+          {message.edit_history.map((edit, i) => (
+            <div key={`${edit.edited_at}-${i}`} className="space-y-0.5">
+              <p className="text-[10px] font-mono text-text-secondary/40">
+                {new Date(edit.edited_at).toLocaleString("id-ID")}
+              </p>
+              <p className="text-xs leading-relaxed text-text-secondary/80 line-clamp-4 whitespace-pre-wrap">
+                {renderMessageContent(edit.old_content, message.metadata) ||
+                  "(kosong)"}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Attachments */}
       {attachments && attachments.length > 0 && (

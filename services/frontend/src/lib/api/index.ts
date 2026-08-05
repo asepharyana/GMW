@@ -4,6 +4,7 @@ export { configApi } from "./config";
 export { dashboardApi } from "./dashboard";
 export { mediaApi } from "./media";
 export { messagesApi } from "./messages";
+export { moderationApi } from "./moderation";
 export { recordingsApi } from "./recordings";
 export { uiStateApi } from "./ui-state";
 export { voiceApi } from "./voice";
