@@ -62,90 +62,67 @@ function parseSeconds(value: string): number {
  */
 const MAX_HEADER_BUFFER = 65536; // 64KB safety limit for metadata headers
 
-function readFirstTwoLines(
-  stdout: Readable,
+/**
+ * Read the title + duration header lines from yt-dlp's STDERR.
+ *
+ * When yt-dlp streams media to stdout (`-o -`) it redirects its `--print`
+ * output to STDERR so the media stream on stdout stays clean. The first two
+ * meaningful lines on stderr are then the title and (before_dl) duration.
+ *
+ * Blank lines and `[...]` info prefixes are skipped. An `ERROR:` line is
+ * reported via `onError` so a failing download surfaces as a resolution error
+ * instead of a silent empty stream.
+ */
+function readStderrHeader(
+  stderr: Readable,
+  onError: (message: string) => void,
   maxBufferSize: number = MAX_HEADER_BUFFER,
-): Promise<{
-  title: string;
-  duration: number;
-  remaining: Readable;
-}> {
-  return new Promise((resolve, reject) => {
-    const passThrough = new PassThrough();
-
-    let buffer = Buffer.alloc(0);
+): Promise<{ title: string; duration: number }> {
+  return new Promise((resolve) => {
+    let buffer = "";
     let title = "";
-    let stage: "title" | "duration" | "done" = "title";
+    let duration = 0;
+    let done = false;
 
-    function cleanup() {
-      stdout.removeListener("data", onData);
-      stdout.removeListener("error", onError);
-      stdout.removeListener("end", onEnd);
-    }
+    const finish = () => {
+      if (done) return;
+      done = true;
+      stderr.removeListener("data", onData);
+      resolve({ title, duration });
+    };
 
-    function onData(chunk: Buffer) {
-      if (stage === "done") return;
-      buffer = Buffer.concat([buffer, chunk]);
+    const onData = (chunk: Buffer) => {
+      if (done) return;
+      buffer += chunk.toString("utf8");
       if (buffer.length > maxBufferSize) {
-        cleanup();
-        reject(new Error(`Metadata header exceeded ${maxBufferSize} bytes`));
+        finish();
         return;
       }
-      processBuffer();
-    }
+      while (!done) {
+        const nl = buffer.indexOf("\n");
+        if (nl === -1) break; // need more data
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
 
-    function processBuffer() {
-      while (buffer.length > 0 && stage !== "done") {
-        const nl = buffer.indexOf(0x0a); // '\n' byte
-        if (nl === -1) break; // Need more data
-
-        const line = buffer.subarray(0, nl).toString("utf8").trim();
-        buffer = buffer.subarray(nl + 1);
-
-        if (stage === "title") {
+        if (line.length === 0) continue; // blank line
+        if (line.startsWith("[")) continue; // "[info] ..." — not a header
+        if (line.startsWith("ERROR")) {
+          onError(line);
+          finish();
+          return;
+        }
+        if (!title) {
           title = line;
-          stage = "duration";
-        } else if (stage === "duration") {
-          const duration = parseSeconds(line);
-          stage = "done";
-          cleanup();
-
-          // Write any buffered data that follows the second newline
-          if (buffer.length > 0) {
-            passThrough.write(buffer);
-          }
-
-          // Pipe the remainder of stdout into the pass-through
-          stdout.pipe(passThrough);
-
-          resolve({ title, duration, remaining: passThrough });
+        } else {
+          duration = parseSeconds(line);
+          finish();
           return;
         }
       }
-    }
+    };
 
-    function onError(err: Error) {
-      if (stage !== "done") {
-        cleanup();
-        reject(err);
-      }
-    }
-
-    function onEnd() {
-      if (stage !== "done") {
-        cleanup();
-        reject(
-          new Error(
-            `yt-dlp stdout ended before metadata could be read. ` +
-              `Stage: ${stage}, partial title: "${title}"`,
-          ),
-        );
-      }
-    }
-
-    stdout.on("data", onData);
-    stdout.on("error", onError);
-    stdout.on("end", onEnd);
+    stderr.on("data", onData);
+    stderr.on("end", finish);
   });
 }
 
@@ -163,8 +140,10 @@ function buildNotInstalledError(): Error {
 /**
  * Resolve a media URL (YouTube, Spotify, etc.) to a playable audio stream.
  *
- * Spawns `yt-dlp`, extracts the title and duration from the first two stdout
- * lines, then pipes the remaining raw audio data into a Readable stream.
+ * Spawns `yt-dlp` with `-o -` so the raw audio bytes stream on stdout. Since
+ * stdout is the media sink, yt-dlp emits its `--print before_dl:title` /
+ * `before_dl:duration` header lines on STDERR — the title + duration are read
+ * from there and the stdout media stream is returned untouched.
  *
  * The returned stream uses `StreamType.Arbitrary` — suitable for
  * `DiscordPlayer.playStream()` with `inputType: StreamType.Arbitrary`.
@@ -181,10 +160,10 @@ export function resolveMediaUrl(
     const args = [
       "-f",
       format,
-      "--audio-format",
-      "best",
       "-o",
       "-",
+      "--no-progress",
+      "--no-warnings",
       "--print",
       "before_dl:title",
       "--print",
@@ -195,10 +174,16 @@ export function resolveMediaUrl(
     logger.info({ url }, "Spawning yt-dlp for media resolution");
 
     const proc = spawn("yt-dlp", args, {
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
     });
 
     activeProcesses.add(proc);
+
+    // With `-o -` yt-dlp streams the raw audio on stdout and moves its
+    // `--print` headers to stderr — pipe stdout immediately so the child
+    // never blocks on a full pipe while we wait for the headers on stderr.
+    const mediaStream = new PassThrough();
+    proc.stdout.pipe(mediaStream);
 
     let stderrBuf = "";
     let resolved = false;
@@ -209,7 +194,21 @@ export function resolveMediaUrl(
       if (resolved) return;
       resolved = true;
       activeProcesses.delete(proc);
+      mediaStream.destroy();
       reject(err);
+    };
+
+    const resolveOnce = (info: MediaInfo) => {
+      if (resolved) return;
+      resolved = true;
+      activeProcesses.delete(proc);
+      resolve({
+        stream: mediaStream,
+        type: StreamType.Arbitrary,
+        title: info.title,
+        duration: info.duration,
+        info,
+      });
     };
 
     // -- spawn error (ENOENT etc.) ----------------------------------------
@@ -222,31 +221,25 @@ export function resolveMediaUrl(
       }
     });
 
-    // -- stderr (capture for diagnostics, capped at 4KB) ----------------------------------
+    // -- stderr: title + duration headers ---------------------------------
+    // Capture raw stderr too, for the exit-diagnostics in the close handler.
 
     const _MAX_STDERR = 4096;
     if (proc.stderr) {
       proc.stderr.on("data", (chunk: Buffer) => {
-        stderrBuf += chunk.toString("utf8");
+        if (stderrBuf.length < _MAX_STDERR) {
+          stderrBuf += chunk
+            .toString("utf8")
+            .slice(0, _MAX_STDERR - stderrBuf.length);
+        }
       });
     }
 
-    // -- stdout: parse header, then stream audio ---------------------------
-
-    readFirstTwoLines(proc.stdout)
-      .then(({ title, duration, remaining }) => {
-        if (resolved) return;
-        resolved = true;
-        activeProcesses.delete(proc);
-
-        const info: MediaInfo = { title, duration };
-        resolve({
-          stream: remaining,
-          type: StreamType.Arbitrary,
-          title,
-          duration,
-          info,
-        });
+    readStderrHeader(proc.stderr, (message) => {
+      failOnce(new Error(message));
+    })
+      .then(({ title, duration }) => {
+        resolveOnce({ title: title || url, duration });
       })
       .catch((err: Error) => {
         failOnce(err);
@@ -264,6 +257,10 @@ export function resolveMediaUrl(
         failOnce(new Error(`yt-dlp exited with code ${code}${detail}`));
       } else if (signal) {
         failOnce(new Error(`yt-dlp was killed by signal ${signal}`));
+      } else {
+        // Exited cleanly but the header lines never surfaced (e.g. a direct
+        // file URL with no duration) — keep the media stream alive anyway.
+        resolveOnce({ title: url, duration: 0 });
       }
     });
 
@@ -312,7 +309,10 @@ export function getDirectScreenInput(url: string): Promise<string | Readable> {
       "--no-playlist",
       "--no-warnings",
       "--quiet",
-      "--no-simulate",
+      // NOTE: deliberately NOT --no-simulate. Simulate mode still resolves the
+      // requested format URLs into the JSON (requested_formats[].url), and it
+      // avoids yt-dlp writing .part files into the process CWD — which is the
+      // read-only Nix store dir for the deployed gateway (EACCES).
     ];
 
     logger.info({ url }, "Spawning yt-dlp for screen share input resolution");
