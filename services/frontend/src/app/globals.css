@@ -56,6 +56,13 @@
   /* Ring / focus outline for shadcn outline-ring utility */
   --color-ring: var(--color-primary);
 
+  /* Base-ui / shadcn primitives */
+  --color-popover: oklch(0.99 0.005 250 / 0.95);
+  --color-popover-foreground: var(--color-text-primary);
+  --color-input: oklch(0.55 0.02 250 / 0.35);
+  --color-secondary: oklch(0.92 0.01 250 / 0.6);
+  --color-secondary-foreground: var(--color-text-primary);
+
   /* Sidebar (shadcn) */
   --color-sidebar: oklch(1 0 0 / 0.6);
   --color-sidebar-foreground: var(--color-text-primary);
@@ -112,6 +119,13 @@
   --color-accent: var(--color-primary);
   --color-accent-foreground: var(--color-primary-foreground);
   --color-ring: var(--color-primary);
+
+  /* Base-ui / shadcn primitives */
+  --color-popover: oklch(0.13 0.02 245 / 0.96);
+  --color-popover-foreground: var(--color-text-primary);
+  --color-input: oklch(1 0 0 / 0.18);
+  --color-secondary: oklch(0.2 0.02 245 / 0.7);
+  --color-secondary-foreground: var(--color-text-primary);
 
   /* Sidebar (shadcn) */
   --color-sidebar: oklch(0.11 0.02 245 / 0.55);
