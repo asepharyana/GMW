@@ -249,6 +249,13 @@ WRAPPER
             cp -r .next/static $out/lib/gmw-frontend/standalone/.next/static
             cp -r public $out/lib/gmw-frontend/standalone/public 2>/dev/null || true
 
+            # Remove dangling symlinks left by pnpm's hoisted .pnpm layout
+            # (e.g. node_modules/.pnpm/node_modules/...). The standalone server
+            # never resolves those at runtime — it bundles its own node_modules
+            # — and they trip stdenv's noBrokenSymlinks check.
+            find $out/lib/gmw-frontend/standalone -type l \
+              ! -exec test -e {} \; -delete 2>/dev/null || true
+
             mkdir -p $out/bin
             cat > $out/bin/gmw-frontend << WRAPPER
 #!${pkgs.runtimeShell}
