@@ -67,7 +67,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [backend, discord-gateway, proxy]
+        service: [backend, discord-gateway, proxy, frontend]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
