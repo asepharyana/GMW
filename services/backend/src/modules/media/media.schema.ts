@@ -6,7 +6,7 @@ export const mediaQueueSchema = z.object({
 });
 
 export const mediaVolumeSchema = z.object({
-  volume: z.number().min(0).max(1).default(1.0),
+  volume: z.number().min(0).max(1).default(0.3),
 });
 
 export type MediaQueueInput = z.infer<typeof mediaQueueSchema>;

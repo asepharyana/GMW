@@ -18,7 +18,7 @@ export class DiscordPlayer {
   private connection: VoiceConnection | null = null;
   private owner: DiscordPlayerOwner = "none";
   private resource: AudioResource | null = null;
-  private musicVolume = 1;
+  private musicVolume = 0.3;
   private idleCallback: (() => void) | null = null;
   /** Set before manual stop() calls to distinguish from natural track end. */
   private manualStop = false;

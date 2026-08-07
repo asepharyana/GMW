@@ -44,7 +44,7 @@ const DEFAULT_COMMAND_TIMEOUT_MS = 5000;
 const DEFAULT_STATE: MediaState = {
   playing: false,
   activeMode: null,
-  musicVolume: 1.0,
+  musicVolume: 0.3,
   current: null,
   queue: [],
 };
@@ -65,7 +65,7 @@ function normalizeMediaState(raw: Record<string, unknown>): MediaState {
   return {
     playing,
     activeMode,
-    musicVolume: Number(raw.musicVolume ?? 1.0),
+    musicVolume: Number(raw.musicVolume ?? 0.3),
     current: (raw.current as MediaItem | null) ?? null,
     queue: (raw.queue as MediaItem[]) ?? [],
   };

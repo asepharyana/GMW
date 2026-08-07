@@ -147,8 +147,8 @@ export function MusicPlayer({ ws, initialData }: MusicPlayerProps) {
             <Volume2 className="size-4 text-muted-foreground" />
             <Slider
               className="w-24"
-              defaultValue={[mediaState?.musicVolume ?? 0.5]}
-              value={[mediaState?.musicVolume ?? 0.5]}
+              defaultValue={[mediaState?.musicVolume ?? 0.3]}
+              value={[mediaState?.musicVolume ?? 0.3]}
               onValueChange={handleVolume}
               min={0}
               max={1}

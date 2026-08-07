@@ -41,7 +41,7 @@ export function MediaPlayerProvider({ children }: { children: ReactNode }) {
   const ws = useWebSocket();
   const [state, setState] = useState<MediaState>({
     playing: false,
-    musicVolume: 0.5,
+    musicVolume: 0.3,
     current: null,
     queue: [],
   });
