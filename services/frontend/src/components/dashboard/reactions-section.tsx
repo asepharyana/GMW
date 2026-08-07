@@ -1,11 +1,12 @@
 "use client";
 
 import { Flame, Heart, SmilePlus } from "lucide-react";
-import { GlassCard } from "@/components/glass/card";
 import { EmptyState, LoadingSkeleton } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { useTopReactions, useTopReactors } from "@/hooks";
 import { renderMessageContent } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 function formatReactionTime(ts: number | null): string {
   if (!ts) return "";
@@ -31,19 +32,23 @@ export function ReactionsSection() {
         {reactionsLoading ? (
           <LoadingSkeleton count={5} height="h-16" />
         ) : !reactions || reactions.length === 0 ? (
-          <GlassCard className="p-6">
+          <Card className={cn("p-6", "[--card-spacing:0px]", "rounded-2xl")}>
             <EmptyState
               icon={Heart}
               title="Belum ada reaksi"
               description="Pesan dengan reaksi emoji akan muncul di sini."
             />
-          </GlassCard>
+          </Card>
         ) : (
           <div className="space-y-2">
             {reactions.map((r, i) => (
-              <GlassCard
+              <Card
                 key={r.message_id}
-                className="flex items-center gap-3 p-3"
+                className={cn(
+                  "flex items-center gap-3 p-3",
+                  "[--card-spacing:0px]",
+                  "rounded-2xl",
+                )}
               >
                 <span className="w-6 shrink-0 text-center font-mono text-xs text-text-secondary/50">
                   {i + 1}
@@ -76,7 +81,7 @@ export function ReactionsSection() {
                   <Heart className="size-3" />
                   {r.reaction_count}
                 </Badge>
-              </GlassCard>
+              </Card>
             ))}
           </div>
         )}
@@ -90,19 +95,23 @@ export function ReactionsSection() {
         {reactorsLoading ? (
           <LoadingSkeleton count={5} height="h-14" />
         ) : !reactors || reactors.length === 0 ? (
-          <GlassCard className="p-6">
+          <Card className={cn("p-6", "[--card-spacing:0px]", "rounded-2xl")}>
             <EmptyState
               icon={SmilePlus}
               title="Belum ada reaktor"
               description="User yang ngasih reaksi emoji akan muncul di sini."
             />
-          </GlassCard>
+          </Card>
         ) : (
           <div className="space-y-2">
             {reactors.map((r, i) => (
-              <GlassCard
+              <Card
                 key={r.user_id}
-                className="flex items-center gap-3 p-3"
+                className={cn(
+                  "flex items-center gap-3 p-3",
+                  "[--card-spacing:0px]",
+                  "rounded-2xl",
+                )}
               >
                 <span className="w-6 shrink-0 text-center font-mono text-xs text-text-secondary/50">
                   {i + 1}
@@ -120,7 +129,7 @@ export function ReactionsSection() {
                   <Flame className="size-3" />
                   {r.net_count}
                 </Badge>
-              </GlassCard>
+              </Card>
             ))}
           </div>
         )}

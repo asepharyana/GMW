@@ -2,7 +2,8 @@
 
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { Component, type ReactNode } from "react";
-import { GlassCard } from "@/components/glass/card";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface Props {
   children: ReactNode;
@@ -24,9 +25,13 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         this.props.fallback || (
-          <GlassCard
-            variant="danger"
-            className="flex flex-col items-center gap-2 py-8"
+          <Card
+            className={cn(
+              "flex flex-col items-center gap-2 py-8",
+              "border border-red-500/30 ring-red-500/20",
+              "[--card-spacing:0px]",
+              "rounded-2xl",
+            )}
           >
             <AlertCircle className="size-6 text-destructive" />
             <p className="text-sm text-text-secondary">
@@ -39,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
             >
               <RefreshCw className="size-3" /> Try again
             </button>
-          </GlassCard>
+          </Card>
         )
       );
     }

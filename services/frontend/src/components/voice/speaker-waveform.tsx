@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { GlassPanel } from "@/components/glass/panel";
+import { Card } from "@/components/ui/card";
 import type { ActiveSpeaker } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface SpeakerWaveformProps {
   speakers: ActiveSpeaker[];
@@ -45,16 +46,16 @@ export function SpeakerWaveform({ speakers }: SpeakerWaveformProps) {
 
   if (speakers.length === 0) {
     return (
-      <GlassPanel dense>
+      <Card className={cn("[--card-spacing:0px]", "p-3")}>
         <span className="text-xs text-text-secondary/40">
           No speakers detected
         </span>
-      </GlassPanel>
+      </Card>
     );
   }
 
   return (
-    <GlassPanel dense>
+    <Card className={cn("[--card-spacing:0px]", "p-3")}>
       <div className="space-y-1">
         {speakers.map((s) => (
           <div key={s.userId} className="flex items-center gap-2 text-xs">
@@ -76,6 +77,6 @@ export function SpeakerWaveform({ speakers }: SpeakerWaveformProps) {
         height={speakers.length * 30}
         className="w-full h-auto mt-2 rounded"
       />
-    </GlassPanel>
+    </Card>
   );
 }

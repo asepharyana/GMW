@@ -2,7 +2,7 @@
 
 import type { LucideIcon } from "lucide-react";
 import { Inbox } from "lucide-react";
-import { GlassPanel } from "@/components/glass/panel";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface EmptyStateProps {
@@ -19,13 +19,16 @@ export function EmptyState({
   className,
 }: EmptyStateProps) {
   return (
-    <GlassPanel
-      dense
-      className={cn("flex flex-col items-center gap-2 py-12", className)}
+    <Card
+      className={cn(
+        "flex flex-col items-center gap-2 py-12",
+        className,
+        "[--card-spacing:0px]",
+      )}
     >
       <Icon className="size-8 text-text-secondary/20" />
       <p className="text-sm text-text-secondary/60">{title}</p>
       <p className="text-xs text-text-secondary/40">{description}</p>
-    </GlassPanel>
+    </Card>
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import { Mic, MicOff } from "lucide-react";
-import { GlassCard } from "@/components/glass/card";
+import { Card } from "@/components/ui/card";
 import type { ActiveSpeaker } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface ActivityTimelineProps {
   data?: ActiveSpeaker[];
@@ -27,7 +28,7 @@ export function VoiceActivityTimeline({ data = [] }: ActivityTimelineProps) {
   );
 
   return (
-    <GlassCard variant="base">
+    <Card className={cn("[--card-spacing:0px]", "rounded-2xl", "p-5")}>
       <div className="flex items-center gap-2 mb-3">
         <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">
           Voice Activity
@@ -79,6 +80,6 @@ export function VoiceActivityTimeline({ data = [] }: ActivityTimelineProps) {
           ))}
         </div>
       )}
-    </GlassCard>
+    </Card>
   );
 }

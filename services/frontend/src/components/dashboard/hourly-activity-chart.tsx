@@ -9,8 +9,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { GlassCard } from "@/components/glass/card";
+import { Card } from "@/components/ui/card";
 import { useMounted } from "@/lib/hooks/use-mounted";
+import { cn } from "@/lib/utils";
 
 interface HourlyActivityChartProps {
   data?: { hour: number; messages: number; flagged: number }[];
@@ -46,7 +47,7 @@ export function HourlyActivityChart({ data = [] }: HourlyActivityChartProps) {
   const maxMessages = Math.max(...full.map((d) => d.messages));
 
   return (
-    <GlassCard variant="base">
+    <Card className={cn("[--card-spacing:0px]", "rounded-2xl", "p-5")}>
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">
           Hourly Activity
@@ -103,6 +104,6 @@ export function HourlyActivityChart({ data = [] }: HourlyActivityChartProps) {
           <div className="h-full w-full animate-pulse rounded-md bg-card/40" />
         )}
       </div>
-    </GlassCard>
+    </Card>
   );
 }

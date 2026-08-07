@@ -2,10 +2,11 @@
 
 import { HeadphoneOff, Headphones } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { GlassCard } from "@/components/glass/card";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { hashUserId } from "@/hooks";
 import type { ActiveSpeaker } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface ListenControlProps {
   connected: boolean;
@@ -86,7 +87,7 @@ export function ListenControl({
   );
 
   return (
-    <GlassCard variant="base">
+    <Card className={cn("[--card-spacing:0px]", "rounded-2xl", "p-5")}>
       <div className="flex items-center gap-3">
         <Button
           variant={active ? "default" : "secondary"}
@@ -148,6 +149,6 @@ export function ListenControl({
           </span>
         )}
       </div>
-    </GlassCard>
+    </Card>
   );
 }

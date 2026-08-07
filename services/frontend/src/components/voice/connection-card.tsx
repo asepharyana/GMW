@@ -1,8 +1,8 @@
 "use client";
 
 import { Headphones, Server, Volume2 } from "lucide-react";
-import { GlassCard } from "@/components/glass/card";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -41,7 +41,14 @@ export function VoiceConnectionCard({
   connecting,
 }: ConnectionCardProps) {
   return (
-    <GlassCard variant={connected ? "elevated" : "base"}>
+    <Card
+      className={cn(
+        connected && "ring-2 ring-primary/30",
+        "[--card-spacing:0px]",
+        "rounded-2xl",
+        "p-5",
+      )}
+    >
       <div className="flex items-center gap-3 mb-4">
         <span
           className={cn(
@@ -188,6 +195,6 @@ export function VoiceConnectionCard({
           </Select>
         </div>
       </div>
-    </GlassCard>
+    </Card>
   );
 }

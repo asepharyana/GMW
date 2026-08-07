@@ -1,8 +1,9 @@
 "use client";
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { GlassCard } from "@/components/glass/card";
+import { Card } from "@/components/ui/card";
 import { useMounted } from "@/lib/hooks/use-mounted";
+import { cn } from "@/lib/utils";
 
 interface ModerationDonutProps {
   data?: { name: string; value: number; color: string }[];
@@ -27,7 +28,7 @@ export function ModerationDonut({ data = [] }: ModerationDonutProps) {
       : 0;
 
   return (
-    <GlassCard variant="base">
+    <Card className={cn("[--card-spacing:0px]", "rounded-2xl", "p-5")}>
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">
           Moderation Breakdown
@@ -96,6 +97,6 @@ export function ModerationDonut({ data = [] }: ModerationDonutProps) {
           )}
         </div>
       </div>
-    </GlassCard>
+    </Card>
   );
 }

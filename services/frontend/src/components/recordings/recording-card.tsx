@@ -2,9 +2,10 @@
 
 import { Download, Loader2, Pause, Play } from "lucide-react";
 import { useState } from "react";
-import { GlassCard } from "@/components/glass/card";
+import { Card } from "@/components/ui/card";
 import { formatBytes } from "@/lib/format";
 import type { VoiceRecording } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface RecordingCardProps {
   recording: VoiceRecording;
@@ -55,13 +56,17 @@ export function RecordingCard({
   };
 
   return (
-    <GlassCard
-      variant="interactive"
-      className={`p-4 transition-all ${
-        active
-          ? "ring-1 ring-primary/40 border-primary/30 animate-card-glow"
-          : "hover:ring-1 hover:ring-border/60"
-      }`}
+    <Card
+      className={cn(
+        `p-4 transition-all ${
+          active
+            ? "ring-1 ring-primary/40 border-primary/30 animate-card-glow"
+            : "hover:ring-1 hover:ring-border/60"
+        }`,
+        "cursor-pointer transition-colors hover:ring-primary/40",
+        "[--card-spacing:0px]",
+        "rounded-2xl",
+      )}
       onClick={() => onTogglePlay(recording.id)}
     >
       <div className="flex items-start gap-3">
@@ -151,6 +156,6 @@ export function RecordingCard({
           )}
         </div>
       </div>
-    </GlassCard>
+    </Card>
   );
 }

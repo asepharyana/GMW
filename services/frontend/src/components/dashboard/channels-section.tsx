@@ -2,7 +2,6 @@
 
 import { Hash, Search } from "lucide-react";
 import { useCallback, useState } from "react";
-import { GlassCard } from "@/components/glass/card";
 import { EmptyState, LoadingSkeleton } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useChannelDetail, useChannels } from "@/hooks";
 import { renderMessageContent } from "@/lib/format";
 import type { DashboardChannel } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 export function ChannelsSection({ guildId }: { guildId?: string }) {
   const [search, setSearch] = useState("");
@@ -31,7 +31,14 @@ export function ChannelsSection({ guildId }: { guildId?: string }) {
 
   if (error) {
     return (
-      <GlassCard variant="danger" className="p-6 text-sm">
+      <Card
+        className={cn(
+          "p-6 text-sm",
+          "border border-red-500/30 ring-red-500/20",
+          "[--card-spacing:0px]",
+          "rounded-2xl",
+        )}
+      >
         Failed to load channels: {error.message}
         <Button
           variant="outline"
@@ -41,7 +48,7 @@ export function ChannelsSection({ guildId }: { guildId?: string }) {
         >
           Retry
         </Button>
-      </GlassCard>
+      </Card>
     );
   }
 
@@ -76,7 +83,9 @@ export function ChannelsSection({ guildId }: { guildId?: string }) {
         )}
       </div>
 
-      <GlassCard variant="base" className="h-fit">
+      <Card
+        className={cn("h-fit", "[--card-spacing:0px]", "rounded-2xl", "p-5")}
+      >
         {detail ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
@@ -144,7 +153,7 @@ export function ChannelsSection({ guildId }: { guildId?: string }) {
             </p>
           </div>
         )}
-      </GlassCard>
+      </Card>
     </div>
   );
 }

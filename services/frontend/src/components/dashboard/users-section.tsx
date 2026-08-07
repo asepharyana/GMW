@@ -2,7 +2,6 @@
 
 import { Search, Users, UserX } from "lucide-react";
 import { useCallback, useState } from "react";
-import { GlassCard } from "@/components/glass/card";
 import { EmptyState, LoadingSkeleton } from "@/components/shared";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useUserDetail, useUsers } from "@/hooks";
 import { renderMessageContent } from "@/lib/format";
 import type { DashboardUser } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const TRUST_TIERS = [
   {
@@ -67,7 +67,14 @@ export function UsersSection() {
 
   if (error) {
     return (
-      <GlassCard variant="danger" className="p-6 text-sm">
+      <Card
+        className={cn(
+          "p-6 text-sm",
+          "border border-red-500/30 ring-red-500/20",
+          "[--card-spacing:0px]",
+          "rounded-2xl",
+        )}
+      >
         Failed to load users: {error.message}
         <Button
           variant="outline"
@@ -77,7 +84,7 @@ export function UsersSection() {
         >
           Retry
         </Button>
-      </GlassCard>
+      </Card>
     );
   }
 
@@ -112,7 +119,9 @@ export function UsersSection() {
         )}
       </div>
 
-      <GlassCard variant="base" className="h-fit">
+      <Card
+        className={cn("h-fit", "[--card-spacing:0px]", "rounded-2xl", "p-5")}
+      >
         {detail ? (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
@@ -196,7 +205,7 @@ export function UsersSection() {
             </p>
           </div>
         )}
-      </GlassCard>
+      </Card>
     </div>
   );
 }

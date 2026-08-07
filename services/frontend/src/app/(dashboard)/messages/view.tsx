@@ -3,8 +3,6 @@
 import { Flag, Image, Loader2, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { GlassCard } from "@/components/glass/card";
-import { GlassPanel } from "@/components/glass/panel";
 import { SubNav } from "@/components/layout/sub-nav";
 import { Lightbox } from "@/components/messages/lightbox";
 import { extractFirstImage } from "@/components/messages/message-card";
@@ -13,6 +11,7 @@ import { MessageList } from "@/components/messages/message-list";
 import { SearchOverlay } from "@/components/messages/search-overlay";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/shared";
 import { GuildSelector } from "@/components/shared/guild-selector";
+import { Card } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -218,12 +217,14 @@ export default function MessagesView({
           {detailId && (
             <div className="sticky top-16 hidden w-1/2 self-start md:block lg:w-3/5">
               {detailLoading ? (
-                <GlassPanel
-                  dense
-                  className="flex items-center justify-center py-12"
+                <Card
+                  className={cn(
+                    "flex items-center justify-center py-12",
+                    "[--card-spacing:0px]",
+                  )}
                 >
                   <Loader2 className="size-5 animate-spin text-text-secondary/60" />
-                </GlassPanel>
+                </Card>
               ) : detailMessage ? (
                 <div className="space-y-3">
                   <button
@@ -337,10 +338,14 @@ function ReviewList({
   return (
     <div className="space-y-2">
       {items.map((item) => (
-        <GlassCard
+        <Card
           key={item.id}
-          variant="danger"
-          className="cursor-pointer p-3"
+          className={cn(
+            "cursor-pointer p-3",
+            "border border-red-500/30 ring-red-500/20",
+            "[--card-spacing:0px]",
+            "rounded-2xl",
+          )}
           onClick={() => onSelect(item.id)}
         >
           <div className="flex items-start gap-2">
@@ -351,7 +356,7 @@ function ReviewList({
               </p>
             </div>
           </div>
-        </GlassCard>
+        </Card>
       ))}
       {items.length === 0 && (
         <EmptyState

@@ -8,8 +8,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { GlassCard } from "@/components/glass/card";
+import { Card } from "@/components/ui/card";
 import { useMounted } from "@/lib/hooks/use-mounted";
+import { cn } from "@/lib/utils";
 
 interface TopChannelsChartProps {
   data?: { name: string; count: number }[];
@@ -19,7 +20,7 @@ export function TopChannelsChart({ data = [] }: TopChannelsChartProps) {
   const mounted = useMounted();
 
   return (
-    <GlassCard variant="base">
+    <Card className={cn("[--card-spacing:0px]", "rounded-2xl", "p-5")}>
       <div className="flex items-center gap-2 mb-3">
         <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">
           Top Channels
@@ -68,6 +69,6 @@ export function TopChannelsChart({ data = [] }: TopChannelsChartProps) {
           <div className="h-full w-full animate-pulse rounded-md bg-card/40" />
         )}
       </div>
-    </GlassCard>
+    </Card>
   );
 }

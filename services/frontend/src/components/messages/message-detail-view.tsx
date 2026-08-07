@@ -1,9 +1,10 @@
 "use client";
 
 import { ArrowLeft, MessageSquare, MessagesSquare, Pencil } from "lucide-react";
-import { GlassCard } from "@/components/glass/card";
+import { Card } from "@/components/ui/card";
 import { getMessageChannelLabel, renderMessageContent } from "@/lib/format";
 import type { AttachmentRecord, MessageRecord } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { AiAnalysisPanel } from "./ai-analysis-panel";
 import { AttachmentsGrid } from "./attachments-grid";
 
@@ -21,7 +22,9 @@ export function MessageDetailView({
   onImageClick,
 }: MessageDetailViewProps) {
   return (
-    <GlassCard variant="base" className="h-full">
+    <Card
+      className={cn("h-full", "[--card-spacing:0px]", "rounded-2xl", "p-5")}
+    >
       {onBack && (
         <button
           type="button"
@@ -94,6 +97,6 @@ export function MessageDetailView({
         score={message.ai_moderation_score}
         analysis={message.ai_analysis}
       />
-    </GlassCard>
+    </Card>
   );
 }

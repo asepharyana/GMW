@@ -7,10 +7,15 @@ import {
   ChatbotProvider,
   useChatbot,
 } from "@/components/chatbot/chatbot-context";
-import { HiddenSidebar } from "@/components/layout/hidden-sidebar";
-import { MobileNav } from "@/components/layout/mobile-nav";
-import { TopNav } from "@/components/layout/top-nav";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 import { MiniPlayer } from "@/components/media/mini-player";
+import { GuildSelector } from "@/components/shared/guild-selector";
+import { Separator } from "@/components/ui/separator";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { MediaPlayerProvider } from "@/lib/hooks/use-media-player";
 import { useWebSocket, WsProvider } from "@/lib/ws/context";
 
@@ -69,29 +74,41 @@ export default function DashboardLayout({
           <ChatbotProvider>
             <ChatbotGuildSync guildId={guildId} />
             <ChatbotExpressionSync />
-            <div className="min-h-screen bg-canvas">
-              <TopNav />
-              <HiddenSidebar
-                guildId={guildId}
-                onGuildChange={(g) => setGuildId(g ?? "")}
-              />
+            <div className="min-h-svh bg-canvas">
+              <SidebarProvider>
+                <AppSidebar />
+                <SidebarInset className="gap-0">
+                  <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 bg-canvas">
+                    <SidebarTrigger className="-ml-1" />
+                    <Separator
+                      orientation="vertical"
+                      className="mr-2 h-6 max-md:hidden"
+                    />
+                    <div className="font-semibold max-md:hidden">Overview</div>
+                    <div className="ms-auto">
+                      <GuildSelector
+                        value={guildId}
+                        onChange={(g) => setGuildId(g ?? "")}
+                      />
+                    </div>
+                  </header>
 
-              {/* Sub-nav space — filled per-page */}
-              <div className="pt-11">
-                <main className="p-4 md:p-6 pb-24 md:pb-6 max-w-[1600px] mx-auto">
-                  <Suspense
-                    fallback={
-                      <div className="flex h-[60vh] items-center justify-center">
-                        <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                      </div>
-                    }
-                  >
-                    {children}
-                  </Suspense>
-                </main>
-              </div>
+                  <main className="flex flex-1 flex-col gap-4 p-4 pb-28 md:p-6 lg:pb-8">
+                    <div className="mx-auto w-full max-w-[1440px]">
+                      <Suspense
+                        fallback={
+                          <div className="flex h-[60vh] items-center justify-center">
+                            <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                          </div>
+                        }
+                      >
+                        {children}
+                      </Suspense>
+                    </div>
+                  </main>
+                </SidebarInset>
+              </SidebarProvider>
 
-              <MobileNav />
               <MiniPlayer />
               <ChatbotContainer />
             </div>

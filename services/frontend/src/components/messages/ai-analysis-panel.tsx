@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { GlassPanel } from "@/components/glass/panel";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface AiAnalysisPanelProps {
@@ -37,11 +37,11 @@ export function AiAnalysisPanel({
 
   if (!status || status === "pending") {
     return (
-      <GlassPanel dense>
+      <Card className={cn("[--card-spacing:0px]", "p-3")}>
         <span className="text-xs text-text-secondary/50">
           AI analysis pending
         </span>
-      </GlassPanel>
+      </Card>
     );
   }
 
@@ -55,7 +55,7 @@ export function AiAnalysisPanel({
       : categories || [];
 
   return (
-    <GlassPanel dense className="space-y-2">
+    <Card className={cn("space-y-2", "[--card-spacing:0px]", "p-3")}>
       <div className="flex items-center gap-2">
         <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">
           AI Analysis
@@ -155,6 +155,6 @@ export function AiAnalysisPanel({
           <span className="font-mono text-accent-amber">{action}</span>
         </div>
       )}
-    </GlassPanel>
+    </Card>
   );
 }

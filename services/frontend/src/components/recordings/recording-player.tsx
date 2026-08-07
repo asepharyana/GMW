@@ -2,7 +2,8 @@
 
 import { Loader2, Pause, Play, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { GlassPanel } from "@/components/glass/panel";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface RecordingPlayerProps {
   url?: string;
@@ -70,9 +71,12 @@ export function RecordingPlayer({
   const pct = duration > 0 ? Math.min(100, (progress / duration) * 100) : 0;
 
   return (
-    <GlassPanel
-      dense
-      className="fixed bottom-20 left-4 z-30 w-80 flex flex-col gap-1.5"
+    <Card
+      className={cn(
+        "fixed bottom-20 left-4 z-30 w-80 flex flex-col gap-1.5",
+        "[--card-spacing:0px]",
+        "p-3",
+      )}
     >
       <div className="flex items-center gap-2.5">
         <button
@@ -140,6 +144,6 @@ export function RecordingPlayer({
         }}
         className="hidden"
       />
-    </GlassPanel>
+    </Card>
   );
 }

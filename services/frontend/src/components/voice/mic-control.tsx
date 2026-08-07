@@ -1,8 +1,9 @@
 "use client";
 
 import { Mic, MicOff } from "lucide-react";
-import { GlassCard } from "@/components/glass/card";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface MicControlProps {
   connected: boolean;
@@ -20,7 +21,7 @@ export function MicControl({
   onVolumeChange,
 }: MicControlProps) {
   return (
-    <GlassCard variant="base">
+    <Card className={cn("[--card-spacing:0px]", "rounded-2xl", "p-5")}>
       <div className="flex items-center gap-3">
         <Button
           variant={active ? "default" : "secondary"}
@@ -53,6 +54,6 @@ export function MicControl({
           </span>
         </div>
       </div>
-    </GlassCard>
+    </Card>
   );
 }

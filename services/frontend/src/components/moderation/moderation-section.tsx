@@ -12,9 +12,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
-import { GlassCard } from "@/components/glass/card";
 import { EmptyState, LoadingSkeleton } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { useModerationActions, useModerationStats } from "@/hooks";
 import { renderMessageContent } from "@/lib/format";
 import type {
@@ -173,13 +173,13 @@ export function ModerationSection({
       {actionsLoading && !actions ? (
         <LoadingSkeleton count={6} height="h-16" />
       ) : !actions || actions.length === 0 ? (
-        <GlassCard className="p-6">
+        <Card className={cn("p-6", "[--card-spacing:0px]", "rounded-2xl")}>
           <EmptyState
             icon={ShieldAlert}
             title="Belum ada aksi moderasi"
             description="Aksi auto- moderasi (delete, warn, kick, ban) akan muncul di sini."
           />
-        </GlassCard>
+        </Card>
       ) : (
         <div className="space-y-2">
           {actions.map((a) => (
@@ -207,7 +207,7 @@ function SummaryCard({
   hint?: string;
 }) {
   return (
-    <GlassCard className="p-4">
+    <Card className={cn("p-4", "[--card-spacing:0px]", "rounded-2xl")}>
       <p className="text-[10px] uppercase tracking-wide text-text-secondary/50">
         {label}
       </p>
@@ -217,7 +217,7 @@ function SummaryCard({
           <span className="ml-1 text-xs font-medium opacity-80">({hint})</span>
         )}
       </p>
-    </GlassCard>
+    </Card>
   );
 }
 
@@ -251,7 +251,13 @@ function ActionRow({ action }: { action: ModerationAction }) {
   const st = STATUS_META[action.status];
   const Icon = meta.Icon;
   return (
-    <GlassCard className="flex items-start gap-3 p-3">
+    <Card
+      className={cn(
+        "flex items-start gap-3 p-3",
+        "[--card-spacing:0px]",
+        "rounded-2xl",
+      )}
+    >
       <span className={cn("mt-0.5 shrink-0", meta.className)}>
         <Icon className="size-4" />
       </span>
@@ -301,7 +307,7 @@ function ActionRow({ action }: { action: ModerationAction }) {
       ) : (
         <Loader2 className="mt-0.5 size-3.5 shrink-0 animate-spin text-amber-500" />
       )}
-    </GlassCard>
+    </Card>
   );
 }
 

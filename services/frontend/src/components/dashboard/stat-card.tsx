@@ -2,7 +2,7 @@
 
 import type { LucideIcon } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
-import { GlassCard } from "@/components/glass/card";
+import { Card } from "@/components/ui/card";
 import { useMounted } from "@/lib/hooks/use-mounted";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +39,13 @@ export function StatCard({
   const numValue = typeof value === "number" ? value : Number(value);
 
   return (
-    <GlassCard variant="base" className="relative overflow-hidden p-4">
+    <Card
+      className={cn(
+        "relative overflow-hidden p-4",
+        "[--card-spacing:0px]",
+        "rounded-2xl",
+      )}
+    >
       <div className="flex items-start justify-between mb-2">
         <div className={cn("p-1.5 rounded-md", bgAccent)}>
           <Icon className="size-4" />
@@ -90,6 +96,6 @@ export function StatCard({
           </ResponsiveContainer>
         </div>
       )}
-    </GlassCard>
+    </Card>
   );
 }
