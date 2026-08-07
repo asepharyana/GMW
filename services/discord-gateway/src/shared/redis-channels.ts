@@ -62,6 +62,7 @@ export const COMMAND_MEDIA_QUEUE = "media:queue";
 export const COMMAND_MEDIA_SKIP = "media:skip";
 export const COMMAND_MEDIA_STOP = "media:stop";
 export const COMMAND_MEDIA_VOLUME = "media:volume";
+export const COMMAND_MEDIA_LOOP = "media:loop";
 export const COMMAND_MODERATION_ACTION = "moderation:action";
 export const DISCORD_VOICE_ANALYZED = "discord:voice:analyzed";
 

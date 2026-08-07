@@ -7,4 +7,5 @@ export const mediaApi = {
     api.post<MediaState>("/api/media/queue", { source, mode }),
   skip: () => api.post<MediaState>("/api/media/skip", {}),
   stop: () => api.post<MediaState>("/api/media/stop", {}),
+  loop: (loop: boolean) => api.post<MediaState>("/api/media/loop", { loop }),
 };

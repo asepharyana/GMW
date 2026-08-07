@@ -6,6 +6,7 @@ import { createChildLogger } from "../../shared/logger/index.js";
 import {
   extractMediaInfo,
   resolveMediaUrl,
+  transcodeToHighQualityOgg,
 } from "../voice-recording/mediaSource.js";
 import type {
   MediaMode,
@@ -35,6 +36,7 @@ export interface MediaStatusPayload {
   playing: boolean;
   activeMode: MediaMode | null;
   musicVolume: number;
+  loop: boolean;
   current: MediaStatusItem | null;
   queue: MediaStatusItem[];
 }
@@ -45,6 +47,9 @@ export interface MediaStatusPayload {
 
 const mediaQueue: MediaQueueItem[] = [];
 let currentTrackItem: MediaQueueItem | null = null;
+let loopEnabled = false;
+/** Active ffmpeg transcode (killed on stop/skip). */
+let currentTranscodeCleanup: (() => void) | null = null;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -67,6 +72,7 @@ function buildStatusPayload(): MediaStatusPayload {
       currentTrackItem !== null && discordPlayer.getStatus() === "playing",
     activeMode: currentTrackItem?.mode ?? null,
     musicVolume: discordPlayer.getMusicVolume(),
+    loop: loopEnabled,
     current: currentTrackItem ? mapToStatusItem(currentTrackItem) : null,
     queue: mediaQueue.map(mapToStatusItem),
   };
@@ -336,6 +342,17 @@ export class MediaHandler {
     };
   }
 
+  async handleMediaLoop(cmd: CommandMessage): Promise<CommandReply<unknown>> {
+    loopEnabled = Boolean(cmd.payload.loop);
+    this.logger.info({ loop: loopEnabled }, "Media loop toggled");
+    this.publishStatus();
+    return {
+      id: cmd.id,
+      success: true,
+      data: buildStatusPayload(),
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // Internal
   // ---------------------------------------------------------------------------
@@ -350,6 +367,8 @@ export class MediaHandler {
       discordPlayer.stop("music");
       currentTrackItem = null;
     }
+    currentTranscodeCleanup?.();
+    currentTranscodeCleanup = null;
 
     const next = mediaQueue.shift();
     if (!next) {
@@ -372,11 +391,20 @@ export class MediaHandler {
       next.title = resolution.title ?? next.title;
       next.duration = resolution.duration ?? next.duration;
 
-      discordPlayer.playStream(resolution.stream, "music", {
-        inputType: StreamType.Arbitrary,
-        inlineVolume: true,
-        volume: discordPlayer.getMusicVolume(),
+      // Music playback: transcode once to high-quality OggOpus (48kHz stereo,
+      // 192kbps) with volume baked into the encode. This avoids the double
+      // lossy encode that inlineVolume would cause and gives Discord the
+      // cleanest possible stream. Screen share bypasses this entirely.
+      const transcoded = transcodeToHighQualityOgg(
+        resolution.stream,
+        discordPlayer.getMusicVolume(),
+      );
+
+      discordPlayer.playStream(transcoded.stream, "music", {
+        inputType: StreamType.OggOpus,
+        inlineVolume: false,
       });
+      currentTranscodeCleanup = transcoded.cleanup;
 
       this.logger.info({ title: next.title }, "Playback started");
     } catch (err) {
@@ -403,10 +431,21 @@ export class MediaHandler {
 
   /**
    * Called by the idle callback — delegates to playNext since the player is
-   * already idle and currentTrackItem is already null.
+   * already idle and currentTrackItem is already null. When loop mode is
+   * enabled and a music track ended naturally, requeue it so it plays again.
    */
   private async advanceQueue(): Promise<void> {
+    const finished = currentTrackItem;
     currentTrackItem = null;
+
+    if (loopEnabled && finished && finished.mode === "music") {
+      mediaQueue.unshift(finished);
+      this.logger.info(
+        { title: finished.title },
+        "Loop enabled — replaying finished track",
+      );
+    }
+
     await this.playNext();
   }
 }

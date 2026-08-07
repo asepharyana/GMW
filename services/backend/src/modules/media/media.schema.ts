@@ -5,4 +5,9 @@ export const mediaQueueSchema = z.object({
   mode: z.enum(["music", "screen"]).default("music"),
 });
 
+export const mediaLoopSchema = z.object({
+  loop: z.boolean().default(false),
+});
+
 export type MediaQueueInput = z.infer<typeof mediaQueueSchema>;
+export type MediaLoopInput = z.infer<typeof mediaLoopSchema>;

@@ -11,6 +11,7 @@ export {
 } from "./use-dashboard";
 export { useGuilds } from "./use-guilds";
 export {
+  useMediaLoop,
   useMediaQueue,
   useMediaSkip,
   useMediaState,

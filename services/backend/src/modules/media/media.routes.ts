@@ -2,8 +2,8 @@ import type { Request, Response, Router } from "express";
 import express from "express";
 import { createChildLogger } from "@/shared/logger/index";
 import { asyncHandler, validateBody } from "../../shared/middlewares/index.js";
-import { mediaQueueSchema } from "./media.schema.js";
-import { getStatus, queue, skip, stop } from "./media.service.js";
+import { mediaLoopSchema, mediaQueueSchema } from "./media.schema.js";
+import { getStatus, queue, setLoop, skip, stop } from "./media.service.js";
 
 const logger = createChildLogger("media.routes");
 
@@ -51,6 +51,18 @@ export function createMediaRouter(): Router {
     asyncHandler(async (_req: Request, res: Response) => {
       logger.debug("Media stop requested");
       const state = await stop();
+      res.json(state);
+    }),
+  );
+
+  // POST /api/media/loop
+  router.post(
+    "/media/loop",
+    validateBody(mediaLoopSchema),
+    asyncHandler(async (req: Request, res: Response) => {
+      const { loop } = req.body as { loop: boolean };
+      logger.debug({ loop }, "Media loop requested");
+      const state = await setLoop(loop);
       res.json(state);
     }),
   );

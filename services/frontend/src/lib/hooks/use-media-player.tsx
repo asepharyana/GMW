@@ -20,6 +20,8 @@ interface MediaPlayerContextValue {
   current: MediaItem | null;
   /** Upcoming queue */
   queue: MediaItem[];
+  /** Loop mode (replay current track on natural end) */
+  loop: boolean;
   /** True while a mutation is in flight */
   pending: boolean;
 
@@ -27,6 +29,8 @@ interface MediaPlayerContextValue {
   skip: () => void;
   /** Stop playback */
   stop: () => void;
+  /** Toggle loop mode */
+  toggleLoop: () => void;
   /** Queue a URL for playback */
   queueUrl: (url: string) => void;
 }
@@ -38,6 +42,7 @@ export function MediaPlayerProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<MediaState>({
     playing: false,
     musicVolume: 0.3,
+    loop: false,
     current: null,
     queue: [],
   });
@@ -105,15 +110,30 @@ export function MediaPlayerProvider({ children }: { children: ReactNode }) {
       .finally(() => setPending(false));
   }, []);
 
+  const toggleLoop = useCallback(() => {
+    setPending(true);
+    mediaApi
+      .loop(!state.loop)
+      .then((data) => {
+        if (data) setState(data as MediaState);
+      })
+      .catch(() => {
+        // ignore
+      })
+      .finally(() => setPending(false));
+  }, [state.loop]);
+
   return (
     <MediaPlayerContext.Provider
       value={{
         playing: state.playing,
         current: state.current,
         queue: state.queue,
+        loop: state.loop,
         pending,
         skip,
         stop,
+        toggleLoop,
         queueUrl,
       }}
     >

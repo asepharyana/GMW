@@ -1,10 +1,11 @@
 "use client";
 
-import { Disc3, Music, SkipForward, Square } from "lucide-react";
+import { Disc3, Music, Repeat, SkipForward, Square } from "lucide-react";
 import { useMediaPlayer } from "@/lib/hooks/use-media-player";
 
 export function MiniPlayer() {
-  const { playing, current, queue, pending, skip, stop } = useMediaPlayer();
+  const { playing, current, queue, loop, pending, skip, stop, toggleLoop } =
+    useMediaPlayer();
 
   // Nothing to show if no track is playing and nothing is queued
   if (!current && queue.length === 0) return null;
@@ -59,6 +60,20 @@ export function MiniPlayer() {
             <SkipForward className="size-3.5" />
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => toggleLoop()}
+          disabled={pending}
+          className={`size-8 flex items-center justify-center rounded-md transition-colors disabled:opacity-40 ${
+            loop
+              ? "text-primary bg-glass-bg"
+              : "text-text-secondary hover:text-text-primary hover:bg-glass-bg"
+          }`}
+          aria-label={loop ? "Loop on" : "Loop off"}
+          aria-pressed={loop}
+        >
+          <Repeat className="size-3.5" />
+        </button>
       </div>
     </div>
   );

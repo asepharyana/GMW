@@ -3,6 +3,7 @@ import {
   tryCommandThenFallback,
 } from "../../shared/commandHelper.js";
 import {
+  COMMAND_MEDIA_LOOP,
   COMMAND_MEDIA_QUEUE,
   COMMAND_MEDIA_SKIP,
   COMMAND_MEDIA_STOP,
@@ -30,6 +31,7 @@ export interface MediaState {
   /** null/absent when idle; "music" | "screen" while a track is active. */
   activeMode?: "music" | "screen" | null;
   musicVolume: number;
+  loop: boolean;
   current: MediaItem | null;
   queue: MediaItem[];
 }
@@ -44,6 +46,7 @@ const DEFAULT_STATE: MediaState = {
   playing: false,
   activeMode: null,
   musicVolume: 0.3,
+  loop: false,
   current: null,
   queue: [],
 };
@@ -65,6 +68,7 @@ function normalizeMediaState(raw: Record<string, unknown>): MediaState {
     playing,
     activeMode,
     musicVolume: Number(raw.musicVolume ?? 0.3),
+    loop: Boolean(raw.loop ?? false),
     current: (raw.current as MediaItem | null) ?? null,
     queue: (raw.queue as MediaItem[]) ?? [],
   };
@@ -146,5 +150,22 @@ export async function stop(): Promise<MediaState> {
       ),
     () => readStatusFallback(),
     "stop",
+  );
+}
+
+/**
+ * Toggle loop mode (replay current track on natural end) via Redis command.
+ */
+export async function setLoop(loop: boolean): Promise<MediaState> {
+  logger.info({ loop }, "setLoop called");
+  return tryCommandThenFallback(
+    () =>
+      publishCommand<MediaState>(
+        COMMAND_MEDIA_LOOP,
+        { loop },
+        DEFAULT_COMMAND_TIMEOUT_MS,
+      ),
+    () => readStatusFallback(),
+    "setLoop",
   );
 }

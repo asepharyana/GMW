@@ -1,6 +1,6 @@
 "use client";
 
-import { Disc3, Music, Play, SkipForward, Square } from "lucide-react";
+import { Disc3, Music, Play, Repeat, SkipForward, Square } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useState } from "react";
 
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
+  useMediaLoop,
   useMediaQueue,
   useMediaSkip,
   useMediaState,
@@ -28,6 +29,7 @@ export function MusicPlayer({ ws, initialData }: MusicPlayerProps) {
   const queueMut = useMediaQueue();
   const skipMut = useMediaSkip();
   const stopMut = useMediaStop();
+  const loopMut = useMediaLoop();
   const [queueUrl, setQueueUrl] = useState("");
   const [screenMode, setScreenMode] = useState(false);
 
@@ -130,6 +132,21 @@ export function MusicPlayer({ ws, initialData }: MusicPlayerProps) {
           <Button variant="outline" size="sm" onClick={() => skipMut.mutate()}>
             <SkipForward className="size-4 mr-1" />
             Skip
+          </Button>
+          <Button
+            variant={mediaState?.loop ? "default" : "outline"}
+            size="sm"
+            onClick={() => loopMut.mutate(!mediaState?.loop)}
+            disabled={loopMut.isPending}
+            title={
+              mediaState?.loop
+                ? "Loop enabled — replay current track"
+                : "Enable loop"
+            }
+            aria-pressed={mediaState?.loop}
+          >
+            <Repeat className="size-4 mr-1" />
+            Loop
           </Button>
         </div>
 

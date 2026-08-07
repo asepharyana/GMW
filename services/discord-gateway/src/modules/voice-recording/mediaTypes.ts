@@ -32,6 +32,7 @@ export interface MediaState {
   playing: boolean;
   activeMode: MediaMode | null;
   musicVolume: number;
+  loop: boolean;
   current: MediaQueueItem | null;
   queue: MediaQueueItem[];
 }

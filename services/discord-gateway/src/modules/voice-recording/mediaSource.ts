@@ -33,6 +33,71 @@ export interface ResolveOptions {
   quality?: string;
 }
 
+export interface TranscodeResult {
+  stream: Readable;
+  /** Kill the ffmpeg child (used on stop/skip). */
+  cleanup: () => void;
+}
+
+/**
+ * Re-encode a source stream to high-quality OggOpus (48kHz stereo, 192kbps).
+ *
+ * Discord voice downmixes whatever we feed it to the channel's bitrate, so the
+ * best we can do is hand it a clean 48kHz stereo Opus stream instead of the
+ * raw source (which may be mono, low-bitrate, or a non-Opus container). The
+ * volume is baked into the encode with `-af volume=` so the player does not
+ * need inlineVolume re-encoding (double lossy encode).
+ */
+export function transcodeToHighQualityOgg(
+  input: Readable,
+  volume: number,
+): TranscodeResult {
+  const proc = spawn(
+    "ffmpeg",
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      "pipe:0",
+      "-vn",
+      "-ac",
+      "2",
+      "-ar",
+      "48000",
+      "-c:a",
+      "libopus",
+      "-b:a",
+      "192k",
+      "-af",
+      `volume=${volume}`,
+      "-f",
+      "ogg",
+      "pipe:1",
+    ],
+    { stdio: ["pipe", "pipe", "ignore"] },
+  );
+
+  input.pipe(proc.stdin);
+  activeProcesses.add(proc);
+
+  const cleanup = () => {
+    activeProcesses.delete(proc);
+    if (proc.exitCode === null) {
+      proc.kill("SIGKILL");
+    }
+  };
+
+  proc.once("exit", () => activeProcesses.delete(proc));
+
+  // If ffmpeg fails, surface the error to the consumer stream so the
+  // AudioPlayer's error handler can advance the queue.
+  const output = proc.stdout;
+  output.on("error", () => cleanup());
+
+  return { stream: output, cleanup };
+}
+
 // ---------------------------------------------------------------------------
 // Internal state
 // ---------------------------------------------------------------------------

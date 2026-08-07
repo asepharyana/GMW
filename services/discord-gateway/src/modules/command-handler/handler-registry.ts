@@ -1,6 +1,7 @@
 import {
   COMMAND_GUILDS_LIST,
   COMMAND_GUILDS_TEXT_CHANNELS,
+  COMMAND_MEDIA_LOOP,
   COMMAND_MEDIA_QUEUE,
   COMMAND_MEDIA_SKIP,
   COMMAND_MEDIA_STOP,
@@ -69,6 +70,7 @@ export function createHandlerRegistry(
   registry.set(COMMAND_MEDIA_VOLUME, (cmd) =>
     mediaHandler.handleMediaVolume(cmd),
   );
+  registry.set(COMMAND_MEDIA_LOOP, (cmd) => mediaHandler.handleMediaLoop(cmd));
 
   // Guild commands
   registry.set(COMMAND_GUILDS_LIST, (cmd) =>

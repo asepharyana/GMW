@@ -38,6 +38,10 @@ export function useMediaStop() {
   return useMediaAction(() => mediaApi.stop());
 }
 
+export function useMediaLoop() {
+  return useMediaAction((loop: boolean) => mediaApi.loop(loop));
+}
+
 /** Subscribe to WS media_state events to keep cache fresh */
 export function useMediaWsSync(ws: WsHook) {
   const { mutate } = useSWRConfig();
