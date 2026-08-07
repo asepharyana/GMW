@@ -118,9 +118,10 @@ jobs:
           echo "=== Updating profile ==="
           ssh "$VPS_USER@$VPS_HOST" "sudo /nix/var/nix/profiles/default/bin/nix-env --profile /nix/var/nix/profiles/gmw-${{ matrix.service }} --set '$STORE_PATH'"
 
-          echo "=== Restarting service ==="
-          ssh "$VPS_USER@$VPS_HOST" "sudo systemctl daemon-reload && sudo systemctl restart gmw-${{ matrix.service }} && sleep 3 && sudo systemctl is-active gmw-${{ matrix.service }}"
-          echo "✅ gmw-${{ matrix.service }} deployed"
+          echo "=== Restarting service ===\n"
+                    ssh "$VPS_USER@$VPS_HOST" \
+                      "sudo systemctl daemon-reload && sudo systemctl restart gmw-${{ matrix.service }} && for i in \$(seq 1 15); do state=\$(sudo systemctl is-active gmw-${{ matrix.service }} 2>/dev/null || echo inactive); [ \"\$state\" = \"active\" ] && break; sleep 2; done; echo \"final-state=\$state\"; [ \"\$state\" = \"active\" ]" 
+                    echo "✅ gmw-${{ matrix.service }} deployed"
 
   cleanup:
     # Bersihkan sampah Nix di VPS SETELAH semua deploy selesai: hapus generasi
