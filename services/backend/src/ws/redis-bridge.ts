@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import { recordSpeaker } from "../modules/voice/live-speaker.js";
 import { config } from "../shared/config/index.js";
 import {
   DISCORD_CHANNEL_TO_WS_EVENT,
@@ -6,7 +7,6 @@ import {
   DISCORD_VOICE_PCM,
 } from "../shared/index.js";
 import { createChildLogger } from "../shared/logger/index.js";
-import { recordSpeaker } from "../modules/voice/live-speaker.js";
 import { broadcastBinary, broadcastEvent } from "./broadcast.js";
 
 const logger = createChildLogger("ws.redis-bridge");

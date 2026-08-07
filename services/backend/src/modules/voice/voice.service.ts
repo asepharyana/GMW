@@ -15,10 +15,7 @@ import {
   VOICE_STATUS_KEY,
 } from "../../shared/index.js";
 import { publishCommand, readRedisStatus } from "../../shared/redis/index.js";
-import {
-  getActiveSpeakers,
-  type LiveSpeaker,
-} from "./live-speaker.js";
+import { getActiveSpeakers, type LiveSpeaker } from "./live-speaker.js";
 
 const logger = createChildLogger("voice.service");
 
