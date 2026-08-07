@@ -15,7 +15,6 @@ export {
   useMediaSkip,
   useMediaState,
   useMediaStop,
-  useMediaVolume,
   useMediaWsSync,
 } from "./use-media";
 export {

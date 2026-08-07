@@ -38,10 +38,6 @@ export function useMediaStop() {
   return useMediaAction(() => mediaApi.stop());
 }
 
-export function useMediaVolume() {
-  return useMediaAction((volume: number) => mediaApi.volume(volume));
-}
-
 /** Subscribe to WS media_state events to keep cache fresh */
 export function useMediaWsSync(ws: WsHook) {
   const { mutate } = useSWRConfig();

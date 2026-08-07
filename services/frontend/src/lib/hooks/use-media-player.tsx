@@ -20,8 +20,6 @@ interface MediaPlayerContextValue {
   current: MediaItem | null;
   /** Upcoming queue */
   queue: MediaItem[];
-  /** Current volume [0-1] */
-  volume: number;
   /** True while a mutation is in flight */
   pending: boolean;
 
@@ -29,8 +27,6 @@ interface MediaPlayerContextValue {
   skip: () => void;
   /** Stop playback */
   stop: () => void;
-  /** Set volume [0-1] */
-  setVolume: (vol: number) => void;
   /** Queue a URL for playback */
   queueUrl: (url: string) => void;
 }
@@ -96,17 +92,6 @@ export function MediaPlayerProvider({ children }: { children: ReactNode }) {
       .finally(() => setPending(false));
   }, []);
 
-  const setVolume = useCallback((vol: number) => {
-    mediaApi
-      .volume(vol)
-      .then((data) => {
-        if (data) setState(data as MediaState);
-      })
-      .catch(() => {
-        // ignore
-      });
-  }, []);
-
   const queueUrl = useCallback((url: string) => {
     setPending(true);
     mediaApi
@@ -126,11 +111,9 @@ export function MediaPlayerProvider({ children }: { children: ReactNode }) {
         playing: state.playing,
         current: state.current,
         queue: state.queue,
-        volume: state.musicVolume,
         pending,
         skip,
         stop,
-        setVolume,
         queueUrl,
       }}
     >

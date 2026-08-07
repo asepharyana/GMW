@@ -1,11 +1,10 @@
 "use client";
 
-import { Disc3, Music, SkipForward, Square, Volume2 } from "lucide-react";
+import { Disc3, Music, SkipForward, Square } from "lucide-react";
 import { useMediaPlayer } from "@/lib/hooks/use-media-player";
 
 export function MiniPlayer() {
-  const { playing, current, queue, volume, pending, skip, stop, setVolume } =
-    useMediaPlayer();
+  const { playing, current, queue, pending, skip, stop } = useMediaPlayer();
 
   // Nothing to show if no track is playing and nothing is queued
   if (!current && queue.length === 0) return null;
@@ -60,22 +59,6 @@ export function MiniPlayer() {
             <SkipForward className="size-3.5" />
           </button>
         )}
-      </div>
-
-      {/* Volume */}
-      <div className="flex items-center gap-2 shrink-0 ml-2">
-        <Volume2 className="size-3.5 text-text-secondary/60" />
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.05"
-          value={volume}
-          onChange={(e) => setVolume(Number(e.target.value))}
-          className="w-20 h-1 appearance-none rounded-full bg-glass-bg accent-primary cursor-pointer
-            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
-          aria-label="Volume"
-        />
       </div>
     </div>
   );

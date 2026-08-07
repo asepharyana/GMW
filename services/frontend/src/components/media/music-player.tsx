@@ -1,24 +1,21 @@
 "use client";
 
-import { Disc3, Music, Play, SkipForward, Square, Volume2 } from "lucide-react";
+import { Disc3, Music, Play, SkipForward, Square } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
 import {
   useMediaQueue,
   useMediaSkip,
   useMediaState,
   useMediaStop,
-  useMediaVolume,
   useMediaWsSync,
 } from "@/hooks";
-import type { WsHook } from "@/lib/ws-hook";
-
 import type { MediaState } from "@/lib/types";
+import type { WsHook } from "@/lib/ws-hook";
 
 interface MusicPlayerProps {
   ws: WsHook;
@@ -31,7 +28,6 @@ export function MusicPlayer({ ws, initialData }: MusicPlayerProps) {
   const queueMut = useMediaQueue();
   const skipMut = useMediaSkip();
   const stopMut = useMediaStop();
-  const volumeMut = useMediaVolume();
   const [queueUrl, setQueueUrl] = useState("");
   const [screenMode, setScreenMode] = useState(false);
 
@@ -46,14 +42,6 @@ export function MusicPlayer({ ws, initialData }: MusicPlayerProps) {
     });
     setQueueUrl("");
   }, [queueUrl, queueMut, screenMode]);
-
-  const handleVolume = useCallback(
-    (value: number | readonly number[]) => {
-      const vol = Array.isArray(value) ? value[0] : value;
-      volumeMut.mutate(vol);
-    },
-    [volumeMut],
-  );
 
   return (
     <Card>
@@ -143,18 +131,6 @@ export function MusicPlayer({ ws, initialData }: MusicPlayerProps) {
             <SkipForward className="size-4 mr-1" />
             Skip
           </Button>
-          <div className="flex items-center gap-2 ml-auto">
-            <Volume2 className="size-4 text-muted-foreground" />
-            <Slider
-              className="w-24"
-              defaultValue={[mediaState?.musicVolume ?? 0.3]}
-              value={[mediaState?.musicVolume ?? 0.3]}
-              onValueChange={handleVolume}
-              min={0}
-              max={1}
-              step={0.05}
-            />
-          </div>
         </div>
 
         {mediaState && mediaState.queue.length > 0 && (

@@ -6,7 +6,6 @@ import {
   COMMAND_MEDIA_QUEUE,
   COMMAND_MEDIA_SKIP,
   COMMAND_MEDIA_STOP,
-  COMMAND_MEDIA_VOLUME,
   MEDIA_STATUS_KEY,
 } from "../../shared/index.js";
 import { publishCommand, readRedisStatus } from "../../shared/redis/index.js";
@@ -147,22 +146,5 @@ export async function stop(): Promise<MediaState> {
       ),
     () => readStatusFallback(),
     "stop",
-  );
-}
-
-/**
- * Set volume via Redis command to discord-gateway.
- */
-export async function setVolume(volume: number): Promise<MediaState> {
-  logger.info({ volume }, "setVolume called");
-  return tryCommandThenFallback(
-    () =>
-      publishCommand<MediaState>(
-        COMMAND_MEDIA_VOLUME,
-        { volume },
-        DEFAULT_COMMAND_TIMEOUT_MS,
-      ),
-    () => readStatusFallback(),
-    "setVolume",
   );
 }

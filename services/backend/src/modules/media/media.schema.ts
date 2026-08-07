@@ -5,9 +5,4 @@ export const mediaQueueSchema = z.object({
   mode: z.enum(["music", "screen"]).default("music"),
 });
 
-export const mediaVolumeSchema = z.object({
-  volume: z.number().min(0).max(1).default(0.3),
-});
-
 export type MediaQueueInput = z.infer<typeof mediaQueueSchema>;
-export type MediaVolumeInput = z.infer<typeof mediaVolumeSchema>;

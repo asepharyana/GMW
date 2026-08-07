@@ -2,8 +2,8 @@ import type { Request, Response, Router } from "express";
 import express from "express";
 import { createChildLogger } from "@/shared/logger/index";
 import { asyncHandler, validateBody } from "../../shared/middlewares/index.js";
-import { mediaQueueSchema, mediaVolumeSchema } from "./media.schema.js";
-import { getStatus, queue, setVolume, skip, stop } from "./media.service.js";
+import { mediaQueueSchema } from "./media.schema.js";
+import { getStatus, queue, skip, stop } from "./media.service.js";
 
 const logger = createChildLogger("media.routes");
 
@@ -51,18 +51,6 @@ export function createMediaRouter(): Router {
     asyncHandler(async (_req: Request, res: Response) => {
       logger.debug("Media stop requested");
       const state = await stop();
-      res.json(state);
-    }),
-  );
-
-  // POST /api/media/volume
-  router.post(
-    "/media/volume",
-    validateBody(mediaVolumeSchema),
-    asyncHandler(async (req: Request, res: Response) => {
-      const { volume } = req.body as { volume: number };
-      logger.debug({ volume }, "Media volume requested");
-      const state = await setVolume(volume);
       res.json(state);
     }),
   );
