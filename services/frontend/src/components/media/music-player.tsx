@@ -18,12 +18,16 @@ import {
 } from "@/hooks";
 import type { WsHook } from "@/lib/ws-hook";
 
+import type { MediaState } from "@/lib/types";
+
 interface MusicPlayerProps {
   ws: WsHook;
+  /** Server-fetched media snapshot used to seed the first render. */
+  initialData?: MediaState;
 }
 
-export function MusicPlayer({ ws }: MusicPlayerProps) {
-  const { data: mediaState } = useMediaState();
+export function MusicPlayer({ ws, initialData }: MusicPlayerProps) {
+  const { data: mediaState } = useMediaState(initialData);
   const queueMut = useMediaQueue();
   const skipMut = useMediaSkip();
   const stopMut = useMediaStop();

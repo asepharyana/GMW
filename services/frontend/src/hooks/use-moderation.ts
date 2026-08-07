@@ -1,20 +1,35 @@
 import useSWR from "swr";
 import { moderationApi } from "@/lib/api";
-import type { ModerationStats } from "@/lib/types";
+import type { ModerationAction, ModerationStats } from "@/lib/types";
 
-export function useModerationStats() {
-  return useSWR<ModerationStats>(["moderation-stats"], () =>
-    moderationApi.getStats(),
+export function useModerationStats(initialData?: ModerationStats) {
+  return useSWR<ModerationStats>(
+    ["moderation-stats"],
+    () => moderationApi.getStats(),
+    { fallbackData: initialData },
   );
 }
 
-export function useModerationActions(status?: string, actionType?: string) {
+export function useModerationActions(
+  status?: string,
+  actionType?: string,
+  initialData?: ModerationAction[],
+) {
+  const key = [
+    "moderation-actions",
+    status ?? "__all__",
+    actionType ?? "__all__",
+  ];
   return useSWR(
-    ["moderation-actions", status ?? "__all__", actionType ?? "__all__"],
+    key,
     async () => {
       const res = await moderationApi.listActions(100, status, actionType);
       return res.data;
     },
-    { keepPreviousData: true },
+    {
+      keepPreviousData: true,
+      fallbackData:
+        !status && !actionType && initialData ? initialData : undefined,
+    },
   );
 }

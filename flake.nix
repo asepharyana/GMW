@@ -223,7 +223,7 @@ WRAPPER
           };
         };
 
-        # ---- Frontend (Next.js static export) ----
+        # ---- Frontend (Next.js SSR standalone) ----
         frontend = pkgs.stdenv.mkDerivation {
           pname = "gmw-frontend";
           version = "1.0.0";
@@ -233,29 +233,40 @@ WRAPPER
           nativeBuildInputs = [ nodejs pnpm pkgs.gnumake pkgs.gcc pkgs.cacert ];
 
           buildPhase = pnpmInstall + ''
-            echo "=== Building Next.js static export ==="
-            # Build args are provided as env vars
+            echo "=== Building Next.js SSR (standalone) ==="
             export NEXT_TELEMETRY_DISABLED=1
+            export GMW_BACKEND_URL=http://127.0.0.1:4001
             npx next build 2>&1
           '';
 
           installPhase = ''
-            mkdir -p $out/share/gmw-frontend
-            cp -r out $out/share/gmw-frontend/out 2>/dev/null || \
-            cp -r dist $out/share/gmw-frontend/dist 2>/dev/null || \
-            cp -r .next $out/share/gmw-frontend/.next 2>/dev/null || true
+            echo "=== Packaging standalone server ==="
+            mkdir -p $out/lib/gmw-frontend/standalone
+            # The standalone server bundles its own minimal node_modules but
+            # needs the build assets + public copied INSIDE its tree.
+            cp -r .next/standalone/. $out/lib/gmw-frontend/standalone/
+            mkdir -p $out/lib/gmw-frontend/standalone/.next
+            cp -r .next/static $out/lib/gmw-frontend/standalone/.next/static
+            cp -r public $out/lib/gmw-frontend/standalone/public 2>/dev/null || true
 
-            # Copy node_modules for standalone mode if it exists
-            cp -r node_modules $out/share/gmw-frontend/ 2>/dev/null || true
+            mkdir -p $out/bin
+            cat > $out/bin/gmw-frontend << WRAPPER
+#!${pkgs.runtimeShell}
+cd $out/lib/gmw-frontend/standalone
+export PORT=''${GMW_FRONTEND_PORT:-4017}
+export HOSTNAME=127.0.0.1
+exec ${nodejs}/bin/node server.js
+WRAPPER
+            chmod +x $out/bin/gmw-frontend
           '';
 
           meta = {
-            description = "GMW Frontend — Next.js static dashboard";
+            description = "GMW Frontend — Next.js SSR dashboard";
             platforms = pkgs.lib.platforms.linux;
           };
         };
 
-        # ---- Proxy (nginx serving frontend) ----
+        # ---- Proxy (nginx: / -> Next SSR, /api + /ws -> backend) ----
         proxy = pkgs.stdenv.mkDerivation {
           pname = "gmw-proxy";
           version = "1.0.0";
@@ -270,11 +281,10 @@ WRAPPER
             mkdir -p $out/bin $out/etc $out/share
 
             # Substitute placeholders in nginx template
-            sed \
-              -e "s|@NGINX_MIME@|${pkgs.nginx}/conf/mime.types|g" \
-              -e "s|@FRONTEND_ROOT@|${frontend}/share/gmw-frontend/out|g" \
-              ${./infra/nix/nginx.conf.template} \
-              > $out/etc/nginx.conf
+            sed -e "s|@NGINX_MIME@|${pkgs.nginx}/conf/mime.types|g" \
+                -e "s|@NEXT_PORT@|4017|g" \
+                ${./infra/nix/nginx.conf.template} \
+                > $out/etc/nginx.conf
 
             cat > $out/bin/gmw-proxy << WRAPPER
 #!${pkgs.runtimeShell}
@@ -284,7 +294,7 @@ WRAPPER
           '';
 
           meta = {
-            description = "GMW Proxy — nginx serving frontend";
+            description = "GMW Proxy — nginx -> Next.js + backend";
             platforms = pkgs.lib.platforms.linux;
           };
         };

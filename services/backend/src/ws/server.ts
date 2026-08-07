@@ -66,6 +66,22 @@ async function sendInitialStates(ws: WebSocket): Promise<void> {
   } catch (err) {
     logger.warn({ err }, "Failed to send initial media_state");
   }
+
+  // Send initial live-voice snapshot (shared authoritative state — a browser
+  // joining mid-call sees the same speakers as everyone else, not an empty DB).
+  try {
+    const { getActiveSpeakers } = await import(
+      "../modules/voice/live-speaker.js"
+    );
+    ws.send(
+      JSON.stringify({
+        type: "voice_state",
+        state: { activeSpeakers: getActiveSpeakers() },
+      }),
+    );
+  } catch (err) {
+    logger.warn({ err }, "Failed to send initial voice_state");
+  }
 }
 
 export function closeWebSocketServer(): void {

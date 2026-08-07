@@ -15,6 +15,10 @@ import {
   VOICE_STATUS_KEY,
 } from "../../shared/index.js";
 import { publishCommand, readRedisStatus } from "../../shared/redis/index.js";
+import {
+  getActiveSpeakers,
+  type LiveSpeaker,
+} from "./live-speaker.js";
 
 const logger = createChildLogger("voice.service");
 
@@ -45,6 +49,12 @@ export interface VoiceStatus {
   activeChannelId: string | null;
   activeChannelName: string | null;
   connections: GuildVoiceEntry[];
+  /**
+   * Authoritative shared voice snapshot — who is present / speaking right
+   * now, aggregated server-side from the gateway's `voice_active_user`
+   * deltas. All browsers converge on this same list.
+   */
+  activeSpeakers: LiveSpeaker[];
 }
 
 export const DEFAULT_VOICE_STATUS: VoiceStatus = {
@@ -53,7 +63,15 @@ export const DEFAULT_VOICE_STATUS: VoiceStatus = {
   activeChannelId: null,
   activeChannelName: null,
   connections: [],
+  activeSpeakers: [],
 };
+
+/** Attach the live speaker snapshot to any voice status payload. */
+function withActiveSpeakers<T extends Partial<VoiceStatus>>(
+  status: T,
+): T & { activeSpeakers: LiveSpeaker[] } {
+  return { ...status, activeSpeakers: getActiveSpeakers() };
+}
 
 /**
  * Wraps tryCommandThenFallback with a cleaner signature for use within this module.
@@ -68,8 +86,10 @@ async function withFallback<T>(
 }
 
 function readVoiceStatusFallback(): Promise<VoiceStatus> {
-  return readRedisStatus(VOICE_STATUS_KEY).then(
-    (cached) => (cached as unknown as VoiceStatus) ?? DEFAULT_VOICE_STATUS,
+  return readRedisStatus(VOICE_STATUS_KEY).then((cached) =>
+    withActiveSpeakers(
+      (cached as unknown as VoiceStatus) ?? DEFAULT_VOICE_STATUS,
+    ),
   );
 }
 
@@ -139,7 +159,9 @@ export async function getVoiceChannels(guildId: string): Promise<Channel[]> {
 export async function getVoiceStatus(): Promise<VoiceStatus> {
   logger.debug("getVoiceStatus called");
   const cached = await readRedisStatus(VOICE_STATUS_KEY);
-  return (cached as unknown as VoiceStatus) ?? DEFAULT_VOICE_STATUS;
+  return withActiveSpeakers(
+    (cached as unknown as VoiceStatus) ?? DEFAULT_VOICE_STATUS,
+  );
 }
 
 /**

@@ -7,11 +7,15 @@ import type { WsHook } from "@/lib/ws-hook";
 
 const RECORDINGS_KEY = ["recordings"] as const;
 
-export function useRecordings() {
-  return useSWR<VoiceRecording[]>(RECORDINGS_KEY, async () => {
-    const res = await recordingsApi.list(50);
-    return res.items;
-  });
+export function useRecordings(initialData?: VoiceRecording[]) {
+  return useSWR<VoiceRecording[]>(
+    RECORDINGS_KEY,
+    async () => {
+      const res = await recordingsApi.list(50);
+      return res.items;
+    },
+    { fallbackData: initialData },
+  );
 }
 
 export function useDeleteRecording() {

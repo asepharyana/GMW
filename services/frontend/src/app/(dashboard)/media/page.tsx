@@ -1,14 +1,13 @@
-"use client";
+/**
+ * Media page — Server Component. Seeds the music player with the shared media
+ * state fetched on the server (same state every user sees), then live-updates
+ * over WS.
+ */
+import { getMediaStatus } from "@/lib/api/server";
+import MediaView from "./view";
 
-import { MusicPlayer } from "@/components/media/music-player";
-import { useWebSocket } from "@/lib/ws/context";
+export default async function MediaPage() {
+  const status = await getMediaStatus().catch(() => undefined);
 
-export default function MediaPage() {
-  const ws = useWebSocket();
-
-  return (
-    <div className="space-y-5 animate-fade-in-up">
-      <MusicPlayer ws={ws} />
-    </div>
-  );
+  return <MediaView initialStatus={status} />;
 }

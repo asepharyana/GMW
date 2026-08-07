@@ -11,28 +11,44 @@ http {
     ''      close;
   }
 
+  # Next.js standalone SSR server (backend-fetching on every render).
+  # Not for hand-editing: @NEXT_PORT@ is substituted at build time.
+  upstream gmw_next {
+    server 127.0.0.1:@NEXT_PORT@;
+    keepalive 16;
+  }
+
+  upstream gmw_backend {
+    server 127.0.0.1:4001;
+    keepalive 16;
+  }
+
   server {
     listen 4009;
     server_name _;
 
     # Use relative redirects (Location: /dashboard/) instead of absolute
-    # URLs that leak the internal listen port (4009) through Traefik.
+    # URLs that leak the internal listen port (4009) through the reverse proxy.
     absolute_redirect off;
 
     gzip on;
     gzip_types text/plain text/css application/json application/javascript application/wasm image/svg+xml;
     gzip_min_length 256;
 
+    # ── Backend REST ───────────────────────────────────────────────
     location ^~ /api {
-      proxy_pass http://127.0.0.1:4001$uri$is_args$args;
+      proxy_pass http://gmw_backend$uri$is_args$args;
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";   # keepalive to backend
       proxy_set_header Host              $host;
       proxy_set_header X-Real-IP         $remote_addr;
       proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
       proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # ── Backend WebSocket (realtime shared state + voice PCM) ──────
     location ^~ /ws {
-      proxy_pass http://127.0.0.1:4001$uri$is_args$args;
+      proxy_pass http://gmw_backend$uri$is_args$args;
       proxy_http_version 1.1;
       proxy_set_header Upgrade              $http_upgrade;
       proxy_set_header Connection           $connection_upgrade;
@@ -45,16 +61,30 @@ http {
       proxy_send_timeout 86400s;
     }
 
-    location /assets/ {
-      root @FRONTEND_ROOT@;
+    # ── Next.js build assets — immutable, edge/shareable ───────────
+    location ^~ /_next/static/ {
+      proxy_pass http://gmw_next$uri$is_args$args;
+      proxy_http_version 1.1;
+      proxy_set_header Host              $host;
+      proxy_set_header X-Real-IP         $remote_addr;
+      proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
       expires 1y;
       add_header Cache-Control "public, immutable";
     }
 
+    # ── Everything else → Next.js server (SSR) ──
     location / {
-      root @FRONTEND_ROOT@;
-      index index.html;
-      try_files $uri $uri/ /index.html;
+      proxy_pass http://gmw_next$uri$is_args$args;
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
+      proxy_set_header Host              $host;
+      proxy_set_header X-Real-IP         $remote_addr;
+      proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Next-Prefetch  $http_x_next_prefetch;
+      proxy_buffering off;
+      proxy_read_timeout 30s;
     }
   }
 }

@@ -20,9 +20,10 @@ export function hashUserId(userId: string): number {
 
 const STATUS_KEY = ["voice-status"] as const;
 
-export function useVoiceStatus() {
+export function useVoiceStatus(initialData?: VoiceStatus) {
   return useSWR<VoiceStatus>(STATUS_KEY, () => voiceApi.getStatus(), {
     shouldRetryOnError: false,
+    fallbackData: initialData,
   });
 }
 
@@ -32,10 +33,31 @@ export function useVoiceChannels(guildId: string) {
   );
 }
 
-export function useSpeakers() {
-  const [speakers, setSpeakers] = useState<ActiveSpeaker[]>([]);
+/**
+ * Live shared speaker state.
+ *
+ * Seeded from the server-authored snapshot (`initial` — the voice status the
+ * server rendered, which includes the authoritative active speakers). From
+ * there the WS keeps it converged across ALL users:
+ *  - `voice_state` → authoritative FULL replacement (e.g. a late join seeds
+ *    every client with the same list);
+ *  - `voice_active_user` → incremental upsert of a single speaker delta.
+ *
+ * This replaces the old per-browser model where each tab accumulated speakers
+ * only from events it happened to receive while mounted.
+ */
+export function useSpeakers(initialStatusActive?: ActiveSpeaker[]) {
+  const [speakers, setSpeakers] = useState<ActiveSpeaker[]>(
+    initialStatusActive ?? [],
+  );
 
   const subscribe = useCallback((ws: WsHook) => {
+    const unsubSnapshot = ws.on("voice_state", (data) => {
+      const state = data as { activeSpeakers?: ActiveSpeaker[] };
+      if (Array.isArray(state?.activeSpeakers)) {
+        setSpeakers(state.activeSpeakers);
+      }
+    });
     const unsub = ws.on("voice_active_user", (data) => {
       const speaker = data as ActiveSpeaker;
       setSpeakers((prev) => {
@@ -49,6 +71,7 @@ export function useSpeakers() {
       });
     });
     return () => {
+      unsubSnapshot();
       unsub();
       setSpeakers([]);
     };

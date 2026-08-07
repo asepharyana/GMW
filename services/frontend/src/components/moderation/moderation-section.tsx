@@ -17,7 +17,11 @@ import { EmptyState, LoadingSkeleton } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
 import { useModerationActions, useModerationStats } from "@/hooks";
 import { renderMessageContent } from "@/lib/format";
-import type { ModerationAction, ModerationActionType } from "@/lib/types";
+import type {
+  ModerationAction,
+  ModerationActionType,
+  ModerationStats,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const ACTION_META: Record<
@@ -82,13 +86,20 @@ const EMPTY_ACTION_RATE = {
   failed_rate: 0,
 };
 
-export function ModerationSection() {
+export function ModerationSection({
+  initialStats,
+  initialActions,
+}: {
+  initialStats?: ModerationStats;
+  initialActions?: ModerationAction[];
+} = {}) {
   const [status, setStatus] = useState<string>("");
   const [actionType, setActionType] = useState<string>("");
-  const { data: stats } = useModerationStats();
+  const { data: stats } = useModerationStats(initialStats);
   const { data: actions, isLoading: actionsLoading } = useModerationActions(
     status,
     actionType,
+    initialActions,
   );
 
   const s = stats ?? EMPTY_ACTION_RATE;
@@ -159,7 +170,7 @@ export function ModerationSection() {
       </div>
 
       {/* Timeline */}
-      {actionsLoading ? (
+      {actionsLoading && !actions ? (
         <LoadingSkeleton count={6} height="h-16" />
       ) : !actions || actions.length === 0 ? (
         <GlassCard className="p-6">

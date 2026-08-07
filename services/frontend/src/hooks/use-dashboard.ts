@@ -10,15 +10,26 @@ import type {
   TopReactor,
 } from "@/lib/types";
 
-export function useStats() {
-  return useSWR<DashboardStats>(["dashboard-stats"], () =>
-    dashboardApi.getStats(),
+/**
+ * Server-seeded SWR hooks.
+ *
+ * SSR pages fetch the initial payload on the server and hand it here as
+ * `initialData` — the first render is server data, and SWR takes over for
+ * revalidation from then on (no blank-spinner-first-load).
+ */
+export function useStats(initialData?: DashboardStats) {
+  return useSWR<DashboardStats>(
+    ["dashboard-stats"],
+    () => dashboardApi.getStats(),
+    { fallbackData: initialData },
   );
 }
 
-export function useActivity(days = 14) {
-  return useSWR<DashboardActivity>(["dashboard-activity", days], () =>
-    dashboardApi.getActivity(days),
+export function useActivity(days = 14, initialData?: DashboardActivity) {
+  return useSWR<DashboardActivity>(
+    ["dashboard-activity", days],
+    () => dashboardApi.getActivity(days),
+    { fallbackData: initialData },
   );
 }
 

@@ -11,6 +11,12 @@ export interface VoiceStatus {
   activeChannelId?: string | null;
   activeChannelName?: string | null;
   connections: GuildVoiceEntry[];
+  /**
+   * Authoritative shared voice snapshot — who is present / speaking right
+   * now, aggregated server-side from the gateway's `voice_active_user`
+   * deltas. All browsers converge on this same list.
+   */
+  activeSpeakers?: ActiveSpeaker[];
 }
 
 export interface ActiveSpeaker {

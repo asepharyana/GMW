@@ -4,8 +4,8 @@ export {
   useChannelDetail,
   useChannels,
   useStats,
-  useTopReactors,
   useTopReactions,
+  useTopReactors,
   useUserDetail,
   useUsers,
 } from "./use-dashboard";

@@ -2,9 +2,11 @@ import Redis from "ioredis";
 import { config } from "../shared/config/index.js";
 import {
   DISCORD_CHANNEL_TO_WS_EVENT,
+  DISCORD_VOICE_ACTIVE_USER,
   DISCORD_VOICE_PCM,
 } from "../shared/index.js";
 import { createChildLogger } from "../shared/logger/index.js";
+import { recordSpeaker } from "../modules/voice/live-speaker.js";
 import { broadcastBinary, broadcastEvent } from "./broadcast.js";
 
 const logger = createChildLogger("ws.redis-bridge");
@@ -59,6 +61,26 @@ function handleSubscriptionMessage(channel: string, message: string): void {
       } catch {
         // fallback to JSON broadcast on error
       }
+    }
+  }
+
+  // Aggregate live-voice state authoritatively BEFORE broadcasting.
+  // Every browser hears the same `voice_active_user` deltas, so the backend
+  // can maintain the single shared snapshot for late-joining clients.
+  if (channel === DISCORD_VOICE_ACTIVE_USER) {
+    const speaker = data as {
+      userId?: string;
+      username?: string;
+      avatar?: string | null;
+      speaking?: boolean;
+    };
+    if (speaker?.userId) {
+      recordSpeaker({
+        userId: speaker.userId,
+        username: speaker.username,
+        avatar: speaker.avatar,
+        speaking: Boolean(speaker.speaking),
+      });
     }
   }
 

@@ -24,17 +24,27 @@ type MessagePage = { data: MessageRecord[]; nextCursor: string | null };
  * useMessagesHasMore derive from this one SWR key, so the cursor probe no
  * longer triggers a duplicate API call.
  */
-function useMessagesPage(guildId: string, channelId?: string) {
+function useMessagesPage(
+  guildId: string,
+  channelId?: string,
+  initialPage?: MessagePage,
+) {
   const key = guildId ? msgKeys.list(guildId, channelId) : null;
-  return useSWR<MessagePage>(key, () =>
-    messagesApi.list(guildId, 50, channelId || undefined),
+  return useSWR<MessagePage>(
+    key,
+    () => messagesApi.list(guildId, 50, channelId || undefined),
+    { fallbackData: initialPage },
   );
 }
 
 // ── Messages list (paginated, cursor-based) ──────
 
-export function useMessages(guildId: string, channelId?: string) {
-  const page = useMessagesPage(guildId, channelId);
+export function useMessages(
+  guildId: string,
+  channelId?: string,
+  initialPage?: MessagePage,
+) {
+  const page = useMessagesPage(guildId, channelId, initialPage);
   return {
     ...page,
     data: page.data?.data,

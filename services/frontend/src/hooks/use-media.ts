@@ -7,10 +7,11 @@ import type { WsHook } from "@/lib/ws-hook";
 
 const MEDIA_KEY = ["media-state"] as const;
 
-export function useMediaState() {
+export function useMediaState(initialData?: MediaState) {
   return useSWR<MediaState>(MEDIA_KEY, () => mediaApi.getStatus(), {
     refreshInterval: 10_000,
     shouldRetryOnError: false,
+    fallbackData: initialData,
   });
 }
 

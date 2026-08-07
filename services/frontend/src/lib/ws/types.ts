@@ -42,6 +42,12 @@ export interface WsEventMap {
   voice_recording_stopped: unknown;
   voice_recording_uploaded: VoiceRecording;
   voice_active_user: ActiveSpeaker;
+  /**
+   * Authoritative shared live-voice snapshot — `{ activeSpeakers: [...] }`.
+   * The backend sends this on WS connect (initial state) and clients replace
+   * their local list wholesale so every user converges on the same state.
+   */
+  voice_state: { activeSpeakers: ActiveSpeaker[] };
   /** NOT delivered as JSON — arrives only via onPcm() binary handler as PcmChunk */
   voice_pcm_data: never;
   voice_analyzed: unknown;
