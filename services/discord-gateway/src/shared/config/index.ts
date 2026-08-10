@@ -253,6 +253,19 @@ export const configSchema = z
       .default(false),
     AUTO_DELETE_LOG_CHANNEL_ID: z.string().default(""),
 
+    // ── Nickname Reset (offensive_username enforcement) ────────────────
+    // When the only violation is the member's server nickname, reset the
+    // nickname to the default username instead of deleting the message.
+    AUTO_NICKNAME_RESET_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === "true")
+      .default(true),
+    AUTO_NICKNAME_RESET_COOLDOWN_MS: z.coerce
+      .number()
+      .positive()
+      .default(10 * 60 * 1000),
+
     // ── Retention ───────────────────────────────────────────────────────
     RETENTION_MESSAGES_DAYS: z.coerce.number().int().min(0).default(0),
     RETENTION_ATTACHMENTS_DAYS: z.coerce.number().int().min(0).default(0),

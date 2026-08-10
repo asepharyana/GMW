@@ -1,9 +1,13 @@
 import type { Client, PermissionString } from "discord.js-selfbot-v13";
+import { LRUCache } from "lru-cache";
 import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
-import { isEligibleForAutoDelete } from "./autoDeleteEligibility.js";
+import {
+  isEligibleForAutoDelete,
+  isNicknameOnlyViolation,
+} from "./autoDeleteEligibility.js";
 import { logDeletionToChannel } from "./autoDeleteLogger.js";
 import { sendDeletionNotification } from "./autoDeleteNotify.js";
 
@@ -13,6 +17,83 @@ export interface AutoDeleteResult {
   deleted: boolean;
   skipped: boolean;
   reason: string;
+}
+
+// Cooldown per guild:user — a nick violation fires per message, but the
+// Discord PATCH is idempotent; hammering it on every message by the same
+// member is wasteful and risks rate limits.
+const recentNicknameResets = new LRUCache<string, number>({
+  max: 200,
+  ttl: config.AUTO_NICKNAME_RESET_COOLDOWN_MS ?? 10 * 60 * 1000,
+});
+
+export function isNicknameResetInCooldown(
+  guildId: string,
+  userId: string,
+): boolean {
+  return recentNicknameResets.has(`${guildId}:${userId}`);
+}
+
+/**
+ * Resets a member's server nickname to the default (global username) —
+ * Discord's `setNickname(null)` removes the custom nick so the member is
+ * shown under their default username. Non-blocking; failures are logged
+ * but never throw into the moderation pipeline.
+ */
+export async function resetOffensiveNickname(
+  client: Client | undefined,
+  guildId: string,
+  userId: string,
+  messageId: string,
+): Promise<boolean> {
+  const cooldownKey = `${guildId}:${userId}`;
+  try {
+    if (!client?.user?.id) {
+      logger.warn(
+        { messageId, guildId, userId },
+        "Nick reset skipped: client missing",
+      );
+      return false;
+    }
+    if (userId === client.user.id) {
+      logger.debug({ userId }, "Nick reset skipped: operator's own account");
+      return false;
+    }
+    if (recentNicknameResets.has(cooldownKey)) {
+      logger.debug({ guildId, userId }, "Nick reset skipped: cooldown active");
+      return false;
+    }
+    if (config.AUTO_NICKNAME_RESET_ENABLED === false) return false;
+
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+      logger.warn(
+        { messageId, guildId },
+        "Nick reset skipped: guild not found",
+      );
+      return false;
+    }
+    const member = await guild.members.fetch(userId);
+    // setNickname(null) = remove nickname → Discord shows global username
+    await member.setNickname(null, "[auto] nickname melanggar aturan server");
+    recentNicknameResets.set(cooldownKey, Date.now());
+    logger.info(
+      { messageId, guildId, userId },
+      "Offensive nickname reset to default username",
+    );
+    return true;
+  } catch (error) {
+    logger.warn(
+      {
+        messageId,
+        guildId,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Nick reset failed",
+    );
+    return false;
+  }
 }
 
 // ─── Error Handling Utilities ────────────────────────────────────────
@@ -105,6 +186,57 @@ export async function attemptAutoDeleteFlaggedMessage(
   if (!config.AUTO_DELETE_FLAGGED_ENABLED) {
     logger.debug({ messageId: message.id }, "Auto-delete disabled by config");
     return { deleted: false, skipped: true, reason: "disabled" };
+  }
+
+  // ── Nickname-only violation: reset nick, DO NOT delete ─────────────
+  // When the only flag is offensive_username (message content is clean),
+  // the problem is the server nickname, not the message. Enforcement is
+  // removing the nickname back to the default username — the message stays.
+  if (isNicknameOnlyViolation(message)) {
+    if (
+      !config.AUTO_DELETE_FLAGGED_DRY_RUN &&
+      config.AUTO_NICKNAME_RESET_ENABLED !== false
+    ) {
+      const inCooldown = isNicknameResetInCooldown(
+        message.guild_id,
+        message.user_id,
+      );
+      if (!inCooldown) {
+        const resetOk = await resetOffensiveNickname(
+          client,
+          message.guild_id,
+          message.user_id,
+          message.id,
+        );
+        try {
+          await messageStore.createModerationAction({
+            message_id: message.id,
+            user_id: message.user_id,
+            guild_id: message.guild_id,
+            action_type: "reset_nickname",
+            reason:
+              "nickname melanggar aturan server (offensive_username); pesan dibiarkan",
+            executed_by: "auto-delete-manager",
+            status: resetOk ? "executed" : "failed",
+            error: resetOk ? null : "nickname_reset_failed",
+            executed_at: resetOk ? Date.now() : null,
+          });
+        } catch (error) {
+          logger.warn(
+            {
+              messageId: message.id,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            "Failed to persist nickname reset action log",
+          );
+        }
+      }
+    }
+    logger.info(
+      { messageId: message.id, userId: message.user_id },
+      "Nickname-only violation: message kept, nickname reset attempted",
+    );
+    return { deleted: false, skipped: true, reason: "nickname_only_violation" };
   }
 
   // ── Status gate ──────────────────────────────────────────────────

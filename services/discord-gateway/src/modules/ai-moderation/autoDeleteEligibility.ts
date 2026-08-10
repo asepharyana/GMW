@@ -47,6 +47,40 @@ export function deriveRecommendedAction(msg: MessageRecord): string {
   return "none";
 }
 
+/** Parse the flag list from a structured result or the stored column. */
+export function parseModerationFlags(
+  message: MessageRecord,
+  analysisResult?: AnalysisResult,
+): string[] {
+  const flags = analysisResult?.flags ?? null;
+  if (flags && flags.length > 0) return flags;
+  const stored = message.ai_moderation_flags;
+  if (!stored) return [];
+  try {
+    const parsed = JSON.parse(stored) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((f): f is string => typeof f === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * True when the ONLY violation is the member's server nickname — the message
+ * content itself is clean. Such messages must NOT be auto-deleted; the
+ * correct enforcement is resetting the nickname to the default username.
+ * Any other flag (sara, harassment, vulgar_language, ...) keeps the normal
+ * delete path.
+ */
+export function isNicknameOnlyViolation(
+  message: MessageRecord,
+  analysisResult?: AnalysisResult,
+): boolean {
+  const flags = parseModerationFlags(message, analysisResult);
+  return flags.length > 0 && flags.every((f) => f === "offensive_username");
+}
+
 /**
  * Check whether a message qualifies for auto-deletion.
  * Uses the structured `analysisResult` fields when provided, falling back

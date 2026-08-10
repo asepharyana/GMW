@@ -615,6 +615,7 @@ export const pgModerationActionsTable = pgTable(
         "warn_user",
         "kick_user",
         "ban_user",
+        "reset_nickname",
       ],
     }).notNull(),
     reason: pgText("reason"),

@@ -198,7 +198,8 @@ export type ModerationActionType =
   | "mute_user"
   | "warn_user"
   | "kick_user"
-  | "ban_user";
+  | "ban_user"
+  | "reset_nickname";
 
 export interface ModerationAction {
   id: string;
