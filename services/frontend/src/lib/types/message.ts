@@ -71,6 +71,9 @@ export interface ChannelRef {
   channelName?: string | null;
   threadId?: string | null;
   threadName?: string | null;
+  /** Channel topic (captured in gateway metadata.channel.topic). */
+  topic?: string | null;
+  nsfw?: boolean;
 }
 
 export interface ReferenceInfo {

@@ -165,6 +165,7 @@ export function buildLocationContext(targets: MessageRecord[]): string {
       channel?: {
         channelName?: string | null;
         threadName?: string | null;
+        topic?: string | null;
         nsfw?: boolean;
         ageRestricted?: boolean;
         nsfwLevel?: string | null;
@@ -180,6 +181,13 @@ export function buildLocationContext(targets: MessageRecord[]): string {
         attrs.push(`thread_id="${escapeXml(target.thread_id)}"`);
       if (ch.threadName)
         attrs.push(`thread_name="${escapeXml(ch.threadName)}"`);
+    }
+    if (typeof ch.topic === "string" && ch.topic.trim().length > 0) {
+      const topic =
+        ch.topic.length > 200
+          ? `${ch.topic.slice(0, 200).trimEnd()}…`
+          : ch.topic;
+      attrs.push(`topic="${escapeXml(topic)}"`);
     }
     if (typeof ch.nsfw === "boolean") attrs.push(`nsfw="${ch.nsfw}"`);
     if (typeof ch.ageRestricted === "boolean") {

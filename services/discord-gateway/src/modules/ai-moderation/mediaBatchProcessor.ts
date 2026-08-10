@@ -66,13 +66,22 @@ export async function runMediaBatch(
   });
 
   // Gather user profiles ONCE for the whole batch and emit a deduplicated
-  // <user_profiles> map; per-message blocks (from prepareMediaMessage)
-  // reference it via <user_profile_ref>.
-  const profileByUser = new Map<string, string>();
+  // <user_profiles> map (with last-generated timestamp); per-message blocks
+  // (from prepareMediaMessage) reference it via <user_profile_ref>.
+  const profileByUser = new Map<
+    string,
+    {
+      text: string;
+      asOf?: number | null;
+    }
+  >();
   for (const t of targets) {
     if (profileByUser.has(t.user_id)) continue;
     const profile = await getUserProfile(t.user_id);
-    profileByUser.set(t.user_id, profile?.profile_summary ?? "");
+    profileByUser.set(t.user_id, {
+      text: profile?.profile_summary ?? "",
+      asOf: profile?.last_analyzed_at ?? null,
+    });
   }
   const userProfilesBlock = buildUserProfilesBlock(profileByUser);
 

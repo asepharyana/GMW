@@ -19,11 +19,15 @@ import { callModerationLLM } from "./llmCaller.js";
 import { analyzeSingleMediaImage } from "./mediaAnalysisClient.js";
 import {
   buildReferenceXml,
+  buildUserHistoryXml,
   buildUserProfileRef,
   buildUserProfilesBlock,
   escapeXml,
+  formatReputationAttrs,
   getAnalysisContent,
   resolveDisplayName,
+  resolveIsBot,
+  resolveIsEdited,
   truncateForAi,
 } from "./moderationBuilders.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
@@ -36,7 +40,10 @@ import {
 import { getRecentCorrectedModerations } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 import { getUserProfile } from "./userProfileStore.js";
-import { initializeUserReputation } from "./userReputationStore.js";
+import {
+  getUserRecentInfractions,
+  initializeUserReputation,
+} from "./userReputationStore.js";
 import type { MessageImagePart } from "./visionAnalyzer.js";
 
 const log = createChildLogger("textBatchProcessor");
@@ -191,18 +198,46 @@ export async function runTextOnlyBatch(
     // User reputation + profiles (raw summary text — deduplicated into a
     // single <user_profiles> map per batch; messages only reference it).
     const userContexts = new Map<string, string>();
-    const userProfiles = new Map<string, string>();
+    const userProfiles = new Map<
+      string,
+      {
+        text: string;
+        asOf?: number | null;
+      }
+    >();
     for (const msg of batch) {
       if (!userContexts.has(msg.user_id)) {
         const rep = await initializeUserReputation(msg.user_id, msg.guild_id);
-        userContexts.set(
-          msg.user_id,
-          `<user_reputation trust_score="${rep.trust_score}" />`,
-        );
+        const repAttrs = formatReputationAttrs(rep);
+        let repXml = `<user_reputation ${repAttrs}/>`;
+        // Repeat offenders get their last flagged messages as <user_history>
+        // so the LLM can recognize PATTERNS (same scam link, repeated
+        // provocation) — history is reference, never proof. Best-effort.
+        if (rep.total_infractions > 0) {
+          try {
+            const history = await getUserRecentInfractions(msg.user_id, 2);
+            const historyXml = buildUserHistoryXml(
+              history.map((h) => ({
+                content: h.content ?? "",
+                severity: h.severity,
+                created_at: h.created_at,
+              })),
+            );
+            if (historyXml) {
+              repXml = `<user_reputation ${repAttrs}>\n${historyXml}\n</user_reputation>`;
+            }
+          } catch {
+            // history is a bonus — fall back to attrs-only reputation
+          }
+        }
+        userContexts.set(msg.user_id, repXml);
       }
       if (!userProfiles.has(msg.user_id)) {
         const profile = await getUserProfile(msg.user_id);
-        userProfiles.set(msg.user_id, profile?.profile_summary ?? "");
+        userProfiles.set(msg.user_id, {
+          text: profile?.profile_summary ?? "",
+          asOf: profile?.last_analyzed_at ?? null,
+        });
       }
     }
     const userProfilesBlock = buildUserProfilesBlock(userProfiles);
@@ -303,11 +338,16 @@ export async function runTextOnlyBatch(
               .map((line) => `\n${line}`)
               .join("");
             const userCtx = userContexts.get(msg.user_id) ?? "";
-            const userProfileRef = (userProfiles.get(msg.user_id) ?? "").trim()
+            const userProfileRef = (
+              userProfiles.get(msg.user_id)?.text ?? ""
+            ).trim()
               ? buildUserProfileRef(msg.user_id)
               : "";
             const refXml = await buildReferenceXml(msg);
-            return `<message id="${msg.id}" user="${resolveDisplayName(msg)}">\n  ${userCtx}${userProfileRef ? `\n  ${userProfileRef}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${webContext}${mediaEvidenceCtx}\n</message>`;
+            const repetitionCount = groupMapping.get(msg.id)?.length ?? 1;
+            const isBot = resolveIsBot(msg);
+            const isEdited = resolveIsEdited(msg);
+            return `<message id="${escapeXml(msg.id)}" user="${escapeXml(resolveDisplayName(msg))}" time="${new Date(msg.created_at).toISOString()}"${repetitionCount > 1 ? ` repetitions="${repetitionCount}"` : ""}${isBot ? ` bot="true"` : ""}${isEdited ? ` edited="true"` : ""}>\n  ${userCtx}${userProfileRef ? `\n  ${userProfileRef}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${webContext}${mediaEvidenceCtx}\n</message>`;
           }),
         )
       ).join("\n");

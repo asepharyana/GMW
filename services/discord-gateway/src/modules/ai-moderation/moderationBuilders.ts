@@ -95,24 +95,139 @@ export function truncateForAi(content: string): string {
 // entries per message with <user_profile_ref user_id="..."/>.
 // ---------------------------------------------------------------------------
 
+export interface UserProfileEntry {
+  /** Profile summary text (from user_profiles.profile_summary). */
+  text: string;
+  /** Epoch ms when the profile was last generated — staleness signal for
+   *  the LLM (a profile from months ago may not reflect current behavior). */
+  asOf?: number | null;
+}
+
 /** Build a deduplicated `<user_profiles>` map block, keyed by Discord user id. */
 export function buildUserProfilesBlock(
-  profiles: ReadonlyMap<string, string>,
+  profiles: ReadonlyMap<string, UserProfileEntry>,
 ): string {
   const entries = Array.from(profiles.entries()).filter(
-    ([, text]) => text.trim().length > 0,
+    ([, entry]) => entry.text.trim().length > 0,
   );
   if (entries.length === 0) return "";
-  const lines = entries.map(
-    ([userId, text]) =>
-      `  <user_profile user_id="${escapeXml(userId)}">${sanitizeAiContent(text)}</user_profile>`,
-  );
+  const lines = entries.map(([userId, entry]) => {
+    const asOfAttr =
+      typeof entry.asOf === "number" && entry.asOf > 0
+        ? ` as_of="${new Date(entry.asOf).toISOString()}"`
+        : "";
+    return `  <user_profile user_id="${escapeXml(userId)}"${asOfAttr}>${sanitizeAiContent(entry.text)}</user_profile>`;
+  });
   return `<user_profiles>\n${lines.join("\n")}\n</user_profiles>`;
 }
 
 /** Per-message reference tag pointing at an entry in the `<user_profiles>` map. */
 export function buildUserProfileRef(userId: string): string {
   return `<user_profile_ref user_id="${escapeXml(userId)}"/>`;
+}
+
+// ---------------------------------------------------------------------------
+// User reputation — richer than a bare trust score.
+//
+// The trust model tracks total_infractions, a clean-message streak and the
+// last infraction timestamp. Feeding all of it to the LLM lets it tell a
+// first-timer (same score, 1 infraction) from a repeat offender (score 50,
+// 3 infractions, last one yesterday) — the same score means very different
+// things in those two contexts.
+// ---------------------------------------------------------------------------
+
+export interface ReputationAttrsSource {
+  trust_score: number;
+  total_infractions: number;
+  clean_message_streak: number;
+  last_infraction_at: number | null;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const REPEAT_OFFENSE_WINDOW_MS = 7 * DAY_MS;
+
+/**
+ * Formats reputation fields into XML attributes for `<user_reputation .../>`.
+ * Derived signals: last_offense_days_ago (0 = today) and repeat_offender
+ * (infraction within the last 7 days) are computed here so both the text and
+ * media paths emit the exact same shape.
+ */
+export function formatReputationAttrs(
+  rep: ReputationAttrsSource,
+  now: number = Date.now(),
+): string {
+  const attrs = [
+    `trust_score="${rep.trust_score}"`,
+    `total_infractions="${rep.total_infractions}"`,
+    `clean_streak="${rep.clean_message_streak}"`,
+  ];
+  if (
+    typeof rep.last_infraction_at === "number" &&
+    rep.last_infraction_at > 0
+  ) {
+    const daysAgo = Math.max(
+      0,
+      Math.floor((now - rep.last_infraction_at) / DAY_MS),
+    );
+    attrs.push(`last_offense_days_ago="${daysAgo}"`);
+    const isRepeat =
+      rep.total_infractions > 0 &&
+      now - rep.last_infraction_at <= REPEAT_OFFENSE_WINDOW_MS;
+    if (isRepeat) attrs.push(`repeat_offender="true"`);
+  }
+  return attrs.join(" ");
+}
+
+/**
+ * Builds an optional `<user_history>` block (last flagged messages) from
+ * getUserRecentInfractions rows. Only emitted when there is real history —
+ * lets the LLM see the PATTERN (e.g. the same scam link posted repeatedly)
+ * without treating old flags as proof for the current message.
+ */
+export function buildUserHistoryXml(
+  history: Array<{
+    content: string;
+    severity: string | null;
+    created_at: number;
+  }>,
+  now: number = Date.now(),
+): string {
+  const filtered = history.filter((h) => h.content?.trim());
+  if (filtered.length === 0) return "";
+  const lines = filtered.map((h) => {
+    const daysAgo = Math.max(0, Math.floor((now - h.created_at) / DAY_MS));
+    const severityAttr = h.severity
+      ? ` severity="${escapeXml(h.severity)}"`
+      : "";
+    const snippet =
+      h.content.length > 100
+        ? `${h.content.slice(0, 100).trimEnd()}…`
+        : h.content;
+    return `  <infraction${severityAttr} time_ago_days="${daysAgo}">${escapeXml(snippet)}</infraction>`;
+  });
+  return `<user_history>\n${lines.join("\n")}\n</user_history>`;
+}
+
+/**
+ * Whether the message author was a bot (captured in metadata.author.bot).
+ * Bot posts (logging bots, webhook-style automation) deserve different
+ * scrutiny than user posts — expose the flag instead of hiding it.
+ */
+export function resolveIsBot(msg: MessageRecord): boolean {
+  if (!msg.metadata) return false;
+  try {
+    const meta = JSON.parse(msg.metadata) as {
+      author?: { bot?: boolean } | null;
+    };
+    return Boolean(meta?.author?.bot);
+  } catch {
+    return false;
+  }
+}
+
+/** Whether the shown content is an EDIT of the original post (evasion signal). */
+export function resolveIsEdited(msg: MessageRecord): boolean {
+  return Boolean(msg.edited_content);
 }
 
 /**

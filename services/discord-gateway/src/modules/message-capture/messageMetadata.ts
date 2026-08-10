@@ -9,6 +9,10 @@ export interface MessageLocation {
   threadId: string | null;
   threadName: string | null;
   channelName: string | null;
+  /** Channel topic (resmi/deskripsi channel) — strong context for judging
+   *  whether a message fits the channel's purpose. Guarded: some channel
+   *  types (threads on older API builds) expose no topic. */
+  topic?: string | null;
   nsfw?: boolean;
   nsfwLevel?: string | null;
   ageRestricted?: boolean;
@@ -107,12 +111,17 @@ export function getMessageLocation(message: Message): MessageLocation {
     nsfw?: boolean;
     nsfwLevel?: string | null;
   };
+  const topic =
+    "topic" in channel && typeof channel.topic === "string"
+      ? channel.topic
+      : null;
   if (!channel.isThread?.()) {
     return {
       channelId: message.channelId,
       threadId: null,
       threadName: null,
       channelName: "name" in channel ? channel.name : null,
+      topic,
       nsfw:
         typeof safetyChannel.nsfw === "boolean"
           ? safetyChannel.nsfw
@@ -133,6 +142,7 @@ export function getMessageLocation(message: Message): MessageLocation {
     threadId: channel.id,
     threadName: channel.name,
     channelName: channel.parent?.name ?? null,
+    topic,
     nsfw:
       typeof safetyChannel.nsfw === "boolean" ? safetyChannel.nsfw : undefined,
     nsfwLevel:

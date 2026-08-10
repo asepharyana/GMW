@@ -197,6 +197,36 @@ describe("buildLocationContext — channel/thread/nsfw enrichment", () => {
     expect(line).toContain('age_restricted="false"');
   });
 
+  it("includes the channel topic (escaped) when captured", () => {
+    const t = target();
+    t.metadata = JSON.stringify({
+      channel: {
+        channelName: "rules",
+        topic: "Diskusi coding & programming — no self-promo",
+        nsfw: false,
+      },
+    });
+    const line = buildLocationContext([t]);
+    expect(line).toContain(
+      'topic="Diskusi coding &amp; programming — no self-promo"',
+    );
+  });
+
+  it("caps an oversized topic and omits empty/absent topic", () => {
+    const t = target();
+    t.metadata = JSON.stringify({
+      channel: { channelName: "general", topic: "x".repeat(500), nsfw: false },
+    });
+    const line = buildLocationContext([t]);
+    const match = line.match(/topic="([^"]*)"/);
+    expect(match).not.toBeNull();
+    expect(match?.[1].length).toBeLessThanOrEqual(201);
+
+    const t2 = target();
+    t2.metadata = JSON.stringify({ channel: { channelName: "general" } });
+    expect(buildLocationContext([t2])).not.toContain("topic=");
+  });
+
   it("returns empty when no metadata", () => {
     expect(buildLocationContext([target()])).toBe("");
   });

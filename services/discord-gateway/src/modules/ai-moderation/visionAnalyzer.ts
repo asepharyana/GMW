@@ -37,10 +37,14 @@ import {
 } from "./mediaDownloader.js";
 import {
   buildReferenceXml,
+  buildUserHistoryXml,
   buildUserProfileRef,
   escapeXml,
+  formatReputationAttrs,
   getAnalysisContent,
   resolveDisplayName,
+  resolveIsBot,
+  resolveIsEdited,
   truncateForAi,
 } from "./moderationBuilders.js";
 import {
@@ -56,7 +60,10 @@ import {
 } from "./searxngSearch.js";
 import { extractUrlsFromText } from "./urlFetcher.js";
 import { getUserProfile } from "./userProfileStore.js";
-import { initializeUserReputation } from "./userReputationStore.js";
+import {
+  getUserRecentInfractions,
+  initializeUserReputation,
+} from "./userReputationStore.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -376,6 +383,30 @@ export async function prepareMediaMessage(
       ? buildUserProfileRef(target.user_id)
       : "";
 
-  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(resolveDisplayName(target))}">\n  <user_reputation trust_score="${rep.trust_score}" />${profileRef ? `\n  ${profileRef}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(truncateForAi(content))}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${searxngXml}\n</message>`;
+  // Rich reputation — same shape as the text path: attrs + optional
+  // <user_history> with the last flagged messages for repeat offenders.
+  const repAttrs = formatReputationAttrs(rep);
+  let repXml = `<user_reputation ${repAttrs}/>`;
+  if (rep.total_infractions > 0) {
+    try {
+      const history = await getUserRecentInfractions(target.user_id, 2);
+      const historyXml = buildUserHistoryXml(
+        history.map((h) => ({
+          content: h.content ?? "",
+          severity: h.severity,
+          created_at: h.created_at,
+        })),
+      );
+      if (historyXml) {
+        repXml = `<user_reputation ${repAttrs}>\n${historyXml}\n</user_reputation>`;
+      }
+    } catch {
+      // history is a bonus — fall back to attrs-only reputation
+    }
+  }
+
+  const isBot = resolveIsBot(target);
+  const isEdited = resolveIsEdited(target);
+  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(resolveDisplayName(target))}" time="${new Date(target.created_at).toISOString()}"${isBot ? ` bot="true"` : ""}${isEdited ? ` edited="true"` : ""}>\n  ${repXml}${profileRef ? `\n  ${profileRef}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(truncateForAi(content))}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${searxngXml}\n</message>`;
   return { targetId, messageBlock };
 }
