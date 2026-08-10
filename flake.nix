@@ -59,6 +59,36 @@
           pnpm rebuild 2>&1 || true
         '';
 
+        # Shrink the shipped node_modules to production deps only. The full
+        # install's .pnpm virtual store carries dev-only packages (biome,
+        # typescript, esbuild, drizzle-kit, vitest, ... ~150MB+) that are never
+        # needed at runtime, so we delete every .pnpm dir that is not part of
+        # the resolved production graph (`pnpm list --prod`).
+        #
+        # NOTE: do NOT use `pnpm install --prod` here — it collapses the
+        # public-hoist dir (.pnpm/node_modules) that runtime peer resolution
+        # relies on (e.g. @lng2004/node-datachannel and @seydx/node-av-linux-x64
+        # are only reachable through it), silently breaking voice/screenshare.
+        # Instead we keep the full install's symlink layout and only prune
+        # orphaned package dirs + broken symlinks.
+        # Must run AFTER tsc (typescript is a devDep) and after native builds.
+        pruneProd = ''
+          echo "=== Pruning devDependencies (production-only node_modules) ==="
+          pnpm list --prod --depth 999 --parseable 2>/dev/null \
+            | grep -o '\.pnpm/[^/]*' | sort -u > $TMPDIR/prod-pnms.txt
+          ( cd node_modules/.pnpm \
+              && for d in */; do \
+                   d="''${d%/}"; \
+                   [ "$d" = "node_modules" ] && continue; \
+                   grep -qF ".pnpm/$d" $TMPDIR/prod-pnms.txt || rm -rf "$d"; \
+                 done ) || true
+          # Drop symlinks whose .pnpm target was pruned (top-level, scoped dirs,
+          # hoist, .bin — any depth). Mirrors stdenv's noBrokenSymlinks check,
+          # which would otherwise fail the fixupPhase.
+          find node_modules -type l ! -exec test -e {} \; -delete 2>/dev/null || true
+          du -sh node_modules
+        '';
+
         # ---- Backend ----
         backend = pkgs.stdenv.mkDerivation {
           pname = "gmw-backend";
@@ -97,7 +127,7 @@
               console.log('Fixed ' + count + ' files');
             "
             echo "=== Build complete ==="
-          '';
+          '' + pruneProd;
 
           installPhase = ''
             mkdir -p $out/lib/gmw-backend
@@ -170,6 +200,20 @@ WRAPPER
                 fi
               fi
             done
+            echo "=== Cleaning node-datachannel build tree ==="
+            # Runtime only needs build/Release/node_datachannel.node + dist/ —
+            # the cmake FetchContent sources (build/_deps, ~380MB), intermediate
+            # cmake files, and the nested node_modules of build tooling (nw-gyp,
+            # typescript, puppeteer, eslint, ... ~380MB) are build-time only.
+            for pkg in node_modules/.pnpm/@lng2004+node-datachannel@*/node_modules/@lng2004/node-datachannel
+            do
+              if [ -d "$pkg" ]; then
+                ( cd "$pkg/build" \
+                    && find . -mindepth 1 -maxdepth 1 ! -name 'Release' -exec rm -rf {} + ) 2>/dev/null || true
+                rm -rf "$pkg/node_modules" 2>/dev/null || true
+                echo "node-datachannel cleaned: $(du -sh "$pkg" | cut -f1)"
+              fi
+            done
             echo "=== Compiling TypeScript ==="
             npx tsc 2>&1
             echo "=== Fixing @/ path aliases to relative paths ==="
@@ -198,7 +242,7 @@ WRAPPER
               console.log('Fixed ' + count + ' files');
             "
             echo "=== Build complete ==="
-          '';
+          '' + pruneProd;
 
           installPhase = ''
             mkdir -p $out/lib/gmw-discord-gateway
