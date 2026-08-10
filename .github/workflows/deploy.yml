@@ -109,9 +109,18 @@ jobs:
 
       # Push build result to Attic binary cache (attic.asepharyana.my.id) so
       # the VPS can substitute it instead of a single-stream `nix copy ssh://`.
-      # The attic client runs on the VPS (pre-built at
-      # /nix/store/fygyy3yk4rqdknxkiwkqambpnhyax0k4-attic-0.1.0, config in
-      # /root/.config/attic with server "imrnes-ts" → Tailscale 100.121.180.82).
+      #
+      # Fast path: push DIRECTLY from the runner to the public attic endpoint
+      # (validated 2026-08-10: token auth over public HTTPS works without
+      # Tailscale). This skips the ~794MB closure SSH copy to the VPS that
+      # used to take 25+ minutes per new store path.
+      #
+      # The attic client is NOT in nixpkgs anymore and has no prebuilt
+      # releases, so we pull the same prebuilt closure the VPS uses
+      # (/nix/store/fygyy3yk4rqdknxkiwkqambpnhyax0k4-attic-0.1.0, ~52MB)
+      # via `nix copy --from ssh://`. If anything fails we fall back to the
+      # old VPS-hop flow (SSH copy to VPS, then attic push from the VPS over
+      # Tailscale) so the deploy step always has a working closure path.
       - name: Push to Attic cache
         env:
           ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
@@ -121,12 +130,45 @@ jobs:
             exit 0
           fi
           STORE_PATH="${{ steps.build.outputs.store-path }}"
-          # Copy closure to VPS (fast if attic already has it via substitute)
-          ssh "$VPS_USER@$VPS_HOST" "sudo /nix/var/nix/profiles/default/bin/nix-store --realise '$STORE_PATH'" 2>/dev/null \
-            || nix copy --to "ssh://$VPS_USER@$VPS_HOST" "$STORE_PATH"
-          # Push from VPS → Attic over Tailscale (reliable for large payloads)
-          ssh "$VPS_USER@$VPS_HOST" "/nix/store/fygyy3yk4rqdknxkiwkqambpnhyax0k4-attic-0.1.0/bin/attic push imrnes-ts:gmw '$STORE_PATH' --jobs 4" \
-            || echo "attic push failed (non-fatal; ssh copy fallback below)"
+          ATTIC_PATH="/nix/store/fygyy3yk4rqdknxkiwkqambpnhyax0k4-attic-0.1.0/bin/attic"
+
+          attic_push_vps_hop() {
+            echo "Fallback: VPS-hop attic push"
+            # Copy closure to VPS (fast if attic already has it via substitute)
+            ssh "$VPS_USER@$VPS_HOST" "sudo /nix/var/nix/profiles/default/bin/nix-store --realise '$STORE_PATH'" 2>/dev/null \
+              || nix copy --to "ssh://$VPS_USER@$VPS_HOST" "$STORE_PATH"
+            # Push from VPS → Attic over Tailscale (reliable for large payloads)
+            ssh "$VPS_USER@$VPS_HOST" "$ATTIC_PATH push imrnes-ts:gmw '$STORE_PATH' --jobs 4" \
+              || echo "attic push failed (non-fatal; ssh copy fallback below)"
+          }
+
+          # ── Get an attic client on the runner ────────────────────────────
+          ATTIC_BIN=""
+          if command -v attic >/dev/null 2>&1; then
+            ATTIC_BIN="$(command -v attic)"
+          elif nix copy --from "ssh://$VPS_USER@$VPS_HOST" /nix/store/fygyy3yk4rqdknxkiwkqambpnhyax0k4-attic-0.1.0 2>/dev/null; then
+            ATTIC_BIN="$ATTIC_PATH"
+          else
+            echo "attic client unavailable on runner; using VPS-hop flow"
+            attic_push_vps_hop
+            exit 0
+          fi
+
+          # ── Direct push: runner → attic public endpoint ──────────────────
+          mkdir -p "$HOME/.config/attic"
+          cat > "$HOME/.config/attic/config.toml" <<EOF
+          default-server = "pub"
+
+          [servers.pub]
+          endpoint = "https://attic.asepharyana.my.id"
+          token = "$ATTIC_TOKEN"
+          EOF
+          if "$ATTIC_BIN" push pub:gmw "$STORE_PATH" --jobs 4; then
+            echo "✅ Pushed $STORE_PATH to attic directly from runner"
+          else
+            echo "⚠️ Direct attic push failed; using VPS-hop flow"
+            attic_push_vps_hop
+          fi
 
       # NOTE: env files /etc/gmw/backend.env & /etc/gmw/discord-gateway.env are
       # managed MANUALLY on the VPS (source of truth). CI only builds & deploys.
