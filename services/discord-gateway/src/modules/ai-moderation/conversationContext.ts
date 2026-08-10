@@ -13,6 +13,26 @@ export interface ConversationContextInput {
   contextBefore: MessageRecord[];
   targets: MessageRecord[];
   maxTokens: number;
+  /**
+   * Hard age cap for context messages (ms). Messages older than this
+   * relative to the target are stale conversation noise and dropped.
+   */
+  maxAgeMs?: number;
+  /**
+   * Silence threshold (ms). A gap between consecutive context messages
+   * larger than this means the conversation restarted — older messages
+   * belong to a previous conversation and are dropped.
+   */
+  gapMs?: number;
+}
+
+export interface ConversationContextResult {
+  /** Formatted context lines (oldest → newest, recency-gated). */
+  lines: string[];
+  /** One-line flow descriptor: status, span, dropped counts. */
+  descriptor: string;
+  /** Number of context messages dropped by the recency gates. */
+  dropped: number;
 }
 
 let _encoder: ReturnType<typeof encodingForModel> | null = null;
@@ -114,15 +134,113 @@ export function formatMessageForPrompt(
 }
 
 /**
+ * Builds a one-line `<location_context>` source line for the batch — channel
+ * name, thread name and age-restriction flags from captured message metadata.
+ * The LLM uses it to judge messages in the right channel context (e.g. a
+ * thread about a specific topic, or an age-restricted channel).
+ */
+export function buildLocationContext(targets: MessageRecord[]): string {
+  const target = targets[0];
+  if (!target?.metadata) return "";
+  try {
+    const meta = JSON.parse(target.metadata) as {
+      channel?: {
+        channelName?: string | null;
+        threadName?: string | null;
+        nsfw?: boolean;
+        ageRestricted?: boolean;
+        nsfwLevel?: string | null;
+      } | null;
+    };
+    const ch = meta?.channel;
+    if (!ch) return "";
+    const parts: string[] = [];
+    parts.push(
+      `id=${target.channel_id}${
+        ch.channelName ? ` name=${JSON.stringify(ch.channelName)}` : ""
+      }`,
+    );
+    if (target.thread_id || ch.threadName) {
+      parts.push(
+        `thread=${target.thread_id}${
+          ch.threadName ? ` thread_name=${JSON.stringify(ch.threadName)}` : ""
+        }`,
+      );
+    }
+    if (typeof ch.nsfw === "boolean") {
+      parts.push(`nsfw=${ch.nsfw}`);
+    }
+    if (typeof ch.ageRestricted === "boolean") {
+      parts.push(`age_restricted=${ch.ageRestricted}`);
+    }
+    return `[location] ${parts.join(" ")}`;
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Builds conversation historical context without including targets.
- * Calculates how much token budget targets use, and fills the rest with context.
+ *
+ * Two recency gates decide whether a conversation is STILL the same one
+ * ("obrolan berlanjut") or already restarted:
+ *  - `gapMs`: a silence longer than this between two context messages cuts
+ *    the block there — earlier messages belong to a previous conversation.
+ *  - `maxAgeMs`: anything older than this relative to the target is noise.
+ *
+ * On a cold start (no recent context), the nearest messages are kept as a
+ * sparse anchor and the descriptor says `cold_start` instead of `ongoing`,
+ * so the LLM does not mistake scattered old messages for an active chat.
  */
 export function buildConversationContext(
   input: ConversationContextInput,
-): string[] {
+): ConversationContextResult {
   const { contextBefore, targets, maxTokens } = input;
+  const maxAgeMs = input.maxAgeMs ?? 45 * 60 * 1000;
+  const gapMs = input.gapMs ?? 12 * 60 * 1000;
 
-  // Calculate tokens used by targets (parallel)
+  const targetTime = targets.reduce(
+    (min, t) => Math.min(min, t.created_at),
+    targets[0]?.created_at ?? Date.now(),
+  );
+
+  // ── Recency gating (walk newest → oldest) ───────────────────────────────
+  const gated: MessageRecord[] = [];
+  let latestSelected: MessageRecord | null = null;
+  let gapBeforeMs: number | null = null;
+  let dropped = 0;
+
+  for (let i = contextBefore.length - 1; i >= 0; i--) {
+    const msg = contextBefore[i];
+    // Age gate
+    if (targetTime - msg.created_at > maxAgeMs) {
+      dropped += i + 1; // everything older also exceeds the age cap
+      break;
+    }
+    // Gap gate — silence between this message and the newer one already selected
+    if (latestSelected && latestSelected.created_at - msg.created_at > gapMs) {
+      gapBeforeMs = latestSelected.created_at - msg.created_at;
+      dropped += i + 1;
+      break;
+    }
+    gated.push(msg);
+    latestSelected = msg;
+  }
+
+  const gatedNewestFirst = gated.reverse();
+  let status: "ongoing" | "cold_start" | "sparse";
+  if (gatedNewestFirst.length === 0) {
+    // Cold start — keep a small anchor of the nearest messages so the LLM
+    // still senses the channel, but mark it clearly.
+    status = "cold_start";
+    gatedNewestFirst.push(...contextBefore.slice(-2)); // ± 2 nearest to target
+  } else if (gapBeforeMs === null) {
+    status = "ongoing";
+  } else {
+    status = "sparse";
+  }
+
+  // ── Format + token budget (most recent first, like before) ─────────────
   const targetLines = targets.map((msg) =>
     formatMessageForPrompt(msg, "target"),
   );
@@ -131,7 +249,7 @@ export function buildConversationContext(
     0,
   );
 
-  const contextLines = contextBefore.map((msg) =>
+  const contextLines = gatedNewestFirst.map((msg) =>
     formatMessageForPrompt(msg, "context"),
   );
   const selectedContextLines: string[] = [];
@@ -148,14 +266,26 @@ export function buildConversationContext(
     }
   }
 
+  const descriptorParts = [
+    `[conversation_flow] status=${status}`,
+    `context_msgs=${selectedContextLines.length}`,
+    `dropped=${dropped}`,
+  ];
+  if (gapBeforeMs !== null) {
+    descriptorParts.push(`gap_before_min=${Math.round(gapBeforeMs / 60000)}`);
+  }
+  const descriptor = descriptorParts.join(" ");
+
   logger.debug(
     {
       targetCount: targets.length,
       contextCount: selectedContextLines.length,
+      status,
+      dropped,
       usedTokens,
       maxTokens,
     },
     "Conversation context built",
   );
-  return selectedContextLines;
+  return { lines: selectedContextLines, descriptor, dropped };
 }

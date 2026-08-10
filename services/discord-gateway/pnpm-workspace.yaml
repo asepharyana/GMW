@@ -3,6 +3,7 @@ allowBuilds:
   "@lng2004/node-datachannel": true
   esbuild: true
   node-av: true
+  sharp: true
   zeromq: true
 # pnpm 11 requires build-script approvals here (the legacy `pnpm` field in
 # package.json is ignored). Native voice deps need their postinstall build.

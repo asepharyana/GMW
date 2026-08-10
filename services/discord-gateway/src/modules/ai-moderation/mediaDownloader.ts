@@ -494,8 +494,9 @@ export async function fetchUrlInline(
       sourceLabel: `[gambar dari URL ${url} (inline), pesan id=${targetId}]`,
     });
   } else if (result.type === "text" && result.textContent) {
+    const titleAttr = result.title ? ` title="${escapeXml(result.title)}"` : "";
     webTexts.push(
-      `<web_content url="${escapeXml(url)}">${escapeXml(result.textContent.slice(0, 2000))}</web_content>`,
+      `<web_content url="${escapeXml(url)}"${titleAttr}>${escapeXml(result.textContent.slice(0, 2000))}</web_content>`,
     );
   }
 }

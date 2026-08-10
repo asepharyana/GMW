@@ -189,6 +189,17 @@ export const configSchema = z
       .int()
       .positive()
       .default(20),
+    // Recency gates for conversation context. A silence longer than GAP_MS
+    // between context messages = the conversation restarted (older messages
+    // dropped); MAX_AGE_MS caps how far back context is considered relevant.
+    AI_ANALYSIS_CONTEXT_GAP_MS: z.coerce
+      .number()
+      .positive()
+      .default(12 * 60 * 1000),
+    AI_ANALYSIS_CONTEXT_MAX_AGE_MS: z.coerce
+      .number()
+      .positive()
+      .default(45 * 60 * 1000),
     AI_ANALYSIS_PROCESSING_TIMEOUT_MS: z.coerce
       .number()
       .positive()

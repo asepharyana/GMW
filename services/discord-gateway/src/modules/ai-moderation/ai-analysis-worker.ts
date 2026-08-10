@@ -21,7 +21,10 @@ import { config } from "../../shared/config/config.js";
 import { initializeDatabase } from "../../shared/database/drizzle.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
-import { buildConversationContext } from "./conversationContext.js";
+import {
+  buildConversationContext,
+  buildLocationContext,
+} from "./conversationContext.js";
 import { runModerationAnalysis } from "./moderationOrchestrator.js";
 
 const logger = createChildLogger("ai-analysis-worker");
@@ -274,8 +277,16 @@ async function processBatch(job: {
     contextBefore,
     targets: messages,
     maxTokens: config.AI_ANALYSIS_MAX_CONTEXT_TOKENS,
+    maxAgeMs: config.AI_ANALYSIS_CONTEXT_MAX_AGE_MS,
+    gapMs: config.AI_ANALYSIS_CONTEXT_GAP_MS,
   });
-  const contextText = contextLines.join("\n");
+  const contextText = [
+    buildLocationContext(messages),
+    contextLines.descriptor,
+    ...contextLines.lines,
+  ]
+    .filter((l) => l.trim().length > 0)
+    .join("\n");
 
   const targetIds = messages.map((m) => m.id);
   const contextIds = contextBefore.map((m) => m.id);
@@ -359,8 +370,16 @@ async function processIndividual(job: {
     contextBefore,
     targets: [message],
     maxTokens: config.AI_ANALYSIS_MAX_CONTEXT_TOKENS,
+    maxAgeMs: config.AI_ANALYSIS_CONTEXT_MAX_AGE_MS,
+    gapMs: config.AI_ANALYSIS_CONTEXT_GAP_MS,
   });
-  const contextText = contextLines.join("\n");
+  const contextText = [
+    buildLocationContext([message]),
+    contextLines.descriptor,
+    ...contextLines.lines,
+  ]
+    .filter((l) => l.trim().length > 0)
+    .join("\n");
 
   const contextIds = contextBefore.map((m) => m.id);
   const attachments = await messageStore.getAttachmentsForMessages([

@@ -11,6 +11,8 @@ export interface FetchedUrlContext {
   data?: Buffer;
   mimeType?: string;
   textContent?: string;
+  /** Page title from og:title / <title> — strong signal for the LLM. */
+  title?: string;
   error?: string;
 }
 
@@ -84,6 +86,50 @@ function extractOgImage(html: string): string | null {
   }
 
   return null;
+}
+
+export interface OgMeta {
+  title: string | null;
+  description: string | null;
+  siteName: string | null;
+}
+
+/**
+ * Extracts OpenGraph / twitter meta + <title> from raw HTML. Both attribute
+ * orders are accepted (<meta property=... content=...> and reversed).
+ */
+export function extractOgMeta(html: string): OgMeta {
+  const metaValue = (name: string): string | null => {
+    const re = new RegExp(
+      `<meta[^>]*(?:property|name)=["']${name}["'][^>]*content=["']([^"']+)["']`,
+      "i",
+    );
+    const m = html.match(re);
+    if (m?.[1]) return m[1].replace(/&amp;/g, "&").replace(/&quot;/g, '"');
+    const reRev = new RegExp(
+      `<meta[^>]*content=["']([^"']+)["'][^>]*(?:property|name)=["']${name}["']`,
+      "i",
+    );
+    const mRev = html.match(reRev);
+    return mRev?.[1]
+      ? mRev[1].replace(/&amp;/g, "&").replace(/&quot;/g, '"')
+      : null;
+  };
+
+  const title =
+    metaValue("og:title") ||
+    metaValue("twitter:title") ||
+    html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() ||
+    null;
+  const description =
+    metaValue("og:description") ||
+    metaValue("twitter:description") ||
+    metaValue("description") ||
+    null;
+  const siteName =
+    metaValue("og:site_name") || metaValue("application-name") || null;
+
+  return { title, description, siteName };
 }
 
 function truncateAndCleanHtml(html: string, maxLen = 1000): string {
@@ -176,6 +222,7 @@ export async function fetchUrlSafely(
         url,
         type: "text",
         textContent: cleaned,
+        title: extractOgMeta(text).title ?? undefined,
       };
     }
 

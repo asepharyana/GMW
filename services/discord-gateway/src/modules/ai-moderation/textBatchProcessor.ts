@@ -6,7 +6,9 @@
  * the LLM for analysis. Extracted from moderationOrchestrator.ts.
  */
 import { createChildLogger } from "@/shared/logger/index";
+import { delay } from "@/shared/utils/index";
 import { config } from "../../shared/config/config.js";
+import { resizeImageForVision } from "../attachment-upload/imageResizer.js";
 import type {
   AnalysisResult,
   MessageRecord,
@@ -14,6 +16,7 @@ import type {
 import { getChannelCulture } from "./channelCultureStore.js";
 import type { ModerationPromptContent, RetryState } from "./llmCaller.js";
 import { callModerationLLM } from "./llmCaller.js";
+import { analyzeSingleMediaImage } from "./mediaAnalysisClient.js";
 import {
   buildReferenceXml,
   escapeXml,
@@ -33,6 +36,7 @@ import { getRecentCorrectedModerations } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 import { getUserProfile } from "./userProfileStore.js";
 import { initializeUserReputation } from "./userReputationStore.js";
+import type { MessageImagePart } from "./visionAnalyzer.js";
 
 const log = createChildLogger("textBatchProcessor");
 
@@ -84,22 +88,33 @@ export async function runTextOnlyBatch(
         allUrls.add(url);
     }
     const urlArr = Array.from(allUrls).slice(0, 10);
-    if (urlArr.length === 0) return new Map<string, string>();
+    if (urlArr.length === 0) {
+      return {
+        text: new Map<string, string>(),
+        image: new Map<string, { data: Buffer; mimeType: string }>(),
+        title: new Map<string, string>(),
+      };
+    }
     const results = await Promise.allSettled(
       urlArr.map((url) => fetchUrlSafely(url)),
     );
-    const map = new Map<string, string>();
+    const textMap = new Map<string, string>();
+    const imageMap = new Map<string, { data: Buffer; mimeType: string }>();
+    const titleMap = new Map<string, string>();
     for (let i = 0; i < urlArr.length; i++) {
       const r = results[i];
-      if (
-        r.status === "fulfilled" &&
-        r.value.type === "text" &&
-        r.value.textContent
-      ) {
-        map.set(urlArr[i], r.value.textContent);
+      if (r.status !== "fulfilled") continue;
+      const v = r.value;
+      if (v.type === "text" && v.textContent) {
+        textMap.set(urlArr[i], v.textContent);
+        if (v.title) titleMap.set(urlArr[i], v.title);
+      } else if (v.type === "image" && v.data && v.mimeType) {
+        // Direct image link (or og:image followed from an HTML page) —
+        // kept for vision analysis below.
+        imageMap.set(urlArr[i], { data: v.data, mimeType: v.mimeType });
       }
     }
-    return map;
+    return { text: textMap, image: imageMap, title: titleMap };
   })();
 
   const searxngPromise = (async () => {
@@ -122,10 +137,11 @@ export async function runTextOnlyBatch(
     return map;
   })();
 
-  const [urlFetchMap, searxngResults] = await Promise.all([
+  const [urlFetchMaps, searxngResults] = await Promise.all([
     urlFetchPromise,
     searxngPromise,
   ]);
+  const urlFetchMap = urlFetchMaps.text;
 
   // Deduplicate identical short messages
   const shortContentGroups = new Map<string, MessageRecord[]>();
@@ -193,6 +209,65 @@ export async function runTextOnlyBatch(
       }
     }
 
+    // ── URL images → multimodal vision evidence ─────────────────────────
+    // The text batch fetches inline URLs; whenever one resolved to an image
+    // (direct image link, or og:image followed from an HTML page), run the
+    // vision model and append its description as media evidence. If any
+    // message in the sub-batch produced image evidence, the prompt switches
+    // to "mixed" mode so media-analysis instructions/examples are injected
+    // — a link to media is analyzed as media, not as bare text.
+    const batchImageEvidence = new Map<string, string[]>();
+    let batchHasImageEvidence = false;
+    const urlImages = urlFetchMaps.image;
+    const urlTitles = urlFetchMaps.title;
+    if (urlImages.size > 0) {
+      const maxDim = config.AI_LLM_IMAGE_MAX_DIMENSION ?? 1024;
+      const evidenceSets = await Promise.all(
+        batch.map(async (msg) => {
+          const content = getAnalysisContent(msg);
+          const pics = extractUrlsFromText(content)
+            .slice(0, 3)
+            .filter((url) => urlImages.has(url));
+          if (pics.length === 0) return { id: msg.id, lines: [] as string[] };
+          const lines = await Promise.all(
+            pics.map(async (url) => {
+              const img = urlImages.get(url)!;
+              try {
+                const { data: resizedBuffer, mimeType: resizedMime } =
+                  await resizeImageForVision(img.data, maxDim);
+                const part: MessageImagePart = {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`,
+                  },
+                  sourceLabel: `[gambar dari URL ${url} (inline), pesan id=${msg.id}]`,
+                };
+                // Bound vision time so a dead vision model can't stall the
+                // whole text batch — a timeout just skips the evidence.
+                const timedOut = delay(15000).then(() => null as string | null);
+                return await Promise.race([
+                  analyzeSingleMediaImage(msg.id, part),
+                  timedOut,
+                ]);
+              } catch {
+                return null;
+              }
+            }),
+          );
+          return {
+            id: msg.id,
+            lines: lines.filter((l): l is string => Boolean(l)),
+          };
+        }),
+      );
+      for (const set of evidenceSets) {
+        if (set.lines.length > 0) {
+          batchImageEvidence.set(set.id, set.lines);
+          batchHasImageEvidence = true;
+        }
+      }
+    }
+
     const buildContent = async (
       state: RetryState,
     ): Promise<ModerationPromptContent> => {
@@ -205,7 +280,7 @@ export async function runTextOnlyBatch(
       const correctedExamples = await buildCorrectedFewShotExamples();
       const systemText = buildSystemPromptModular({
         contextText,
-        mode: "text",
+        mode: batchHasImageEvidence ? "mixed" : "text",
         correction,
         correctedExamples,
         channelCulture,
@@ -219,17 +294,21 @@ export async function runTextOnlyBatch(
             const urlContexts = msgUrls
               .map((url) => {
                 const ft = urlFetchMap.get(url);
-                return ft
-                  ? `<web_content url="${escapeXml(url)}">${escapeXml(ft)}</web_content>`
-                  : null;
+                if (!ft) return null;
+                const title = urlTitles.get(url);
+                const titleAttr = title ? ` title="${escapeXml(title)}"` : "";
+                return `<web_content url="${escapeXml(url)}"${titleAttr}>${escapeXml(ft)}</web_content>`;
               })
               .filter(Boolean)
               .join("\n");
             const webContext = urlContexts ? `\n${urlContexts}` : "";
+            const mediaEvidenceCtx = (batchImageEvidence.get(msg.id) ?? [])
+              .map((line) => `\n${line}`)
+              .join("");
             const userCtx = userContexts.get(msg.user_id) ?? "";
             const userProfileCtx = userProfiles.get(msg.user_id) ?? "";
             const refXml = await buildReferenceXml(msg);
-            return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}${userProfileCtx ? `\n  ${userProfileCtx}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${webContext}\n</message>`;
+            return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}${userProfileCtx ? `\n  ${userProfileCtx}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${webContext}${mediaEvidenceCtx}\n</message>`;
           }),
         )
       ).join("\n");
