@@ -153,9 +153,13 @@ jobs:
             echo "Fallback: VPS-hop attic push"
             # Copy closure to VPS (fast if attic already has it via substitute)
             ssh "$VPS_USER@$VPS_HOST" "sudo /nix/var/nix/profiles/default/bin/nix-store --realise '$STORE_PATH'" 2>/dev/null \
-              || nix copy --to "ssh://$VPS_USER@$VPS_HOST" "$STORE_PATH"
-            # Push from VPS → Attic over Tailscale (reliable for large payloads)
-            ssh "$VPS_USER@$VPS_HOST" "$ATTIC_BIN push imrnes-ts:gmw '$STORE_PATH' --jobs 4" \
+              || nix copy --to "ssh://***@$VPS_HOST" "$STORE_PATH"
+            # Push from VPS → Attic over Tailscale.
+            # --ignore-upstream-cache-filter is REQUIRED: without it, attic skips
+            # writing the narinfo to gmw when chunks exist in the upstream
+            # cache.nixos.org — leaving the path 404 on gmw so the VPS deploy's
+            # nix-store --realise can't find it and falls back to ssh copy.
+            ssh "$VPS_USER@$VPS_HOST" "$ATTIC_BIN push imrnes-ts:gmw '$STORE_PATH' --jobs 4 --ignore-upstream-cache-filter" \
               || echo "attic push failed (non-fatal; ssh copy fallback below)"
           }
 
@@ -183,6 +187,9 @@ jobs:
           fi
 
           # ── Direct push: runner → attic public endpoint ──────────────────
+          # --ignore-upstream-cache-filter forces the narinfo write even when
+          # the path's chunks already exist in upstream cache.nixos.org (which
+          # attic would otherwise skip, leaving the path 404 on the gmw cache).
           mkdir -p "$HOME/.config/attic"
           cat > "$HOME/.config/attic/config.toml" <<EOF
           default-server = "pub"
@@ -191,7 +198,7 @@ jobs:
           endpoint = "https://attic.asepharyana.my.id"
           token = "$ATTIC_TOKEN"
           EOF
-          if "$ATTIC_BIN" push pub:gmw "$STORE_PATH" --jobs 4; then
+          if "$ATTIC_BIN" push pub:gmw "$STORE_PATH" --jobs 4 --ignore-upstream-cache-filter; then
             echo "✅ Pushed $STORE_PATH to attic directly from runner"
           else
             echo "⚠️ Direct attic push failed; using VPS-hop flow"
