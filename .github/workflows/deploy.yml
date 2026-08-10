@@ -153,13 +153,16 @@ jobs:
             echo "Fallback: VPS-hop attic push"
             # Copy closure to VPS (fast if attic already has it via substitute)
             ssh "$VPS_USER@$VPS_HOST" "sudo /nix/var/nix/profiles/default/bin/nix-store --realise '$STORE_PATH'" 2>/dev/null \
-              || nix copy --to "ssh://***@$VPS_HOST" "$STORE_PATH"
+              || nix copy --to "ssh://$VPS_USER@$VPS_HOST" "$STORE_PATH"
             # Push from VPS → Attic over Tailscale.
             # --ignore-upstream-cache-filter is REQUIRED: without it, attic skips
             # writing the narinfo to gmw when chunks exist in the upstream
             # cache.nixos.org — leaving the path 404 on gmw so the VPS deploy's
             # nix-store --realise can't find it and falls back to ssh copy.
-            ssh "$VPS_USER@$VPS_HOST" "$ATTIC_BIN push imrnes-ts:gmw '$STORE_PATH' --jobs 4 --ignore-upstream-cache-filter" \
+            # sudo: attic must read root's config (~/.config/attic), which has
+            # the imrnes-ts server → Tailscale. Non-root users' configs only
+            # have the public `pub` server → "Server imrnes-ts does not exist".
+            ssh "$VPS_USER@$VPS_HOST" "sudo $ATTIC_BIN push imrnes-ts:gmw '$STORE_PATH' --jobs 4 --ignore-upstream-cache-filter" \
               || echo "attic push failed (non-fatal; ssh copy fallback below)"
           }
 
@@ -198,10 +201,21 @@ jobs:
           endpoint = "https://attic.asepharyana.my.id"
           token = "$ATTIC_TOKEN"
           EOF
-          if "$ATTIC_BIN" push pub:gmw "$STORE_PATH" --jobs 4 --ignore-upstream-cache-filter; then
-            echo "✅ Pushed $STORE_PATH to attic directly from runner"
-          else
-            echo "⚠️ Direct attic push failed; using VPS-hop flow"
+          # Retry the direct push — a transient 502 (e.g. atticd restart,
+          # Traefik blip) must not abort the whole closure upload. attic push
+          # is idempotent, so re-running only uploads what's still missing.
+          push_ok=""
+          for attempt in 1 2 3; do
+            if "$ATTIC_BIN" push pub:gmw "$STORE_PATH" --jobs 4 --ignore-upstream-cache-filter; then
+              echo "✅ Pushed $STORE_PATH to attic directly from runner"
+              push_ok=1
+              break
+            fi
+            echo "⚠️ Direct attic push attempt $attempt/3 failed; retrying in 10s..."
+            sleep 10
+          done
+          if [ -z "$push_ok" ]; then
+            echo "Direct attic push failed after 3 attempts; using VPS-hop flow"
             attic_push_vps_hop
           fi
 
