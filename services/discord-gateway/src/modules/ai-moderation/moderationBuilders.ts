@@ -37,6 +37,27 @@ export function getAnalysisContent(message: MessageRecord): string {
 }
 
 /**
+ * Server nickname (member.displayName) when captured, else the author
+ * username. Discord shows the server nickname to other members, so the LLM
+ * should see the same name the channel sees — and a nickname can carry
+ * moderation signal itself (offensive nick + clean message → low warn).
+ */
+export function resolveDisplayName(msg: MessageRecord): string {
+  if (msg.metadata) {
+    try {
+      const meta = JSON.parse(msg.metadata) as {
+        member?: { displayName?: string | null } | null;
+      };
+      const dn = meta?.member?.displayName;
+      if (dn && dn.trim().length > 0) return dn;
+    } catch {
+      // malformed metadata — fall back to username
+    }
+  }
+  return msg.username;
+}
+
+/**
  * Builds a <reference> XML element for reply/forward/crosspost context.
  */
 export async function buildReferenceXml(msg: MessageRecord): Promise<string> {

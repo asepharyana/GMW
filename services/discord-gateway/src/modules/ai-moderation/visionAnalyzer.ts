@@ -39,6 +39,7 @@ import {
   buildReferenceXml,
   escapeXml,
   getAnalysisContent,
+  resolveDisplayName,
 } from "./moderationBuilders.js";
 import {
   buildCustomEmojiVisionPrompt,
@@ -367,6 +368,6 @@ export async function prepareMediaMessage(
   const profile = await getUserProfile(target.user_id);
   const refXml = await buildReferenceXml(target);
 
-  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(target.username)}">\n  <user_reputation trust_score="${rep.trust_score}" />${profile ? `\n  <user_profile>${sanitizeAiContent(profile.profile_summary)}</user_profile>` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${searxngXml}\n</message>`;
+  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(resolveDisplayName(target))}">\n  <user_reputation trust_score="${rep.trust_score}" />${profile ? `\n  <user_profile>${sanitizeAiContent(profile.profile_summary)}</user_profile>` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${searxngXml}\n</message>`;
   return { targetId, messageBlock };
 }

@@ -6,6 +6,7 @@ import {
 } from "../message-capture/messageMetadata.js";
 import type { MessageRecord } from "../message-capture/types.js";
 import { sanitizeDiscordTokens } from "./discordTokens.js";
+import { resolveDisplayName } from "./moderationBuilders.js";
 
 const logger = createChildLogger("conversationContext");
 
@@ -130,7 +131,7 @@ export function formatMessageForPrompt(
   const mediaEvidence = formatMediaEvidenceForPrompt(msg.metadata);
   const mediaSuffix = mediaEvidence ? ` ${mediaEvidence}` : "";
   const refInfo = formatReferenceInfo(msg);
-  return `[${label}] id=${msg.id} time=${timestamp} user=${msg.username}: ${content}${mediaSuffix}${refInfo}`;
+  return `[${label}] id=${msg.id} time=${timestamp} user=${resolveDisplayName(msg)}: ${content}${mediaSuffix}${refInfo}`;
 }
 
 /**

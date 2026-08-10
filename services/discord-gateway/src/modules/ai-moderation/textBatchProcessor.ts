@@ -21,6 +21,7 @@ import {
   buildReferenceXml,
   escapeXml,
   getAnalysisContent,
+  resolveDisplayName,
 } from "./moderationBuilders.js";
 import {
   buildSystemPrompt as buildSystemPromptModular,
@@ -308,7 +309,7 @@ export async function runTextOnlyBatch(
             const userCtx = userContexts.get(msg.user_id) ?? "";
             const userProfileCtx = userProfiles.get(msg.user_id) ?? "";
             const refXml = await buildReferenceXml(msg);
-            return `<message id="${msg.id}" user="${msg.username}">\n  ${userCtx}${userProfileCtx ? `\n  ${userProfileCtx}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${webContext}${mediaEvidenceCtx}\n</message>`;
+            return `<message id="${msg.id}" user="${resolveDisplayName(msg)}">\n  ${userCtx}${userProfileCtx ? `\n  ${userProfileCtx}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${webContext}${mediaEvidenceCtx}\n</message>`;
           }),
         )
       ).join("\n");

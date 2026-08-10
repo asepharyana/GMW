@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildConversationContext,
   buildLocationContext,
+  formatMessageForPrompt,
 } from "../src/modules/ai-moderation/conversationContext.js";
 import { extractOgMeta } from "../src/modules/ai-moderation/urlFetcher.js";
 import type { MessageRecord } from "../src/modules/message-capture/types.js";
@@ -136,6 +137,30 @@ describe("buildConversationContext — recency gating", () => {
     });
     expect(lines.length).toBeLessThan(20);
     expect(lines.length).toBeGreaterThan(0);
+  });
+});
+
+describe("formatMessageForPrompt — server nickname (displayName)", () => {
+  it("renders member.displayName when captured (per-server nickname)", () => {
+    const m = msg("n1", NOW - MIN);
+    m.metadata = JSON.stringify({
+      member: {
+        displayName: "Si Goblok Server",
+        roles: [],
+        joinedTimestamp: null,
+      },
+    });
+    const line = formatMessageForPrompt(m, "context");
+    expect(line).toContain("user=Si Goblok Server");
+    expect(line).not.toContain("user_user_n1");
+  });
+
+  it("falls back to global username when displayName missing", () => {
+    const line = formatMessageForPrompt(
+      msg("n2", NOW - MIN, "halo"),
+      "context",
+    );
+    expect(line).toContain("user=user_n2");
   });
 });
 
