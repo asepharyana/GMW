@@ -37,16 +37,17 @@ import {
 } from "./mediaDownloader.js";
 import {
   buildReferenceXml,
+  buildUserProfileRef,
   escapeXml,
   getAnalysisContent,
   resolveDisplayName,
+  truncateForAi,
 } from "./moderationBuilders.js";
 import {
   buildCustomEmojiVisionPrompt,
   buildGeneralImageVisionPrompt,
   buildStickerTextOnlyWarning,
   buildStickerVisionPrompt,
-  sanitizeAiContent,
 } from "./moderationPrompt.js";
 import {
   extractSearchQueries,
@@ -367,7 +368,14 @@ export async function prepareMediaMessage(
   const rep = await initializeUserReputation(target.user_id, target.guild_id);
   const profile = await getUserProfile(target.user_id);
   const refXml = await buildReferenceXml(target);
+  // Profile is emitted ONCE per batch in a <user_profiles> map (see
+  // mediaBatchProcessor); here we only reference it to avoid repeating the
+  // full summary on every message of the same user.
+  const profileRef =
+    profile && profile.profile_summary?.trim()
+      ? buildUserProfileRef(target.user_id)
+      : "";
 
-  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(resolveDisplayName(target))}">\n  <user_reputation trust_score="${rep.trust_score}" />${profile ? `\n  <user_profile>${sanitizeAiContent(profile.profile_summary)}</user_profile>` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${searxngXml}\n</message>`;
+  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(resolveDisplayName(target))}">\n  <user_reputation trust_score="${rep.trust_score}" />${profileRef ? `\n  ${profileRef}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(truncateForAi(content))}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${searxngXml}\n</message>`;
   return { targetId, messageBlock };
 }

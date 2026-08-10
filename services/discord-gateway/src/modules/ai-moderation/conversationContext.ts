@@ -6,7 +6,7 @@ import {
 } from "../message-capture/messageMetadata.js";
 import type { MessageRecord } from "../message-capture/types.js";
 import { sanitizeDiscordTokens } from "./discordTokens.js";
-import { resolveDisplayName } from "./moderationBuilders.js";
+import { escapeXml, resolveDisplayName } from "./moderationBuilders.js";
 
 const logger = createChildLogger("conversationContext");
 
@@ -124,8 +124,10 @@ export function formatMessageForPrompt(
   msg: MessageRecord,
   label: "context" | "target",
 ): string {
-  const content = sanitizeDiscordTokens(
-    renderDiscordMentions(msg.edited_content ?? msg.content, msg.metadata),
+  const content = truncateContextLine(
+    sanitizeDiscordTokens(
+      renderDiscordMentions(msg.edited_content ?? msg.content, msg.metadata),
+    ),
   );
   const timestamp = formatTimestamp(msg.created_at);
   const mediaEvidence = formatMediaEvidenceForPrompt(msg.metadata);
@@ -134,11 +136,26 @@ export function formatMessageForPrompt(
   return `[${label}] id=${msg.id} time=${timestamp} user=${resolveDisplayName(msg)}: ${content}${mediaSuffix}${refInfo}`;
 }
 
+/** Max content chars per context line — a single huge paste (log dump,
+ *  copypasta) must not eat the whole conversation budget. */
+const CONTEXT_LINE_CONTENT_MAX_CHARS = 1500;
+
+/** Marker appended when a context line's content was cut. Distinct from the
+ *  target-content marker so the model knows which side was truncated. */
+export const CONTEXT_TRUNC_MARKER = "…[konteks dipotong: terlalu panjang]";
+
+/** Cap one context message's content to CONTEXT_LINE_CONTENT_MAX_CHARS. */
+export function truncateContextLine(content: string): string {
+  if (content.length <= CONTEXT_LINE_CONTENT_MAX_CHARS) return content;
+  return `${content.slice(0, CONTEXT_LINE_CONTENT_MAX_CHARS).trimEnd()}${CONTEXT_TRUNC_MARKER}`;
+}
+
 /**
- * Builds a one-line `<location_context>` source line for the batch — channel
- * name, thread name and age-restriction flags from captured message metadata.
- * The LLM uses it to judge messages in the right channel context (e.g. a
- * thread about a specific topic, or an age-restricted channel).
+ * Builds a structured `<location_context .../>` element for the batch —
+ * channel/thread name and age-restriction flags from captured message
+ * metadata. The LLM uses it to judge messages in the right channel context
+ * (e.g. a thread about a specific topic, or an age-restricted channel).
+ * Returns "" when no channel metadata was captured.
  */
 export function buildLocationContext(targets: MessageRecord[]): string {
   const target = targets[0];
@@ -155,26 +172,20 @@ export function buildLocationContext(targets: MessageRecord[]): string {
     };
     const ch = meta?.channel;
     if (!ch) return "";
-    const parts: string[] = [];
-    parts.push(
-      `id=${target.channel_id}${
-        ch.channelName ? ` name=${JSON.stringify(ch.channelName)}` : ""
-      }`,
-    );
+    const attrs: string[] = [`channel_id="${escapeXml(target.channel_id)}"`];
+    if (ch.channelName)
+      attrs.push(`channel_name="${escapeXml(ch.channelName)}"`);
     if (target.thread_id || ch.threadName) {
-      parts.push(
-        `thread=${target.thread_id}${
-          ch.threadName ? ` thread_name=${JSON.stringify(ch.threadName)}` : ""
-        }`,
-      );
+      if (target.thread_id)
+        attrs.push(`thread_id="${escapeXml(target.thread_id)}"`);
+      if (ch.threadName)
+        attrs.push(`thread_name="${escapeXml(ch.threadName)}"`);
     }
-    if (typeof ch.nsfw === "boolean") {
-      parts.push(`nsfw=${ch.nsfw}`);
-    }
+    if (typeof ch.nsfw === "boolean") attrs.push(`nsfw="${ch.nsfw}"`);
     if (typeof ch.ageRestricted === "boolean") {
-      parts.push(`age_restricted=${ch.ageRestricted}`);
+      attrs.push(`age_restricted="${ch.ageRestricted}"`);
     }
-    return `[location] ${parts.join(" ")}`;
+    return `<location_context ${attrs.join(" ")}/>`;
   } catch {
     return "";
   }

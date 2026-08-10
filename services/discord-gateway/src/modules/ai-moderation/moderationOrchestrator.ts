@@ -35,7 +35,13 @@ const log = createChildLogger("moderationOrchestrator");
 // ---------------------------------------------------------------------------
 export interface ModerationInput {
   targets: MessageRecord[];
-  contextText: string;
+  /**
+   * Pre-built XML context block for the USER message (from
+   * `buildConversationContextBlock`): `<location_context .../>` +
+   * `<conversation_context>...</conversation_context>`. Kept out of the
+   * system prompt so it stays stable/cacheable per mode.
+   */
+  contextBlock: string;
   attachments?: AttachmentRecord[];
 }
 
@@ -62,7 +68,7 @@ export interface ModerationOutput {
 export async function runModerationAnalysis(
   input: ModerationInput,
 ): Promise<ModerationOutput> {
-  const { targets, contextText, attachments } = input;
+  const { targets, contextBlock, attachments } = input;
 
   initSearxngCache(config.REDIS_URL);
   if (!targets.length) throw new Error("No targets provided for analysis");
@@ -320,10 +326,10 @@ export async function runModerationAnalysis(
   // Run both paths in parallel
   const [textBatchResult, mediaBatchResult] = await Promise.all([
     textOnlyTargets.length > 0
-      ? runTextOnlyBatch(textOnlyTargets, contextText)
+      ? runTextOnlyBatch(textOnlyTargets, contextBlock)
       : Promise.resolve({ results: [] as AnalysisResult[], raw: null }),
     mediaTargets.length > 0
-      ? runMediaBatch(mediaTargets, contextText, attachments)
+      ? runMediaBatch(mediaTargets, contextBlock, attachments)
       : Promise.resolve({ results: [] as AnalysisResult[], raw: null }),
   ]);
 

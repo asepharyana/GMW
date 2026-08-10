@@ -6,7 +6,9 @@ import {
   buildConversationContext,
   buildLocationContext,
   formatMessageForPrompt,
+  truncateContextLine,
 } from "../src/modules/ai-moderation/conversationContext.js";
+import { buildConversationContextBlock } from "../src/modules/ai-moderation/moderationBuilders.js";
 import { extractOgMeta } from "../src/modules/ai-moderation/urlFetcher.js";
 import type { MessageRecord } from "../src/modules/message-capture/types.js";
 
@@ -162,10 +164,21 @@ describe("formatMessageForPrompt — server nickname (displayName)", () => {
     );
     expect(line).toContain("user=user_n2");
   });
+
+  it("truncates an oversized context message so one paste cannot eat the whole budget", () => {
+    const huge = "A".repeat(5000);
+    const line = formatMessageForPrompt(msg("n3", NOW - MIN, huge), "context");
+    expect(line).toContain("…[konteks dipotong: terlalu panjang]");
+    expect(line.length).toBeLessThan(2000);
+  });
+
+  it("keeps short context content intact", () => {
+    expect(truncateContextLine("pendek")).toBe("pendek");
+  });
 });
 
 describe("buildLocationContext — channel/thread/nsfw enrichment", () => {
-  it("renders channel name + thread name from captured metadata", () => {
+  it("renders a structured <location_context/> element from captured metadata", () => {
     const t = target();
     t.metadata = JSON.stringify({
       channel: {
@@ -176,14 +189,60 @@ describe("buildLocationContext — channel/thread/nsfw enrichment", () => {
       },
     });
     const line = buildLocationContext([t]);
-    expect(line).toContain("[location]");
-    expect(line).toContain('name="general"');
+    expect(line).toContain("<location_context");
+    expect(line).toContain('channel_id="c1"');
+    expect(line).toContain('channel_name="general"');
     expect(line).toContain('thread_name="tanya coding"');
-    expect(line).toContain("nsfw=false");
+    expect(line).toContain('nsfw="false"');
+    expect(line).toContain('age_restricted="false"');
   });
 
   it("returns empty when no metadata", () => {
     expect(buildLocationContext([target()])).toBe("");
+  });
+});
+
+describe("buildConversationContextBlock — structured USER-message context", () => {
+  it("wraps location + descriptor + lines into XML blocks", () => {
+    const block = buildConversationContextBlock({
+      location: buildLocationContext(
+        (() => {
+          const t = target();
+          t.metadata = JSON.stringify({
+            channel: { channelName: "general", nsfw: false },
+          });
+          return [t];
+        })(),
+      ),
+      descriptor: "[conversation_flow] status=ongoing context_msgs=1 dropped=0",
+      lines: ["[context] id=a time=2027-01-01T00:00:00.000Z user=user_a: hai"],
+    });
+    expect(block).toContain("<location_context");
+    expect(block).toContain("<conversation_context>");
+    expect(block).toContain("[conversation_flow] status=ongoing");
+    expect(block).toContain("[context] id=a");
+    // location block comes before conversation block
+    expect(block.indexOf("<location_context")).toBeLessThan(
+      block.indexOf("<conversation_context>"),
+    );
+  });
+
+  it("omits the conversation block when there are no lines", () => {
+    const block = buildConversationContextBlock({
+      location: "",
+      descriptor: "",
+      lines: [],
+    });
+    expect(block).toBe("");
+  });
+
+  it("keeps only the location block when lines are empty but location exists", () => {
+    const block = buildConversationContextBlock({
+      location: '<location_context channel_id="c1"/>',
+      descriptor: "",
+      lines: [],
+    });
+    expect(block).toBe('<location_context channel_id="c1"/>');
   });
 });
 

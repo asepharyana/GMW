@@ -25,6 +25,7 @@ import {
   buildConversationContext,
   buildLocationContext,
 } from "./conversationContext.js";
+import { buildConversationContextBlock } from "./moderationBuilders.js";
 import { runModerationAnalysis } from "./moderationOrchestrator.js";
 
 const logger = createChildLogger("ai-analysis-worker");
@@ -280,13 +281,11 @@ async function processBatch(job: {
     maxAgeMs: config.AI_ANALYSIS_CONTEXT_MAX_AGE_MS,
     gapMs: config.AI_ANALYSIS_CONTEXT_GAP_MS,
   });
-  const contextText = [
-    buildLocationContext(messages),
-    contextLines.descriptor,
-    ...contextLines.lines,
-  ]
-    .filter((l) => l.trim().length > 0)
-    .join("\n");
+  const contextBlock = buildConversationContextBlock({
+    location: buildLocationContext(messages),
+    descriptor: contextLines.descriptor,
+    lines: contextLines.lines,
+  });
 
   const targetIds = messages.map((m) => m.id);
   const contextIds = contextBefore.map((m) => m.id);
@@ -300,7 +299,7 @@ async function processBatch(job: {
   // when media is present), not N per-message calls.
   const moderationResult = await runModerationAnalysis({
     targets: messages,
-    contextText,
+    contextBlock,
     attachments,
   });
 
@@ -373,13 +372,11 @@ async function processIndividual(job: {
     maxAgeMs: config.AI_ANALYSIS_CONTEXT_MAX_AGE_MS,
     gapMs: config.AI_ANALYSIS_CONTEXT_GAP_MS,
   });
-  const contextText = [
-    buildLocationContext([message]),
-    contextLines.descriptor,
-    ...contextLines.lines,
-  ]
-    .filter((l) => l.trim().length > 0)
-    .join("\n");
+  const contextBlock = buildConversationContextBlock({
+    location: buildLocationContext([message]),
+    descriptor: contextLines.descriptor,
+    lines: contextLines.lines,
+  });
 
   const contextIds = contextBefore.map((m) => m.id);
   const attachments = await messageStore.getAttachmentsForMessages([
@@ -390,7 +387,7 @@ async function processIndividual(job: {
   try {
     const moderationResult = await runModerationAnalysis({
       targets: [message],
-      contextText,
+      contextBlock,
       attachments,
     });
 

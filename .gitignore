@@ -12,7 +12,7 @@ worktrees/
 .worktrees/
 services/frontend/frontend/dist/
 target/
-
+nix/
 # Gitea CI runner logs
 .gitea/workflows/*.log
 

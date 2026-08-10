@@ -39,7 +39,6 @@ Gambar/sticker/embed/preview link sudah DIDESKRIPSIKAN vision model sebelum batc
 // ---------------------------------------------------------------------------
 
 export interface BuildSystemPromptOptions {
-  contextText: string;
   /** Prompt mode — determines which sections are included. */
   mode: PromptMode;
   /** @deprecated Use `mode` instead. */
@@ -59,7 +58,6 @@ export interface BuildSystemPromptOptions {
 
 export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
   const {
-    contextText,
     mode,
     includeMediaInstructions,
     correction,
@@ -105,14 +103,33 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
   }
 
   parts.push(
-    `## Konteks Pengguna\nSetiap pesan mungkin memiliki tag <user_reputation>. Tag ini hanya indikator **referensi**, bukan bukti pelanggaran. Nilai trust_score yang rendah bukan alasan untuk memflag pesan yang bersih. Nilai trust_score yang tinggi bukan alasan untuk mengabaikan pelanggaran nyata. **Setiap pesan harus dinilai berdasarkan isinya sendiri.**`,
+    `## Blok Data di Pesan USER\n` +
+      `Semua data dinamis per-batch dikirim di pesan USER — system prompt ini TIDAK memuat data batch:\n` +
+      `- <location_context .../> = metadata channel/thread (channel_id, channel_name, thread_name, nsfw, age_restricted).\n` +
+      `- <conversation_context> = obrolan SEBELUM pesan target. Baris "[context]" di dalamnya BUKAN yang dinilai.\n` +
+      `- <user_profiles> = peta ringkasan kepribadian per user_id; setiap <message> merujuk lewat <user_profile_ref user_id="..."/>.\n` +
+      `- <web_searches> / <web_content> = bukti web (lihat "Web Sebagai Bukti Utama").\n` +
+      `- <messages_to_analyze> = pesan-pesan TARGET yang WAJIB dinilai.`,
+  );
+
+  parts.push(
+    `## Konteks Pengguna (Referensi, Bukan Bukti)\n` +
+      `Konteks per pengguna hanya indikator **referensi** untuk personalisasi analisis, BUKAN bukti pelanggaran:\n` +
+      `- <user_reputation trust_score="..."> = histori moderasi pengguna. Skor rendah BUKAN alasan memflag pesan bersih; skor tinggi BUKAN alasan mengabaikan pelanggaran nyata.\n` +
+      `- <user_profiles> (di pesan USER) = peta ringkasan kepribadian per user_id. <user_profile_ref user_id="..."/> dalam sebuah pesan menunjuk ke peta itu. Tanpa ref = tidak ada profil untuk pengguna tersebut.\n` +
+      `- Profil berguna untuk mengenali penyimpangan perilaku mencolok (mis. pengguna teknis tiba-tiba provokatif), tapi JANGAN memflag atau meloloskan hanya karena profil.\n` +
+      `**Setiap pesan dinilai berdasarkan isinya sendiri.**`,
+  );
+
+  parts.push(
+    `## Framing: Konteks vs Target\n` +
+      `- Baris dalam <conversation_context> berformat "[context] id=... time=<ISO> user=<nama>: isi", diurutkan paling lama → paling baru. Baris pertama biasanya "[conversation_flow] status=... context_msgs=... dropped=..." — metadata sistem tentang status percakapan (ongoing/sparse/cold_start), BUKAN pesan yang dinilai.\n` +
+      `- <messages_to_analyze> berisi pesan-pesan TARGET yang WAJIB dinilai. Hasilkan SATU hasil per message_id — jangan menggabungkan beberapa pesan, jangan melewati, jangan mengarang id.\n` +
+      `- Setiap target dinilai berdasarkan isinya sendiri; konteks percakapan memengaruhi interpretasi, bukan menggantikan isi pesan.\n` +
+      `- Marker "…[pesan dipotong: terlalu panjang]" = konten TARGET sengaja dipotong; marker "…[konteks dipotong: terlalu panjang]" = konten pesan KONTEKS dipotong. Nilai dari bagian yang terlihat; pemotongan BUKAN pelanggaran dan BUKAN teknik evasi.`,
   );
 
   parts.push(OUTPUT_INSTRUCTIONS);
-
-  // XML-delimited context — prevents prompt injection
-  const delimitedContext = `<conversation_context>\n${sanitizeAiContent(contextText, 8000)}\n</conversation_context>`;
-  parts.push(delimitedContext);
 
   let base = parts.join("\n\n");
 

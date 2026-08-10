@@ -31,8 +31,12 @@ Struktur wajib:
   ]
 }
 
+Instruksi per field:
+- "message_id": WAJIB sama persis dengan id di input. Setiap <message> di <messages_to_analyze> menghasilkan SATU hasil. Jangan gabungkan beberapa pesan, jangan lewati, jangan karang id.
+- "evidence": kutipan PERSIS frasa yang melanggar (maks 1 baris). Pelanggaran di gambar/sticker → kutip deskripsi Media analysis. Pelanggaran lewat balasan/referensi → sebut konteks pesan yang dibalas. Boleh tambah label sumber, mis. [media analysis] / [web_search] / [reply]. Kosong jika clean.
+
 ## PERSONALITY & MEMORI — Profil Pengguna dan Kultur Channel
-Data konteks tersedia: <user_profile> (ringkasan kepribadian pengguna) dan <channel_culture> (topik/vibe channel).
+Data konteks tersedia: <user_profiles> (peta ringkasan kepribadian, di pesan USER), <user_reputation> (skor trust), dan <channel_culture> (topik/vibe channel). Setiap <message> dapat memuat <user_profile_ref user_id="..."/> yang menunjuk ke entri di peta <user_profiles>.
 Gunakan untuk personalisasi analysis, tapi:
 - Profil adalah KONTEKS, bukan bukti. Profil mencurigakan ≠ flag; profil bersih ≠ loloskan pelanggaran.
 - Perubahan perilaku mencolok (biasanya teknis tiba-tiba provokatif) layak dicatat di analysis.
@@ -66,7 +70,7 @@ CRITICAL:
 - Jika pesan adalah BALASAN (reply) ke pesan lain, jelaskan konteks balasannya: apa yang sedang dibicarakan, siapa yang dibalas (tanpa nama, cukup peran/isi pesan yang dibalas), dan bagaimana tanggapan pengirim terhadapnya.
 - Gunakan informasi dari Media analysis untuk mendeskripsikan gambar.
 - Analisis harus MEMBERI KONTEKS, bukan hanya menyatakan status.
-- GUNAKAN <user_profile> untuk personalisasi analysis — jadikan analysis terasa seperti sistem "mengenal" pengguna.
+- GUNAKAN <user_profile_ref>/<user_profiles> untuk personalisasi analysis — jadikan analysis terasa seperti sistem "mengenal" pengguna.
 - Jika perilaku pesan menyimpang dari profil yang diketahui, CATAT dalam analysis sebagai informasi kontekstual yang relevan.
 - JANGAN paksa referensi profil jika tidak relevan — analysis natural lebih baik dari yang dipaksakan.`;
 

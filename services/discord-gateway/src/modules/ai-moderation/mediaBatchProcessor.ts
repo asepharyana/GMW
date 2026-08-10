@@ -16,8 +16,10 @@ import { getChannelCulture } from "./channelCultureStore.js";
 import type { RetryState } from "./llmCaller.js";
 import { callModerationLLM } from "./llmCaller.js";
 import { prepareMediaMessage } from "./mediaAnalysisClient.js";
+import { buildUserProfilesBlock } from "./moderationBuilders.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
 import { buildCorrectedFewShotExamples } from "./textBatchProcessor.js";
+import { getUserProfile } from "./userProfileStore.js";
 
 const log = createChildLogger("mediaBatchProcessor");
 
@@ -26,7 +28,7 @@ const log = createChildLogger("mediaBatchProcessor");
 // ---------------------------------------------------------------------------
 export async function runMediaBatch(
   targets: MessageRecord[],
-  contextText: string,
+  contextBlock: string,
   attachments: AttachmentRecord[] | undefined,
 ): Promise<{ results: AnalysisResult[]; raw: unknown }> {
   if (!targets.length) return { results: [], raw: null };
@@ -58,14 +60,32 @@ export async function runMediaBatch(
   const channelCulture = channelCultureObj?.culture_summary;
   const correctedExamples = await buildCorrectedFewShotExamples();
   const systemText = buildSystemPromptModular({
-    contextText,
     mode: "mixed",
     correctedExamples,
     channelCulture,
   });
 
+  // Gather user profiles ONCE for the whole batch and emit a deduplicated
+  // <user_profiles> map; per-message blocks (from prepareMediaMessage)
+  // reference it via <user_profile_ref>.
+  const profileByUser = new Map<string, string>();
+  for (const t of targets) {
+    if (profileByUser.has(t.user_id)) continue;
+    const profile = await getUserProfile(t.user_id);
+    profileByUser.set(t.user_id, profile?.profile_summary ?? "");
+  }
+  const userProfilesBlock = buildUserProfilesBlock(profileByUser);
+
   const messagesBlock = prepared.map((p) => p.messageBlock).join("\n");
-  const userContent = `<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`;
+  // Data/instruction separation: the system prompt is stable per mode — all
+  // per-batch context (profiles, conversation) lives in the USER payload,
+  // ordered oldest-first so targets come last.
+  const userBlocks = [
+    userProfilesBlock?.trimEnd() ?? "",
+    contextBlock?.trimEnd() ?? "",
+    `<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`,
+  ].filter((b) => b.trim().length > 0);
+  const userContent = userBlocks.join("\n\n");
 
   const perMsgTimeout = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
   const batchTimeout = Math.min(

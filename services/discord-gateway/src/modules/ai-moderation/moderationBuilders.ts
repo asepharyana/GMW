@@ -9,6 +9,7 @@ import { renderDiscordMentions } from "../message-capture/messageMetadata.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
 import { sanitizeDiscordTokens } from "./discordTokens.js";
+import { sanitizeAiContent } from "./prompts/output.js";
 
 /** Simple XML-escaping for content text. */
 export function escapeXml(s: string): string {
@@ -17,6 +18,101 @@ export function escapeXml(s: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// ---------------------------------------------------------------------------
+// Conversation context block — structured data for the USER message.
+//
+// All per-batch context lives in the USER message (not the SYSTEM prompt) so
+// the system prompt is stable per mode (cacheable on routers/providers) and
+// the role boundary is clean: instructions in SYSTEM, data in USER.
+// ---------------------------------------------------------------------------
+
+/** Outer char cap for the assembled `<conversation_context>` inner text. */
+export const CONVERSATION_CONTEXT_MAX_CHARS = 40_000;
+
+/**
+ * Wraps per-batch context data into structured XML blocks for the USER
+ * message:
+ *
+ *   <location_context channel_id="..." channel_name="..." nsfw="..."/>
+ *   <conversation_context>
+ *     [conversation_flow] status=ongoing context_msgs=12 dropped=0
+ *     [context] id=... time=... user=...: isi pesan
+ *     ...
+ *   </conversation_context>
+ *
+ * Empty blocks are omitted entirely (never emit a hollow `<conversation_context>`
+ * with no content). The inner text is AI/user-derived and passed through
+ * `sanitizeAiContent` (CDATA + XML-escape) to block prompt injection.
+ */
+export function buildConversationContextBlock(input: {
+  /** Pre-built `<location_context .../>` string (or ""). */
+  location?: string;
+  /** `[conversation_flow]` descriptor line from buildConversationContext. */
+  descriptor?: string;
+  /** `[context]` lines, oldest → newest. */
+  lines: string[];
+}): string {
+  const blocks: string[] = [];
+  const location = input.location?.trim();
+  if (location) blocks.push(location);
+
+  const inner = [input.descriptor ?? "", ...input.lines]
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .join("\n");
+  if (inner) {
+    blocks.push(
+      `<conversation_context>\n${sanitizeAiContent(inner, CONVERSATION_CONTEXT_MAX_CHARS)}\n</conversation_context>`,
+    );
+  }
+  return blocks.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Per-message content bounds — protects the LLM token budget from a single
+// huge paste (stack traces, log dumps, copypasta). Truncation is explicit so
+// the model never mistakes the cut for a real message boundary.
+// ---------------------------------------------------------------------------
+
+/** Max characters of a message's content sent to the LLM `<content>` payload. */
+export const AI_CONTENT_MAX_CHARS = 4000;
+
+/** Marker appended when a message is longer than AI_CONTENT_MAX_CHARS. */
+export const AI_CONTENT_TRUNC_MARKER = "\n…[pesan dipotong: terlalu panjang]";
+
+/** Truncate a message's content for the LLM `<content>` payload. */
+export function truncateForAi(content: string): string {
+  if (content.length <= AI_CONTENT_MAX_CHARS) return content;
+  return `${content.slice(0, AI_CONTENT_MAX_CHARS)}${AI_CONTENT_TRUNC_MARKER}`;
+}
+
+// ---------------------------------------------------------------------------
+// User profile deduplication — a batch can contain many messages from the
+// same user. Instead of repeating the (up to 3000-char) profile summary on
+// every message, emit a single <user_profiles> map per batch and reference
+// entries per message with <user_profile_ref user_id="..."/>.
+// ---------------------------------------------------------------------------
+
+/** Build a deduplicated `<user_profiles>` map block, keyed by Discord user id. */
+export function buildUserProfilesBlock(
+  profiles: ReadonlyMap<string, string>,
+): string {
+  const entries = Array.from(profiles.entries()).filter(
+    ([, text]) => text.trim().length > 0,
+  );
+  if (entries.length === 0) return "";
+  const lines = entries.map(
+    ([userId, text]) =>
+      `  <user_profile user_id="${escapeXml(userId)}">${sanitizeAiContent(text)}</user_profile>`,
+  );
+  return `<user_profiles>\n${lines.join("\n")}\n</user_profiles>`;
+}
+
+/** Per-message reference tag pointing at an entry in the `<user_profiles>` map. */
+export function buildUserProfileRef(userId: string): string {
+  return `<user_profile_ref user_id="${escapeXml(userId)}"/>`;
 }
 
 /**

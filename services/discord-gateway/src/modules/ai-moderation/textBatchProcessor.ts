@@ -19,14 +19,14 @@ import { callModerationLLM } from "./llmCaller.js";
 import { analyzeSingleMediaImage } from "./mediaAnalysisClient.js";
 import {
   buildReferenceXml,
+  buildUserProfileRef,
+  buildUserProfilesBlock,
   escapeXml,
   getAnalysisContent,
   resolveDisplayName,
+  truncateForAi,
 } from "./moderationBuilders.js";
-import {
-  buildSystemPrompt as buildSystemPromptModular,
-  sanitizeAiContent,
-} from "./moderationPrompt.js";
+import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
 import { logModerationAnalysis } from "./responseLogger.js";
 import {
   extractSearchQueries,
@@ -74,7 +74,7 @@ export async function buildCorrectedFewShotExamples(): Promise<string> {
 // ---------------------------------------------------------------------------
 export async function runTextOnlyBatch(
   targets: MessageRecord[],
-  contextText: string,
+  contextBlock: string,
 ): Promise<{ results: AnalysisResult[]; raw: unknown }> {
   if (!targets.length) return { results: [], raw: null };
 
@@ -188,7 +188,8 @@ export async function runTextOnlyBatch(
     const batch = subBatches[i];
     const targetIds = batch.map((t) => t.id);
 
-    // User reputation + profiles
+    // User reputation + profiles (raw summary text — deduplicated into a
+    // single <user_profiles> map per batch; messages only reference it).
     const userContexts = new Map<string, string>();
     const userProfiles = new Map<string, string>();
     for (const msg of batch) {
@@ -201,14 +202,10 @@ export async function runTextOnlyBatch(
       }
       if (!userProfiles.has(msg.user_id)) {
         const profile = await getUserProfile(msg.user_id);
-        userProfiles.set(
-          msg.user_id,
-          profile
-            ? `<user_profile>${sanitizeAiContent(profile.profile_summary)}</user_profile>`
-            : "",
-        );
+        userProfiles.set(msg.user_id, profile?.profile_summary ?? "");
       }
     }
+    const userProfilesBlock = buildUserProfilesBlock(userProfiles);
 
     // ── URL images → multimodal vision evidence ─────────────────────────
     // The text batch fetches inline URLs; whenever one resolved to an image
@@ -280,7 +277,6 @@ export async function runTextOnlyBatch(
         : undefined;
       const correctedExamples = await buildCorrectedFewShotExamples();
       const systemText = buildSystemPromptModular({
-        contextText,
         mode: batchHasImageEvidence ? "mixed" : "text",
         correction,
         correctedExamples,
@@ -290,7 +286,7 @@ export async function runTextOnlyBatch(
       const messagesBlock = (
         await Promise.all(
           batch.map(async (msg) => {
-            const content = getAnalysisContent(msg);
+            const content = truncateForAi(getAnalysisContent(msg));
             const msgUrls = extractUrlsFromText(content);
             const urlContexts = msgUrls
               .map((url) => {
@@ -307,25 +303,36 @@ export async function runTextOnlyBatch(
               .map((line) => `\n${line}`)
               .join("");
             const userCtx = userContexts.get(msg.user_id) ?? "";
-            const userProfileCtx = userProfiles.get(msg.user_id) ?? "";
+            const userProfileRef = (userProfiles.get(msg.user_id) ?? "").trim()
+              ? buildUserProfileRef(msg.user_id)
+              : "";
             const refXml = await buildReferenceXml(msg);
-            return `<message id="${msg.id}" user="${resolveDisplayName(msg)}">\n  ${userCtx}${userProfileCtx ? `\n  ${userProfileCtx}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${webContext}${mediaEvidenceCtx}\n</message>`;
+            return `<message id="${msg.id}" user="${resolveDisplayName(msg)}">\n  ${userCtx}${userProfileRef ? `\n  ${userProfileRef}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${webContext}${mediaEvidenceCtx}\n</message>`;
           }),
         )
       ).join("\n");
 
       const searxngBlock =
         searxngResults.size > 0
-          ? `\n\n<web_searches>\n${Array.from(searxngResults.entries())
+          ? `<web_searches>\n${Array.from(searxngResults.entries())
               .map(
                 ([q, xml]) =>
                   `  <search_query query="${escapeXml(q)}">\n${xml}  </search_query>`,
               )
               .join("\n")}\n</web_searches>`
           : "";
+      // Data/instruction separation: the system prompt is stable per mode —
+      // all per-batch context (profiles, conversation, web evidence) lives in
+      // the USER payload, ordered oldest-first so targets come last.
+      const userBlocks = [
+        userProfilesBlock?.trimEnd() ?? "",
+        contextBlock?.trimEnd() ?? "",
+        searxngBlock,
+        `<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`,
+      ].filter((b) => b.trim().length > 0);
       return {
         system: systemText,
-        user: `${searxngBlock}\n\n<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`,
+        user: userBlocks.join("\n\n"),
       };
     };
 

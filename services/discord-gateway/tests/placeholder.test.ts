@@ -1,6 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. AppError Hierarchy
 // ═══════════════════════════════════════════════════════════════════════════════
+
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AppError,
   ConfigError,
@@ -9,7 +11,6 @@ import {
   UnauthorizedError,
   ValidationError,
 } from "../src/shared/errors/index.js";
-import { afterEach, describe, expect, it, vi } from "vitest";
 
 describe("AppError subclasses", () => {
   it("AppError carries code, statusCode, and details", () => {
