@@ -82,6 +82,19 @@ jobs:
           extra-conf: |
             sandbox = false
             accept-flake-config = true
+            # Attic binary cache as substituter on the runner: lets CI pull the
+            # prebuilt attic client (and any cached deps/builds) over HTTPS,
+            # no SSH round-trip needed. extra-substituters (NOT
+            # extra-trusted-substituters) is required — Determinate Nix never
+            # merges trusted-* substituters for nix-store CLI clients.
+            extra-substituters = https://attic.asepharyana.my.id/gmw
+            extra-trusted-public-keys = gmw:Fq2Anzuhkb+T/hftWnPcveHSi21/RzIgIOeG8pCJa88=
+            # NOTE: nix-installer-action unconditionally injects
+            # 'build-provenance-tags' into /etc/nix/nix.conf (a Determinate
+            # Nix-only setting). With determinate:false the runner's upstream
+            # nix warns 'unknown setting build-provenance-tags' on every
+            # invocation — benign, cosmetic. Switching determinate:true would
+            # silence it but changes the runner's nix flavor.
 
       - name: Cache Nix
         uses: DeterminateSystems/magic-nix-cache-action@v14
@@ -117,10 +130,13 @@ jobs:
       #
       # The attic client is NOT in nixpkgs anymore and has no prebuilt
       # releases, so we pull the same prebuilt closure the VPS uses
-      # (/nix/store/fygyy3yk4rqdknxkiwkqambpnhyax0k4-attic-0.1.0, ~52MB)
-      # via `nix copy --from ssh://`. If anything fails we fall back to the
-      # old VPS-hop flow (SSH copy to VPS, then attic push from the VPS over
-      # Tailscale) so the deploy step always has a working closure path.
+      # (/nix/store/fygyy3yk4rqdknxkiwkqambpnhyax0k4-attic-0.1.0, ~52MB).
+      # The closure itself lives in the attic cache (pushed once from the
+      # VPS), so the runner bootstraps it over HTTPS via the configured
+      # extra-substituters — no SSH round-trip. If that fails we fall back
+      # to `nix copy --from ssh://`, then the old VPS-hop flow (SSH copy to
+      # VPS, then attic push from the VPS over Tailscale) so the deploy step
+      # always has a working closure path.
       - name: Push to Attic cache
         env:
           ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
@@ -130,7 +146,8 @@ jobs:
             exit 0
           fi
           STORE_PATH="${{ steps.build.outputs.store-path }}"
-          ATTIC_PATH="/nix/store/fygyy3yk4rqdknxkiwkqambpnhyax0k4-attic-0.1.0/bin/attic"
+          ATTIC_DIR="/nix/store/fygyy3yk4rqdknxkiwkqambpnhyax0k4-attic-0.1.0"
+          ATTIC_BIN="$ATTIC_DIR/bin/attic"
 
           attic_push_vps_hop() {
             echo "Fallback: VPS-hop attic push"
@@ -138,18 +155,29 @@ jobs:
             ssh "$VPS_USER@$VPS_HOST" "sudo /nix/var/nix/profiles/default/bin/nix-store --realise '$STORE_PATH'" 2>/dev/null \
               || nix copy --to "ssh://$VPS_USER@$VPS_HOST" "$STORE_PATH"
             # Push from VPS → Attic over Tailscale (reliable for large payloads)
-            ssh "$VPS_USER@$VPS_HOST" "$ATTIC_PATH push imrnes-ts:gmw '$STORE_PATH' --jobs 4" \
+            ssh "$VPS_USER@$VPS_HOST" "$ATTIC_BIN push imrnes-ts:gmw '$STORE_PATH' --jobs 4" \
               || echo "attic push failed (non-fatal; ssh copy fallback below)"
           }
 
           # ── Get an attic client on the runner ────────────────────────────
+          # Order: PATH → pull the prebuilt closure from the attic cache
+          # itself (extra-substituters configured in Install Nix step, HTTPS
+          # only, no SSH) → pull over ssh from the VPS → VPS-hop.
+          # The attic client closure is stored in the attic cache (pushed
+          # once from the VPS), so the fast path never depends on SSH.
           ATTIC_BIN=""
           if command -v attic >/dev/null 2>&1; then
             ATTIC_BIN="$(command -v attic)"
-          elif nix copy --from "ssh://$VPS_USER@$VPS_HOST" /nix/store/fygyy3yk4rqdknxkiwkqambpnhyax0k4-attic-0.1.0 2>/dev/null; then
-            ATTIC_BIN="$ATTIC_PATH"
+          elif nix-store --realise "$ATTIC_DIR" 2>/tmp/attic-bootstrap.err; then
+            echo "✅ Pulled attic client from attic cache (HTTPS substituter)"
+            ATTIC_BIN="$ATTIC_DIR/bin/attic"
+          elif nix copy --from "ssh://$VPS_USER@$VPS_HOST" "$ATTIC_DIR" 2>>/tmp/attic-bootstrap.err; then
+            echo "✅ Pulled attic client from VPS over ssh"
+            ATTIC_BIN="$ATTIC_DIR/bin/attic"
           else
             echo "attic client unavailable on runner; using VPS-hop flow"
+            echo "--- bootstrap errors (stderr) ---"
+            tail -5 /tmp/attic-bootstrap.err 2>/dev/null || true
             attic_push_vps_hop
             exit 0
           fi
