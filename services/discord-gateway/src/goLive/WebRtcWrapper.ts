@@ -68,6 +68,7 @@ export class WebRtcConnWrapper {
   private _audioTrack: NativeTrack | null = null;
   private _videoTrack: NativeTrack | null = null;
   private _videoCodec: WebRtcVideoCodec | null = null;
+  private _videoFrameLog = 0;
   /** Assigned by BaseMediaConnection to send the gathered SDP to Discord. */
   onLocalDescription: ((sdp: string) => void) | null = null;
 
@@ -114,7 +115,15 @@ export class WebRtcConnWrapper {
   }
 
   sendVideoFrame(frame: Buffer, frametime: number): void {
-    if (!this.ready || !this._videoTrack) return;
+    if (!this.ready || !this._videoTrack) {
+      if (this._videoFrameLog === 0) {
+        console.log(
+          `[goLive:WebRtc] sendVideoFrame DROPPED ready=${this.ready} track=${this._videoTrack !== null}`,
+        );
+        this._videoFrameLog++;
+      }
+      return;
+    }
     const clockRate = CodecPayloadType[this._videoCodec ?? "H264"].clockRate;
     if (this._videoCodec === "H264") {
       let spsRewritten = false;
@@ -157,6 +166,12 @@ export class WebRtcConnWrapper {
     }
     this._videoTrack.sendFrame(frame);
     this._videoTrack.addTimestamp(Math.round((frametime * clockRate) / 1000));
+    this._videoFrameLog++;
+    if (this._videoFrameLog === 1 || this._videoFrameLog % 30 === 0) {
+      console.log(
+        `[goLive:WebRtc] sendVideoFrame #${this._videoFrameLog} bytes=${frame.length} ready=${this.ready}`,
+      );
+    }
   }
 
   setPacketizer(videoCodec: string): void {

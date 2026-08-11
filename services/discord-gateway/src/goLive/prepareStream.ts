@@ -262,15 +262,22 @@ export async function playStream(
   options: PlayStreamOptions = {},
 ): Promise<void> {
   const conn = await streamer.createStream();
+  console.log("[goLive:playStream] createStream resolved");
 
   const { video, close: demuxClose } = await demux(prepared.output, {
     format: options.format ?? "nut",
   });
+  console.log(
+    `[goLive:playStream] demux done codec=${video?.codecName ?? "?"} ${video?.width ?? 0}x${video?.height ?? 0} fps=${video ? video.framerate_num / video.framerate_den || 30 : 30}`,
+  );
 
   if (!video) throw new Error("No video stream in media");
 
   conn.setPacketizer(video.codecName);
   conn.mediaConnection.setSpeaking(true);
+  console.log(
+    `[goLive:playStream] setPacketizer(${video.codecName}) + setSpeaking done`,
+  );
 
   const w =
     typeof options.width === "function"

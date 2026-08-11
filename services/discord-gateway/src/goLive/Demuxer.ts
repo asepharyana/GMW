@@ -173,6 +173,9 @@ export async function demux(
   const proc = spawn(FFMPEG, args, {
     stdio: isStream ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
   });
+  console.log(
+    `[goLive:Demuxer] spawn ffmpeg pid=${proc.pid} input=${isStream ? "stream" : input} args=${args.join(" ")}`,
+  );
 
   // Pipe live input straight into ffmpeg stdin — never await stream end.
   if (isStream && proc.stdin) {
@@ -199,7 +202,14 @@ export async function demux(
   let stderrBuf = "";
   if (proc.stderr) {
     proc.stderr.on("data", (d: Buffer) => {
-      stderrBuf = (stderrBuf + d.toString()).slice(-16384);
+      const text = d.toString();
+      stderrBuf = (stderrBuf + text).slice(-16384);
+      // Surface actionable lines: ffmpeg errors + stream init lines
+      if (/error|invalid|no such|failed|cannot|not found|unable/i.test(text)) {
+        console.log(
+          `[goLive:Demuxer] ffmpeg stderr: ${text.trim().split("\n").slice(0, 4).join(" | ")}`,
+        );
+      }
       if (parsedMeta) return;
       const streamRe = /Stream #0:(\d+): (Video|Audio): ([^,]+)/g;
       let m: RegExpExecArray | null;
@@ -284,6 +294,11 @@ export async function demux(
       free: () => {},
     });
     frameCount++;
+    if (frameCount === 1 || frameCount % 30 === 0) {
+      console.log(
+        `[goLive:Demuxer] frames=${frameCount} last=${nal.length}B key=${isKeyFrame}`,
+      );
+    }
   };
 
   if (proc.stdout) {
