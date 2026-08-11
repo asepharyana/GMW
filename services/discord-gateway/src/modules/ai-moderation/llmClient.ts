@@ -56,7 +56,16 @@ export async function withLlmConcurrency<T>(fn: () => Promise<T>): Promise<T> {
  */
 type LLMResponseChunk = {
   choices?: Array<{
-    delta?: { content?: string | null; reasoning_content?: string | null };
+    delta?: {
+      content?: string | null;
+      reasoning_content?: string | null;
+      reasoning?: string | null;
+      reasoning_details?: Array<{
+        type?: string;
+        text?: string;
+        index?: number;
+      }> | null;
+    };
     message?: { content?: string | null };
     finish_reason?: string | null;
     text?: string;
@@ -69,18 +78,28 @@ type LLMResponseChunk = {
 
 /**
  * Extract the textual payload from a single streaming chunk. Prefers
- * `delta.content`; falls back to `delta.reasoning_content` (DeepSeek-style /
- * Cloudflare gemma stream ALL output there with content:"") so reasoning-only
- * models still produce usable aggregated text. Exported for unit tests.
+ * `delta.content`; falls back to reasoning fields so reasoning-only models
+ * still produce usable aggregated text. Providers differ in the field name:
+ * - DeepSeek-style / Cloudflare gemma → `delta.reasoning_content`
+ * - mimo (via 9router) streams reasoning in `delta.reasoning` +
+ *   `delta.reasoning_details[].text` (content:"") — without these fallbacks
+ *   vision aggregation came back empty ("Vision API null response").
+ * Exported for unit tests.
  */
 export function extractChunkText(
   chunk: LLMResponseChunk | null | undefined,
 ): string {
   if (!chunk) return "";
   const choice = chunk.choices?.[0];
+  const reasoningDetails = choice?.delta?.reasoning_details
+    ?.map((d) => d.text ?? "")
+    .filter(Boolean)
+    .join("");
   return (
     choice?.delta?.content ||
     choice?.delta?.reasoning_content ||
+    choice?.delta?.reasoning ||
+    reasoningDetails ||
     choice?.message?.content ||
     choice?.text ||
     chunk?.message?.content ||

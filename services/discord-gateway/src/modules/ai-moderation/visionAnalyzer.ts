@@ -29,6 +29,35 @@ import {
   upsertCachedMediaByPhash,
   visionLruCache,
 } from "./mediaCache.js";
+
+/**
+ * Detect vision outputs where the model claims it saw no image at all
+ * ("Maaf, saya tidak melihat gambar apapun...", "Tidak ada gambar yang
+ * terlampir...", "I cannot see any image..."). Such text is NOT a valid
+ * analysis — caching it poisons the image cache for 24h (image/phash keys),
+ * so every re-analysis of the same image returns the "no image" text and the
+ * moderation LLM writes "lampiran gagal terbaca". These outputs must be
+ * treated as failures: never cached, and ignored when read back from cache.
+ */
+export function isNoImageSeenText(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return (
+    /tidak (?:melihat|ada|terlihat) (?:gambar|foto|image)/i.test(lower) ||
+    /tidak (?:ada )?(?:gambar|foto|image) (?:apapun|yang terlampir)/i.test(
+      lower,
+    ) ||
+    /gambar apapun/i.test(lower) ||
+    /tanpa (?:input )?(?:visual|gambar|image)/i.test(lower) ||
+    /\bno image (?:provided|attached|detected|found|was provided)?/i.test(
+      lower,
+    ) ||
+    /(?:cannot|can't) see (?:any |an |the )?image/i.test(lower) ||
+    /i (?:do not|don't) (?:see|detect) (?:any |an |the )?image/i.test(lower) ||
+    /there (?:is|are) no image/i.test(lower)
+  );
+}
+
 import {
   buildMediaCandidates,
   downloadAndExtractFrame,
@@ -119,17 +148,31 @@ export const analyzeSingleMediaImage = async (
 
   // Layer 0: LRU
   const lruCached = visionLruCache.get(cacheKey);
-  if (lruCached) {
+  if (lruCached && !isNoImageSeenText(lruCached)) {
     log.debug({ cacheKey }, "Vision LRU cache HIT (in-memory)");
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${lruCached}`;
+  }
+  if (lruCached) {
+    // Poisoned entry ("I see no image") — drop it and re-analyze.
+    log.warn({ cacheKey }, "Vision LRU cache HIT was no-image-seen — dropping");
+    visionLruCache.delete(cacheKey);
   }
 
   // Layer 1: DB
   const cached = await getCachedMediaAnalysis(cacheKey);
-  if (cached) {
+  if (cached && !isNoImageSeenText(cached)) {
     visionLruCache.set(cacheKey, cached);
     log.debug({ cacheKey }, "Media analysis cache HIT (DB → LRU)");
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${cached}`;
+  }
+  if (cached) {
+    // Poisoned DB entry — purge it so later messages re-analyze.
+    log.warn(
+      { cacheKey },
+      "Media analysis cache HIT was no-image-seen — purging",
+    );
+    await deleteCachedMediaAnalysis(cacheKey).catch(() => {});
+    visionLruCache.delete(cacheKey);
   }
 
   // In-flight dedupe
@@ -173,7 +216,7 @@ export const analyzeSingleMediaImage = async (
           phash = await computeImagePhash(imgBuffer);
           if (phash) {
             const phashCached = await getCachedMediaByPhash(phash);
-            if (phashCached) {
+            if (phashCached && !isNoImageSeenText(phashCached)) {
               visionLruCache.set(cacheKey, phashCached);
               await upsertCachedMediaAnalysis(
                 cacheKey,
@@ -182,6 +225,12 @@ export const analyzeSingleMediaImage = async (
                 Date.now() + 24 * 60 * 60 * 1000,
               ).catch(() => {});
               return phashCached;
+            }
+            if (phashCached) {
+              log.warn(
+                { phash, cacheKey },
+                "phash cache HIT was no-image-seen — ignoring",
+              );
             }
           }
         }
@@ -195,7 +244,7 @@ export const analyzeSingleMediaImage = async (
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const content = await llmVision(promptText, image.image_url);
-        if (content) {
+        if (content && !isNoImageSeenText(content)) {
           await upsertCachedMediaAnalysis(
             cacheKey,
             content,
@@ -213,7 +262,17 @@ export const analyzeSingleMediaImage = async (
           }
           return content;
         }
-        log.warn({ messageId }, "Vision API null response");
+        if (content) {
+          // Model claims it saw no image — same as a null response: NOT a
+          // valid analysis, and caching it would poison the key for every
+          // re-analysis of the same image (phash TTL is 7 days).
+          log.warn(
+            { messageId, cacheKey },
+            "Vision returned no-image-seen text — not caching",
+          );
+        } else {
+          log.warn({ messageId }, "Vision API null response");
+        }
         break;
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
@@ -240,6 +299,7 @@ export const analyzeSingleMediaImage = async (
       "Vision failed after 3 attempts",
     );
     await deleteCachedMediaAnalysis(cacheKey).catch(() => {});
+    visionLruCache.delete(cacheKey);
     return FAILED_ANALYSIS_PREFIX;
   })();
 
@@ -378,10 +438,9 @@ export async function prepareMediaMessage(
   // Profile is emitted ONCE per batch in a <user_profiles> map (see
   // mediaBatchProcessor); here we only reference it to avoid repeating the
   // full summary on every message of the same user.
-  const profileRef =
-    profile && profile.profile_summary?.trim()
-      ? buildUserProfileRef(target.user_id)
-      : "";
+  const profileRef = profile?.profile_summary?.trim()
+    ? buildUserProfileRef(target.user_id)
+    : "";
 
   // Rich reputation — same shape as the text path: attrs + optional
   // <user_history> with the last flagged messages for repeat offenders.

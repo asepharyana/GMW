@@ -33,6 +33,41 @@ describe("extractChunkText — streaming chunk text extraction", () => {
     ).toBe("Task");
   });
 
+  it('falls back to delta.reasoning — mimo via 9router streams reasoning there with content:""', () => {
+    // Exact shape seen from 9router → mimo-v2.5-free (2026-08-11):
+    // {"choices":[{"delta":{"content":"","reasoning":"The user wants a","role":"assistant"},"finish_reason":null,...}]}
+    expect(
+      extractChunkText({
+        choices: [
+          {
+            delta: { content: "", reasoning: "The user wants a" },
+            finish_reason: null,
+          },
+        ],
+      }),
+    ).toBe("The user wants a");
+  });
+
+  it("joins delta.reasoning_details[].text when present", () => {
+    expect(
+      extractChunkText({
+        choices: [
+          {
+            delta: {
+              content: "",
+              reasoning: "",
+              reasoning_details: [
+                { type: "reasoning.text", text: " detailed", index: 0 },
+                { type: "reasoning.text", text: " description", index: 1 },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      }),
+    ).toBe(" detailed description");
+  });
+
   it("prefers content over reasoning when both present (deepseek-style final answer)", () => {
     expect(
       extractChunkText({
