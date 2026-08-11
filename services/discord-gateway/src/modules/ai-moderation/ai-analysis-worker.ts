@@ -287,18 +287,37 @@ async function processBatch(job: {
     lines: contextLines.lines,
   });
 
-  const targetIds = messages.map((m) => m.id);
+  const allTargetIds = messages.map((m) => m.id);
   const contextIds = contextBefore.map((m) => m.id);
   const attachments = await messageStore.getAttachmentsForMessages([
-    ...targetIds,
+    ...allTargetIds,
     ...contextIds,
   ]);
+
+  // Attachment-upload race guard: a message whose attachment is still being
+  // uploaded (upload_status='pending') must not be analyzed yet. Its
+  // uploaded_url is not ready, and falling back to the Discord CDN link often
+  // 404s (expired/purged) — which used to silently produce a text-only
+  // verdict ("lampiran yang gagal terbaca"). Leave those targets pending; the
+  // next worker cycle picks them up after the upload lands.
+  const pendingUploadTargetIds = new Set(
+    (attachments ?? [])
+      .filter((a) => a.upload_status === "pending")
+      .map((a) => a.message_id),
+  );
+  const readyMessages =
+    pendingUploadTargetIds.size === 0
+      ? messages
+      : messages.filter((m) => !pendingUploadTargetIds.has(m.id));
+  if (readyMessages.length === 0) {
+    return { ok: true, conversationKey, rows: [] };
+  }
 
   // The orchestrator handles text/media split + caching + parallel paths
   // internally, so a 20-message batch = 1 text LLM call (+1 media call
   // when media is present), not N per-message calls.
   const moderationResult = await runModerationAnalysis({
-    targets: messages,
+    targets: readyMessages,
     contextBlock,
     attachments,
   });
@@ -306,7 +325,7 @@ async function processBatch(job: {
   const results = moderationResult.results.map((r) =>
     normalizeResult(
       r as unknown as AnalysisResult,
-      messages.find((m) => m.id === r.messageId),
+      readyMessages.find((m) => m.id === r.messageId),
     ),
   );
 
@@ -334,9 +353,10 @@ async function processBatch(job: {
 
   logger.info(
     {
-      total: messages.length,
+      total: readyMessages.length,
       saved: allRows.length,
       conversationKey,
+      skippedPendingUpload: messages.length - readyMessages.length,
     },
     "LLM batch analysis complete",
   );
@@ -383,6 +403,17 @@ async function processIndividual(job: {
     message.id,
     ...contextIds,
   ]);
+
+  // Same attachment-upload race guard as the batch path: while the upload is
+  // still in-flight the uploaded_url is not ready and the Discord CDN fallback
+  // often 404s — analyzing now would silently produce a text-only verdict.
+  // Return no results so the message stays pending for the next cycle.
+  const uploadStillPending = (attachments ?? []).some(
+    (a) => a.message_id === message.id && a.upload_status === "pending",
+  );
+  if (uploadStillPending) {
+    return { ok: true, results: [] };
+  }
 
   try {
     const moderationResult = await runModerationAnalysis({

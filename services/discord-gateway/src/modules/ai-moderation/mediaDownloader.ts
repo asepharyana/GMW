@@ -296,101 +296,137 @@ export async function downloadAndExtractFrame(
   imageMap: Map<string, MessageImagePart[]>,
 ): Promise<void> {
   const log = createChildLogger("mediaAnalysis");
-  const urlToUse = att.uploaded_url ?? att.discord_url ?? null;
-  if (!urlToUse) return;
+  // Prefer the upload proxy (uploaded_url); the Discord CDN link can expire
+  // or be purged (404), and a non-OK response used to silently drop the image
+  // from vision analysis (no log, empty image map → text-only verdict). Try
+  // each candidate URL in order and surface failures.
+  const urlCandidates = [
+    att.uploaded_url,
+    att.discord_url && att.discord_url !== att.uploaded_url
+      ? att.discord_url
+      : null,
+  ].filter((u): u is string => Boolean(u));
+  if (urlCandidates.length === 0) return;
 
-  const { controller, clear } = createAbortControllerWithTimeout(15000);
-  try {
-    const res = await fetch(urlToUse, { signal: controller.signal });
-    if (!res.ok || !res.body) return;
-
-    let totalBytes = 0;
-    const chunks: Uint8Array[] = [];
-    const reader = res.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        totalBytes += value.length;
-        if (totalBytes > 10 * 1024 * 1024) {
-          reader.cancel();
-          return;
-        }
-        chunks.push(value);
-      }
-    }
-    const imageBytes = Buffer.concat(chunks);
-    const sniffedMime = sniffImageMimeType(imageBytes);
-
-    if (!sniffedMime && att.type.startsWith("video/")) {
-      await extractVideoFrames(
-        att,
-        imageBytes,
-        targetId,
-        maxDimension,
-        imageMap,
-      );
-      return;
-    }
-
-    // Fallback: try attachment type metadata, then filename extension
-    let resolvedMime = sniffedMime;
-    if (!resolvedMime) {
-      if (att.type.startsWith("image/")) {
-        resolvedMime = att.type;
+  let imageBytes: Buffer | null = null;
+  let lastStatus = 0;
+  let lastError: string | null = null;
+  for (const urlToUse of urlCandidates) {
+    const { controller, clear } = createAbortControllerWithTimeout(15000);
+    try {
+      const res = await fetch(urlToUse, { signal: controller.signal });
+      if (!res.ok || !res.body) {
+        lastStatus = res.status;
         log.warn(
-          { attachmentId: att.id, filename: att.filename, type: att.type },
-          "Image MIME sniff failed — using attachment metadata type as fallback",
+          {
+            attachmentId: att.id,
+            urlHost: new URL(urlToUse).host,
+            status: res.status,
+          },
+          "Attachment fetch non-OK — trying next URL",
         );
-      } else {
-        // Last resort: check file extension
-        const ext = att.filename?.toLowerCase().split(".").pop();
-        if (ext && ["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) {
-          const mimeMap: Record<string, string> = {
-            jpg: "image/jpeg",
-            jpeg: "image/jpeg",
-            png: "image/png",
-            gif: "image/gif",
-            webp: "image/webp",
-            bmp: "image/bmp",
-          };
-          resolvedMime = mimeMap[ext];
-          log.warn(
-            { attachmentId: att.id, filename: att.filename, ext },
-            "Image MIME sniff failed — using file extension fallback",
-          );
+        continue;
+      }
+
+      let totalBytes = 0;
+      const chunks: Uint8Array[] = [];
+      const reader = res.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          totalBytes += value.length;
+          if (totalBytes > 10 * 1024 * 1024) {
+            reader.cancel();
+            return;
+          }
+          chunks.push(value);
         }
       }
-    }
-
-    // If all fallbacks fail, still try with generic image/jpeg
-    if (!resolvedMime) {
-      resolvedMime = "image/jpeg";
+      imageBytes = Buffer.concat(chunks);
+      break;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
       log.warn(
-        { attachmentId: att.id, filename: att.filename },
-        "All MIME detection failed — forcing image/jpeg as last resort",
+        {
+          attachmentId: att.id,
+          urlHost: new URL(urlToUse).host,
+          error: lastError,
+        },
+        "Attachment download failed — trying next URL",
       );
+    } finally {
+      clear();
     }
+  }
 
-    const { data: resizedBuffer, mimeType: resizedMime } =
-      await resizeImageForVision(imageBytes, maxDimension);
-    const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
-    addImageToMap(imageMap, targetId, {
-      type: "image_url",
-      image_url: { url: dataUrl },
-      sourceLabel: `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`,
-    });
-  } catch (err) {
+  if (!imageBytes) {
     log.warn(
       {
         attachmentId: att.id,
-        error: err instanceof Error ? err.message : String(err),
+        filename: att.filename,
+        lastStatus,
+        lastError,
       },
-      "Download failed",
+      "All attachment URLs failed — skipping media analysis",
     );
-  } finally {
-    clear();
+    return;
   }
+
+  const sniffedMime = sniffImageMimeType(imageBytes);
+
+  if (!sniffedMime && att.type.startsWith("video/")) {
+    await extractVideoFrames(att, imageBytes, targetId, maxDimension, imageMap);
+    return;
+  }
+
+  // Fallback: try attachment type metadata, then filename extension
+  let resolvedMime = sniffedMime;
+  if (!resolvedMime) {
+    if (att.type.startsWith("image/")) {
+      resolvedMime = att.type;
+      log.warn(
+        { attachmentId: att.id, filename: att.filename, type: att.type },
+        "Image MIME sniff failed — using attachment metadata type as fallback",
+      );
+    } else {
+      // Last resort: check file extension
+      const ext = att.filename?.toLowerCase().split(".").pop();
+      if (ext && ["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) {
+        const mimeMap: Record<string, string> = {
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          png: "image/png",
+          gif: "image/gif",
+          webp: "image/webp",
+          bmp: "image/bmp",
+        };
+        resolvedMime = mimeMap[ext];
+        log.warn(
+          { attachmentId: att.id, filename: att.filename, ext },
+          "Image MIME sniff failed — using file extension fallback",
+        );
+      }
+    }
+  }
+
+  // If all fallbacks fail, still try with generic image/jpeg
+  if (!resolvedMime) {
+    resolvedMime = "image/jpeg";
+    log.warn(
+      { attachmentId: att.id, filename: att.filename },
+      "All MIME detection failed — forcing image/jpeg as last resort",
+    );
+  }
+
+  const { data: resizedBuffer, mimeType: resizedMime } =
+    await resizeImageForVision(imageBytes, maxDimension);
+  const dataUrl = `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`;
+  addImageToMap(imageMap, targetId, {
+    type: "image_url",
+    image_url: { url: dataUrl },
+    sourceLabel: `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`,
+  });
 }
 
 // ---------------------------------------------------------------------------
