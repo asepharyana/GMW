@@ -56,6 +56,24 @@ export class VoiceTransmitter {
       // Create PCM input stream
       this.pcmStream = new PassThrough();
       this.pcmStream.setMaxListeners(32); // drain listeners accumulate during backpressure
+      // Voice teardown (stop / disconnect / ffmpeg exit) destroys this stream
+      // while Redis PCM messages may still be in flight. Without a listener,
+      // EPIPE / ERR_STREAM_DESTROYED / ERR_STREAM_WRITE_AFTER_END surface as
+      // an uncaughtException and crash the whole gateway.
+      this.pcmStream.on("error", (err: NodeJS.ErrnoException) => {
+        if (
+          err.code === "EPIPE" ||
+          err.code === "ERR_STREAM_DESTROYED" ||
+          err.code === "ERR_STREAM_WRITE_AFTER_END"
+        ) {
+          logger.debug(
+            { code: err.code },
+            "PCM stream closed during voice teardown — ignoring",
+          );
+        } else {
+          logger.error({ error: err.message }, "PCM stream error");
+        }
+      });
 
       // Spawn FFmpeg to encode 24kHz mono PCM → OggOpus
       // Input: 24kHz mono s16le (raw PCM)
@@ -146,7 +164,12 @@ export class VoiceTransmitter {
       );
 
       this.redisSub.on("message", (channel, message) => {
-        if (channel !== this.TRANSMIT_CHANNEL || !this.pcmStream) return;
+        if (
+          !this.isActive ||
+          channel !== this.TRANSMIT_CHANNEL ||
+          !this.pcmStream
+        )
+          return;
 
         try {
           const data = JSON.parse(message);
@@ -161,11 +184,21 @@ export class VoiceTransmitter {
                 this.draining = false;
                 // Re-acquire stream reference (could have been replaced by restart)
                 const currentStream = this.pcmStream;
-                if (!currentStream) return;
+                if (!currentStream || !this.isActive) return;
                 // Flush queued chunks
                 while (this.backpressureQueue.length > 0) {
                   const queued = this.backpressureQueue.shift()!;
-                  if (!currentStream.write(queued)) break;
+                  try {
+                    if (!currentStream.write(queued)) break;
+                  } catch (err) {
+                    logger.debug(
+                      {
+                        error: err instanceof Error ? err.message : String(err),
+                      },
+                      "PCM flush write failed during teardown — ignoring",
+                    );
+                    break;
+                  }
                 }
               });
             }

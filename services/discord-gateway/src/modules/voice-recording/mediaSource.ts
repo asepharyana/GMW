@@ -79,6 +79,22 @@ export function transcodeToHighQualityOgg(
   );
 
   input.pipe(proc.stdin);
+  // ffmpeg teardown closes stdin while the upstream source may still write —
+  // swallow EPIPE / destroyed-stream errors so they don't crash the gateway.
+  proc.stdin.on("error", (err: NodeJS.ErrnoException) => {
+    if (
+      err.code === "EPIPE" ||
+      err.code === "ERR_STREAM_DESTROYED" ||
+      err.code === "ERR_STREAM_WRITE_AFTER_END"
+    ) {
+      logger.debug(
+        { code: err.code },
+        "Transcode stdin closed during teardown",
+      );
+    } else {
+      logger.error({ error: err.message }, "Transcode stdin error");
+    }
+  });
   activeProcesses.add(proc);
 
   const cleanup = () => {
@@ -248,6 +264,20 @@ export function resolveMediaUrl(
     // `--print` headers to stderr — pipe stdout immediately so the child
     // never blocks on a full pipe while we wait for the headers on stderr.
     const mediaStream = new PassThrough();
+    // Teardown (player stop / ffmpeg exit) destroys this stream while
+    // yt-dlp may still push bytes — without a listener an EPIPE /
+    // ERR_STREAM_DESTROYED surfaces as an uncaughtException.
+    mediaStream.on("error", (err: NodeJS.ErrnoException) => {
+      if (
+        err.code === "EPIPE" ||
+        err.code === "ERR_STREAM_DESTROYED" ||
+        err.code === "ERR_STREAM_WRITE_AFTER_END"
+      ) {
+        logger.debug({ code: err.code }, "Media stream closed during teardown");
+      } else {
+        logger.error({ error: err.message }, "Media stream error");
+      }
+    });
     proc.stdout.pipe(mediaStream);
 
     let stderrBuf = "";

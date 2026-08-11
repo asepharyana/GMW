@@ -279,6 +279,25 @@ export async function initializeDiscordGateway() {
   });
 
   process.on("uncaughtException", (err) => {
+    const code =
+      typeof (err as NodeJS.ErrnoException).code === "string"
+        ? (err as NodeJS.ErrnoException).code
+        : "";
+    // Transient stream-teardown errors (voice stop/disconnect races, child
+    // process stdin closed while we still write) are NOT fatal — crashing the
+    // gateway on EPIPE takes the whole bot offline mid-music. Log + continue.
+    if (
+      code === "EPIPE" ||
+      code === "ERR_STREAM_DESTROYED" ||
+      code === "ERR_STREAM_WRITE_AFTER_END" ||
+      code === "ECONNRESET"
+    ) {
+      logger.warn(
+        { error: err },
+        "Uncaught transient stream error — continuing",
+      );
+      return;
+    }
     logger.error({ error: err }, "Uncaught exception");
     gracefulShutdown("uncaughtException");
   });
