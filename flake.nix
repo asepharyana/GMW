@@ -11,6 +11,16 @@
       let
         pkgs = import nixpkgs { inherit system; };
 
+        # libdatachannel 0.24.0 — the version the GoLive N-API binding links
+        # against. nixpkgs 0.24.1 was built against a newer glibc (ABI
+        # GLIBC_ABI_GNU2_TLS missing on this host), so pin 0.24.0 explicitly.
+        libdatachannel-src = pkgs.fetchFromGitHub {
+          owner = "paullouisageneau";
+          repo = "libdatachannel";
+          rev = "v0.24.0";
+          sha256 = "1jk53qsrihg1bsc0dmr5rajkgp3hi7d98pvpr0qnpk15b7ilb6fy";
+        };
+
         # Source filter: `path:` literals do NOT respect .gitignore by default,
         # so a dirty local out/ (stale chunks from previous builds) leaks into
         # the sandbox. Filter out build artifacts explicitly.
@@ -180,41 +190,37 @@ WRAPPER
             # pnpm rebuild aborts on the first failing package and runs scripts
             # from the wrong cwd — build each native dep explicitly with its own
             # install script. Each failure is tolerated (|| true); the packages
-            # that matter (opus, datachannel, node-av) are verified at runtime.
+            # that matter (opus) are verified at runtime.
             for pkg in \
-              node_modules/.pnpm/@discordjs+opus@*/node_modules/@discordjs/opus \
-              node_modules/.pnpm/@lng2004+node-datachannel@*/node_modules/@lng2004/node-datachannel \
-              node_modules/.pnpm/zeromq@*/node_modules/zeromq
+              node_modules/.pnpm/@discordjs+opus@*/node_modules/@discordjs/opus
             do
               if [ -d "$pkg" ]; then
                 echo "--- native build: $pkg ---"
                 (cd "$pkg" && npm run install 2>&1 || true)
-                # node-datachannel's `prebuild -r napi` CLI is broken (TypeError:
-                # expected first argument to be an array) — the install fallback
-                # populates devDeps incl. cmake-js; build directly via cmake-js.
-                if [ "$(basename "$pkg")" = "node-datachannel" ]; then
-                  echo "--- datachannel cmake-js compile ---"
-                  # Nix splits OpenSSL headers/libs across outputs — merge them
-                  # (opensslDevEnv) so FindOpenSSL finds both include + libcrypto.
-                  (cd "$pkg" && OPENSSL_ROOT_DIR="${opensslDevEnv}" npm run compile 2>&1 || true)
-                fi
               fi
             done
-            echo "=== Cleaning node-datachannel build tree ==="
-            # Runtime only needs build/Release/node_datachannel.node + dist/ —
-            # the cmake FetchContent sources (build/_deps, ~380MB), intermediate
-            # cmake files, and the nested node_modules of build tooling (nw-gyp,
-            # typescript, puppeteer, eslint, ... ~380MB) are build-time only.
-            for pkg in node_modules/.pnpm/@lng2004+node-datachannel@*/node_modules/@lng2004/node-datachannel
-            do
-              if [ -d "$pkg" ]; then
-                ( cd "$pkg/build" \
-                    && find . -mindepth 1 -maxdepth 1 ! -name 'Release' -exec rm -rf {} + ) 2>/dev/null || true
-                rm -rf "$pkg/node_modules" 2>/dev/null || true
-                echo "node-datachannel cleaned: $(du -sh "$pkg" | cut -f1)"
-              fi
-            done
-            echo "=== Compiling TypeScript ==="
+            echo "=== Building libdatachannel-min N-API binding ==="
+            # The GoLive screen-share stack uses a minimal N-API binding
+            # (native/libdatachannel-min) over libdatachannel 0.24.0 built from
+            # source. node-gyp links against the libdatachannel .so.
+            (
+              cd native/libdatachannel-min
+              # libdatachannel 0.24.0 fetched from GitHub (see flake inputs) —
+              # build with CMake, then node-gyp links against the .so.
+              mkdir -p build/ldc
+              cd build/ldc
+              cmake -DCMAKE_BUILD_TYPE=Release \
+                -DNO_EXAMPLES=ON -DNO_TESTS=ON -DNO_WEBSOCKET=ON \
+                -DNO_MEDIA=OFF \
+                -DCMAKE_INSTALL_PREFIX=$PWD/install \
+                "${opensslDevEnv}" ${libdatachannel-src} 2>&1 || true
+              make -j"$NIX_BUILD_CORES" 2>&1 || true
+              cd ..
+              LD_LIBRARY_PATH=$PWD/ldc node-gyp rebuild 2>&1 || true
+              cp -r build/Release/datachannel_min.node . 2>/dev/null || true
+              echo "libdatachannel-min binding: $(ls -la datachannel_min.node 2>/dev/null | awk '{print $5}') bytes"
+            )
+            echo "=== Compiling TypeScript ===="
             npx tsc 2>&1
             echo "=== Fixing @/ path aliases to relative paths ==="
             node -e "
