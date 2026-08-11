@@ -123,6 +123,62 @@ class DataChannelWrap : public Napi::ObjectWrap<DataChannelWrap> {
   }
 };
 
+class TrackWrap : public Napi::ObjectWrap<TrackWrap> {
+ public:
+  static Function Init(Napi::Env env) {
+    Function func = DefineClass(env, "Track", {
+      InstanceMethod("send", &TrackWrap::Send),
+      InstanceMethod("isOpen", &TrackWrap::IsOpen),
+      InstanceMethod("close", &TrackWrap::Close),
+      InstanceMethod("onStateChange", &TrackWrap::OnStateChange),
+    });
+    trackConstructor = Napi::Persistent(func);
+    return func;
+  }
+
+  static Object NewInstance(Napi::Env env) {
+    return trackConstructor.New({});
+  }
+
+  TrackWrap(const Napi::CallbackInfo& info)
+      : Napi::ObjectWrap<TrackWrap>(info) {}
+
+  void Init(std::shared_ptr<rtc::Track> track, Napi::Env env) {
+    track_ = track;
+    (void)env;
+  }
+
+ private:
+  static FunctionReference trackConstructor;
+  std::shared_ptr<rtc::Track> track_;
+
+  void Send(const Napi::CallbackInfo& info) {
+    Buffer<uint8_t> buf = info[0].As<Buffer<uint8_t>>();
+    if (!track_) return;
+    rtc::binary data(buf.Length());
+    for (size_t i = 0; i < buf.Length(); i++) data[i] = (std::byte)buf[i];
+    try {
+      track_->send(data);
+    } catch (const std::exception& e) {
+      fprintf(stderr, "[binding] track.send THREW: %s\n", e.what());
+    }
+  }
+
+  Napi::Value IsOpen(const Napi::CallbackInfo& info) {
+    bool open = track_ && track_->isOpen();
+    return Boolean::New(info.Env(), open);
+  }
+
+  void Close(const Napi::CallbackInfo& info) {
+    if (track_) track_->close();
+  }
+
+  void OnStateChange(const Napi::CallbackInfo& info) {
+    // libdatachannel Track has no state-change callback; kept for API parity.
+    (void)info;
+  }
+};
+
 class PeerConnectionWrap : public Napi::ObjectWrap<PeerConnectionWrap> {
  public:
   static Function Init(Napi::Env env) {
@@ -136,6 +192,7 @@ class PeerConnectionWrap : public Napi::ObjectWrap<PeerConnectionWrap> {
       InstanceMethod("onStateChange", &PeerConnectionWrap::OnStateChange),
       InstanceMethod("createDataChannel", &PeerConnectionWrap::CreateDataChannel),
       InstanceMethod("onDataChannel", &PeerConnectionWrap::OnDataChannel),
+      InstanceMethod("addTrack", &PeerConnectionWrap::AddTrack),
     });
     return func;
   }
@@ -323,6 +380,44 @@ class PeerConnectionWrap : public Napi::ObjectWrap<PeerConnectionWrap> {
     return obj;
   }
 
+  Napi::Value AddTrack(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    std::string mid = info[0].As<String>().Utf8Value();
+    std::string kind = info[1].As<String>().Utf8Value();
+    if (!pc_) throw Error::New(env, "peer closed");
+    fprintf(stderr, "[binding] addTrack(%s, %s) start\n", mid.c_str(), kind.c_str());
+    try {
+      std::shared_ptr<rtc::Track> track;
+      if (kind == "audio") {
+      // Opus payload type 120 (matches @dank074 CodecPayloadType.opus)
+      auto desc = rtc::Description::Audio(mid);
+      desc.addOpusCodec(120);
+      track = pc_->addTrack(desc);
+      } else {
+      // All video codecs with their payload types, matching WebRtcWrapper:
+      // H264 101/102, H265 103/104, VP8 105/106, VP9 107/108, AV1 109/110
+      auto desc = rtc::Description::Video(mid);
+      desc.addH264Codec(101);
+      desc.addRtxCodec(102, 101, 90000);
+      desc.addH265Codec(103);
+      desc.addRtxCodec(104, 103, 90000);
+      desc.addVP8Codec(105);
+      desc.addRtxCodec(106, 105, 90000);
+      desc.addVP9Codec(107);
+      desc.addRtxCodec(108, 107, 90000);
+      desc.addAV1Codec(109);
+      desc.addRtxCodec(110, 109, 90000);
+      track = pc_->addTrack(desc);
+    }
+      Object obj = TrackWrap::NewInstance(env);
+      TrackWrap::Unwrap(obj)->Init(track, env);
+      return obj;
+    } catch (const std::exception& e) {
+      fprintf(stderr, "[binding] addTrack THREW: %s\n", e.what());
+      throw Error::New(env, e.what());
+    }
+  }
+
   void OnDataChannel(const Napi::CallbackInfo& info) {
     Function cb = info[0].As<Function>();
     dcCb_ = std::make_shared<ThreadSafeFunction>(
@@ -344,12 +439,14 @@ class PeerConnectionWrap : public Napi::ObjectWrap<PeerConnectionWrap> {
 Object InitAll(Napi::Env env, Object exports) {
   exports.Set("PeerConnection", PeerConnectionWrap::Init(env));
   exports.Set("DataChannel", DataChannelWrap::Init(env));
+  exports.Set("Track", TrackWrap::Init(env));
   return exports;
 }
 
 NODE_API_MODULE(libdatachannel_min, InitAll)
 
-// Definition for the static constructor reference.
+// Definition for the static constructor references.
 FunctionReference DataChannelWrap::dcConstructor;
+FunctionReference TrackWrap::trackConstructor;
 
 }  // namespace
