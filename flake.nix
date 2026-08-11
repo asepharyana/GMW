@@ -206,7 +206,7 @@ WRAPPER
               NAPI_INCLUDE=$(find ../../node_modules/.pnpm -maxdepth 3 \
                 -type d -path "*node_modules/node-addon-api" | head -1)
               echo "NAPI_INCLUDE=$NAPI_INCLUDE"
-              LDC_INCLUDE=${libdatachannel.dev} LDC_LIB=${libdatachannel.lib} \
+              LDC_INCLUDE=${libdatachannel.dev} LDC_LIB=${libdatachannel.out}/lib/libdatachannel.so.0.24.1 \
                 NAPI_INCLUDE=$NAPI_INCLUDE \
                 npx node-gyp rebuild 2>&1 || true
               ls -la build/Release/datachannel_min.node 2>/dev/null \
@@ -271,7 +271,7 @@ WRAPPER
 #!${pkgs.runtimeShell}
 cd $out/lib/gmw-discord-gateway
 export PATH=${pkgs.ffmpeg-headless}/bin:${pkgs.yt-dlp}/bin:\$PATH
-export LD_LIBRARY_PATH=${libdatachannel.lib}/lib:\$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=${libdatachannel.out}/lib:\$LD_LIBRARY_PATH
 exec ${nodejs}/bin/node dist/index.js
 WRAPPER
             chmod +x $out/bin/gmw-discord-gateway
