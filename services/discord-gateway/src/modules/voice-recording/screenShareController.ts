@@ -145,6 +145,9 @@ export class ScreenShareController {
       };
       const done = playStream(prepared, this.streamer, {
         type: "go-live",
+        width: 1280,
+        height: 720,
+        frameRate: 30,
       })
         .catch((err: unknown) => {
           // Never let a stream failure become an unhandledRejection — that

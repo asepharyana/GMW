@@ -13,9 +13,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { createWriteStream, existsSync, readdirSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 
@@ -140,9 +138,10 @@ export async function probeStreams(
 
 /**
  * Demux input (URL string or readable stream) into video frames on a
- * PassThrough. Uses ffmpeg -f h264 -c copy for video-only AnnexB output.
- * Returns stream info + the video pipe. Audio is not extracted (GoLive
- * screen share sends silence / uses Discord's mixed audio).
+ * PassThrough. Streams input DIRECTLY into ffmpeg (no spool-to-file — the
+ * live NUT/H264 source never ends, so spooling deadlocks). ffmpeg emits
+ * AnnexB H264 on stdout; NAL units are split into frames on the fly.
+ * Video metadata is parsed from ffmpeg stderr during init.
  */
 export async function demux(
   input: string | PassThrough,
@@ -152,109 +151,18 @@ export async function demux(
   audio: DemuxedStream | undefined;
   close: () => void;
 }> {
-  const _label = randomUUID();
   const vPipe = new PassThrough({ objectMode: true, highWaterMark: 128 });
   const aPipe = new PassThrough({ objectMode: true, highWaterMark: 128 });
 
-  // For stream input, spool to a temp file first so ffprobe can inspect it
-  // (ffprobe needs a seekable file; pipes can't be re-read). The stream is
-  // fully consumed before ffmpeg starts — acceptable for screen-share
-  // sources which are already fully buffered by yt-dlp in practice.
-  let spoolPath: string | null = null;
-  const cleanupSpool = () => {
-    if (spoolPath) {
-      import("node:fs").then(({ unlink }) => unlink(spoolPath!, () => {}));
-      spoolPath = null;
-    }
-  };
-
-  let effectiveInput: string;
-  if (typeof input === "string") {
-    effectiveInput = input;
-  } else {
-    spoolPath = join(tmpdir(), `golive-demux-${_label}.h264`);
-    const ws = createWriteStream(spoolPath);
-    await new Promise<void>((resolve, reject) => {
-      input.pipe(ws);
-      input.on("error", reject);
-      ws.on("finish", resolve);
-      ws.on("error", reject);
-    });
-    effectiveInput = spoolPath;
-  }
-
-  // Probe for codec + dimensions
-  let streams: Array<Record<string, unknown>> = [];
-  try {
-    streams = await probeStreams(effectiveInput);
-  } catch (_e) {
-    // probe failed (e.g. raw h264 without container) — infer h264 default
-    streams = [];
-  }
-
-  const v = streams.find((s) => s.codec_type === "video");
-  const a = streams.find((s) => s.codec_type === "audio");
-  let vInfo: DemuxedStream | undefined;
-  let aInfo: DemuxedStream | undefined;
-
-  if (v) {
-    const codecName = (v.codec_name as string) ?? "h264";
-    const rFrame = (v.r_frame_rate as string) ?? "0/1";
-    const [num, den] = rFrame.split("/").map((n) => Number(n));
-    vInfo = {
-      codec:
-        AVCodecID[
-          (codecName.toUpperCase() as keyof typeof AVCodecID) ??
-            "AV_CODEC_ID_H264"
-        ] ?? AVCodecID.AV_CODEC_ID_H264,
-      codecName,
-      width: (v.width as number) ?? 0,
-      height: (v.height as number) ?? 0,
-      framerate_num: num ?? 0,
-      framerate_den: den ?? 1,
-      sample_rate: 0,
-      stream: vPipe,
-    };
-  } else {
-    // Probe failed (e.g. raw AnnexB h264 input) — still emit frames on the
-    // video pipe; playStream infers dimensions from the first frame.
-    vInfo = {
-      codec: AVCodecID.AV_CODEC_ID_H264,
-      codecName: "h264",
-      width: 0,
-      height: 0,
-      framerate_num: 0,
-      framerate_den: 1,
-      sample_rate: 0,
-      stream: vPipe,
-    };
-  }
-
-  if (a) {
-    const codecName = (a.codec_name as string) ?? "opus";
-    aInfo = {
-      codec:
-        AVCodecID[
-          (codecName.toUpperCase() as keyof typeof AVCodecID) ??
-            "AV_CODEC_ID_OPUS"
-        ],
-      codecName,
-      width: 0,
-      height: 0,
-      framerate_num: 0,
-      framerate_den: 0,
-      sample_rate: Number(a.sample_rate) ?? 0,
-      stream: aPipe,
-    };
-  }
-
-  // Spawn ffmpeg — extract raw video (AnnexB for H264) to stdout
+  const isStream = typeof input !== "string";
   const args: string[] = [
     "-hide_banner",
+    // info level: stream init lines ("Stream #0:0: Video: h264...") go to
+    // stderr and are parsed for dimensions/fps.
     "-loglevel",
-    "error",
+    "info",
     "-i",
-    effectiveInput,
+    isStream ? "pipe:0" : input,
     "-c:v",
     "copy",
     "-an", // no audio in this minimal demuxer
@@ -262,8 +170,103 @@ export async function demux(
     "h264",
     "pipe:1",
   ];
+  const proc = spawn(FFMPEG, args, {
+    stdio: isStream ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
+  });
 
-  const proc = spawn(FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"] });
+  // Pipe live input straight into ffmpeg stdin — never await stream end.
+  if (isStream && proc.stdin) {
+    input.pipe(proc.stdin);
+    input.on("error", () => proc.stdin?.destroy());
+  }
+
+  // Set true once stderr metadata has been parsed (see handler below).
+  let parsedMeta = false;
+
+  // Parse stream metadata from ffmpeg stderr as it arrives (first chunk has
+  // the init lines). Fall back to H264 defaults if parsing fails.
+  let vInfo: DemuxedStream = {
+    codec: AVCodecID.AV_CODEC_ID_H264,
+    codecName: "h264",
+    width: 0,
+    height: 0,
+    framerate_num: 0,
+    framerate_den: 1,
+    sample_rate: 0,
+    stream: vPipe,
+  };
+  let aInfo: DemuxedStream | undefined;
+  let stderrBuf = "";
+  if (proc.stderr) {
+    proc.stderr.on("data", (d: Buffer) => {
+      stderrBuf = (stderrBuf + d.toString()).slice(-16384);
+      if (parsedMeta) return;
+      const streamRe = /Stream #0:(\d+): (Video|Audio): ([^,]+)/g;
+      let m: RegExpExecArray | null;
+      const found: Array<{ kind: string; codecRaw: string }> = [];
+      // biome-ignore lint/suspicious/noAssignInExpressions: regex loop idiom
+      while ((m = streamRe.exec(stderrBuf)) !== null) {
+        found.push({ kind: m[2], codecRaw: m[3] });
+      }
+      const v = found.find((s) => s.kind === "Video");
+      const a = found.find((s) => s.kind === "Audio");
+      if (!v && !a) return;
+      parsedMeta = true;
+      if (v) {
+        const codecName = v.codecRaw.split(" ")[0].toLowerCase();
+        const dim = /(\d{2,5})x(\d{2,5})/.exec(stderrBuf);
+        const fps = /(\d+(?:\.\d+)?) fps/.exec(stderrBuf);
+        vInfo = {
+          codec:
+            AVCodecID[
+              (codecName.toUpperCase() as keyof typeof AVCodecID) ??
+                "AV_CODEC_ID_H264"
+            ] ?? AVCodecID.AV_CODEC_ID_H264,
+          codecName,
+          width: dim ? Number(dim[1]) : 0,
+          height: dim ? Number(dim[2]) : 0,
+          framerate_num: fps ? Math.round(Number(fps[1]) * 1000) : 0,
+          framerate_den: fps ? 1000 : 1,
+          sample_rate: 0,
+          stream: vPipe,
+        };
+      }
+      if (a) {
+        const codecName = a.codecRaw.split(" ")[0].toLowerCase();
+        const sr = /(\d+) Hz/.exec(stderrBuf);
+        aInfo = {
+          codec:
+            AVCodecID[
+              (codecName.toUpperCase() as keyof typeof AVCodecID) ??
+                "AV_CODEC_ID_OPUS"
+            ] ?? AVCodecID.AV_CODEC_ID_OPUS,
+          codecName,
+          width: 0,
+          height: 0,
+          framerate_num: 0,
+          framerate_den: 0,
+          sample_rate: sr ? Number(sr[1]) : 0,
+          stream: aPipe,
+        };
+      }
+    });
+  }
+
+  // Wait (briefly) for ffmpeg to print its stream init lines on stderr so
+  // vInfo carries real dimensions/fps. The lines arrive with the first chunk
+  // — a short timeout covers slow starts; callers fall back to sensible
+  // defaults when width/height are 0 anyway.
+  await Promise.race([
+    new Promise<void>((resolve) => {
+      const check = setInterval(() => {
+        if (parsedMeta) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 25);
+    }),
+    new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+  ]);
 
   // Scan stdout for NAL units. Each NAL unit (between start codes) is one frame
   // payload. We emit them individually; the packetizer chain handles FU-A.
@@ -356,11 +359,6 @@ export async function demux(
     });
   }
 
-  if (proc.stderr) {
-    proc.stderr.on("data", () => {
-      /* errors swallowed */
-    });
-  }
   proc.on("close", () => {
     vPipe.end();
     aPipe.end();
@@ -370,7 +368,6 @@ export async function demux(
     proc.kill("SIGTERM");
     vPipe.end();
     aPipe.end();
-    cleanupSpool();
   };
 
   return { video: vInfo, audio: aInfo, close };
