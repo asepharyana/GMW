@@ -323,7 +323,7 @@ a=ice-lite
       }
       const { op, d, seq } = JSON.parse(e.data as string) as {
         op: number;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Discord voice WS payload is dynamically typed
+        // biome-ignore lint/suspicious/noExplicitAny: Discord voice WS payload is dynamically typed
         d: any;
         seq?: number;
       };

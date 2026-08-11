@@ -9,6 +9,8 @@
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { PassThrough, type Readable } from "node:stream";
 import { demux } from "./Demuxer.js";
 import { type EncoderSettings, Encoders } from "./Encoders.js";
@@ -36,6 +38,25 @@ const DEFAULT_HEADERS = {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36",
   Connection: "keep-alive",
 };
+
+/** Resolve ffmpeg binary (env override → PATH → Nix store ffmpeg-headless). */
+function resolveFfmpeg(): string {
+  if (process.env.FFMPEG_PATH && existsSync(process.env.FFMPEG_PATH)) {
+    return process.env.FFMPEG_PATH;
+  }
+  const store = "/nix/store";
+  if (existsSync(store)) {
+    const entries = readdirSync(store);
+    for (const entry of entries) {
+      if (!entry.includes("ffmpeg-headless-")) continue;
+      const candidate = join(store, entry, "bin", "ffmpeg");
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return "ffmpeg";
+}
+
+const FFMPEG_BIN = resolveFfmpeg();
 
 /**
  * prepareStream — build an ffmpeg command (as spawn args + PassThrough output)
@@ -132,6 +153,11 @@ export function prepareStream(
       throw new Error(
         `Encoder settings not specified for ${mergedOptions.videoCodec}`,
       );
+    // Encoder options are declared as single strings like "-forced-idr 1";
+    // spawn needs each flag and value as separate argv entries.
+    const encOptions = enc.options.flatMap((opt) =>
+      opt.split(/\s+/).filter(Boolean),
+    );
     args.push(
       "-b:v",
       `${mergedOptions.bitrateVideo}k`,
@@ -147,8 +173,10 @@ export function prepareStream(
       "expr:gte(t,n_forced*1)",
       "-c:v",
       enc.name,
-      ...enc.options,
-      ...(enc.globalOptions ?? []),
+      ...encOptions,
+      ...(enc.globalOptions ?? []).flatMap((opt) =>
+        opt.split(/\s+/).filter(Boolean),
+      ),
     );
   }
 
@@ -174,8 +202,8 @@ export function prepareStream(
 
   const isUrl = typeof input === "string";
   const proc: ChildProcess = isUrl
-    ? spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] })
-    : spawn("ffmpeg", args, { stdio: ["pipe", "pipe", "pipe"] });
+    ? spawn(FFMPEG_BIN, args, { stdio: ["ignore", "pipe", "pipe"] })
+    : spawn(FFMPEG_BIN, args, { stdio: ["pipe", "pipe", "pipe"] });
 
   if (proc.stdin && !isUrl) {
     input.on("data", (chunk: Buffer) => proc.stdin?.write(chunk));

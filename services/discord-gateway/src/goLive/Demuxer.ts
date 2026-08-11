@@ -14,16 +14,43 @@
 
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { createWriteStream, existsSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PassThrough } from "node:stream";
 
-export enum AVCodecID {
-  AV_CODEC_ID_H264 = 27,
-  AV_CODEC_ID_HEVC = 173,
-  AV_CODEC_ID_VP8 = 139,
-  AV_CODEC_ID_VP9 = 167,
-  AV_CODEC_ID_AV1 = 225,
-  AV_CODEC_ID_OPUS = 86019,
+/**
+ * Resolve ffmpeg/ffprobe binary. Prefers explicit env override, then PATH,
+ * then a Nix-store ffmpeg-headless (the GMW flake provides it in the service
+ * profile, but dev shells / tests may not have it on PATH).
+ */
+function resolveBin(name: "ffmpeg"): string {
+  const override = process.env.FFMPEG_PATH;
+  if (override && existsSync(override)) return override;
+  // Nix store scan: <store>/<hash>-ffmpeg-headless-*/bin/<name>
+  const store = "/nix/store";
+  if (existsSync(store)) {
+    const entries = readdirSync(store);
+    for (const entry of entries) {
+      if (!entry.includes("ffmpeg-headless-")) continue;
+      const candidate = join(store, entry, "bin", name);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return name; // fall back to PATH
 }
+
+const FFMPEG = resolveBin("ffmpeg");
+
+export const AVCodecID = {
+  AV_CODEC_ID_H264: 27,
+  AV_CODEC_ID_HEVC: 173,
+  AV_CODEC_ID_VP8: 139,
+  AV_CODEC_ID_VP9: 167,
+  AV_CODEC_ID_AV1: 225,
+  AV_CODEC_ID_OPUS: 86019,
+} as const;
+export type AVCodecID = (typeof AVCodecID)[keyof typeof AVCodecID];
 
 export const AV_PKT_FLAG_KEY = 1;
 
@@ -48,37 +75,66 @@ export interface DemuxedStream {
   stream: PassThrough;
 }
 
-/** Run ffprobe JSON on a file URL, return raw stream descriptors. */
+/**
+ * Probe a media file for stream info using ffmpeg's stderr (the
+ * ffmpeg-headless Nix package ships ffmpeg but not ffprobe). Returns
+ * stream descriptors in the same shape ffprobe -show_streams would.
+ */
 export async function probeStreams(
   url: string,
 ): Promise<Array<Record<string, unknown>>> {
   return new Promise((resolve, reject) => {
-    const proc = spawn("ffprobe", [
+    const proc = spawn(FFMPEG, [
       "-hide_banner",
       "-loglevel",
-      "error",
+      "info",
       "-i",
       url,
-      "-print_format",
-      "json",
-      "-show_streams",
+      "-f",
+      "null",
+      "-",
     ]);
-    let stdout = "";
     let stderr = "";
-    proc.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
     proc.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
-    proc.on("close", (code) => {
-      if (code === 0) {
-        try {
-          const parsed = JSON.parse(stdout);
-          resolve(parsed.streams ?? []);
-        } catch (e) {
-          reject(new Error(`Failed to parse ffprobe output: ${e}`));
+    proc.on("close", () => {
+      // Parse "Stream #0:0: Video: h264 (High), yuv420p, 640x360, 30 fps"
+      const streams: Array<Record<string, unknown>> = [];
+      const re = /Stream #0:(\d+): (Video|Audio): ([^,]+)/g;
+      let m: RegExpExecArray | null;
+      // biome-ignore lint/suspicious/noAssignInExpressions: regex loop idiom
+      while ((m = re.exec(stderr)) !== null) {
+        const [full, idx, kind, codecRaw] = m;
+        void full;
+        const codecName = codecRaw.split(" ")[0].toLowerCase();
+        const stream: Record<string, unknown> = {
+          index: Number(idx),
+          codec_type: kind.toLowerCase(),
+          codec_name: codecName,
+          width: 0,
+          height: 0,
+          r_frame_rate: "0/1",
+          sample_rate: 0,
+        };
+        // dimensions: "640x360"
+        const dim = /(\d{2,5})x(\d{2,5})/.exec(stderr.slice(m.index));
+        if (dim) {
+          stream.width = Number(dim[1]);
+          stream.height = Number(dim[2]);
         }
-      } else {
-        reject(new Error(`ffprobe failed (${code}): ${stderr}`));
+        // fps: "30 fps" or "29.97 fps"
+        const fps = /(\d+(?:\.\d+)?) fps/.exec(stderr.slice(m.index));
+        if (fps) {
+          const v = Number(fps[1]);
+          stream.r_frame_rate = `${Math.round(v * 1000)}/1000`;
+        }
+        // sample rate for audio: "48000 Hz"
+        const sr = /(\d+) Hz/.exec(stderr.slice(m.index));
+        if (sr) stream.sample_rate = Number(sr[1]);
+        streams.push(stream);
       }
+      resolve(streams);
     });
+    proc.on("error", (err) => reject(err));
   });
 }
 
@@ -100,15 +156,44 @@ export async function demux(
   const vPipe = new PassThrough({ objectMode: true, highWaterMark: 128 });
   const aPipe = new PassThrough({ objectMode: true, highWaterMark: 128 });
 
+  // For stream input, spool to a temp file first so ffprobe can inspect it
+  // (ffprobe needs a seekable file; pipes can't be re-read). The stream is
+  // fully consumed before ffmpeg starts — acceptable for screen-share
+  // sources which are already fully buffered by yt-dlp in practice.
+  let spoolPath: string | null = null;
+  const cleanupSpool = () => {
+    if (spoolPath) {
+      import("node:fs").then(({ unlink }) => unlink(spoolPath!, () => {}));
+      spoolPath = null;
+    }
+  };
+
+  let effectiveInput: string;
+  if (typeof input === "string") {
+    effectiveInput = input;
+  } else {
+    spoolPath = join(tmpdir(), `golive-demux-${_label}.h264`);
+    const ws = createWriteStream(spoolPath);
+    await new Promise<void>((resolve, reject) => {
+      input.pipe(ws);
+      input.on("error", reject);
+      ws.on("finish", resolve);
+      ws.on("error", reject);
+    });
+    effectiveInput = spoolPath;
+  }
+
   // Probe for codec + dimensions
   let streams: Array<Record<string, unknown>> = [];
-  if (typeof input === "string") {
-    streams = await probeStreams(input);
+  try {
+    streams = await probeStreams(effectiveInput);
+  } catch (_e) {
+    // probe failed (e.g. raw h264 without container) — infer h264 default
+    streams = [];
   }
 
   const v = streams.find((s) => s.codec_type === "video");
   const a = streams.find((s) => s.codec_type === "audio");
-
   let vInfo: DemuxedStream | undefined;
   let aInfo: DemuxedStream | undefined;
 
@@ -121,12 +206,25 @@ export async function demux(
         AVCodecID[
           (codecName.toUpperCase() as keyof typeof AVCodecID) ??
             "AV_CODEC_ID_H264"
-        ],
+        ] ?? AVCodecID.AV_CODEC_ID_H264,
       codecName,
       width: (v.width as number) ?? 0,
       height: (v.height as number) ?? 0,
       framerate_num: num ?? 0,
       framerate_den: den ?? 1,
+      sample_rate: 0,
+      stream: vPipe,
+    };
+  } else {
+    // Probe failed (e.g. raw AnnexB h264 input) — still emit frames on the
+    // video pipe; playStream infers dimensions from the first frame.
+    vInfo = {
+      codec: AVCodecID.AV_CODEC_ID_H264,
+      codecName: "h264",
+      width: 0,
+      height: 0,
+      framerate_num: 0,
+      framerate_den: 1,
       sample_rate: 0,
       stream: vPipe,
     };
@@ -151,12 +249,12 @@ export async function demux(
   }
 
   // Spawn ffmpeg — extract raw video (AnnexB for H264) to stdout
-  const isUrl = typeof input === "string";
   const args: string[] = [
     "-hide_banner",
     "-loglevel",
     "error",
-    ...(isUrl ? ["-i", input] : ["-i", "pipe:0"]),
+    "-i",
+    effectiveInput,
     "-c:v",
     "copy",
     "-an", // no audio in this minimal demuxer
@@ -165,15 +263,7 @@ export async function demux(
     "pipe:1",
   ];
 
-  const proc = isUrl
-    ? spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] })
-    : spawn("ffmpeg", args, { stdio: ["pipe", "pipe", "pipe"] });
-
-  if (proc.stdin && !isUrl) {
-    input.on("data", (chunk: Buffer) => proc.stdin?.write(chunk));
-    input.on("end", () => proc.stdin?.end());
-    input.on("error", () => proc.stdin?.destroy());
-  }
+  const proc = spawn(FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"] });
 
   // Scan stdout for NAL units. Each NAL unit (between start codes) is one frame
   // payload. We emit them individually; the packetizer chain handles FU-A.
@@ -280,6 +370,7 @@ export async function demux(
     proc.kill("SIGTERM");
     vPipe.end();
     aPipe.end();
+    cleanupSpool();
   };
 
   return { video: vInfo, audio: aInfo, close };

@@ -27,7 +27,7 @@ export interface StreamerClientLike {
     broadcast(data: { op: number; d: unknown }): void;
   };
   guilds?: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- discord.js-selfbot client shape is dynamic
+    // biome-ignore lint/suspicious/noExplicitAny: discord.js-selfbot client shape is dynamic
     fetch(id: string): Promise<any>;
   };
 }
@@ -199,7 +199,7 @@ export class Streamer {
     const { guildId } = this.voiceConnection.streamConnection;
     if (!this.client.guilds) return;
     const server = await this.client.guilds.fetch(guildId);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any -- discord.js-selfbot dynamic
+    // biome-ignore lint/suspicious/noExplicitAny: discord.js-selfbot dynamic
     (server as any).members.me?.voice?.postPreview(data);
   }
 
