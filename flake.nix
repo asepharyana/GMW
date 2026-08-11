@@ -11,15 +11,10 @@
       let
         pkgs = import nixpkgs { inherit system; };
 
-        # libdatachannel 0.24.0 — the version the GoLive N-API binding links
-        # against. nixpkgs 0.24.1 was built against a newer glibc (ABI
-        # GLIBC_ABI_GNU2_TLS missing on this host), so pin 0.24.0 explicitly.
-        libdatachannel-src = pkgs.fetchFromGitHub {
-          owner = "paullouisageneau";
-          repo = "libdatachannel";
-          rev = "v0.24.0";
-          sha256 = "1jk53qsrihg1bsc0dmr5rajkgp3hi7d98pvpr0qnpk15b7ilb6fy";
-        };
+        # libdatachannel for the GoLive N-API binding. nixpkgs 0.24.1 is built
+        # against this host's glibc and ships both lib + dev headers, so the
+        # binding links cleanly inside the Nix sandbox (no manual cmake build).
+        libdatachannel = pkgs.libdatachannel;
 
         # Source filter: `path:` literals do NOT respect .gitignore by default,
         # so a dirty local out/ (stale chunks from previous builds) leaks into
@@ -172,6 +167,7 @@ WRAPPER
             pkgs.pkg-config
             pkgs.openssl
             pkgs.openssl.dev
+            libdatachannel.dev # rtc/rtc.hpp headers for the GoLive binding
             pkgs.git # libdatachannel FetchContent clones from GitHub
             pkgs.cacert
           ];
@@ -201,29 +197,16 @@ WRAPPER
             done
             echo "=== Building libdatachannel-min N-API binding ==="
             # The GoLive screen-share stack uses a minimal N-API binding
-            # (native/libdatachannel-min) over libdatachannel 0.24.0 built from
-            # source. node-gyp links against the libdatachannel .so.
+            # (native/libdatachannel-min) over nixpkgs libdatachannel.
             (
               cd native/libdatachannel-min
-              # libdatachannel 0.24.0 fetched from GitHub (see flake inputs) —
-              # build with CMake, then node-gyp links against the .so.
-              mkdir -p build/ldc
-              cd build/ldc
-              OPENSSL_ROOT_DIR="${opensslDevEnv}" cmake -DCMAKE_BUILD_TYPE=Release \
-                -DNO_EXAMPLES=ON -DNO_TESTS=ON -DNO_WEBSOCKET=ON \
-                -DNO_MEDIA=OFF \
-                -DCMAKE_INSTALL_PREFIX=$PWD/install \
-                ${libdatachannel-src} 2>&1 || true
-              make -j"$NIX_BUILD_CORES" 2>&1 || true
-              LDC_DIR=$PWD
-              cd ../..
-              # binding.gyp resolves include/lib from env (LDC_INCLUDE = source
-              # dir with rtc/rtc.hpp, LDC_LIB = cmake build dir with the .so,
-              # NAPI_INCLUDE = node-addon-api include root).
+              # binding.gyp resolves include/lib from env (LDC_INCLUDE = .dev
+              # include root, LDC_LIB = lib output dir, NAPI_INCLUDE =
+              # node-addon-api include root).
               NAPI_INCLUDE=$(find ../../node_modules/.pnpm -maxdepth 3 \
                 -type d -path "*node_modules/node-addon-api" | head -1)
               echo "NAPI_INCLUDE=$NAPI_INCLUDE"
-              LDC_INCLUDE=${libdatachannel-src} LDC_LIB=$LDC_DIR \
+              LDC_INCLUDE=${libdatachannel.dev} LDC_LIB=${libdatachannel.lib} \
                 NAPI_INCLUDE=$NAPI_INCLUDE \
                 npx node-gyp rebuild 2>&1 || true
               ls -la build/Release/datachannel_min.node 2>/dev/null \
@@ -288,7 +271,7 @@ WRAPPER
 #!${pkgs.runtimeShell}
 cd $out/lib/gmw-discord-gateway
 export PATH=${pkgs.ffmpeg-headless}/bin:${pkgs.yt-dlp}/bin:\$PATH
-export LD_LIBRARY_PATH=$out/lib/gmw-discord-gateway/native/libdatachannel-min/build/ldc:\$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=${libdatachannel.lib}/lib:\$LD_LIBRARY_PATH
 exec ${nodejs}/bin/node dist/index.js
 WRAPPER
             chmod +x $out/bin/gmw-discord-gateway
