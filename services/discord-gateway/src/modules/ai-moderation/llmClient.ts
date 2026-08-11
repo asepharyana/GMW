@@ -56,7 +56,7 @@ export async function withLlmConcurrency<T>(fn: () => Promise<T>): Promise<T> {
  */
 type LLMResponseChunk = {
   choices?: Array<{
-    delta?: { content?: string | null };
+    delta?: { content?: string | null; reasoning_content?: string | null };
     message?: { content?: string | null };
     finish_reason?: string | null;
     text?: string;
@@ -66,6 +66,29 @@ type LLMResponseChunk = {
   response?: string;
   finish_reason?: string;
 };
+
+/**
+ * Extract the textual payload from a single streaming chunk. Prefers
+ * `delta.content`; falls back to `delta.reasoning_content` (DeepSeek-style /
+ * Cloudflare gemma stream ALL output there with content:"") so reasoning-only
+ * models still produce usable aggregated text. Exported for unit tests.
+ */
+export function extractChunkText(
+  chunk: LLMResponseChunk | null | undefined,
+): string {
+  if (!chunk) return "";
+  const choice = chunk.choices?.[0];
+  return (
+    choice?.delta?.content ||
+    choice?.delta?.reasoning_content ||
+    choice?.message?.content ||
+    choice?.text ||
+    chunk?.message?.content ||
+    chunk?.response ||
+    chunk?.content ||
+    ""
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Lazy singleton — created on first use so that config is always resolved.
@@ -167,15 +190,7 @@ export async function llmChat(
             let finishReason = "stop";
             for await (const chunk of response as unknown as AsyncIterable<LLMResponseChunk>) {
               const choice = chunk?.choices?.[0];
-              const textChunk =
-                choice?.delta?.content ||
-                choice?.message?.content ||
-                choice?.text ||
-                chunk?.message?.content ||
-                chunk?.response ||
-                chunk?.content ||
-                "";
-              content += textChunk;
+              content += extractChunkText(chunk);
               const fr = choice?.finish_reason || chunk?.finish_reason;
               if (fr) finishReason = fr;
             }
