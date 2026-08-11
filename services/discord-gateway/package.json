@@ -7,11 +7,8 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "@discordjs/opus",
-      "@lng2004/node-datachannel",
       "esbuild",
-      "node-av",
-      "sharp",
-      "zeromq"
+      "sharp"
     ]
   },
   "scripts": {
@@ -24,7 +21,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@dank074/discord-video-stream": "6.0.0",
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.2",
     "@snazzah/davey": "^0.1.11",

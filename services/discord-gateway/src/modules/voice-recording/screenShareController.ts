@@ -1,12 +1,12 @@
+import type { Client } from "discord.js-selfbot-v13";
+import { createChildLogger } from "@/shared/logger/index";
 import {
   Encoders,
+  normalizeVideoCodec,
   playStream,
   prepareStream,
   Streamer,
-  Utils,
-} from "@dank074/discord-video-stream";
-import type { Client } from "discord.js-selfbot-v13";
-import { createChildLogger } from "@/shared/logger/index";
+} from "../../goLive/index.js";
 import { getDirectScreenInput } from "./mediaSource.js";
 import type { ScreenSharePlayback } from "./mediaTypes.js";
 import { discordPlayer } from "./player.js";
@@ -98,7 +98,7 @@ export class ScreenShareController {
         ),
       ]);
 
-      const { command, output } = prepareStream(input, {
+      const prepared = prepareStream(input, {
         encoder: Encoders.software({ x264: { preset: "superfast" } }),
         width: 1280,
         height: 720,
@@ -106,17 +106,9 @@ export class ScreenShareController {
         bitrateVideo: 2500,
         bitrateVideoMax: 4000,
         includeAudio: true,
-        videoCodec: Utils.normalizeVideoCodec("H264"),
-        // The library unconditionally appends `volume@internal_lib` + `azmq`
-        // audio filters that only exist in its custom node-av ffmpeg build
-        // (jellyfin-ffmpeg) — NOT in the Nix ffmpeg-headless on PATH. Without
-        // an override fluent-ffmpeg dies instantly with "Filter not found",
-        // the NUT output stays empty and playStream fails with "Invalid data
-        // found when processing input". ffmpeg applies the LAST -filter:a for
-        // a stream, so a trailing no-op filter neutralizes the custom chain.
-        // Realtime volume control was removed from GMW, so this is lossless.
-        customFfmpegFlags: ["-filter:a", "anull"],
+        videoCodec: normalizeVideoCodec("H264"),
       });
+      const { command } = prepared;
 
       let stopped = false;
       // Restore the @discordjs/voice connection after the stream ends (both
@@ -151,10 +143,10 @@ export class ScreenShareController {
           }, 5000);
         }
       };
-      const done = playStream(output, this.streamer, {
+      const done = playStream(prepared, this.streamer, {
         type: "go-live",
       })
-        .catch((err) => {
+        .catch((err: unknown) => {
           // Never let a stream failure become an unhandledRejection — that
           // crashed the whole gateway. Log + surface via the done promise.
           const message = err instanceof Error ? err.message : String(err);
