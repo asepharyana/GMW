@@ -333,7 +333,15 @@ a=ice-lite
       if (seq) this._sequenceNumber = seq;
       if (op === VoiceOpCodes.READY) {
         this.handleReady(d);
-        this.setProtocols().then(() => this.ready?.(this._webRtcWrapper));
+        this.setProtocols()
+          .then(() => this.ready?.(this._webRtcWrapper))
+          .catch((err: unknown) => {
+            // PC can be closed while setProtocols is in flight (stream
+            // teardown) — don't let that become an unhandledRejection.
+            console.log(
+              `[goLive:${this.constructor.name}] setProtocols rejected during teardown: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          });
         this.setVideoAttributes(false);
       } else if (op >= 4000) {
         console.error(`${this.constructor.name} connection error`, d);
@@ -539,9 +547,18 @@ a=ice-lite
         });
       };
       // createOffer (binding resolves full SDP incl. candidates after gathering)
-      void webRtcConn.createOffer().then((sdp) => {
-        this._webRtcWrapper.onLocalDescription?.(sdp);
-      });
+      void webRtcConn
+        .createOffer()
+        .then((sdp) => {
+          this._webRtcWrapper.onLocalDescription?.(sdp);
+        })
+        .catch((err: unknown) => {
+          // PC closed while offer is gathering (stream teardown / reconnect) —
+          // swallow, the reconnect loop will start a fresh offer.
+          console.log(
+            `[goLive:${this.constructor.name}] createOffer rejected: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
     };
     reconnect();
     return new Promise((resolve) => {

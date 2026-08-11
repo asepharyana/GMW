@@ -303,7 +303,27 @@ export async function initializeDiscordGateway() {
   });
 
   process.on("unhandledRejection", (reason, promise) => {
-    logger.error({ reason, promise }, "Unhandled rejection");
+    const err =
+      reason instanceof Error ? reason : new Error(String(reason ?? "unknown"));
+    const code = (err as NodeJS.ErrnoException).code ?? "";
+    // Same transient-teardown policy as uncaughtException: a rejection that
+    // fires while a stream is being torn down (EPIPE after ffmpeg stdin
+    // closes, write-after-destroy, socket reset) must NOT take the whole
+    // gateway offline. Log detail + continue. Everything else still shuts
+    // down so real bugs surface.
+    if (
+      code === "EPIPE" ||
+      code === "ERR_STREAM_DESTROYED" ||
+      code === "ERR_STREAM_WRITE_AFTER_END" ||
+      code === "ECONNRESET"
+    ) {
+      logger.warn(
+        { error: err },
+        "Unhandled rejection transient stream error — continuing",
+      );
+      return;
+    }
+    logger.error({ error: err, reason: String(reason) }, "Unhandled rejection");
     gracefulShutdown("unhandledRejection");
   });
 
