@@ -5,10 +5,10 @@
       "sources": ["binding.cpp"],
       "include_dirs": [
         "<!@(node -p \"require('node-addon-api').include\")",
-        "/home/code/GMW/services/discord-gateway/node_modules/.pnpm/@lng2004+node-datachannel@0.32.0-20260202/node_modules/@lng2004/node-datachannel/build/_deps/libdatachannel-src/include"
+        "<!(node -e \"const s=process.env.LDC_INCLUDE||'/nix/store/39a85gpfjqy3h3k8jwrwh7m9yc3inqw7-source';console.log(s+'/include')\")"
       ],
       "libraries": [
-        "/tmp/ldc-build/libdatachannel.so.0.24.0"
+        "<!(node -e \"const s=process.env.LDC_LIB||'/tmp/ldc-build';console.log(s+'/libdatachannel.so.0.24.0')\")"
       ],
       "cflags": ["-std=c++17", "-fexceptions"],
       "cflags_cc": ["-std=c++17", "-fexceptions"],

@@ -209,16 +209,21 @@ WRAPPER
               # build with CMake, then node-gyp links against the .so.
               mkdir -p build/ldc
               cd build/ldc
-              cmake -DCMAKE_BUILD_TYPE=Release \
+              OPENSSL_ROOT_DIR="${opensslDevEnv}" cmake -DCMAKE_BUILD_TYPE=Release \
                 -DNO_EXAMPLES=ON -DNO_TESTS=ON -DNO_WEBSOCKET=ON \
                 -DNO_MEDIA=OFF \
                 -DCMAKE_INSTALL_PREFIX=$PWD/install \
-                "${opensslDevEnv}" ${libdatachannel-src} 2>&1 || true
+                ${libdatachannel-src} 2>&1 || true
               make -j"$NIX_BUILD_CORES" 2>&1 || true
-              cd ..
-              LD_LIBRARY_PATH=$PWD/ldc node-gyp rebuild 2>&1 || true
-              cp -r build/Release/datachannel_min.node . 2>/dev/null || true
-              echo "libdatachannel-min binding: $(ls -la datachannel_min.node 2>/dev/null | awk '{print $5}') bytes"
+              LDC_DIR=$PWD
+              cd ../..
+              # binding.gyp resolves include/lib from env (LDC_INCLUDE = source
+              # dir with rtc/rtc.hpp, LDC_LIB = cmake build dir with the .so).
+              LDC_INCLUDE=${libdatachannel-src} LDC_LIB=$LDC_DIR \
+                npx node-gyp rebuild 2>&1 || true
+              ls -la build/Release/datachannel_min.node 2>/dev/null \
+                && echo "libdatachannel-min binding OK: $(stat -c%s build/Release/datachannel_min.node) bytes" \
+                || echo "WARN: libdatachannel-min binding build FAILED (screen share disabled)"
             )
             echo "=== Compiling TypeScript ===="
             npx tsc 2>&1
@@ -254,6 +259,22 @@ WRAPPER
             mkdir -p $out/lib/gmw-discord-gateway
             cp -r dist node_modules package.json tsconfig.json $out/lib/gmw-discord-gateway/
 
+            # GoLive native binding — loadNative resolves it relative to
+            # dist/goLive/native.js, i.e. <root>/native/libdatachannel-min/
+            # build/Release/datachannel_min.node; libdatachannel .so must sit
+            # next to it and be on LD_LIBRARY_PATH at runtime.
+            mkdir -p $out/lib/gmw-discord-gateway/native/libdatachannel-min/build/Release
+            cp native/libdatachannel-min/build/Release/datachannel_min.node \
+              $out/lib/gmw-discord-gateway/native/libdatachannel-min/build/Release/ 2>/dev/null || true
+            mkdir -p $out/lib/gmw-discord-gateway/native/libdatachannel-min/build/ldc
+            cp -rL native/libdatachannel-min/build/ldc/libdatachannel.so* \
+              $out/lib/gmw-discord-gateway/native/libdatachannel-min/build/ldc/ 2>/dev/null || true
+            # If the binding failed to build, screen share is simply disabled —
+            # the gateway itself must still start.
+            if [ ! -f $out/lib/gmw-discord-gateway/native/libdatachannel-min/build/Release/datachannel_min.node ]; then
+              echo "WARN: datachannel_min.node missing — GoLive screen share disabled in this build"
+            fi
+
             # Also include drizzle migrations if they exist
             cp -r drizzle $out/lib/gmw-discord-gateway/ 2>/dev/null || true
 
@@ -262,6 +283,7 @@ WRAPPER
 #!${pkgs.runtimeShell}
 cd $out/lib/gmw-discord-gateway
 export PATH=${pkgs.ffmpeg-headless}/bin:${pkgs.yt-dlp}/bin:\$PATH
+export LD_LIBRARY_PATH=$out/lib/gmw-discord-gateway/native/libdatachannel-min/build/ldc:\$LD_LIBRARY_PATH
 exec ${nodejs}/bin/node dist/index.js
 WRAPPER
             chmod +x $out/bin/gmw-discord-gateway
