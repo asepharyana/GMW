@@ -105,7 +105,11 @@ export class ScreenShareController {
         frameRate: 30,
         bitrateVideo: 2500,
         bitrateVideoMax: 4000,
-        includeAudio: true,
+        // Video-only GoLive: the -f h264 output muxer cannot carry audio
+        // ("h264 muxer does not support any stream of type audio" → header
+        // write fails → empty stdout → demux 'Invalid data' → black tile).
+        // Audio is not delivered by the GoLive demux path anyway.
+        includeAudio: false,
         videoCodec: normalizeVideoCodec("H264"),
       });
       const { command } = prepared;

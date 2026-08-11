@@ -302,16 +302,15 @@ export class Streamer {
       channelId: channel_id,
       botId: user_id,
     } = this.voiceConnection;
-    // Mimic the real Discord client when starting Go Live: flip the voice
-    // state to video-enabled (and un-deafen) BEFORE requesting the stream.
-    // Discord's gateway silently ignores STREAM_CREATE while the user's
-    // voice state still has self_video: false.
+    // Un-deafen before requesting the stream (mimic real client). Do NOT
+    // set self_video: true — that flips on the bot's camera in Discord
+    // (visible to everyone); screen share should not enable the camera.
     this.sendOpcode(GatewayOpCodes.VOICE_STATE_UPDATE, {
       guild_id,
       channel_id,
       self_mute: false,
       self_deaf: false,
-      self_video: true,
+      self_video: false,
     });
     this.sendOpcode(GatewayOpCodes.STREAM_CREATE, {
       type,

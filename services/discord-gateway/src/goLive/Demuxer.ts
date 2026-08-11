@@ -161,6 +161,11 @@ export async function demux(
     // stderr and are parsed for dimensions/fps.
     "-loglevel",
     "info",
+    // Input format hint: prepareStream always emits raw AnnexB H264 on
+    // pipe:0. Raw H264 has NO magic header, so ffmpeg's auto-detection
+    // fails with "Invalid data found when processing input" whenever the
+    // first bytes arrive late/buffered. Pin the demuxer input format.
+    ...(isStream ? ["-f", "h264"] : []),
     "-i",
     isStream ? "pipe:0" : input,
     "-c:v",
