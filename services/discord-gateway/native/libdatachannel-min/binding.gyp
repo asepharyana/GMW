@@ -4,7 +4,7 @@
       "target_name": "libdatachannel_min",
       "sources": ["binding.cpp"],
       "include_dirs": [
-        "<!@(node -p \"require('node-addon-api').include\")",
+        "<!(node -e \"console.log(process.env.NAPI_INCLUDE || (() => { try { return require('node-addon-api').include; } catch { return '/nonexistent'; } })())\")",
         "<!(node -e \"const s=process.env.LDC_INCLUDE||'/nix/store/39a85gpfjqy3h3k8jwrwh7m9yc3inqw7-source';console.log(s+'/include')\")"
       ],
       "libraries": [

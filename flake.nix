@@ -218,8 +218,13 @@ WRAPPER
               LDC_DIR=$PWD
               cd ../..
               # binding.gyp resolves include/lib from env (LDC_INCLUDE = source
-              # dir with rtc/rtc.hpp, LDC_LIB = cmake build dir with the .so).
+              # dir with rtc/rtc.hpp, LDC_LIB = cmake build dir with the .so,
+              # NAPI_INCLUDE = node-addon-api include root).
+              NAPI_INCLUDE=$(find ../../node_modules/.pnpm -maxdepth 3 \
+                -type d -path "*node_modules/node-addon-api" | head -1)
+              echo "NAPI_INCLUDE=$NAPI_INCLUDE"
               LDC_INCLUDE=${libdatachannel-src} LDC_LIB=$LDC_DIR \
+                NAPI_INCLUDE=$NAPI_INCLUDE \
                 npx node-gyp rebuild 2>&1 || true
               ls -la build/Release/datachannel_min.node 2>/dev/null \
                 && echo "libdatachannel-min binding OK: $(stat -c%s build/Release/datachannel_min.node) bytes" \
