@@ -262,6 +262,9 @@ a=ice-lite
       [audioSection, videoSection, videoRtpMap].join("\n"),
       "answer",
     );
+    console.log(
+      `[goLive:${this.constructor.name}] SELECT_PROTOCOL_ACK processed — remote answer set (${[audioSection, videoSection].join("\n").length}B)`,
+    );
     this.emit("select_protocol_ack");
   }
 
@@ -519,10 +522,14 @@ a=ice-lite
     const reconnect = () => {
       const webRtcConn = this._webRtcWrapper.initWebRtc();
       webRtcConn.onStateChange((state) => {
+        console.log(`[goLive:${this.constructor.name}] pc state => ${state}`);
         if (state === "closed" && !this._closed) reconnect();
       });
       this._webRtcWrapper.onLocalDescription = (sdp) => {
         const rtc_connection_id = randomUUID();
+        console.log(
+          `[goLive:${this.constructor.name}] sending SELECT_PROTOCOL (offer ${sdp.length}B, rtc_connection_id=${rtc_connection_id.slice(0, 8)})`,
+        );
         this.sendOpcode(VoiceOpCodes.SELECT_PROTOCOL, {
           protocol: "webrtc",
           codecs: Object.values(CodecPayloadType),

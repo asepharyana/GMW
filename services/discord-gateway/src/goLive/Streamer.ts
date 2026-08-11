@@ -48,7 +48,19 @@ export class Streamer {
     this._client = client;
     // listen for gateway dispatch events
     this.client.on("raw", (packet) => {
-      this._gatewayEmitter.emit(packet.t, packet.d);
+      const t = packet.t as string;
+      if (
+        t === "STREAM_CREATE" ||
+        t === "STREAM_SERVER_UPDATE" ||
+        t === "VOICE_STATE_UPDATE" ||
+        t === "VOICE_SERVER_UPDATE"
+      ) {
+        console.log(
+          `[goLive:Streamer] raw dispatch ${t}`,
+          JSON.stringify(packet.d).slice(0, 220),
+        );
+      }
+      this._gatewayEmitter.emit(t, packet.d);
     });
   }
 
@@ -142,6 +154,13 @@ export class Streamer {
         return;
       }
       this.signalStream();
+      const streamTimeout = setTimeout(() => {
+        reject(
+          new Error(
+            "Timed out waiting for STREAM_CREATE/STREAM_SERVER_UPDATE from Discord (stream handshake) — voice media session may not be active",
+          ),
+        );
+      }, 12_000);
       const {
         guildId: clientGuildId,
         channelId: clientChannelId,
@@ -155,6 +174,7 @@ export class Streamer {
         clientUserId,
         clientChannelId,
         (conn) => {
+          clearTimeout(streamTimeout);
           resolve(conn);
         },
       );
