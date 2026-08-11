@@ -77,6 +77,11 @@ export class Streamer {
   }
 
   sendOpcode(code: number, data: unknown): void {
+    // Direct instrumentation — bypasses the bootstrap debug filter (which
+    // drops messages without [VOICE / [ffmpeg / error / stream).
+    console.log(
+      `[goLive:Streamer] sendOpcode op=${code} d=${JSON.stringify(data)}`,
+    );
     this.client.ws.broadcast({ op: code, d: data });
   }
 
@@ -153,14 +158,6 @@ export class Streamer {
         );
         return;
       }
-      this.signalStream();
-      const streamTimeout = setTimeout(() => {
-        reject(
-          new Error(
-            "Timed out waiting for STREAM_CREATE/STREAM_SERVER_UPDATE from Discord (stream handshake) — voice media session may not be active",
-          ),
-        );
-      }, 12_000);
       const {
         guildId: clientGuildId,
         channelId: clientChannelId,
@@ -175,40 +172,84 @@ export class Streamer {
         clientChannelId,
         (conn) => {
           clearTimeout(streamTimeout);
+          clearInterval(retryInterval);
           resolve(conn);
         },
       );
       this.voiceConnection.streamConnection = streamConn;
-      this._gatewayEmitter.on(
-        "STREAM_CREATE",
-        (d: { stream_key: string; rtc_server_id: string }) => {
-          const { channelId, guildId, userId } = parseStreamKey(d.stream_key);
-          if (
-            clientGuildId !== guildId ||
-            clientChannelId !== channelId ||
-            clientUserId !== userId
-          ) {
-            return;
-          }
-          streamConn.serverId = d.rtc_server_id;
-          streamConn.streamKey = d.stream_key;
-          streamConn.setSession(session_id);
-        },
+
+      // Attach listeners BEFORE the first signal so a fast dispatch can't
+      // be lost between signalStream() and listener registration.
+      const onStreamCreate = (d: {
+        stream_key: string;
+        rtc_server_id: string;
+      }) => {
+        const { channelId, guildId, userId } = parseStreamKey(d.stream_key);
+        if (
+          clientGuildId !== guildId ||
+          clientChannelId !== channelId ||
+          clientUserId !== userId
+        ) {
+          return;
+        }
+        streamConn.serverId = d.rtc_server_id;
+        streamConn.streamKey = d.stream_key;
+        streamConn.setSession(session_id);
+      };
+      const onStreamServerUpdate = (d: {
+        stream_key: string;
+        endpoint: string;
+        token: string;
+      }) => {
+        const { channelId, guildId, userId } = parseStreamKey(d.stream_key);
+        if (
+          clientGuildId !== guildId ||
+          clientChannelId !== channelId ||
+          clientUserId !== userId
+        ) {
+          return;
+        }
+        streamConn.setTokens(d.endpoint, d.token);
+      };
+      this._gatewayEmitter.on("STREAM_CREATE", onStreamCreate);
+      this._gatewayEmitter.on("STREAM_SERVER_UPDATE", onStreamServerUpdate);
+
+      const cleanup = () => {
+        clearTimeout(streamTimeout);
+        clearInterval(retryInterval);
+        this._gatewayEmitter.removeListener("STREAM_CREATE", onStreamCreate);
+        this._gatewayEmitter.removeListener(
+          "STREAM_SERVER_UPDATE",
+          onStreamServerUpdate,
+        );
+      };
+      const streamTimeout = setTimeout(() => {
+        cleanup();
+        reject(
+          new Error(
+            "Timed out waiting for STREAM_CREATE/STREAM_SERVER_UPDATE from Discord (stream handshake) — voice media session may not be active",
+          ),
+        );
+      }, 12_000);
+
+      // Discord sometimes drops the STREAM_CREATE request silently (upstream
+      // issue #217/#219) — resend a few times instead of giving up after one.
+      let attempt = 0;
+      const retryInterval = setInterval(() => {
+        attempt += 1;
+        if (attempt >= 4) {
+          clearInterval(retryInterval);
+          return;
+        }
+        console.log(
+          `[goLive:Streamer] createStream: retrying STREAM_CREATE (attempt ${attempt + 1}/4)`,
+        );
+        this.signalStream();
+      }, 3_000);
+      console.log(
+        `[goLive:Streamer] createStream: sending STREAM_CREATE (attempt 1/4)`,
       );
-      this._gatewayEmitter.on(
-        "STREAM_SERVER_UPDATE",
-        (d: { stream_key: string; endpoint: string; token: string }) => {
-          const { channelId, guildId, userId } = parseStreamKey(d.stream_key);
-          if (
-            clientGuildId !== guildId ||
-            clientChannelId !== channelId ||
-            clientUserId !== userId
-          ) {
-            return;
-          }
-          streamConn.setTokens(d.endpoint, d.token);
-        },
-      );
+      this.signalStream();
     });
   }
 
@@ -261,6 +302,17 @@ export class Streamer {
       channelId: channel_id,
       botId: user_id,
     } = this.voiceConnection;
+    // Mimic the real Discord client when starting Go Live: flip the voice
+    // state to video-enabled (and un-deafen) BEFORE requesting the stream.
+    // Discord's gateway silently ignores STREAM_CREATE while the user's
+    // voice state still has self_video: false.
+    this.sendOpcode(GatewayOpCodes.VOICE_STATE_UPDATE, {
+      guild_id,
+      channel_id,
+      self_mute: false,
+      self_deaf: false,
+      self_video: true,
+    });
     this.sendOpcode(GatewayOpCodes.STREAM_CREATE, {
       type,
       guild_id,
