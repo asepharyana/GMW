@@ -107,6 +107,15 @@ export class ScreenShareController {
         bitrateVideoMax: 4000,
         includeAudio: true,
         videoCodec: Utils.normalizeVideoCodec("H264"),
+        // The library unconditionally appends `volume@internal_lib` + `azmq`
+        // audio filters that only exist in its custom node-av ffmpeg build
+        // (jellyfin-ffmpeg) — NOT in the Nix ffmpeg-headless on PATH. Without
+        // an override fluent-ffmpeg dies instantly with "Filter not found",
+        // the NUT output stays empty and playStream fails with "Invalid data
+        // found when processing input". ffmpeg applies the LAST -filter:a for
+        // a stream, so a trailing no-op filter neutralizes the custom chain.
+        // Realtime volume control was removed from GMW, so this is lossless.
+        customFfmpegFlags: ["-filter:a", "anull"],
       });
 
       let stopped = false;
