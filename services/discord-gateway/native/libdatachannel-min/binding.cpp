@@ -130,7 +130,9 @@ class TrackWrap : public Napi::ObjectWrap<TrackWrap> {
       InstanceMethod("send", &TrackWrap::Send),
       InstanceMethod("isOpen", &TrackWrap::IsOpen),
       InstanceMethod("close", &TrackWrap::Close),
-      InstanceMethod("onStateChange", &TrackWrap::OnStateChange),
+      InstanceMethod("setPacketizer", &TrackWrap::SetPacketizer),
+      InstanceMethod("sendFrame", &TrackWrap::SendFrame),
+      InstanceMethod("addTimestamp", &TrackWrap::AddTimestamp),
     });
     trackConstructor = Napi::Persistent(func);
     return func;
@@ -151,6 +153,7 @@ class TrackWrap : public Napi::ObjectWrap<TrackWrap> {
  private:
   static FunctionReference trackConstructor;
   std::shared_ptr<rtc::Track> track_;
+  std::shared_ptr<rtc::RtpPacketizationConfig> rtpConfig_;
 
   void Send(const Napi::CallbackInfo& info) {
     Buffer<uint8_t> buf = info[0].As<Buffer<uint8_t>>();
@@ -162,6 +165,78 @@ class TrackWrap : public Napi::ObjectWrap<TrackWrap> {
     } catch (const std::exception& e) {
       fprintf(stderr, "[binding] track.send THREW: %s\n", e.what());
     }
+  }
+
+  // setPacketizer(kind, ssrc, payloadType, clockRate, playoutDelayId,
+  //               playoutDelayMin, playoutDelayMax)
+  // kind: "audio" | "h264" | "h265" | "av1"
+  // Builds the media-handler chain (packetizer → RTCP SR → NACK → pacing for
+  // video) exactly like @dank074's WebRtcWrapper does via node-datachannel.
+  void SetPacketizer(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (!track_) throw Error::New(env, "track closed");
+    std::string kind = info[0].As<String>().Utf8Value();
+    uint32_t ssrc = info[1].As<Number>().Uint32Value();
+    uint8_t pt = (uint8_t)info[2].As<Number>().Uint32Value();
+    uint32_t clockRate = info[3].As<Number>().Uint32Value();
+    uint8_t playoutDelayId = (uint8_t)info[4].As<Number>().Uint32Value();
+    uint16_t playoutDelayMin = (uint16_t)info[5].As<Number>().Uint32Value();
+    uint16_t playoutDelayMax = (uint16_t)info[6].As<Number>().Uint32Value();
+    try {
+      auto cfg = std::make_shared<rtc::RtpPacketizationConfig>(
+          ssrc, "", pt, clockRate);
+      cfg->playoutDelayId = playoutDelayId;
+      cfg->playoutDelayMin = playoutDelayMin;
+      cfg->playoutDelayMax = playoutDelayMax;
+      std::shared_ptr<rtc::MediaHandler> handler;
+      if (kind == "audio") {
+        handler = std::make_shared<rtc::OpusRtpPacketizer>(cfg);
+      } else if (kind == "h264") {
+        handler = std::make_shared<rtc::H264RtpPacketizer>(
+            rtc::NalUnit::Separator::StartSequence, cfg);
+      } else if (kind == "h265") {
+        handler = std::make_shared<rtc::H265RtpPacketizer>(
+            rtc::NalUnit::Separator::StartSequence, cfg);
+      } else if (kind == "av1") {
+        handler = std::make_shared<rtc::AV1RtpPacketizer>(
+            rtc::AV1RtpPacketizer::Packetization::Obu, cfg);
+      } else {
+        throw std::runtime_error("unknown packetizer kind: " + kind);
+      }
+      handler->addToChain(std::make_shared<rtc::RtcpSrReporter>(cfg));
+      handler->addToChain(std::make_shared<rtc::RtcpNackResponder>());
+      if (kind != "audio") {
+        handler->addToChain(std::make_shared<rtc::PacingHandler>(
+            25.0 * 1000 * 1000, std::chrono::milliseconds(1)));
+      }
+      track_->setMediaHandler(handler);
+      rtpConfig_ = cfg;
+    } catch (const std::exception& e) {
+      fprintf(stderr, "[binding] setPacketizer THREW: %s\n", e.what());
+      throw Error::New(env, e.what());
+    }
+  }
+
+  // sendFrame(buffer) — sends an ENCODED frame (AnnexB H264 / raw opus /
+  // OBU AV1). The media-handler chain packetizes it into RTP.
+  void SendFrame(const Napi::CallbackInfo& info) {
+    Buffer<uint8_t> buf = info[0].As<Buffer<uint8_t>>();
+    if (!track_) return;
+    rtc::binary data(buf.Length());
+    for (size_t i = 0; i < buf.Length(); i++) data[i] = (std::byte)buf[i];
+    try {
+      track_->send(data);
+    } catch (const std::exception& e) {
+      fprintf(stderr, "[binding] track.sendFrame THREW: %s\n", e.what());
+    }
+  }
+
+  // addTimestamp(delta) — advances the packetizer RTP timestamp by delta
+  // (clock-rate units). Called by JS after each frame, matching the
+  // node-datachannel contract (WebRtcWrapper does the same increment).
+  void AddTimestamp(const Napi::CallbackInfo& info) {
+    uint32_t delta = info[0].As<Number>().Uint32Value();
+    if (rtpConfig_) rtpConfig_->timestamp += delta;
   }
 
   Napi::Value IsOpen(const Napi::CallbackInfo& info) {
@@ -178,7 +253,6 @@ class TrackWrap : public Napi::ObjectWrap<TrackWrap> {
     (void)info;
   }
 };
-
 class PeerConnectionWrap : public Napi::ObjectWrap<PeerConnectionWrap> {
  public:
   static Function Init(Napi::Env env) {
