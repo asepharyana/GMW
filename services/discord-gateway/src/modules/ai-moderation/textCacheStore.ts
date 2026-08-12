@@ -63,12 +63,15 @@ export function makeCustomEmojiCacheKey(emojiId: string): string {
 
 /**
  * Generate a deterministic cache key for an image data URL.
- * Hashes the first 128 chars of the data URL (enough to identify the image
- * without storing the full base64 string as the key).
+ * Hashes the FULL data URL — only hashing a prefix (e.g. first 128 chars)
+ * causes hash collisions for images that share the same MIME prefix +
+ * identical base64 header bytes (common when images are resized to the same
+ * dimensions), which makes every image incorrectly reuse the same cached
+ * vision analysis. Hashing the entire data URL guarantees uniqueness per
+ * actual pixel content.
  */
 export function makeImageCacheKey(dataUrl: string): string {
-  const prefix = dataUrl.slice(0, 128);
-  const hash = createHash("sha256").update(prefix).digest("hex").slice(0, 16);
+  const hash = createHash("sha256").update(dataUrl).digest("hex").slice(0, 16);
   return `image:${hash}`;
 }
 
