@@ -109,6 +109,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
       `- <conversation_context> = obrolan SEBELUM pesan target. Baris "[context]" di dalamnya BUKAN yang dinilai.\n` +
       `- <user_profiles> = peta ringkasan kepribadian per user_id (attr as_of = kapan profil terakhir dibuat — profil lama mungkin tidak mencerminkan perilaku terkini); setiap <message> merujuk lewat <user_profile_ref user_id="..."/>.\n` +
       `- <web_searches> / <web_content> = bukti web (lihat "Web Sebagai Bukti Utama").\n` +
+      `- <term_glossary> = kamus istilah: definisi kata/slang/jargon yang jarang dikenal (hasil pencarian Wikipedia via SearXNG). Gunakan untuk memahami arti kata yang tidak kamu kenal — JANGAN menebak atau mengarang arti.\n` +
       `- <messages_to_analyze> = pesan-pesan TARGET yang WAJIB dinilai. Atribut <message>: id, user (nama server), time (ISO — kapan pesan dikirim), repetitions (N = teks pendek sama muncul N kali di batch — sinyal spam), bot (true jika dari bot), edited (true jika konten adalah hasil edit setelah posting).`,
   );
 

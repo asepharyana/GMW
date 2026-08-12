@@ -13,6 +13,42 @@ const CACHE_PREFIX = "searxng:";
 let redis: Redis | null = null;
 
 /**
+ * Exposes the shared SearXNG Redis connection so other modules (e.g. the
+ * term glossary) reuse the same connection and cache prefix instead of
+ * opening their own. Returns null when Redis is unavailable.
+ */
+export function getSearxngRedis(): Redis | null {
+  return redis;
+}
+
+/** Builds a namespaced SearXNG cache key (shared across modules). */
+export function makeSearxngCacheKey(namespace: string, key: string): string {
+  return `${CACHE_PREFIX}${namespace}:${key.toLowerCase().trim()}`;
+}
+
+/** Reads a value from the SearXNG Redis cache; null on miss/unavailable. */
+export async function searxngCacheGet(key: string): Promise<string | null> {
+  if (!redis) return null;
+  try {
+    return await redis.get(key);
+  } catch {
+    return null;
+  }
+}
+
+/** Writes a value to the SearXNG Redis cache, fire-and-forget. */
+export function searxngCacheSet(
+  key: string,
+  value: string,
+  ttlSeconds: number,
+): void {
+  if (!redis) return;
+  redis.setex(key, ttlSeconds, value).catch(() => {
+    // Cache write failed silently
+  });
+}
+
+/**
  * Initialize Redis connection for SearXNG cache.
  * Safe to call multiple times — only creates one connection.
  */
@@ -51,19 +87,26 @@ export interface SearxngResult {
 /**
  * Search SearXNG for a query and return structured results.
  * Uses Redis cache when available — same query within 24h returns cached results.
+ *
+ * @param engines Optional comma-separated SearXNG engine list to constrain
+ *   the search (e.g. "wikipedia"). When set, results are cached under a
+ *   separate cache namespace so engine-specific results never collide.
  */
 export async function searchSearxng(
   query: string,
   category: "general" | "news" | "science" = "general",
+  engines?: string,
+  timeoutMs: number = TIMEOUT_MS,
 ): Promise<SearxngResult[]> {
-  const cacheKey = `${CACHE_PREFIX}${category}:${query.toLowerCase().trim()}`;
+  const engineNs = engines ? `eng:${engines}` : "auto";
+  const cacheKey = makeSearxngCacheKey(`${category}:${engineNs}`, query);
 
   // Try cache first
   if (redis) {
     try {
       const cached = await redis.get(cacheKey);
       if (cached) {
-        log.debug({ query, category }, "SearXNG cache HIT");
+        log.debug({ query, category, engines }, "SearXNG cache HIT");
         return JSON.parse(cached) as SearxngResult[];
       }
     } catch {
@@ -73,8 +116,11 @@ export async function searchSearxng(
 
   // Cache miss — hit SearXNG API
   try {
-    const url = `${SEARXNG_BASE_URL}/search?q=${encodeURIComponent(query)}&format=json&language=id&categories=${category}`;
-    const { controller, clear } = createAbortControllerWithTimeout(TIMEOUT_MS);
+    const engineParam = engines
+      ? `&engines=${encodeURIComponent(engines)}`
+      : "";
+    const url = `${SEARXNG_BASE_URL}/search?q=${encodeURIComponent(query)}&format=json&language=id&categories=${category}${engineParam}`;
+    const { controller, clear } = createAbortControllerWithTimeout(timeoutMs);
 
     try {
       const response = await fetch(url, {

@@ -171,6 +171,24 @@ export const configSchema = z
       .int()
       .positive()
       .default(30000),
+    // Term glossary — per-word Wikipedia lookups (via SearXNG) for words the
+    // LLM may not know (slang, jargon, regional language, foreign terms).
+    // Definitions are cached (in-memory + Redis) so repeat lookups are fast.
+    // Disable to skip glossary lookups entirely and analyze without them.
+    AI_GLOSSARY_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === "true")
+      .default(true),
+    // Max glossary terms looked up per analysis batch (keeps latency bounded).
+    AI_GLOSSARY_MAX_TERMS: z.coerce.number().int().min(1).max(20).default(6),
+    // Min word length for a term to be considered glossary-worthy.
+    AI_GLOSSARY_MIN_WORD_LENGTH: z.coerce
+      .number()
+      .int()
+      .min(2)
+      .max(20)
+      .default(5),
 
     // ── AI Analysis Timing ──────────────────────────────────────────────
     AI_ANALYSIS_DEBOUNCE_MS: z.coerce.number().positive().default(500),

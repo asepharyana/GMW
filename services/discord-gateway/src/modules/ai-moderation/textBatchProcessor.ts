@@ -37,6 +37,7 @@ import {
   formatSearchResults,
   searchSearxng,
 } from "./searxngSearch.js";
+import { buildTermGlossaryBlock } from "./termGlossary.js";
 import { getRecentCorrectedModerations } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 import { getUserProfile } from "./userProfileStore.js";
@@ -145,9 +146,17 @@ export async function runTextOnlyBatch(
     return map;
   })();
 
-  const [urlFetchMaps, searxngResults] = await Promise.all([
+  // Term glossary — per-word Wikipedia lookups for words the LLM may not
+  // know (slang, jargon, regional language). Cached in Redis + in-memory, so
+  // repeat terms resolve instantly and only genuinely new words hit SearXNG.
+  const glossaryPromise = buildTermGlossaryBlock(
+    targets.map((msg) => getAnalysisContent(msg)),
+  ).catch(() => "");
+
+  const [urlFetchMaps, searxngResults, glossaryBlock] = await Promise.all([
     urlFetchPromise,
     searxngPromise,
+    glossaryPromise,
   ]);
   const urlFetchMap = urlFetchMaps.text;
 
@@ -368,6 +377,7 @@ export async function runTextOnlyBatch(
         userProfilesBlock?.trimEnd() ?? "",
         contextBlock?.trimEnd() ?? "",
         searxngBlock,
+        glossaryBlock,
         `<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`,
       ].filter((b) => b.trim().length > 0);
       return {

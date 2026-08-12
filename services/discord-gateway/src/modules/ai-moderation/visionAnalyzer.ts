@@ -87,6 +87,7 @@ import {
   formatSearchResults,
   searchSearxng,
 } from "./searxngSearch.js";
+import { buildTermGlossaryBlock } from "./termGlossary.js";
 import { extractUrlsFromText } from "./urlFetcher.js";
 import { getUserProfile } from "./userProfileStore.js";
 import {
@@ -413,6 +414,12 @@ export async function prepareMediaMessage(
       searxngXml = `\n<web_searches>\n${parts.join("\n")}\n</web_searches>`;
   }
 
+  // Term glossary — cached per-word Wikipedia definitions for words the LLM
+  // may not know. Bounded and cached (in-memory + Redis), so this adds no
+  // meaningful latency to the media path either.
+  const glossaryXml = await buildTermGlossaryBlock([content]).catch(() => "");
+  const glossaryCtx = glossaryXml ? `\n${glossaryXml}` : "";
+
   // Build XML block
   const webTexts = webTextMap.get(targetId) ?? [];
   const mediaAnalyses = mediaAnalysisMap.get(targetId) ?? [];
@@ -466,6 +473,6 @@ export async function prepareMediaMessage(
 
   const isBot = resolveIsBot(target);
   const isEdited = resolveIsEdited(target);
-  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(resolveDisplayName(target))}" time="${new Date(target.created_at).toISOString()}"${isBot ? ` bot="true"` : ""}${isEdited ? ` edited="true"` : ""}>\n  ${repXml}${profileRef ? `\n  ${profileRef}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(truncateForAi(content))}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${searxngXml}\n</message>`;
+  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(resolveDisplayName(target))}" time="${new Date(target.created_at).toISOString()}"${isBot ? ` bot="true"` : ""}${isEdited ? ` edited="true"` : ""}>\n  ${repXml}${profileRef ? `\n  ${profileRef}` : ""}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(truncateForAi(content))}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${searxngXml}${glossaryCtx}\n</message>`;
   return { targetId, messageBlock };
 }
