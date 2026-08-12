@@ -234,6 +234,10 @@ export function prepareStream(
     }
   }
 
+  // Safety: proc may error before playStream attaches a demux listener on
+  // `output`. A no-op listener here prevents an unhandled 'error' event
+  // on the PassThrough from crashing the gateway on ffmpeg spawn failure.
+  output.on("error", () => {});
   proc.stdout?.pipe(output);
   proc.stderr?.on("data", () => {
     /* swallow ffmpeg stderr */

@@ -93,11 +93,11 @@ export class ScreenShareController {
           const timer = setTimeout(() => {
             cleanup();
             destroyInput();
-            tee.destroy(
-              new Error(
-                "Screen input produced no data within 12s — merge likely failed",
-              ),
-            );
+            // Listeners were just removed by cleanup() — destroying tee WITH
+            // an error would emit "error" on an unlistened PassThrough and
+            // surface as an unhandled 'error' event (crash). Destroy
+            // silently; the error lives in the rejection only.
+            tee.destroy();
             reject(
               new Error(
                 "Screen input produced no data within 12s — merge likely failed",
@@ -131,6 +131,11 @@ export class ScreenShareController {
           tee.once("end", onEnd);
         });
 
+        // Safety net: cleanup() removes the once() listeners on timeout/error,
+        // but a late error event from input.pipe(tee) can still fire on an
+        // unlistened PassThrough and crash the gateway (unhandled 'error').
+        // A permanent no-op listener guarantees the event is always swallowed.
+        tee.on("error", () => {});
         // Pass the tee onward — the encoder consumes the same buffered
         // stream, so no data from the merge is lost.
         return tee;

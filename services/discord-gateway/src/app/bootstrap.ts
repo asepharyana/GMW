@@ -222,7 +222,10 @@ export async function initializeDiscordGateway() {
     await initializeDatabase();
     logger.info("PostgreSQL database initialized");
   } catch (err) {
-    logger.error({ error: err }, "Failed to initialize database");
+    logger.error(
+      { err, errorMsg: err instanceof Error ? err.message : String(err) },
+      "Failed to initialize database",
+    );
     throw new DatabaseError(
       `Database initialization failed: ${err instanceof Error ? err.message : String(err)}`,
     );
@@ -267,7 +270,10 @@ export async function initializeDiscordGateway() {
   });
 
   client.on("error", (err) => {
-    logger.error({ error: err }, "Client error");
+    logger.error(
+      { err, errorMsg: err instanceof Error ? err.message : String(err) },
+      "Client error",
+    );
   });
 
   process.on("SIGINT", () => {
@@ -298,7 +304,14 @@ export async function initializeDiscordGateway() {
       );
       return;
     }
-    logger.error({ error: err }, "Uncaught exception");
+    logger.error(
+      {
+        err,
+        errorMsg: err instanceof Error ? err.message : String(err),
+        stack: err?.stack,
+      },
+      "Uncaught exception",
+    );
     gracefulShutdown("uncaughtException");
   });
 
