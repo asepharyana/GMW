@@ -6,7 +6,6 @@
  */
 export {
   acquireMediaAnalysisLock,
-  computeImagePhash,
   deleteCachedMediaAnalysis,
   getCachedMediaAnalysis,
   setCachedMediaAnalysis,

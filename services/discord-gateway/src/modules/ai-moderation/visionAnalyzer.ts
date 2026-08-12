@@ -16,17 +16,14 @@ import type {
 import { llmVision } from "./llmClient.js";
 import {
   acquireMediaAnalysisLock,
-  computeImagePhash,
   deleteCachedMediaAnalysis,
   FAILED_ANALYSIS_PREFIX,
   getCachedMediaAnalysis,
-  getCachedMediaByPhash,
   inFlightVisionCalls,
   makeCustomEmojiCacheKey,
   makeImageCacheKey,
   makeStickerCacheKey,
   upsertCachedMediaAnalysis,
-  upsertCachedMediaByPhash,
   visionLruCache,
 } from "./mediaCache.js";
 
@@ -206,39 +203,6 @@ export const analyzeSingleMediaImage = async (
       return FAILED_ANALYSIS_PREFIX;
     }
 
-    // phash check
-    let phash: string | null = null;
-    if (image.image_url.url.startsWith("data:")) {
-      try {
-        const base64Data = image.image_url.url.split(",")[1];
-        if (base64Data) {
-          const imgBuffer = Buffer.from(base64Data, "base64");
-          phash = await computeImagePhash(imgBuffer);
-          if (phash) {
-            const phashCached = await getCachedMediaByPhash(phash);
-            if (phashCached && !isNoImageSeenText(phashCached)) {
-              visionLruCache.set(cacheKey, phashCached);
-              await upsertCachedMediaAnalysis(
-                cacheKey,
-                phashCached,
-                "vision_llm",
-                Date.now() + 24 * 60 * 60 * 1000,
-              ).catch(() => {});
-              return phashCached;
-            }
-            if (phashCached) {
-              log.warn(
-                { phash, cacheKey },
-                "phash cache HIT was no-image-seen — ignoring",
-              );
-            }
-          }
-        }
-      } catch {
-        phash = null;
-      }
-    }
-
     // Vision API call
     let lastError: Error | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -249,7 +213,7 @@ export const analyzeSingleMediaImage = async (
           // if the SAME analysis text is being stored for DIFFERENT cache keys
           // (which would indicate the vision model is returning duplicates).
           log.debug(
-            { cacheKey, phash, messageId, contentLen: content.length },
+            { cacheKey, messageId, contentLen: content.length },
             "Vision analysis cached (new entry)",
           );
           await upsertCachedMediaAnalysis(
@@ -259,20 +223,11 @@ export const analyzeSingleMediaImage = async (
             Date.now() + 24 * 60 * 60 * 1000,
           );
           visionLruCache.set(cacheKey, content);
-          if (phash) {
-            upsertCachedMediaByPhash(
-              phash,
-              content,
-              "vision_llm",
-              Date.now() + 7 * 24 * 60 * 60 * 1000,
-            ).catch(() => {});
-          }
           return content;
         }
         if (content) {
           // Model claims it saw no image — same as a null response: NOT a
-          // valid analysis, and caching it would poison the key for every
-          // re-analysis of the same image (phash TTL is 7 days).
+          // valid analysis, and caching it would poison the cache key.
           log.warn(
             { messageId, cacheKey },
             "Vision returned no-image-seen text — not caching",

@@ -62,17 +62,29 @@ export function makeCustomEmojiCacheKey(emojiId: string): string {
 }
 
 /**
- * Generate a deterministic cache key for an image data URL.
- * Hashes the FULL data URL — only hashing a prefix (e.g. first 128 chars)
- * causes hash collisions for images that share the same MIME prefix +
- * identical base64 header bytes (common when images are resized to the same
- * dimensions), which makes every image incorrectly reuse the same cached
- * vision analysis. Hashing the entire data URL guarantees uniqueness per
- * actual pixel content.
+ * Generate a deterministic cache key for an image from its source URL
+ * (Discord CDN / embed URL / inline URL).
+ *
+ * The CDN URL is the stable identity of an attachment: re-analysis of the
+ * same message (recovery worker, retries) always hits the cache regardless
+ * of resize/encoding output. Query params are stripped (Discord signed
+ * tokens `?ex=&is=&hm=` and render variants `?format=&width=`) so the same
+ * attachment resolves to the same key even when fetched with different
+ * signatures or sizes.
+ *
+ * No SHA/phash — the CDN URL is the cache key itself. This makes
+ * re-analysis of the SAME attachment cache-hit, while different attachments
+ * (different URLs) never collide.
  */
-export function makeImageCacheKey(dataUrl: string): string {
-  const hash = createHash("sha256").update(dataUrl).digest("hex").slice(0, 16);
-  return `image:${hash}`;
+export function makeImageCacheKey(imageUrl: string): string {
+  try {
+    const u = new URL(imageUrl);
+    u.search = "";
+    u.hash = "";
+    return `image:${u.toString()}`;
+  } catch {
+    return `image:${imageUrl}`;
+  }
 }
 
 /**
@@ -515,64 +527,6 @@ export async function setCachedTextModeration(
       { error: error instanceof Error ? error.message : String(error) },
       "Failed to set cached user moderation",
     );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Perceptual hash helpers for image deduplication
-// ---------------------------------------------------------------------------
-
-/**
- * Generate a deterministic cache key for a perceptual hash.
- * The phash value is a string like "a1b2c3d4e5f6..." from the imghash library.
- */
-export function makePhashCacheKey(phash: string): string {
-  return `phash:${phash.slice(0, 16)}`;
-}
-
-/**
- * Look up a cached media analysis by perceptual hash.
- * Returns the cached analysis string or null if not found/expired.
- */
-export async function getCachedMediaByPhash(
-  phash: string,
-): Promise<string | null> {
-  const cacheKey = makePhashCacheKey(phash);
-  return getCachedMediaAnalysis(cacheKey);
-}
-
-/**
- * Store a media analysis result keyed by perceptual hash.
- */
-export async function upsertCachedMediaByPhash(
-  phash: string,
-  analysisResult: string,
-  source: "vision_llm",
-  expiresAt: number,
-): Promise<void> {
-  const cacheKey = makePhashCacheKey(phash);
-  return upsertCachedMediaAnalysis(cacheKey, analysisResult, source, expiresAt);
-}
-
-/**
- * Compute perceptual hash from image buffer using imghash.
- * Returns a hexadecimal string representation of the hash.
- * Returns null if hashing fails (e.g., invalid image data).
- */
-export async function computeImagePhash(
-  buffer: Buffer,
-): Promise<string | null> {
-  try {
-    // Dynamic import — imghash is ESM with a default export containing { hash, hashRaw, ... }
-    const imghashModule: {
-      default?: { hash?: (buf: Buffer) => Promise<string> };
-    } = await import("imghash");
-    const hashFn = imghashModule.default?.hash;
-    if (typeof hashFn !== "function") return null;
-    const hash = await hashFn(buffer);
-    return hash;
-  } catch {
-    return null;
   }
 }
 

@@ -7,28 +7,22 @@
 import { LRUCache } from "lru-cache";
 import {
   acquireMediaAnalysisLock,
-  computeImagePhash,
   deleteCachedMediaAnalysis,
   getCachedMediaAnalysis,
-  getCachedMediaByPhash,
   makeCustomEmojiCacheKey,
   makeImageCacheKey,
   makeStickerCacheKey,
   upsertCachedMediaAnalysis,
-  upsertCachedMediaByPhash,
 } from "./textCacheStore.js";
 
 export {
   acquireMediaAnalysisLock,
-  computeImagePhash,
   deleteCachedMediaAnalysis,
   getCachedMediaAnalysis,
-  getCachedMediaByPhash,
   makeCustomEmojiCacheKey,
   makeImageCacheKey,
   makeStickerCacheKey,
   upsertCachedMediaAnalysis,
-  upsertCachedMediaByPhash,
 };
 
 /** Convenience alias for upsertCachedMediaAnalysis. */
