@@ -266,6 +266,8 @@ export async function playStream(
 
   const { video, close: demuxClose } = await demux(prepared.output, {
     format: options.format ?? "nut",
+    frameRate:
+      typeof options.frameRate === "number" ? options.frameRate : undefined,
   });
   console.log(
     `[goLive:playStream] demux done codec=${video?.codecName ?? "?"} ${video?.width ?? 0}x${video?.height ?? 0} fps=${video ? video.framerate_num / video.framerate_den || 30 : 30}`,

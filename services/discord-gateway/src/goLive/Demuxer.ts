@@ -17,6 +17,9 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 
+/** 4-byte AnnexB start code (00 00 00 01) used when building access units. */
+const startCode4 = Buffer.from([0, 0, 0, 1]);
+
 /**
  * Resolve ffmpeg/ffprobe binary. Prefers explicit env override, then PATH,
  * then a Nix-store ffmpeg-headless (the GMW flake provides it in the service
@@ -145,7 +148,7 @@ export async function probeStreams(
  */
 export async function demux(
   input: string | PassThrough,
-  _opts: { format: string },
+  opts: { format: string; frameRate?: number },
 ): Promise<{
   video: DemuxedStream | undefined;
   audio: DemuxedStream | undefined;
@@ -283,25 +286,55 @@ export async function demux(
     new Promise<void>((resolve) => setTimeout(resolve, 1500)),
   ]);
 
-  // Scan stdout for NAL units. Each NAL unit (between start codes) is one frame
-  // payload. We emit them individually; the packetizer chain handles FU-A.
+  // Scan stdout for AnnexB NAL units and group them into ACCESS UNITS
+  // (one picture). Discord's H264 decoder requires a complete access unit —
+  // parameter sets + slice — inside a single RTP frame. Emitting each NAL
+  // as its own frame (SPS/PPS/SEI separate from the slice) makes the decoder
+  // unable to produce ANY picture: production showed a black GoLive tile
+  // despite frames flowing (5892B slices + 4B PPS + 33B SPS as separate
+  // frames, each with a near-zero RTP timestamp delta). We therefore buffer
+  // NALs and flush one frame per slice, prepending the parameter sets that
+  // precede it, and timestamp it as ONE frame at the video frame rate.
   let videoBuf = Buffer.alloc(0);
   let frameCount = 0;
+  let pendingNals: Buffer[] = [];
+  let pendingHasSlice = false;
+  let pendingIsKey = false;
+  // Raw H264 streams carry no timing info — ffmpeg's h264 demuxer guesses
+  // 25fps on stderr. Prefer the caller's explicit frameRate (the encode
+  // setting); it drives both RTP timestamp advance and pacing.
+  const videoFps =
+    opts.frameRate ?? (vInfo.framerate_num / vInfo.framerate_den || 30);
 
-  const emitFrame = (nal: Uint8Array, isKeyFrame: boolean) => {
+  const flushAccessUnit = () => {
+    if (pendingNals.length === 0) return;
+    // AnnexB access unit: 00 00 00 01 + NAL for every buffered NAL. The
+    // packetizer (H264RtpPacketizer, StartSequence separator) needs the
+    // start codes to find NAL boundaries inside the frame.
+    const parts: Buffer[] = [];
+    for (const n of pendingNals) parts.push(startCode4, n);
+    const au = Buffer.concat(parts);
+    const isKey = pendingIsKey;
+    pendingNals = [];
+    pendingHasSlice = false;
+    pendingIsKey = false;
     vPipe.write({
-      data: Buffer.from(nal),
+      data: au,
+      // One frame at videoFps: duration=1 in a 1/fps timebase →
+      // BaseMediaStream computes frametime=1000/fps ms → the RTP timestamp
+      // advances clockRate/fps per frame (3000 @ 30fps / 90kHz), which is
+      // what Discord's receiver expects for real-time video.
       pts: frameCount,
       duration: 1,
-      timeBase: { num: 1, den: 90000 },
-      flags: isKeyFrame ? AV_PKT_FLAG_KEY : 0,
+      timeBase: { num: 1, den: videoFps },
+      flags: isKey ? AV_PKT_FLAG_KEY : 0,
       streamIndex: 0,
       free: () => {},
     });
     frameCount++;
     if (frameCount === 1 || frameCount % 30 === 0) {
       console.log(
-        `[goLive:Demuxer] frames=${frameCount} last=${nal.length}B key=${isKeyFrame}`,
+        `[goLive:Demuxer] frames=${frameCount} last=${au.length}B key=${isKey}`,
       );
     }
   };
@@ -350,8 +383,21 @@ export async function demux(
           while (end > 0 && nal[end - 1] === 0) end--;
           if (end > 0) {
             const nalTrimmed = nal.subarray(0, end);
-            const isIdr = (nalTrimmed[0] & 0x1f) === 5; // IDR
-            emitFrame(nalTrimmed, isIdr);
+            const nalType = nalTrimmed[0] & 0x1f;
+            const isSlice = nalType === 1 || nalType === 5;
+            if (isSlice) {
+              // A new slice while one is pending closes the previous
+              // access unit (x264 emits one slice per frame).
+              if (pendingHasSlice) flushAccessUnit();
+              pendingNals.push(Buffer.from(nalTrimmed));
+              pendingHasSlice = true;
+              if (nalType === 5) pendingIsKey = true;
+            } else {
+              // Parameter-set / SEI / AUD / filler NAL. After a slice these
+              // belong to the NEXT access unit — flush the completed frame.
+              if (pendingHasSlice) flushAccessUnit();
+              pendingNals.push(Buffer.from(nalTrimmed));
+            }
           }
         }
         // Skip the 00 00 01 at scPos-3 to find next
@@ -369,11 +415,7 @@ export async function demux(
       }
     });
     proc.stdout.on("end", () => {
-      if (videoBuf.length > 0) {
-        let end = videoBuf.length;
-        while (end > 0 && videoBuf[end - 1] === 0) end--;
-        if (end > 0) emitFrame(videoBuf.subarray(0, end), false);
-      }
+      flushAccessUnit();
       vPipe.end();
       aPipe.end();
     });
