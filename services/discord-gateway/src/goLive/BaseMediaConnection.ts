@@ -258,6 +258,19 @@ a=ice-lite
         `a=rtpmap:${el.payload_type} ${el.name}/90000`,
         `a=rtpmap:${el.rtx_payload_type} rtx/90000`,
         `a=fmtp:${el.rtx_payload_type} apt=${el.payload_type}`,
+        // CRITICAL: H264 MUST advertise packetization-mode=1. The encoder
+        // emits baseline slices up to 8KB (>RTP MTU), so the packetizer
+        // fragments them into FU-A units (RFC 6184). Discord's receiver only
+        // reassembles FU-A when packetization-mode=1 is negotiated — without
+        // it the slices (type 28) are DROPPED while SPS/PPS (small single
+        // NALs) and Opus audio (no fragmentation) still arrive → black video
+        // with working audio. profile-level-id=42e01f (constrained baseline
+        // 3.1) matches the -profile:v baseline encoder + SPS VUI rewriter.
+        ...(el.name === "H264"
+          ? [
+              `a=fmtp:${el.payload_type} level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f`,
+            ]
+          : []),
         `a=rtcp-fb:${el.payload_type} ccm fir`,
         `a=rtcp-fb:${el.payload_type} nack`,
         `a=rtcp-fb:${el.payload_type} nack pli`,
@@ -574,49 +587,91 @@ a=ice-lite
   setVideoAttributes(enabled: boolean, attr?: VideoAttribute): void {
     if (!this._webRtcParams) throw new Error("WebRTC parameters not set");
     const { audioSsrc, videoSsrc, rtxSsrc } = this._webRtcParams;
-    if (!enabled) {
-      this.sendOpcode(VoiceOpCodes.VIDEO, {
-        audio_ssrc: audioSsrc,
-        video_ssrc: 0,
-        rtx_ssrc: 0,
-        streams: [],
-      });
-    } else {
-      if (!attr) throw new Error("Need to specify video attributes");
-      this.sendOpcode(VoiceOpCodes.VIDEO, {
-        audio_ssrc: audioSsrc,
-        video_ssrc: videoSsrc,
-        rtx_ssrc: rtxSsrc,
-        streams: [
-          {
-            type: "video",
-            rid: "100",
-            ssrc: videoSsrc,
-            active: true,
-            quality: 100,
+    const payload = !enabled
+      ? {
+          audio_ssrc: audioSsrc,
+          video_ssrc: 0,
+          rtx_ssrc: 0,
+          streams: [],
+        }
+      : (() => {
+          if (!attr) throw new Error("Need to specify video attributes");
+          return {
+            audio_ssrc: audioSsrc,
+            video_ssrc: videoSsrc,
             rtx_ssrc: rtxSsrc,
-            // hardcode the max bitrate because we don't really know anyway
-            max_bitrate: 10000 * 1000,
-            max_framerate: enabled ? attr.fps : 0,
-            max_resolution: {
-              type: "fixed",
-              width: attr.width,
-              height: attr.height,
-            },
-          },
-        ],
-      });
-    }
+            streams: [
+              {
+                type: "video",
+                rid: "100",
+                ssrc: videoSsrc,
+                active: true,
+                quality: 100,
+                rtx_ssrc: rtxSsrc,
+                // hardcode the max bitrate because we don't really know anyway
+                max_bitrate: 10000 * 1000,
+                max_framerate: enabled ? attr.fps : 0,
+                max_resolution: {
+                  type: "fixed",
+                  width: attr.width,
+                  height: attr.height,
+                },
+              },
+            ],
+          };
+        })();
+    // CRITICAL: The VIDEO opcode (op 12) is what tells Discord's media server
+    // to actually forward the video RTP stream on video_ssrc. sendOpcode() is a
+    // no-op when ws.readyState !== OPEN — and in GoLive the StreamConnection's
+    // WebSocket can still be in CONNECTING immediately after SELECT_PROTOCOL_ACK
+    // (the ack listener resolves playStream, but the data channel / ws open
+    // handshake may lag by a few ms). A dropped op 12 → Discord never activates
+    // the video SSRC → black/broken video while audio (whose SPEAKING on the
+    // VoiceConnection already fired) plays fine. Retry until the ws is OPEN
+    // instead of silently dropping this mandatory signal.
+    this.sendOpcodeWhenOpen(VoiceOpCodes.VIDEO, payload, "VIDEO");
   }
 
   /** Set speaking status */
   setSpeaking(speaking: boolean): void {
     if (!this._webRtcParams) throw new Error("WebRTC connection not ready");
-    this.sendOpcode(VoiceOpCodes.SPEAKING, {
+    const payload = {
       delay: 0,
       speaking: speaking ? 1 : 0,
       ssrc: this._webRtcParams.audioSsrc,
-    });
+    };
+    // Same race as setVideoAttributes: SPEAKING (op 5) must reach Discord. Retry
+    // until the ws is OPEN rather than dropping it on a transient not-yet-open.
+    this.sendOpcodeWhenOpen(VoiceOpCodes.SPEAKING, payload, "SPEAKING");
+  }
+
+  /**
+   * Send an opcode, retrying for a short window if the WebSocket is not yet
+   * OPEN. Discord's media signaling (VIDEO/op12, SPEAKING/op5) is mandatory —
+   * a silent no-op (the default sendOpcode behaviour when ws is still
+   * CONNECTING) breaks GoLive video while leaving audio intact. We wait for
+   * the open state instead of dropping.
+   */
+  private sendOpcodeWhenOpen(
+    code: number,
+    data: unknown,
+    label: string,
+  ): void {
+    const attempt = (triesLeft: number) => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.sendOpcode(code, data);
+        return;
+      }
+      if (triesLeft <= 0) {
+        console.error(
+          `[goLive:${this.constructor.name}] ${label} opcode (op=${code}) DROPPED — ws never opened (state=${this.ws?.readyState ?? "null"})`,
+        );
+        return;
+      }
+      // ws still CONNECTING (or briefly closed during reconnect) — retry.
+      setTimeout(() => attempt(triesLeft - 1), 50);
+    };
+    attempt(40); // up to ~2s
   }
 }
 
