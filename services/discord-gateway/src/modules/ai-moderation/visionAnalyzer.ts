@@ -163,7 +163,10 @@ export const analyzeSingleMediaImage = async (
   const cached = await getCachedMediaAnalysis(cacheKey);
   if (cached && !isNoImageSeenText(cached)) {
     visionLruCache.set(cacheKey, cached);
-    log.debug({ cacheKey }, "Media analysis cache HIT (DB → LRU)");
+    log.debug(
+      { cacheKey, messageId, cachedLen: cached.length },
+      "Media analysis cache HIT (DB → LRU)",
+    );
     return `[Media analysis for message ${messageId}] ${image.sourceLabel}: ${cached}`;
   }
   if (cached) {
@@ -246,6 +249,13 @@ export const analyzeSingleMediaImage = async (
       try {
         const content = await llmVision(promptText, image.image_url);
         if (content && !isNoImageSeenText(content)) {
+          // Defensive: log when a vision analysis is cached so we can trace
+          // if the SAME analysis text is being stored for DIFFERENT cache keys
+          // (which would indicate the vision model is returning duplicates).
+          log.debug(
+            { cacheKey, phash, messageId, contentLen: content.length },
+            "Vision analysis cached (new entry)",
+          );
           await upsertCachedMediaAnalysis(
             cacheKey,
             content,
