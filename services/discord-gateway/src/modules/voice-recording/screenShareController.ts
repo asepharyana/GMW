@@ -8,7 +8,12 @@ import {
   prepareStream,
   Streamer,
 } from "../../goLive/index.js";
-import { getDirectScreenInput } from "./mediaSource.js";
+import {
+  getDirectScreenInput,
+  INVIDIOUS_INSTANCES,
+  isYoutubeWatchUrl,
+  toInvidiousUrl,
+} from "./mediaSource.js";
 import type { ScreenSharePlayback } from "./mediaTypes.js";
 import { discordPlayer } from "./player.js";
 
@@ -70,7 +75,29 @@ export class ScreenShareController {
     const MAX_ATTEMPTS = 3;
     let lastError: Error | null = null;
 
+    // YouTube may 403 even with account cookies (IP-bound session / bot check
+    // on VPS IP). When the source is a YouTube URL and cookies fail, fall back
+    // to anon Invidious mirror instances — no auth needed.
+    const isYt = isYoutubeWatchUrl(source);
+    let invidiousIdx = 0;
+
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      // On a 403 against YouTube, try the next Invidious instance for this attempt.
+      if (
+        isYt &&
+        lastError &&
+        /403|bot|Sign in|not a bot|access denied/i.test(lastError.message) &&
+        invidiousIdx < INVIDIOUS_INSTANCES.length
+      ) {
+        const inst = INVIDIOUS_INSTANCES[invidiousIdx];
+        this.logger.warn(
+          { attempt, instance: inst, error: lastError.message },
+          "YouTube blocked (403); falling back to Invidious mirror",
+        );
+        source = toInvidiousUrl(source, inst);
+        invidiousIdx++;
+      }
+
       try {
         const input = await getDirectScreenInput(source);
 

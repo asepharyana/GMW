@@ -1,5 +1,11 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough, type Readable } from "node:stream";
@@ -239,9 +245,16 @@ function buildCookieArgs(): string[] {
   if (envCookies && envCookies.includes("LOGIN_INFO")) {
     const fdPath = join(tmpdir(), `gmw-ytcookies.${process.pid}.txt`);
     writeFileSync(fdPath, envCookies);
-    try { chmodSync(fdPath, 0o600); } catch { /* best-effort */ }
+    try {
+      chmodSync(fdPath, 0o600);
+    } catch {
+      /* best-effort */
+    }
     _cachedCookiePath = fdPath;
-    logger.info({ cookiePath: fdPath, source: "GMW_YT_DOWNLOADER_COOKIES env" }, "Using YouTube cookies (from BWS env)");
+    logger.info(
+      { cookiePath: fdPath, source: "GMW_YT_DOWNLOADER_COOKIES env" },
+      "Using YouTube cookies (from BWS env)",
+    );
     return ["--cookies", fdPath];
   }
   const cookiePath =
@@ -249,14 +262,57 @@ function buildCookieArgs(): string[] {
   try {
     if (cookiePath && existsSync(cookiePath)) {
       _cachedCookiePath = cookiePath;
-      logger.info({ cookiePath, source: "on-disk file" }, "Using YouTube cookies for yt-dlp");
+      logger.info(
+        { cookiePath, source: "on-disk file" },
+        "Using YouTube cookies for yt-dlp",
+      );
       return ["--cookies", cookiePath];
     }
   } catch {
     /* ignore — fallback to anon */
   }
-  logger.warn("No YouTube cookies available; yt-dlp will use anonymous (YouTube may 403)");
+  logger.warn(
+    "No YouTube cookies available; yt-dlp will use anonymous (YouTube may 403)",
+  );
   return [];
+}
+
+/** Invidious instances for anon YouTube fetch (fallback when cookies 403). */
+export const INVIDIOUS_INSTANCES = [
+  "yewtu.be",
+  "yewtu.nanomorph.dev",
+  "invidious.snopyta.org",
+  "invidious.kavin.rocks",
+];
+
+/** True if url is a YouTube watch URL (youtu.be / youtube.com/watch). */
+export function isYoutubeWatchUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return (
+      u.hostname === "youtu.be" ||
+      (u.hostname === "www.youtube.com" && u.pathname === "/watch") ||
+      (u.hostname === "youtube.com" && u.pathname === "/watch")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Rewrite a YouTube watch URL to an invidious instance (anon, no bot-check). */
+export function toInvidiousUrl(url: string, instance: string): string {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "youtu.be") {
+      const id = u.pathname.slice(1);
+      return `https://${instance}/watch?v=${id}`;
+    }
+    const id = u.searchParams.get("v");
+    if (id) return `https://${instance}/watch?v=${id}`;
+    return url;
+  } catch {
+    return url;
+  }
 }
 
 // ---------------------------------------------------------------------------
