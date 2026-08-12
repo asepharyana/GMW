@@ -652,11 +652,7 @@ a=ice-lite
    * CONNECTING) breaks GoLive video while leaving audio intact. We wait for
    * the open state instead of dropping.
    */
-  private sendOpcodeWhenOpen(
-    code: number,
-    data: unknown,
-    label: string,
-  ): void {
+  private sendOpcodeWhenOpen(code: number, data: unknown, label: string): void {
     const attempt = (triesLeft: number) => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.sendOpcode(code, data);

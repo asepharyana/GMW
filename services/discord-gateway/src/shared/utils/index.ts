@@ -108,5 +108,8 @@ export async function retryWithBackoff<T>(
       });
     }
   }
-  throw lastError!;
+  // lastError is always set: the for-loop only exits via break when attempt
+  // === retries, which only happens in the catch branch that sets lastError.
+  if (!lastError) throw new Error("Unknown retry error");
+  throw lastError;
 }

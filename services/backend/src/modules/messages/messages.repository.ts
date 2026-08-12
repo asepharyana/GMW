@@ -77,12 +77,11 @@ export class MessagesRepository {
 
     // Exclude spam threads (NULL-safe: non-thread messages are kept)
     if (EXCLUDED_THREAD_IDS.length > 0) {
-      conditions.push(
-        or(
-          isNull(pgMessagesTable.thread_id),
-          notInArray(pgMessagesTable.thread_id, EXCLUDED_THREAD_IDS),
-        )!,
+      const excludeThreads = or(
+        isNull(pgMessagesTable.thread_id),
+        notInArray(pgMessagesTable.thread_id, EXCLUDED_THREAD_IDS),
       );
+      if (excludeThreads) conditions.push(excludeThreads);
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -150,12 +149,11 @@ export class MessagesRepository {
 
     // Exclude spam threads (NULL-safe)
     if (EXCLUDED_THREAD_IDS.length > 0) {
-      conditions.push(
-        or(
-          isNull(pgMessagesTable.thread_id),
-          notInArray(pgMessagesTable.thread_id, EXCLUDED_THREAD_IDS),
-        )!,
+      const excludeThreads = or(
+        isNull(pgMessagesTable.thread_id),
+        notInArray(pgMessagesTable.thread_id, EXCLUDED_THREAD_IDS),
       );
+      if (excludeThreads) conditions.push(excludeThreads);
     }
 
     const rows = await db
@@ -316,12 +314,13 @@ export class MessagesRepository {
           like(pgAttachmentsTable.type, "image/%"),
           // Exclude spam threads (NULL-safe for non-thread messages)
           ...(EXCLUDED_THREAD_IDS.length > 0
-            ? [
-                or(
+            ? (() => {
+                const excludeThreads = or(
                   isNull(pgAttachmentsTable.thread_id),
                   notInArray(pgAttachmentsTable.thread_id, EXCLUDED_THREAD_IDS),
-                )!,
-              ]
+                );
+                return excludeThreads ? [excludeThreads] : [];
+              })()
             : []),
         ),
       )
