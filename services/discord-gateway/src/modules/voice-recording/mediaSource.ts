@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { chmodSync, mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough, type Readable } from "node:stream";
@@ -217,6 +217,28 @@ function buildNotInstalledError(): Error {
   );
 }
 
+/**
+ * Build the yt-dlp --cookies args. YouTube blocks anonymous embeds with a
+ * "Sign in to confirm you're not a bot" 403 unless yt-dlp is given a logged-
+ * in account's cookies. The path is configurable via GMW_YT_COOKIES_PATH
+ * (default: the BWS-provided file the deploy writes to /etc/.../ytcookies.txt).
+ * If the file doesn't exist we pass nothing and fall back to anon (YouTube
+ * may 403 — screen share will fail gracefully, not crash).
+ */
+function buildCookieArgs(): string[] {
+  const cookiePath =
+    process.env.GMW_YT_COOKIES_PATH ?? "/etc/gmw-discord-gateway/ytcookies.txt";
+  try {
+    if (cookiePath && existsSync(cookiePath)) {
+      logger.info({ cookiePath }, "Using YouTube cookies for yt-dlp");
+      return ["--cookies", cookiePath];
+    }
+  } catch {
+    /* ignore — fallback to anon */
+  }
+  return [];
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -241,6 +263,7 @@ export function resolveMediaUrl(
 ): Promise<MediaSourceResolution> {
   return new Promise<MediaSourceResolution>((resolve, reject) => {
     const format = options?.quality ?? "bestaudio";
+    const cookieArgs = buildCookieArgs();
     const args = [
       "-f",
       format,
@@ -248,6 +271,7 @@ export function resolveMediaUrl(
       "-",
       "--no-progress",
       "--no-warnings",
+      ...cookieArgs,
       "--print",
       "before_dl:title",
       "--print",
@@ -402,6 +426,7 @@ export function getDirectScreenInput(url: string): Promise<Readable> {
     const tmpDir = mkdtempSync(join(tmpdir(), "gmw-ytdlp-"));
     chmodSync(tmpDir, 0o1777);
 
+    const cookieArgs = buildCookieArgs();
     const args = [
       "-f",
       "bestvideo[protocol^=http]+bestaudio[protocol^=http]/best[protocol^=http]/best",
@@ -410,6 +435,7 @@ export function getDirectScreenInput(url: string): Promise<Readable> {
       "--no-playlist",
       "--no-warnings",
       "--no-progress",
+      ...cookieArgs,
       "-P",
       tmpDir,
       url,
