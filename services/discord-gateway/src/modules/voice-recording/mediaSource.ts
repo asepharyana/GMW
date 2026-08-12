@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough, type Readable } from "node:stream";
@@ -225,17 +225,37 @@ function buildNotInstalledError(): Error {
  * If the file doesn't exist we pass nothing and fall back to anon (YouTube
  * may 403 — screen share will fail gracefully, not crash).
  */
+var _cachedCookiePath: string | null = null;
 function buildCookieArgs(): string[] {
+  // Single source of truth: BWS injects the account cookies via env
+  // (gmw_yt_downloader_cookies → GMW_YT_DOWNLOADER_COOKIES by bws-exec).
+  // We materialize them to a temp Netscape file because yt-dlp --cookies
+  // only accepts a file path, not stdin, and multiline env values are not
+  // reliable to pass directly on the spawn argv. Falls back to the on-disk
+  // file at GMW_YT_COOKIES_PATH (or /etc/gmw-discord-gateway/ytcookies.txt)
+  // which the Nix deploy writes from BWS once at start.
+  if (_cachedCookiePath) return ["--cookies", _cachedCookiePath];
+  const envCookies = process.env.GMW_YT_DOWNLOADER_COOKIES?.trim();
+  if (envCookies && envCookies.includes("LOGIN_INFO")) {
+    const fdPath = join(tmpdir(), `gmw-ytcookies.${process.pid}.txt`);
+    writeFileSync(fdPath, envCookies);
+    try { chmodSync(fdPath, 0o600); } catch { /* best-effort */ }
+    _cachedCookiePath = fdPath;
+    logger.info({ cookiePath: fdPath, source: "GMW_YT_DOWNLOADER_COOKIES env" }, "Using YouTube cookies (from BWS env)");
+    return ["--cookies", fdPath];
+  }
   const cookiePath =
     process.env.GMW_YT_COOKIES_PATH ?? "/etc/gmw-discord-gateway/ytcookies.txt";
   try {
     if (cookiePath && existsSync(cookiePath)) {
-      logger.info({ cookiePath }, "Using YouTube cookies for yt-dlp");
+      _cachedCookiePath = cookiePath;
+      logger.info({ cookiePath, source: "on-disk file" }, "Using YouTube cookies for yt-dlp");
       return ["--cookies", cookiePath];
     }
   } catch {
     /* ignore — fallback to anon */
   }
+  logger.warn("No YouTube cookies available; yt-dlp will use anonymous (YouTube may 403)");
   return [];
 }
 
