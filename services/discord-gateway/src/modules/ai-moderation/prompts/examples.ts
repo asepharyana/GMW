@@ -335,6 +335,26 @@ export const ALL_EXAMPLES: ExampleDef[] = [
       '{"results":[{"message_id":"31313","status":"flagged","flags":["conflict_instigation","sara"],"score":0.95,"severity":"critical","confidence":0.95,"recommended_action":"delete","evidence":["gw sih dukung palestina"],"analysis":"Segala diskusi Israel/Palestina/Yahudi dilarang total — tidak ada debat, dukungan, atau berita. Dihapus."}]}',
     modes: ["text", "media", "mixed"],
   },
+
+  // ── Physics / Technology Discussions (false positive prevention) ──
+  {
+    id: "32",
+    title: "Diskusi fisika/kinetik dalam konteks teknis (AMAN, bukan ancaman)",
+    input:
+      "[target] id=32323 user=physics_student: Cukup cuman tubuh manusia vs gravitasi. Konsep energy conservation di sini penting buat analisis statis.",
+    output:
+      '{"results":[{"message_id":"32323","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.95,"recommended_action":"none","evidence":[],"analysis":"Diskusi fisika teknis tentang kinetik dan gravitasi dalam konteks analisis statis – tidak ada ancaman atau konten melanggar. Penggunaan istilah fisika untuk perhitungan teknis adalah hal wajar."}]}',
+    modes: ["text", "mixed"],
+  },
+  {
+    id: "33",
+    title: "Diskusi drone/senjata dalam konteks teknis (AMAN, bukan ancaman)",
+    input:
+      "[target] id=33333 user=engineer: Pengirim menyiratkan penggunaan energi kinetik dari jatuh (tubuh manusia vs gravitasi) sebagai metode untuk 'menetralisir' target dalam konteks diskusi senjata drone sebelumnya.",
+    output:
+      '{"results":[{"message_id":"33333","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.9,"recommended_action":"none","evidence":[],"analysis":"Diskusi teknis tentang drone dan aplikasi fisika dalam konteks engineering – tidak ada ajuan aksi atau ancaman nyata. Penggunaan istilah senjata dalam konteks diskusi teori adalah hal wajar."}]}',
+    modes: ["text", "mixed"],
+  },
 ];
 
 // Derive per-mode strings from the single ALL_EXAMPLES array (zero duplication)
