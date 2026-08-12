@@ -168,6 +168,9 @@ export class BaseMediaConnection extends EventEmitter {
   }): void {
     // we hardcoded STREAMS_SIMULCAST, which will always be array of 1
     const stream = d.streams[0];
+    console.log(
+      `[goLive:${this.constructor.name}] READY ssrc=${d.ssrc} ip=${d.ip} port=${d.port} streams=${JSON.stringify(d.streams)}`,
+    );
     this._webRtcParams = {
       address: d.ip,
       port: d.port,
@@ -183,6 +186,10 @@ export class BaseMediaConnection extends EventEmitter {
     dave_protocol_version?: number;
   }): Promise<void> {
     if (!("sdp" in d)) throw new Error("Only WebRTC connections are allowed");
+    // DEBUG: dump Discord's real answer SDP — which payload types did it select?
+    console.log(
+      `[goLive:${this.constructor.name}] DISCORD_ANSWER_SDP ${JSON.stringify(d.sdp ?? "").slice(0, 900)}`,
+    );
     this._daveProtocolVersion = d.dave_protocol_version ?? 0;
     this.initDave();
     // Discord's SDP is garbage — generate our own from its pieces
@@ -258,12 +265,10 @@ a=ice-lite
         `a=rtcp-fb:${el.payload_type} transport-cc`,
       ])
       .join("\n");
-    this._webRtcWrapper.webRtcConn?.setRemoteDescription(
-      [audioSection, videoSection, videoRtpMap].join("\n"),
-      "answer",
-    );
+    const builtAnswer = [audioSection, videoSection, videoRtpMap].join("\n");
+    this._webRtcWrapper.webRtcConn?.setRemoteDescription(builtAnswer, "answer");
     console.log(
-      `[goLive:${this.constructor.name}] SELECT_PROTOCOL_ACK processed — remote answer set (${[audioSection, videoSection].join("\n").length}B)`,
+      `[goLive:${this.constructor.name}] SELECT_PROTOCOL_ACK processed — remote answer set (${builtAnswer.length}B) video_mline=${videoPayloadTypes.join(" ")}`,
     );
     this.emit("select_protocol_ack");
   }

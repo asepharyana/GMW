@@ -12,6 +12,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough, type Readable } from "node:stream";
+import { AudioStream } from "./AudioStream.js";
 import { demux } from "./Demuxer.js";
 import { type EncoderSettings, Encoders } from "./Encoders.js";
 import { VideoStream } from "./VideoStream.js";
@@ -27,6 +28,8 @@ export interface PrepareStreamResult {
   height: number;
   frameRate?: number;
   includeAudio: boolean;
+  /** Container the encoder muxes to: "nut" (audio-capable) or "h264" (raw). */
+  format: "nut" | "h264";
 }
 
 function isFiniteNonZero(n: unknown): n is number {
@@ -198,7 +201,11 @@ export function prepareStream(
   }
 
   args.push(...mergedOptions.customFfmpegFlags);
-  args.push("-f", "h264", "pipe:1");
+  // NUT muxer carries video+audio; the raw h264 muxer cannot ("h264 muxer
+  // does not support any stream of type audio" → header write fails →
+  // empty stdout → black tile). Audio delivery requires NUT.
+  const outFormat = mergedOptions.includeAudio ? "nut" : "h264";
+  args.push("-f", outFormat, "pipe:1");
 
   const isUrl = typeof input === "string";
   const proc: ChildProcess = isUrl
@@ -248,6 +255,7 @@ export function prepareStream(
     height: mergedOptions.height,
     frameRate: mergedOptions.frameRate,
     includeAudio: !!mergedOptions.includeAudio,
+    format: outFormat,
   };
 }
 
@@ -274,13 +282,17 @@ export async function playStream(
   const conn = await streamer.createStream();
   console.log("[goLive:playStream] createStream resolved");
 
-  const { video, close: demuxClose } = await demux(prepared.output, {
-    format: options.format ?? "nut",
+  const {
+    video,
+    audio,
+    close: demuxClose,
+  } = await demux(prepared.output, {
+    format: options.format ?? prepared.format ?? "nut",
     frameRate:
       typeof options.frameRate === "number" ? options.frameRate : undefined,
   });
   console.log(
-    `[goLive:playStream] demux done codec=${video?.codecName ?? "?"} ${video?.width ?? 0}x${video?.height ?? 0} fps=${video ? video.framerate_num / video.framerate_den || 30 : 30}`,
+    `[goLive:playStream] demux done codec=${video?.codecName ?? "?"} ${video?.width ?? 0}x${video?.height ?? 0} fps=${video ? video.framerate_num / video.framerate_den || 30 : 30} audio=${audio?.codecName ?? "none"}`,
   );
 
   if (!video) throw new Error("No video stream in media");
@@ -313,6 +325,19 @@ export async function playStream(
 
   const vStream = new VideoStream(conn);
   video.stream.pipe(vStream);
+
+  // Audio: Discord's GoLive pipeline expects RTP on the audio SSRC too —
+  // a video-only stream (zero audio packets) shows a static tile/thumbnail
+  // instead of live video. Pipe opus frames from the demuxer (silence is
+  // injected at the encoder when the source has no audio track).
+  let aStream: AudioStream | undefined;
+  if (audio) {
+    aStream = new AudioStream(conn);
+    audio.stream.pipe(aStream);
+    console.log(
+      `[goLive:playStream] audio stream attached (${audio.codecName})`,
+    );
+  }
 
   const cleanup = () => {
     try {

@@ -207,11 +207,13 @@ export class ScreenShareController {
         frameRate: 30,
         bitrateVideo: 2500,
         bitrateVideoMax: 4000,
-        // Video-only GoLive: the -f h264 output muxer cannot carry audio
-        // ("h264 muxer does not support any stream of type audio" → header
-        // write fails → empty stdout → demux 'Invalid data' → black tile).
-        // Audio is not delivered by the GoLive demux path anyway.
-        includeAudio: false,
+        // GoLive with audio: the encoder muxes to NUT (video h264 + opus
+        // audio) so the audio SSRC carries RTP too. Discord's GoLive
+        // pipeline expects audio — a video-only stream shows a static
+        // tile/thumbnail instead of live video. When the source has no
+        // audio track, the encoder's `-map 0:a:0?` yields no audio stream
+        // and the demuxer simply reports none (video still flows).
+        includeAudio: true,
         videoCodec: normalizeVideoCodec("H264"),
       });
       const { command } = prepared;

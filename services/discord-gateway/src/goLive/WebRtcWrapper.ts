@@ -179,6 +179,9 @@ export class WebRtcConnWrapper {
       throw new Error("WebRTC connection not ready");
     }
     const { audioSsrc, videoSsrc } = this.mediaConnection.webRtcParams;
+    console.log(
+      `[goLive:WebRtc] setPacketizer(${videoCodec}) audioSsrc=${audioSsrc} videoSsrc=${videoSsrc} rtxSsrc=${this.mediaConnection.webRtcParams.rtxSsrc}`,
+    );
     this._videoCodec = normalizeVideoCodec(videoCodec);
     // Audio packetizer: opus 120 @ 48kHz, playout delay ext id 5 (like @dank074)
     this._audioTrack?.setPacketizer(

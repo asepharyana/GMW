@@ -16,6 +16,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
+import type { GoLiveFrame } from "./BaseMediaStream.js";
 
 /** 4-byte AnnexB start code (00 00 00 01) used when building access units. */
 const startCode4 = Buffer.from([0, 0, 0, 1]);
@@ -158,28 +159,46 @@ export async function demux(
   const aPipe = new PassThrough({ objectMode: true, highWaterMark: 128 });
 
   const isStream = typeof input !== "string";
+  // NUT/matroska input (prepareStream with includeAudio) carries audio; the
+  // h264 path is video-only raw AnnexB. Video always goes to stdout (pipe:1);
+  // audio goes to fd3 (pipe:3) so stderr stays free for metadata parsing.
+  const containerFormat =
+    isStream && opts.format !== "h264" ? opts.format : null;
+  const withAudio = isStream && containerFormat !== null;
   const args: string[] = [
     "-hide_banner",
     // info level: stream init lines ("Stream #0:0: Video: h264...") go to
     // stderr and are parsed for dimensions/fps.
     "-loglevel",
     "info",
-    // Input format hint: prepareStream always emits raw AnnexB H264 on
-    // pipe:0. Raw H264 has NO magic header, so ffmpeg's auto-detection
-    // fails with "Invalid data found when processing input" whenever the
-    // first bytes arrive late/buffered. Pin the demuxer input format.
-    ...(isStream ? ["-f", "h264"] : []),
+    // Input format hint: raw H264 has NO magic header, so ffmpeg's
+    // auto-detection fails with "Invalid data found when processing input"
+    // whenever the first bytes arrive late/buffered. Pin the demuxer input
+    // format for streams (NUT for the audio-capable path).
+    ...(withAudio
+      ? ["-f", containerFormat as string]
+      : isStream
+        ? ["-f", "h264"]
+        : []),
     "-i",
     isStream ? "pipe:0" : input,
+    "-map",
+    "0:v:0",
     "-c:v",
     "copy",
-    "-an", // no audio in this minimal demuxer
     "-f",
     "h264",
     "pipe:1",
+    ...(withAudio
+      ? ["-map", "0:a:0?", "-c:a", "copy", "-f", "opus", "pipe:3"]
+      : ["-an"]),
   ];
   const proc = spawn(FFMPEG, args, {
-    stdio: isStream ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
+    stdio: isStream
+      ? withAudio
+        ? ["pipe", "pipe", "pipe", "pipe"]
+        : ["pipe", "pipe", "pipe"]
+      : ["ignore", "pipe", "pipe"],
   });
   console.log(
     `[goLive:Demuxer] spawn ffmpeg pid=${proc.pid} input=${isStream ? "stream" : input} args=${args.join(" ")}`,
@@ -191,8 +210,25 @@ export async function demux(
     input.on("error", () => proc.stdin?.destroy());
   }
 
+  // Audio: ffmpeg writes Ogg Opus on fd3 (pipe:3). Parse OGG pages into
+  // opus packets and emit them as GoLiveFrames (20ms, 48kHz) on aPipe.
+  if (withAudio && proc.stdio[3]) {
+    createOggOpusDemux(
+      proc.stdio[3] as unknown as NodeJS.ReadableStream,
+      aPipe,
+    );
+    console.log("[goLive:Demuxer] audio pipe wired (fd3 → Ogg Opus → aPipe)");
+  }
+
   // Set true once stderr metadata has been parsed (see handler below).
   let parsedMeta = false;
+  // Track which stream kinds we've seen. We must NOT stop parsing on the
+  // first stream found: ffmpeg can print the video line and audio line in
+  // separate stderr chunks (input arrives slowly), and the old
+  // early-return (`if (parsedMeta) return`) dropped the audio line forever
+  // → aInfo undefined → no audio RTP → static GoLive tile.
+  let seenVideo = false;
+  let seenAudio = false;
 
   // Parse stream metadata from ffmpeg stderr as it arrives (first chunk has
   // the init lines). Fall back to H264 defaults if parsing fails.
@@ -218,7 +254,6 @@ export async function demux(
           `[goLive:Demuxer] ffmpeg stderr: ${text.trim().split("\n").slice(0, 4).join(" | ")}`,
         );
       }
-      if (parsedMeta) return;
       const streamRe = /Stream #0:(\d+): (Video|Audio): ([^,]+)/g;
       let m: RegExpExecArray | null;
       const found: Array<{ kind: string; codecRaw: string }> = [];
@@ -226,11 +261,15 @@ export async function demux(
       while ((m = streamRe.exec(stderrBuf)) !== null) {
         found.push({ kind: m[2], codecRaw: m[3] });
       }
+      if (process.env.GMW_DEMUX_DEBUG) {
+        console.log(
+          `[goLive:Demuxer] DEBUG stderrBuf=${JSON.stringify(stderrBuf.slice(0, 300))} found=${JSON.stringify(found)}`,
+        );
+      }
       const v = found.find((s) => s.kind === "Video");
       const a = found.find((s) => s.kind === "Audio");
-      if (!v && !a) return;
-      parsedMeta = true;
       if (v) {
+        seenVideo = true;
         const codecName = v.codecRaw.split(" ")[0].toLowerCase();
         const dim = /(\d{2,5})x(\d{2,5})/.exec(stderrBuf);
         const fps = /(\d+(?:\.\d+)?) fps/.exec(stderrBuf);
@@ -250,6 +289,7 @@ export async function demux(
         };
       }
       if (a) {
+        seenAudio = true;
         const codecName = a.codecRaw.split(" ")[0].toLowerCase();
         const sr = /(\d+) Hz/.exec(stderrBuf);
         aInfo = {
@@ -267,6 +307,9 @@ export async function demux(
           stream: aPipe,
         };
       }
+      // Resolve the metadata wait once at least one stream kind is seen;
+      // keep parsing further chunks so a late audio line still lands.
+      if (seenVideo || seenAudio) parsedMeta = true;
     });
   }
 
@@ -433,4 +476,98 @@ export async function demux(
   };
 
   return { video: vInfo, audio: aInfo, close };
+}
+
+/**
+ * Parse an Ogg Opus byte stream (as written by ffmpeg's `-f opus` muxer)
+ * into individual opus packets and push them onto `out` as GoLiveFrames
+ * (duration 960 @ 48kHz = 20ms, matching the OpusRtpPacketizer clock).
+ *
+ * OGG page structure:
+ *   "OggS" | ver(1) | header_type(1) | granule(8 LE) | serial(4) | seq(4) |
+ *   crc(4) | page_segments(1) | segment_table[n] | payload
+ * Lacing: a value < 255 ends a packet; 255 continues it (0.5KB chunk).
+ * The first packet is OpusHead (19B) — skipped, as is OpusTags.
+ */
+function createOggOpusDemux(
+  input: NodeJS.ReadableStream,
+  out: PassThrough,
+): void {
+  let buf = Buffer.alloc(0);
+  // Packets assembled from lacing; packetParts accumulates across pages
+  // when a packet spans a page boundary (continued flag / 255 lacing).
+  let packetParts: Buffer[] = [];
+  let headerDone = false;
+  let frameIndex = 0;
+
+  const emitPacket = (packet: Buffer) => {
+    if (!headerDone) {
+      // First packet = OpusHead ("OpusHead"), second = OpusTags. Skip both.
+      const magic = packet.toString("latin1", 0, 8);
+      if (magic === "OpusHead" || magic === "OpusTags") return;
+      headerDone = true;
+    }
+    out.write({
+      data: packet,
+      pts: frameIndex * 960,
+      duration: 960,
+      timeBase: { num: 1, den: 48000 },
+      free: () => {},
+    } satisfies GoLiveFrame);
+    frameIndex++;
+  };
+
+  const processPages = () => {
+    while (true) {
+      // Sync to "OggS"
+      const sync = buf.indexOf("OggS", 0, "latin1");
+      if (sync === -1) {
+        // Keep the tail (partial sync pattern) for the next chunk
+        buf = buf.length > 3 ? buf.subarray(buf.length - 3) : buf;
+        return;
+      }
+      if (sync > 0) buf = buf.subarray(sync);
+      if (buf.length < 27) return; // need full page header
+      const numSeg = buf[26];
+      if (buf.length < 27 + numSeg) return; // need segment table
+      let payloadLen = 0;
+      for (let i = 0; i < numSeg; i++) payloadLen += buf[27 + i];
+      if (buf.length < 27 + numSeg + payloadLen) return; // need payload
+
+      const headerType = buf[5];
+      // Extract packets from the payload using lacing values
+      let off = 27 + numSeg;
+      for (let i = 0; i < numSeg; i++) {
+        const lace = buf[27 + i];
+        const part = buf.subarray(off, off + lace);
+        off += lace;
+        packetParts.push(Buffer.from(part));
+        if (lace < 255) {
+          const packet = Buffer.concat(packetParts);
+          packetParts = [];
+          if ((headerType & 0x01) === 0) {
+            // Not a continuation page → packet starts here
+            emitPacket(packet);
+          } else if (headerDone) {
+            // Continued page — packet body, emit directly
+            emitPacket(packet);
+          }
+          // (header packets on continuation pages are dropped)
+        }
+      }
+      buf = buf.subarray(off);
+      if (buf.length === 0) return;
+    }
+  };
+
+  input.on("data", (chunk: Buffer) => {
+    buf = Buffer.concat([buf, chunk]);
+    processPages();
+  });
+  input.on("end", () => {
+    out.end();
+  });
+  input.on("error", () => {
+    out.end();
+  });
 }

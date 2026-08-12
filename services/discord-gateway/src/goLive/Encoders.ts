@@ -41,6 +41,13 @@ export function software(
       options: [
         "-forced-idr 1",
         "-profile:v baseline",
+        // repeat-headers: SPS/PPS inline BEFORE EVERY IDR, not just the
+        // first. Required for the NUT container path (NUT stores extradata
+        // in the header and `-c:v copy` remux loses it → decoder sees
+        // "non-existing PPS 0 referenced" → no picture) and lets Discord's
+        // decoder recover after any PLI/keyframe request mid-stream.
+        "-x264-params",
+        "repeat-headers=1",
         `-tune ${x264Tune}`,
         `-preset ${x264Preset}`,
       ],
