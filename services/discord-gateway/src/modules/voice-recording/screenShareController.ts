@@ -1,3 +1,4 @@
+import { PassThrough, type Readable } from "node:stream";
 import type { Client } from "discord.js-selfbot-v13";
 import { createChildLogger } from "@/shared/logger/index";
 import {
@@ -54,6 +55,114 @@ export class ScreenShareController {
     return this.active !== null;
   }
 
+  /**
+   * Resolve the screen-share input with retry + first-byte validation.
+   *
+   * Transient YouTube 403s kill the merge ffmpeg BEFORE it produces any
+   * output; without validation the stream would "start" with a dead input
+   * and show a black tile forever. So after getDirectScreenInput resolves we
+   * tee the stream through a PassThrough and wait for the FIRST readable
+   * byte (or an error / early EOF). On failure the whole resolution is
+   * retried with a FRESH yt-dlp run (signed DASH URLs expire quickly — the
+   * old URLs cannot simply be re-fetched).
+   */
+  private async resolveInputWithRetry(
+    source: string,
+  ): Promise<string | Readable> {
+    const MAX_ATTEMPTS = 3;
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const input = await getDirectScreenInput(source);
+        if (typeof input === "string") {
+          // Direct URL input — nothing to validate; the encoder ffmpeg will
+          // connect itself and fail loudly on a bad URL.
+          return input;
+        }
+
+        const tee = new PassThrough();
+        input.on("error", (err) => tee.destroy(err));
+        input.on("end", () => tee.end());
+        input.pipe(tee);
+        // If the merge process is stuck (no data, no exit) destroy the raw
+        // stream too so ffmpeg gets EPIPE on its next write and dies —
+        // otherwise every failed attempt leaks a merge process.
+        const destroyInput = () => {
+          try {
+            input.destroy();
+          } catch {
+            /* already gone */
+          }
+        };
+
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            cleanup();
+            destroyInput();
+            tee.destroy(
+              new Error(
+                "Screen input produced no data within 12s — merge likely failed",
+              ),
+            );
+            reject(
+              new Error(
+                "Screen input produced no data within 12s — merge likely failed",
+              ),
+            );
+          }, 12000);
+          const onReadable = () => {
+            if (tee.readableLength > 0) {
+              cleanup();
+              resolve();
+            }
+            // readableLength === 0 can mean "EOF reached" — handled by onEnd.
+          };
+          const onError = (err: Error) => {
+            cleanup();
+            reject(err);
+          };
+          const onEnd = () => {
+            cleanup();
+            destroyInput();
+            reject(new Error("Screen input ended before producing any data"));
+          };
+          const cleanup = () => {
+            clearTimeout(timer);
+            tee.removeListener("readable", onReadable);
+            tee.removeListener("error", onError);
+            tee.removeListener("end", onEnd);
+          };
+          tee.once("readable", onReadable);
+          tee.once("error", onError);
+          tee.once("end", onEnd);
+        });
+
+        // Pass the tee onward — the encoder consumes the same buffered
+        // stream, so no data from the merge is lost.
+        return tee;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        this.logger.warn(
+          {
+            attempt,
+            maxAttempts: MAX_ATTEMPTS,
+            error: lastError.message,
+          },
+          "Screen input resolution failed; retrying with fresh yt-dlp",
+        );
+        if (attempt < MAX_ATTEMPTS) {
+          await new Promise((r) => setTimeout(r, 1500 * attempt));
+        }
+      }
+    }
+
+    throw (
+      lastError ??
+      new Error("Screen input resolution failed after multiple attempts")
+    );
+  }
+
   async start(source: string): Promise<ScreenSharePlayback> {
     const status = this.getVoiceStatus();
     if (!status.connected || !status.activeGuildId || !status.activeChannelId) {
@@ -65,7 +174,7 @@ export class ScreenShareController {
     }
 
     try {
-      const input = await getDirectScreenInput(source);
+      const input = await this.resolveInputWithRetry(source);
       if (!this.streamer) {
         this.streamer = new Streamer(this.client);
       }

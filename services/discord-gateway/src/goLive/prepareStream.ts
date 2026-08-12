@@ -206,9 +206,19 @@ export function prepareStream(
     : spawn(FFMPEG_BIN, args, { stdio: ["pipe", "pipe", "pipe"] });
 
   if (proc.stdin && !isUrl) {
-    input.on("data", (chunk: Buffer) => proc.stdin?.write(chunk));
-    input.on("end", () => proc.stdin?.end());
-    input.on("error", () => proc.stdin?.destroy());
+    // Race guard: the merge ffmpeg may have already exited (transient 403
+    // or stream death) before this function attaches its listeners — the
+    // input's 'end'/'error' events then fire into the void and the encoder
+    // stdin NEVER receives EOF, leaving an encoder that waits forever and a
+    // screen share that shows a black tile with zero frames. Check the
+    // terminal state eagerly and EOF the encoder immediately.
+    if (input.readableEnded || input.destroyed) {
+      proc.stdin.end();
+    } else {
+      input.on("data", (chunk: Buffer) => proc.stdin?.write(chunk));
+      input.on("end", () => proc.stdin?.end());
+      input.on("error", () => proc.stdin?.destroy());
+    }
   }
 
   proc.stdout?.pipe(output);
@@ -319,14 +329,81 @@ export async function playStream(
     }
   };
 
-  return new Promise<void>((resolve) => {
-    vStream.once("finish", () => {
-      cleanup();
+  // First-frame watchdog: if the encoder never delivers a single frame
+  // (dead merge input, empty stream, codec mismatch), fail fast instead of
+  // "playing" a black tile forever. The demuxer resolves with fallback
+  // metadata even when no frame ever arrives, so this timeout is the only
+  // place that detects "started but nothing flowing".
+  let firstFrameTimer: NodeJS.Timeout | null = null;
+  let gotFirstFrame = false;
+  const firstFrame = new Promise<void>((resolve, reject) => {
+    firstFrameTimer = setTimeout(() => {
+      if (!gotFirstFrame) {
+        cleanup();
+        reject(
+          new Error(
+            "No video frames within 10s of stream start — input stream failed",
+          ),
+        );
+      }
+    }, 10000);
+    video.stream.once("data", () => {
+      gotFirstFrame = true;
+      if (firstFrameTimer) clearTimeout(firstFrameTimer);
       resolve();
     });
+  });
+
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const settle = (fn: () => void) => () => {
+      if (settled) return;
+      settled = true;
+      if (firstFrameTimer) clearTimeout(firstFrameTimer);
+      fn();
+    };
+
+    vStream.once("finish", () => {
+      settle(() => {
+        cleanup();
+        if (!gotFirstFrame) {
+          reject(new Error("Screen video stream ended without any frame"));
+        } else {
+          resolve();
+        }
+      })();
+    });
     vStream.once("error", () => {
-      cleanup();
-      resolve();
+      settle(() => {
+        cleanup();
+        if (!gotFirstFrame) {
+          reject(new Error("Screen video stream errored before first frame"));
+        } else {
+          resolve();
+        }
+      })();
+    });
+    // The stream may end without ever producing a frame (input was
+    // silently dead) — surface that instead of resolving "successfully".
+    video.stream.once("end", () => {
+      settle(() => {
+        cleanup();
+        if (!gotFirstFrame) {
+          reject(new Error("Screen video stream ended before any frame"));
+        } else {
+          resolve();
+        }
+      })();
+    });
+    // Watchdog timeout: no frame arrived within 10s — fail fast instead of
+    // "playing" a black tile forever. cleanup() kills the encoder so the
+    // vStream finish/error handlers above still fire, but the settled guard
+    // ensures this rejection wins.
+    firstFrame.catch((err) => {
+      settle(() => {
+        cleanup();
+        reject(err);
+      })();
     });
   });
 }

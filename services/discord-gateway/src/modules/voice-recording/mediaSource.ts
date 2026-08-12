@@ -522,6 +522,12 @@ async function resolveScreenInput(
     );
     const videoUrl = video?.url as string | undefined;
     const audioUrl = audio?.url as string | undefined;
+    // yt-dlp returns the exact HTTP headers needed to fetch each signed DASH
+    // URL (User-Agent etc.). Passing them to the merge ffmpeg prevents
+    // transient YouTube 403s ("Server returned 403 Forbidden") that kill the
+    // stream before it starts.
+    const videoHeaders =
+      (video?.http_headers as Record<string, string> | undefined) ?? {};
 
     if (
       typeof videoUrl === "string" &&
@@ -529,7 +535,7 @@ async function resolveScreenInput(
       typeof audioUrl === "string" &&
       audioUrl.length > 0
     ) {
-      return mergeScreenStreams(videoUrl, audioUrl);
+      return mergeScreenStreams(videoUrl, audioUrl, videoHeaders);
     }
   }
 
@@ -542,40 +548,60 @@ async function resolveScreenInput(
  * Merge a video-only URL and an audio-only URL into a single NUT stream using
  * a child ffmpeg process. Both URLs come from the same yt-dlp run, so they
  * share the same signature/expiry and are consumed immediately.
+ *
+ * Fail-fast contract: if the merge process exits non-zero BEFORE producing any
+ * output bytes (e.g. transient YouTube 403), the returned Readable is
+ * destroyed with an error so the caller can retry — otherwise the screen
+ * share would "start" with a dead input and stream a black tile forever.
  */
-function mergeScreenStreams(videoUrl: string, audioUrl: string): Readable {
+function mergeScreenStreams(
+  videoUrl: string,
+  audioUrl: string,
+  httpHeaders?: Record<string, string>,
+): Readable {
   logger.info("Merging video+audio DASH streams into a single NUT input");
 
-  const ffmpeg = spawn(
-    "ffmpeg",
-    [
-      "-hide_banner",
-      "-loglevel",
-      "error",
-      "-reconnect",
-      "1",
-      "-reconnect_streamed",
-      "1",
-      "-reconnect_delay_max",
-      "5",
-      "-i",
-      videoUrl,
-      "-i",
-      audioUrl,
-      "-map",
-      "0:v:0",
-      "-map",
-      "1:a:0",
-      "-c:v",
-      "copy",
-      "-c:a",
-      "copy",
-      "-f",
-      "nut",
-      "pipe:1",
-    ],
-    { stdio: ["ignore", "pipe", "pipe"] },
+  const args = [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-reconnect",
+    "1",
+    "-reconnect_streamed",
+    "1",
+    "-reconnect_delay_max",
+    "5",
+  ];
+  // Pass the browser-like headers yt-dlp attached to the signed URLs. Without
+  // a proper User-Agent YouTube sometimes answers 403 to ffmpeg's plain
+  // Lavf/… agent and the whole stream dies before producing a frame.
+  const headerStr = Object.entries(httpHeaders ?? {})
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\r\n");
+  if (headerStr) {
+    args.push("-headers", headerStr);
+  }
+  args.push(
+    "-i",
+    videoUrl,
+    "-i",
+    audioUrl,
+    "-map",
+    "0:v:0",
+    "-map",
+    "1:a:0",
+    "-c:v",
+    "copy",
+    "-c:a",
+    "copy",
+    "-f",
+    "nut",
+    "pipe:1",
   );
+
+  const ffmpeg = spawn("ffmpeg", args, {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 
   // Track so cleanup() can terminate the merge during graceful shutdown.
   activeProcesses.add(ffmpeg);
@@ -592,12 +618,15 @@ function mergeScreenStreams(videoUrl: string, audioUrl: string): Readable {
     }
   });
 
+  let producedData = false;
+
   ffmpeg.on("error", (err) => {
     const msg =
       err.message === "spawn ffmpeg ENOENT"
         ? "FFmpeg not found! Install ffmpeg in the container."
         : err.message;
     logger.error({ error: msg }, "Screen stream merge ffmpeg error");
+    stream.destroy(new Error(msg));
   });
 
   ffmpeg.on("exit", (code) => {
@@ -606,10 +635,23 @@ function mergeScreenStreams(videoUrl: string, audioUrl: string): Readable {
       { code, stderr: stderr.slice(-500) || undefined },
       "Screen stream merge ffmpeg exited",
     );
+    // Fail fast: a merge that dies before emitting ANY bytes cannot feed the
+    // encoder — destroy the stream with an error so the caller retries with a
+    // fresh resolution instead of streaming a silent black tile.
+    if (code !== 0 && !producedData && !stream.destroyed) {
+      stream.destroy(
+        new Error(
+          `Screen stream merge failed before producing data (exit ${code})${stderr ? `: ${stderr.slice(-300)}` : ""}`,
+        ),
+      );
+    }
   });
 
   const stream = ffmpeg.stdout;
   stream.setMaxListeners(32);
+  stream.once("data", () => {
+    producedData = true;
+  });
   return stream;
 }
 

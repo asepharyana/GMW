@@ -10,7 +10,13 @@
 // hit the network or need real binaries.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -40,7 +46,18 @@ exit 1
 
   // Fake ffmpeg: writes a small nut-ish payload to stdout so the returned
   // Readable actually emits data (the merge path in mergeScreenStreams).
+  // Modes (env):
+  //   GMW_FAKE_FFMPEG_FAIL=1  → exit 1, no stdout (mimics transient 403)
+  //   GMW_FAKE_FFMPEG_DUMP_ARGS=<file> → append argv to the file (asserts
+  //     flags like -headers are forwarded to the merge process)
   const ffShim = `#!/usr/bin/env bash
+if [ -n "$GMW_FAKE_FFMPEG_DUMP_ARGS" ]; then
+  printf '%s\\n' "$*" >> "$GMW_FAKE_FFMPEG_DUMP_ARGS"
+fi
+if [ "$GMW_FAKE_FFMPEG_FAIL" = "1" ]; then
+  echo "403 Forbidden" >&2
+  exit 8
+fi
 # Fake ffmpeg — ignore args, emit a few bytes so consumers see a live stream.
 head -c 4096 /dev/urandom
 exit 0
@@ -138,5 +155,82 @@ describe("getDirectScreenInput", () => {
     await expect(getDirectScreenInput("https://youtu.be/abc")).rejects.toThrow(
       /screen input resolution exited with code 1/,
     );
+  });
+
+  it("terminates with ZERO bytes when the merge ffmpeg fails before producing data (transient 403)", async () => {
+    // Simulate the 11:50 production failure: yt-dlp resolves fine, but the
+    // merge ffmpeg hits a transient YouTube 403 and exits non-zero WITHOUT
+    // emitting a single byte. getDirectScreenInput still resolves (the
+    // Readable exists) — the fail-fast contract: the stream must terminate
+    // (error OR end — the end-before-exit ordering makes both possible)
+    // without ever delivering a frame to a consumer. The controller's
+    // resolveInputWithRetry turns either signal into a fresh retry.
+    process.env.GMW_FAKE_YTDLP_JSON = writeFakeJson(
+      dashPairInfo(
+        "https://cdn.example/video.mp4",
+        "https://cdn.example/audio.m4a",
+      ),
+    );
+    process.env.GMW_FAKE_FFMPEG_FAIL = "1";
+    try {
+      const result = await getDirectScreenInput("https://youtu.be/abc");
+      expect(Readable.isReadable(result)).toBe(true);
+
+      const outcome = await new Promise<string>((resolve) => {
+        const stream = result as Readable;
+        let got = 0;
+        stream.on("data", (chunk: Buffer) => {
+          got += chunk.length;
+        });
+        stream.on("error", () => resolve(`error-after-${got}B`));
+        stream.on("end", () => resolve(`end-after-${got}B`));
+        stream.resume();
+      });
+      // Fail-fast: the consumer must NOT receive any bytes (no black-tile
+      // zombie stream). Either a destroyed-with-error stream or a clean
+      // end-before-exit is a valid terminal state — the caller retries.
+      expect(outcome).toMatch(/^(error|end)-after-0B$/);
+    } finally {
+      delete process.env.GMW_FAKE_FFMPEG_FAIL;
+    }
+  });
+
+  it("forwards yt-dlp http_headers to the merge ffmpeg (-headers)", async () => {
+    const info = dashPairInfo(
+      "https://cdn.example/video.mp4",
+      "https://cdn.example/audio.m4a",
+    );
+    // Add the browser-like headers yt-dlp attaches to signed DASH URLs.
+    (info.requested_formats[0] as Record<string, unknown>).http_headers = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      Referer: "https://www.youtube.com/",
+    };
+    const argsDump = join(
+      tmpdir(),
+      `gmw-ffargs-${process.pid}-${Date.now()}.txt`,
+    );
+    process.env.GMW_FAKE_YTDLP_JSON = writeFakeJson(info);
+    process.env.GMW_FAKE_FFMPEG_DUMP_ARGS = argsDump;
+    try {
+      const result = await getDirectScreenInput("https://youtu.be/abc");
+      // Consume the stream so the merge ffmpeg process runs to completion.
+      await new Promise<void>((resolve) => {
+        const stream = result as Readable;
+        stream.on("data", () => {});
+        stream.on("error", () => resolve());
+        stream.on("end", () => resolve());
+        stream.resume();
+      });
+      // Allow the fake ffmpeg to flush its argv dump.
+      await new Promise((r) => setTimeout(r, 100));
+      const args = readFileSync(argsDump, "utf8").trim();
+      expect(args).toContain("-headers");
+      expect(args).toContain("Mozilla/5.0");
+      expect(args).toContain("Referer: https://www.youtube.com/");
+    } finally {
+      delete process.env.GMW_FAKE_FFMPEG_DUMP_ARGS;
+      rmSync(argsDump, { force: true });
+    }
   });
 });
