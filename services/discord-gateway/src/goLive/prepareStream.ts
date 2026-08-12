@@ -28,8 +28,8 @@ export interface PrepareStreamResult {
   height: number;
   frameRate?: number;
   includeAudio: boolean;
-  /** Output container — always raw H264 AnnexB (audio demuxed to pipe:3). */
-  format: "h264";
+  /** Container the encoder muxes to: "nut" (audio-capable) or "h264" (raw). */
+  format: "nut" | "h264";
 }
 
 function isFiniteNonZero(n: unknown): n is number {
@@ -183,18 +183,13 @@ export function prepareStream(
     );
   }
 
-  // Audio (transcode to libopus for encoding). Video output is ALWAYS raw
-  // H264 AnnexB on pipe:1 — NOT NUT. NUT container framing on stdout corrupts
-  // the AnnexB start-code scanner in Demuxer (NUT headers misread as NAL type 0
-  // → every frame classified non-keyframe → static tile). NUT is only needed
-  // for the *input* (one pipe carries both streams); output demuxes each stream
-  // to its own raw format.
-  // Video output: raw H264 AnnexB on pipe:1 — demux() scans start codes.
-  args.push("-f", "h264", "pipe:1");
-  // Audio output: Ogg Opus on fd3 (pipe:3), separate from video stdout so it
-  // never pollutes the AnnexB start-code stream on pipe:1. Map the audio
-  // stream here (after the video -map 0:v:0 above) so it targets only this
-  // output.
+  // Audio: transcode to libopus. NUT muxer on stdout carries video (H264
+  // AnnexB) + audio (Ogg Opus) as ONE stream into the Demuxer, which re-splits
+  // them via a child ffmpeg -f nut -i pipe:0 -c:v copy -f h264 pipe:1 ... . The
+  // Demuxer's start-code scan runs on THAT child ffmpeg's stdout (pure H264),
+  // NOT on NUT — so NAL type 5 (IDR) is parsed correctly. (Outputting raw
+  // h264+opus on two pipes directly was tried and broke: the audio pipe was
+  // never attached to the demuxer's input, so audio RTP never flowed.)
   if (mergedOptions.includeAudio) {
     args.push(
       "-map",
@@ -207,13 +202,16 @@ export function prepareStream(
       "48000",
       "-ac",
       "2",
-      "-f",
-      "opus",
-      "pipe:3",
     );
   } else {
     args.push("-an");
   }
+
+  // NUT muxer carries video+audio; the raw h264 muxer cannot ("h264 muxer
+  // does not support any stream of type audio" -> header write fails ->
+  // empty stdout -> black tile). Audio delivery requires NUT.
+  const outFormat = mergedOptions.includeAudio ? "nut" : "h264";
+  args.push("-f", outFormat, "pipe:1");
 
   const isUrl = typeof input === "string";
   const proc: ChildProcess = isUrl
@@ -263,7 +261,7 @@ export function prepareStream(
     height: mergedOptions.height,
     frameRate: mergedOptions.frameRate,
     includeAudio: !!mergedOptions.includeAudio,
-    format: "h264",
+    format: outFormat,
   };
 }
 
