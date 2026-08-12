@@ -243,6 +243,24 @@ export async function demux(
     stream: vPipe,
   };
   let aInfo: DemuxedStream | undefined;
+  // With audio expected (NUT input), ALWAYS expose an audio stream even if
+  // ffmpeg's audio init line hasn't arrived in stderr yet. prepareStream
+  // encodes libopus into the NUT unconditionally (`-map 0:a:0? -c:a libopus`),
+  // so fd3 WILL carry Ogg Opus — aInfo must not stay undefined just because
+  // the metadata line raced the resolve. The stderr handler below upgrades
+  // this default with real sample_rate metadata when the line lands.
+  if (withAudio) {
+    aInfo = {
+      codec: AVCodecID.AV_CODEC_ID_OPUS,
+      codecName: "opus",
+      width: 0,
+      height: 0,
+      framerate_num: 0,
+      framerate_den: 0,
+      sample_rate: 48000,
+      stream: aPipe,
+    };
+  }
   let stderrBuf = "";
   if (proc.stderr) {
     proc.stderr.on("data", (d: Buffer) => {
@@ -307,26 +325,35 @@ export async function demux(
           stream: aPipe,
         };
       }
-      // Resolve the metadata wait once at least one stream kind is seen;
-      // keep parsing further chunks so a late audio line still lands.
+      // Mark that at least one stream kind was seen. Note: we must NOT
+      // resolve the metadata wait on the FIRST stream kind alone. With live
+      // NUT input, ffmpeg can print the video init line in one stderr chunk
+      // and the audio init line in the NEXT chunk (NUT info-stream packets
+      // arrive as ffmpeg reads them from the pipe). The old code returned
+      // immediately on `parsedMeta=true` — the audio line then landed in the
+      // handler AFTER `return { audio: aInfo }` had already captured
+      // `undefined` → no audio RTP → static GoLive tile even though the NUT
+      // carried audio. Wait for BOTH kinds (when audio is expected).
       if (seenVideo || seenAudio) parsedMeta = true;
     });
   }
 
   // Wait (briefly) for ffmpeg to print its stream init lines on stderr so
-  // vInfo carries real dimensions/fps. The lines arrive with the first chunk
-  // — a short timeout covers slow starts; callers fall back to sensible
-  // defaults when width/height are 0 anyway.
+  // vInfo/aInfo carry real metadata. With audio expected, wait for BOTH the
+  // video and audio init lines (they may arrive in separate stderr chunks on
+  // live input); the timeout covers slow starts / genuinely audio-less input.
+  const allSeen = () =>
+    withAudio ? seenVideo && seenAudio : seenVideo || seenAudio;
   await Promise.race([
     new Promise<void>((resolve) => {
       const check = setInterval(() => {
-        if (parsedMeta) {
+        if (allSeen()) {
           clearInterval(check);
           resolve();
         }
       }, 25);
     }),
-    new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+    new Promise<void>((resolve) => setTimeout(resolve, 3000)),
   ]);
 
   // Scan stdout for AnnexB NAL units and group them into ACCESS UNITS
