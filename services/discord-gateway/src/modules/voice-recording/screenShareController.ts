@@ -66,20 +66,13 @@ export class ScreenShareController {
    * retried with a FRESH yt-dlp run (signed DASH URLs expire quickly — the
    * old URLs cannot simply be re-fetched).
    */
-  private async resolveInputWithRetry(
-    source: string,
-  ): Promise<string | Readable> {
+  private async resolveInputWithRetry(source: string): Promise<Readable> {
     const MAX_ATTEMPTS = 3;
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         const input = await getDirectScreenInput(source);
-        if (typeof input === "string") {
-          // Direct URL input — nothing to validate; the encoder ffmpeg will
-          // connect itself and fail loudly on a bad URL.
-          return input;
-        }
 
         const tee = new PassThrough();
         input.on("error", (err) => tee.destroy(err));

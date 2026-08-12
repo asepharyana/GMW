@@ -1,4 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { chmodSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PassThrough, type Readable } from "node:stream";
 import { StreamType } from "@discordjs/voice";
 import { createChildLogger } from "@/shared/logger/index";
@@ -378,281 +381,95 @@ export function resolveMediaUrl(
  * Resolve a media URL to a single playable input stream for screen share /
  * GoLive streaming.
  *
- * yt-dlp `--get-url` with `bestvideo+bestaudio` prints the video-only and
- * audio-only URLs on SEPARATE lines. The old code took only the first line
- * (video-only) → ffmpeg had no audio track → GoLive stream had no sound.
+ * Streams the merged video+audio media directly from yt-dlp stdout (`-o -`).
  *
- * This returns a single input that `prepareStream` (which accepts only ONE
- * ffmpeg input) can consume while STILL including audio:
- *  - If yt-dlp offers a merged progressive URL (one URL, video+audio) it is
- *    returned directly.
- *  - Otherwise the video-only + audio-only DASH URLs are fetched in the SAME
- *    yt-dlp run (signature URLs expire quickly) and merged locally by an
- *    ffmpeg process into a single NUT stream, which is streamed to the
- *    consumer over a Readable. NUT over stdin auto-probes cleanly (verified:
- *    av1+opus merge → H264+opus transcode).
+ * This is deliberately NOT the old --dump-single-json + manual URL-fetch
+ * approach: YouTube signs DASH URLs for the extracting client and rejects
+ * them with 403 when fetched raw by ffmpeg/curl (verified 2026-08-12: even
+ * curl with the EXACT http_headers from the yt-dlp dump got 403 on some
+ * videos, while yt-dlp's own downloader succeeded). Streaming from yt-dlp
+ * lets it handle auth, cookies and transient retries internally — the same
+ * mechanism resolveMediaUrl already uses for music playback.
  *
- * @returns a direct video URL (string) or a Readable of the merged NUT stream.
+ * @returns a Readable of the merged media stream.
  */
-export function getDirectScreenInput(url: string): Promise<string | Readable> {
-  return new Promise<string | Readable>((resolve, reject) => {
+export function getDirectScreenInput(url: string): Promise<Readable> {
+  return new Promise<Readable>((resolve) => {
+    // Merge fragments must NOT be written to the process CWD — the Nix
+    // store dir is read-only for the deployed gateway (EACCES). Use a
+    // per-run temp dir (world-writable like /tmp) so parallel/retry runs
+    // never collide on merge fragments and any user can write to it.
+    const tmpDir = mkdtempSync(join(tmpdir(), "gmw-ytdlp-"));
+    chmodSync(tmpDir, 0o1777);
+
     const args = [
-      url,
-      "--dump-single-json",
-      "--format",
+      "-f",
       "bestvideo[protocol^=http]+bestaudio[protocol^=http]/best[protocol^=http]/best",
+      "-o",
+      "-",
       "--no-playlist",
       "--no-warnings",
-      "--quiet",
-      // NOTE: deliberately NOT --no-simulate. Simulate mode still resolves the
-      // requested format URLs into the JSON (requested_formats[].url), and it
-      // avoids yt-dlp writing .part files into the process CWD — which is the
-      // read-only Nix store dir for the deployed gateway (EACCES).
+      "--no-progress",
+      "-P",
+      tmpDir,
+      url,
     ];
 
-    logger.info({ url }, "Spawning yt-dlp for screen share input resolution");
+    logger.info({ url }, "Spawning yt-dlp for screen share input streaming");
 
     const proc = spawn("yt-dlp", args, {
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
     });
 
     activeProcesses.add(proc);
 
-    let stdoutBuf = "";
+    const stream = new PassThrough();
+    proc.stdout.pipe(stream);
+
     let stderrBuf = "";
     const MAX_STDERR = 4096;
-    const MAX_STDOUT = 8 * 1024 * 1024; // JSON metadata + requested format URLs
+    proc.stderr?.on("data", (chunk: Buffer) => {
+      if (stderrBuf.length < MAX_STDERR) {
+        stderrBuf += chunk.toString("utf8");
+      }
+    });
 
-    if (proc.stdout) {
-      proc.stdout.on("data", (chunk: Buffer) => {
-        if (stdoutBuf.length < MAX_STDOUT) {
-          stdoutBuf += chunk
-            .toString("utf8")
-            .slice(0, MAX_STDOUT - stdoutBuf.length);
-        }
-      });
-    }
-
-    if (proc.stderr) {
-      proc.stderr.on("data", (chunk: Buffer) => {
-        if (stderrBuf.length < MAX_STDERR) {
-          stderrBuf += chunk
-            .toString("utf8")
-            .slice(0, MAX_STDERR - stderrBuf.length);
-        }
-      });
-    }
+    let producedData = false;
+    stream.once("data", () => {
+      producedData = true;
+    });
 
     proc.on("error", (err: NodeJS.ErrnoException) => {
       activeProcesses.delete(proc);
+      rmSync(tmpDir, { recursive: true, force: true });
       if (err.code === "ENOENT") {
-        reject(buildNotInstalledError());
+        stream.destroy(buildNotInstalledError());
       } else {
-        reject(new Error(`yt-dlp failed to start: ${err.message}`));
+        stream.destroy(new Error(`yt-dlp failed to start: ${err.message}`));
       }
     });
 
     proc.on("close", (code) => {
       activeProcesses.delete(proc);
-
-      if (code !== 0) {
+      rmSync(tmpDir, { recursive: true, force: true });
+      // Fail fast: a download that dies before producing ANY bytes (e.g.
+      // transient YouTube 403) cannot feed the encoder — destroy the stream
+      // so the caller retries with a fresh yt-dlp run instead of streaming
+      // a silent black tile.
+      if (code !== 0 && !producedData && !stream.destroyed) {
         const detail = stderrBuf.trim() ? `: ${stderrBuf.trim()}` : "";
-        reject(
+        stream.destroy(
           new Error(
-            `yt-dlp screen input resolution exited with code ${code}${detail}`,
+            `yt-dlp screen input stream failed (exit ${code})${detail}`,
           ),
         );
-        return;
       }
-
-      let parsed: Record<string, unknown>;
-      try {
-        parsed = JSON.parse(stdoutBuf.trim()) as Record<string, unknown>;
-      } catch (parseErr) {
-        reject(
-          new Error(
-            `Failed to parse yt-dlp JSON for screen input: ${(parseErr as Error).message}`,
-          ),
-        );
-        return;
-      }
-
-      resolveScreenInput(parsed).then(resolve, (err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        reject(
-          new Error(`Failed to build screen input for "${url}": ${message}`),
-        );
-      });
     });
+
+    // Resolve immediately — data flows as yt-dlp downloads. The caller's
+    // resolveInputWithRetry validates the first byte and retries on failure.
+    resolve(stream);
   });
-}
-
-/**
- * From a parsed yt-dlp JSON info dict, decide how to feed a single ffmpeg
- * input with both video and audio.
- */
-async function resolveScreenInput(
-  info: Record<string, unknown>,
-): Promise<string | Readable> {
-  const requested = info.requested_formats as
-    | Array<Record<string, unknown>>
-    | undefined;
-
-  // Merged/progressive single URL (video+audio in one). Common when yt-dlp
-  // selects a single format (e.g. format 18 progressive mp4) or when a direct
-  // muxed URL is available.
-  const singleUrl = info.url as string | undefined;
-  const singleHasAudio =
-    info.acodec !== "none" &&
-    typeof info.acodec === "string" &&
-    info.acodec.length > 0;
-
-  if (typeof singleUrl === "string" && singleUrl && singleHasAudio) {
-    logger.debug("Screen share uses merged progressive single URL");
-    return singleUrl;
-  }
-
-  // Separate video-only + audio-only DASH formats → merge locally via ffmpeg.
-  if (Array.isArray(requested) && requested.length >= 2) {
-    const video = requested.find(
-      (rf) => rf.vcodec && String(rf.vcodec) !== "none",
-    );
-    const audio = requested.find(
-      (rf) => rf.acodec && String(rf.acodec) !== "none",
-    );
-    const videoUrl = video?.url as string | undefined;
-    const audioUrl = audio?.url as string | undefined;
-    // yt-dlp returns the exact HTTP headers needed to fetch each signed DASH
-    // URL (User-Agent etc.). Passing them to the merge ffmpeg prevents
-    // transient YouTube 403s ("Server returned 403 Forbidden") that kill the
-    // stream before it starts.
-    const videoHeaders =
-      (video?.http_headers as Record<string, string> | undefined) ?? {};
-
-    if (
-      typeof videoUrl === "string" &&
-      videoUrl.length > 0 &&
-      typeof audioUrl === "string" &&
-      audioUrl.length > 0
-    ) {
-      return mergeScreenStreams(videoUrl, audioUrl, videoHeaders);
-    }
-  }
-
-  throw new Error(
-    "yt-dlp returned neither a merged progressive URL nor a video+audio format pair",
-  );
-}
-
-/**
- * Merge a video-only URL and an audio-only URL into a single NUT stream using
- * a child ffmpeg process. Both URLs come from the same yt-dlp run, so they
- * share the same signature/expiry and are consumed immediately.
- *
- * Fail-fast contract: if the merge process exits non-zero BEFORE producing any
- * output bytes (e.g. transient YouTube 403), the returned Readable is
- * destroyed with an error so the caller can retry — otherwise the screen
- * share would "start" with a dead input and stream a black tile forever.
- */
-function mergeScreenStreams(
-  videoUrl: string,
-  audioUrl: string,
-  httpHeaders?: Record<string, string>,
-): Readable {
-  logger.info("Merging video+audio DASH streams into a single NUT input");
-
-  const args = [
-    "-hide_banner",
-    "-loglevel",
-    "error",
-    "-reconnect",
-    "1",
-    "-reconnect_streamed",
-    "1",
-    "-reconnect_delay_max",
-    "5",
-  ];
-  // Pass the browser-like headers yt-dlp attached to the signed URLs. Without
-  // a proper User-Agent YouTube sometimes answers 403 to ffmpeg's plain
-  // Lavf/… agent and the whole stream dies before producing a frame.
-  const headerStr = Object.entries(httpHeaders ?? {})
-    .map(([k, v]) => `${k}: ${v}`)
-    .join("\r\n");
-  if (headerStr) {
-    args.push("-headers", headerStr);
-  }
-  args.push(
-    "-i",
-    videoUrl,
-    "-i",
-    audioUrl,
-    "-map",
-    "0:v:0",
-    "-map",
-    "1:a:0",
-    "-c:v",
-    "copy",
-    "-c:a",
-    "copy",
-    "-f",
-    "nut",
-    "pipe:1",
-  );
-
-  const ffmpeg = spawn("ffmpeg", args, {
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-
-  // Track so cleanup() can terminate the merge during graceful shutdown.
-  activeProcesses.add(ffmpeg);
-  ffmpeg.once("exit", () => {
-    activeProcesses.delete(ffmpeg);
-  });
-
-  // Prevent the ffmpeg stderr from filling the pipe buffer / leaking.
-  let stderrBuf = "";
-  const MAX_STDERR = 4096;
-  ffmpeg.stderr?.on("data", (chunk: Buffer) => {
-    if (stderrBuf.length < MAX_STDERR) {
-      stderrBuf += chunk.toString("utf8");
-    }
-  });
-
-  let producedData = false;
-
-  ffmpeg.on("error", (err) => {
-    const msg =
-      err.message === "spawn ffmpeg ENOENT"
-        ? "FFmpeg not found! Install ffmpeg in the container."
-        : err.message;
-    logger.error({ error: msg }, "Screen stream merge ffmpeg error");
-    stream.destroy(new Error(msg));
-  });
-
-  ffmpeg.on("exit", (code) => {
-    const stderr = stderrBuf.trim();
-    logger.warn(
-      { code, stderr: stderr.slice(-500) || undefined },
-      "Screen stream merge ffmpeg exited",
-    );
-    // Fail fast: a merge that dies before emitting ANY bytes cannot feed the
-    // encoder — destroy the stream with an error so the caller retries with a
-    // fresh resolution instead of streaming a silent black tile.
-    if (code !== 0 && !producedData && !stream.destroyed) {
-      stream.destroy(
-        new Error(
-          `Screen stream merge failed before producing data (exit ${code})${stderr ? `: ${stderr.slice(-300)}` : ""}`,
-        ),
-      );
-    }
-  });
-
-  const stream = ffmpeg.stdout;
-  stream.setMaxListeners(32);
-  stream.once("data", () => {
-    producedData = true;
-  });
-  return stream;
 }
 
 /**
