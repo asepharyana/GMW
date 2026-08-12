@@ -17,10 +17,22 @@ await new Promise<void>((resolve, reject) => {
   const p = spawn(
     FFMPEG,
     [
-      "-hide_banner", "-loglevel", "error",
-      "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30:duration=2",
-      "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
-      "-f", "h264", clip,
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc=size=640x360:rate=30:duration=2",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "ultrafast",
+      "-pix_fmt",
+      "yuv420p",
+      "-f",
+      "h264",
+      clip,
     ],
     { stdio: ["ignore", "ignore", "pipe"] },
   );
@@ -95,7 +107,10 @@ for (const f of frames) {
   const hasParams = types.some((t) => t === 7 || t === 8);
   const isKey = (f.flags & 1) !== 0;
   if (!hasSlice) framesWithoutSlice++;
-  if (types.length === 1 && (types[0] === 7 || types[0] === 8 || types[0] === 6)) {
+  if (
+    types.length === 1 &&
+    (types[0] === 7 || types[0] === 8 || types[0] === 6)
+  ) {
     bareParamSetFrames++;
   }
   if (isKey && hasParams) keyframesWithParamSets++;
@@ -106,20 +121,28 @@ console.log(
   `metadata: ${video.codecName} ${video.width}x${video.height} fps=${video.framerate_num}/${video.framerate_den}`,
 );
 console.log(`frames while stream OPEN (not ended): ${frames.length}`);
-console.log(`frames w/o slice NAL: ${framesWithoutSlice}, bare param-set frames: ${bareParamSetFrames}`);
-console.log(`keyframes with SPS/PPS: ${keyframesWithParamSets}, without: ${keyframesWithoutParamSets}`);
+console.log(
+  `frames w/o slice NAL: ${framesWithoutSlice}, bare param-set frames: ${bareParamSetFrames}`,
+);
+console.log(
+  `keyframes with SPS/PPS: ${keyframesWithParamSets}, without: ${keyframesWithoutParamSets}`,
+);
 if (frames.length === 0) {
   console.error("FAIL: no frames emitted while input still open (deadlock)");
   close();
   process.exit(1);
 }
 if (bareParamSetFrames > 0 || framesWithoutSlice > 0) {
-  console.error("FAIL: demux emitted bare parameter-set frames (must group into access units)");
+  console.error(
+    "FAIL: demux emitted bare parameter-set frames (must group into access units)",
+  );
   close();
   process.exit(1);
 }
 if (frames.some((f) => f.duration !== 1 || f.timeBase.den !== 30)) {
-  console.error("FAIL: frame duration/timeBase not 1/30 (RTP timestamp advance wrong)");
+  console.error(
+    "FAIL: frame duration/timeBase not 1/30 (RTP timestamp advance wrong)",
+  );
   close();
   process.exit(1);
 }
