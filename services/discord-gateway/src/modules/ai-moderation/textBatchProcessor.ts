@@ -19,7 +19,6 @@ import { callModerationLLM } from "./llmCaller.js";
 import { analyzeSingleMediaImage } from "./mediaAnalysisClient.js";
 import {
   buildReferenceXml,
-  buildUserHistoryXml,
   buildUserProfileRef,
   buildUserProfilesBlock,
   escapeXml,
@@ -41,10 +40,7 @@ import { buildTermGlossaryBlock } from "./termGlossary.js";
 import { getRecentCorrectedModerations } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 import { getUserProfile } from "./userProfileStore.js";
-import {
-  getUserRecentInfractions,
-  initializeUserReputation,
-} from "./userReputationStore.js";
+import { initializeUserReputation } from "./userReputationStore.js";
 import type { MessageImagePart } from "./visionAnalyzer.js";
 
 const log = createChildLogger("textBatchProcessor");
@@ -218,27 +214,7 @@ export async function runTextOnlyBatch(
       if (!userContexts.has(msg.user_id)) {
         const rep = await initializeUserReputation(msg.user_id, msg.guild_id);
         const repAttrs = formatReputationAttrs(rep);
-        let repXml = `<user_reputation ${repAttrs}/>`;
-        // Repeat offenders get their last flagged messages as <user_history>
-        // so the LLM can recognize PATTERNS (same scam link, repeated
-        // provocation) — history is reference, never proof. Best-effort.
-        if (rep.total_infractions > 0) {
-          try {
-            const history = await getUserRecentInfractions(msg.user_id, 2);
-            const historyXml = buildUserHistoryXml(
-              history.map((h) => ({
-                content: h.content ?? "",
-                severity: h.severity,
-                created_at: h.created_at,
-              })),
-            );
-            if (historyXml) {
-              repXml = `<user_reputation ${repAttrs}>\n${historyXml}\n</user_reputation>`;
-            }
-          } catch {
-            // history is a bonus — fall back to attrs-only reputation
-          }
-        }
+        const repXml = `<user_reputation ${repAttrs}/>`;
         userContexts.set(msg.user_id, repXml);
       }
       if (!userProfiles.has(msg.user_id)) {

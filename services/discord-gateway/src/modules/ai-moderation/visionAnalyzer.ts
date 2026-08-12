@@ -66,7 +66,6 @@ import {
 } from "./mediaDownloader.js";
 import {
   buildReferenceXml,
-  buildUserHistoryXml,
   buildUserProfileRef,
   escapeXml,
   formatReputationAttrs,
@@ -90,10 +89,7 @@ import {
 import { buildTermGlossaryBlock } from "./termGlossary.js";
 import { extractUrlsFromText } from "./urlFetcher.js";
 import { getUserProfile } from "./userProfileStore.js";
-import {
-  getUserRecentInfractions,
-  initializeUserReputation,
-} from "./userReputationStore.js";
+import { initializeUserReputation } from "./userReputationStore.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -459,27 +455,9 @@ export async function prepareMediaMessage(
     ? buildUserProfileRef(target.user_id)
     : "";
 
-  // Rich reputation — same shape as the text path: attrs + optional
-  // <user_history> with the last flagged messages for repeat offenders.
+  // Rich reputation — attrs only, no user history injection (per channel context preference)
   const repAttrs = formatReputationAttrs(rep);
-  let repXml = `<user_reputation ${repAttrs}/>`;
-  if (rep.total_infractions > 0) {
-    try {
-      const history = await getUserRecentInfractions(target.user_id, 2);
-      const historyXml = buildUserHistoryXml(
-        history.map((h) => ({
-          content: h.content ?? "",
-          severity: h.severity,
-          created_at: h.created_at,
-        })),
-      );
-      if (historyXml) {
-        repXml = `<user_reputation ${repAttrs}>\n${historyXml}\n</user_reputation>`;
-      }
-    } catch {
-      // history is a bonus — fall back to attrs-only reputation
-    }
-  }
+  const repXml = `<user_reputation ${repAttrs}/>`;
 
   const isBot = resolveIsBot(target);
   const isEdited = resolveIsEdited(target);
