@@ -99,6 +99,13 @@
       "when": 1785551832190,
       "tag": "0013_rename_mascot_chat_to_chatbot",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1785621600000,
+      "tag": "0014_add_term_glossary_cache",
+      "breakpoints": true
     }
   ]
 }

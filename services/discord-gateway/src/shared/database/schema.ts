@@ -435,6 +435,32 @@ export const pgStickerCacheTable = pgTable(
 
 export const stickerCacheTable = pgStickerCacheTable;
 
+/**
+ * Term Glossary Cache Table (PostgreSQL)
+ * Permanently stores resolved term definitions (Wikipedia/SearXNG lookups).
+ * Definitions rarely change, so once a term is successfully resolved it is
+ * persisted here forever — Redis/LRU only act as fast read caches in front.
+ * Terms with NO definition (misses) are NOT stored here; they stay ephemeral
+ * in Redis with a short TTL so transient lookup failures get retried.
+ */
+export const pgTermGlossaryCacheTable = pgTable(
+  "term_glossary_cache",
+  {
+    term: pgText("term").primaryKey(),
+    definition: pgText("definition").notNull(),
+    source_url: pgText("source_url").notNull().default(""),
+    resolved_at: pgBigint("resolved_at", { mode: "number" }).notNull(),
+    hit_count: pgInteger("hit_count").notNull().default(0),
+  },
+  (table) => ({
+    resolvedAtIdx: pgIndex("idx_term_glossary_cache_resolved_at").on(
+      table.resolved_at,
+    ),
+  }),
+);
+
+export const termGlossaryCacheTable = pgTermGlossaryCacheTable;
+
 // =============================================================================
 // Meta / System
 // =============================================================================
@@ -579,6 +605,11 @@ export type TextAnalysisCacheInsert =
 // Sticker Cache
 export type StickerCacheRecord = typeof stickerCacheTable.$inferSelect;
 export type StickerCacheInsert = typeof stickerCacheTable.$inferInsert;
+
+// Term Glossary Cache
+export type TermGlossaryCache = typeof termGlossaryCacheTable.$inferSelect;
+export type TermGlossaryCacheInsert =
+  typeof termGlossaryCacheTable.$inferInsert;
 
 // Muxer Jobs
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;

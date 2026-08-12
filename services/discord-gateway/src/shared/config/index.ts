@@ -92,6 +92,10 @@ export const configSchema = z
 
     // ── Redis ────────────────────────────────────────────────────────────
     REDIS_URL: z.string().default("redis://localhost:6379"),
+    // ── SearXNG ───────────────────────────────────────────────────────────
+    // Instance for web search + term glossary lookups. Override when the
+    // default instance is down/rate-limited.
+    SEARXNG_BASE_URL: z.string().url().default("https://searxng.imrnes.team"),
     // ── Voice PCM WebSocket (direct gateway→backend, bypasses Redis) ────
     VOICE_PCM_WS_ENABLED: z
       .string()

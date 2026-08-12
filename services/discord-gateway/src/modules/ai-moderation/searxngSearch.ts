@@ -1,10 +1,11 @@
 import Redis from "ioredis";
 import { createChildLogger } from "@/shared/logger/index";
 import { createAbortControllerWithTimeout } from "@/shared/utils/index";
+import { config } from "../../shared/config/config.js";
 
 const log = createChildLogger("searxng-search");
 
-const SEARXNG_BASE_URL = "https://searxng.imrnes.team";
+const SEARXNG_BASE_URL = config.SEARXNG_BASE_URL;
 const MAX_RESULTS = 3;
 const TIMEOUT_MS = 8000;
 const CACHE_TTL = 86400; // 24 hours
