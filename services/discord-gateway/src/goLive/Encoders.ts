@@ -26,13 +26,24 @@ export function software(
   } = {},
 ): () => EncoderSet {
   const { x264, x265 } = opts;
-  const { preset: x264Preset = "superfast", tune: x264Tune = "film" } =
+  const { preset: x264Preset = "superfast", tune: x264Tune = "zerolatency" } =
     x264 ?? {};
   const { preset: x265Preset = "superfast", tune: x265Tune } = x265 ?? {};
   return () => ({
     H264: {
       name: "libx264",
-      options: ["-forced-idr 1", `-tune ${x264Tune}`, `-preset ${x264Preset}`],
+      // -profile:v baseline is REQUIRED: the SDP advertises
+      // profile-level-id=42e01f (constrained baseline) and Discord's
+      // receiver decodes with that profile. x264's default is High — a
+      // High-profile bitstream against a baseline SDP negotiation fails to
+      // decode → black GoLive tile (production bug, fixed 2026-08-12).
+      // zerolatency matches @dank074 (no lookahead — correct for live).
+      options: [
+        "-forced-idr 1",
+        "-profile:v baseline",
+        `-tune ${x264Tune}`,
+        `-preset ${x264Preset}`,
+      ],
     },
     H265: {
       name: "libx265",

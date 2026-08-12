@@ -22,11 +22,14 @@ describe("goLive port: codec + encoders", () => {
     expect(normalizeVideoCodec("av1")).toBe("AV1");
   });
 
-  it("software encoder exposes x264 libx264 superfast film", () => {
+  it("software encoder exposes x264 libx264 baseline zerolatency", () => {
     const enc = Encoders.software()();
     expect(enc.H264.name).toBe("libx264");
     expect(enc.H264.options).toContain("-preset superfast");
-    expect(enc.H264.options).toContain("-tune film");
+    expect(enc.H264.options).toContain("-tune zerolatency");
+    // Baseline profile is REQUIRED to match the SDP's profile-level-id=42e01f
+    // (constrained baseline) — High-profile bitstreams fail to decode → black
+    expect(enc.H264.options).toContain("-profile:v baseline");
   });
 
   it("CodecPayloadType has opus + H264 entries", () => {
