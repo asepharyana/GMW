@@ -377,18 +377,16 @@ export async function demux(
   // NALs and flush one frame per slice, prepending the parameter sets that
   // precede it, and timestamp it as ONE frame at the video frame rate.
 
-  // PACING: ffmpeg is spawned with `-re` (see spawn args) so it reads the
-  // piped NUT input at 1x wall-clock. That back-pressures the whole upstream
-  // chain (encoder x264 → merge ffmpeg → yt-dlp download) through their OS
-  // pipes, pinning production at real-time — the old design (no throttle)
-  // had the encoder burst ~10x faster than the 30fps WebRTC sender, so the
-  // demuxer buffered an unbounded backlog and the sender always emitted the
-  // OLDEST frames → frozen/laggy video while audio (tiny, jitter-buffer
-  // recoverable) stayed smooth. That is the "video stuck, voice normal"
-  // symptom. The first fix paused proc.stdout when vPipe was full, but that
-  // stalled fd3 audio too (same process) → audio patah-patah, and the
-  // accumulated backlog never drained → permanent ~8s lag. `-re` + bounded
-  // drop is the correct throttle.
+  // PACING: a token-bucket rate limiter enforces 1x video output at the
+  // encoder's frame rate, independent of how fast ffmpeg produces frames.
+  // ffmpeg `-re` was tried here (see spawn args) but does NOT reliably
+  // throttle a multi-stage live pipe (encoder x264 -> NUT -> demuxer): in
+  // production the demuxer still emitted ~240fps while the sender consumed
+  // 30fps, building a 100k+ frame backlog → video frozen on the oldest
+  // buffered frame while audio (tiny, jitter-buffer recoverable) stayed
+  // smooth. A Node-level limiter is deterministic and never stalls the
+  // ffmpeg process, so audio on fd3 keeps flowing. Surplus video frames are
+  // DROPPED (not buffered) so the sender always emits the newest frame.
   let videoBuf = Buffer.alloc(0);
   let frameCount = 0;
   let pendingNals: Buffer[] = [];
@@ -399,6 +397,25 @@ export async function demux(
   // setting); it drives both RTP timestamp advance and pacing.
   const videoFps =
     opts.frameRate ?? (vInfo.framerate_num / vInfo.framerate_den || 30);
+  // token-bucket: capacity = 1s of frames; refill one token per 1000/fps ms.
+  const tokenIntervalMs = 1000 / videoFps;
+  let tokens = videoFps; // start with 1s of credit
+  let lastToken = Date.now();
+  let droppedFrames = 0;
+
+  const tryConsume = (): boolean => {
+    const now = Date.now();
+    const elapsed = now - lastToken;
+    if (elapsed >= tokenIntervalMs) {
+      tokens = Math.min(videoFps, tokens + Math.floor(elapsed / tokenIntervalMs));
+      lastToken = now - (elapsed % tokenIntervalMs);
+    }
+    if (tokens >= 1) {
+      tokens -= 1;
+      return true;
+    }
+    return false;
+  };
 
   const flushAccessUnit = () => {
     if (pendingNals.length === 0) return;
@@ -412,16 +429,17 @@ export async function demux(
     pendingNals = [];
     pendingHasSlice = false;
     pendingIsKey = false;
-    // Bounded backlog: if the sender ever stalls (slow network, CPU spike),
-    // drop the oldest queued frame instead of letting vPipe grow. The
-    // WebRTC sender paces 30fps from the newest frames; ffmpeg's `-re` (see
-    // spawn args) keeps production at 1x so this only triggers on stalls —
-    // never during normal playback. Without it, a transient sender stall
-    // becomes a permanent multi-second lag (sender emits oldest frames
-    // forever). NEVER pause proc.stdout here: fd3 audio shares the same
-    // process, so pausing video output also stalls audio (patah-patah).
-    if (vPipe.readableLength >= 30) {
-      vPipe.read(); // drop the oldest queued frame
+    // Drop surplus frames: if no token is available, discard this AU so the
+    // sender never emits a stale (old) frame. Keyframes are forced through
+    // even when over budget so the decoder always has a fresh IDR to recover.
+    if (!isKey && !tryConsume()) {
+      droppedFrames++;
+      if (droppedFrames === 1 || droppedFrames % 300 === 0) {
+        console.log(
+          `[goLive:Demuxer] drop=${droppedFrames} (pacing ${videoFps}fps; encoder burst)`,
+        );
+      }
+      return;
     }
     vPipe.write({
       data: au,
