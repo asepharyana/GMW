@@ -399,11 +399,15 @@ export async function demux(
     opts.frameRate ?? (vInfo.framerate_num / vInfo.framerate_den || 30);
   const emitIntervalMs = 1000 / videoFps;
 
-  // The single frame we will emit on the next tick. Only the newest survives;
-  // keyframes are never superseded so the decoder always gets its IDRs.
-  let latestAu: Buffer | null = null;
-  let latestIsKey = false;
-  let skippedFrames = 0; // frames superseded before they could be shown
+  // The frames we will emit. Keyframes (IDR) get their OWN slot that P-frames
+  // can never supersede — a missing IDR means the decoder has no reference and
+  // shows a BLANK tile. P-frames keep only the newest (tail-drop); older ones
+  // are skipped. A P-frame is only emitted once we have already shown at least
+  // one keyframe (reference established), otherwise it is dropped.
+  let pendingKey: Buffer | null = null; // most recent IDR, not yet emitted
+  let latestP: Buffer | null = null; // newest P-frame, not yet emitted
+  let haveReference = false; // an IDR has been shown
+  let skippedFrames = 0; // P-frames superseded/useless before emit
 
   const flushAccessUnit = () => {
     if (pendingNals.length === 0) return;
@@ -417,28 +421,36 @@ export async function demux(
     pendingNals = [];
     pendingHasSlice = false;
     pendingIsKey = false;
-    // Tail-drop: keep only the newest frame. A keyframe always wins (never
-    // superseded by later non-keys in the same tick window) so the decoder
-    // keeps getting IDRs; a non-key only replaces a pending non-key.
     if (isKey) {
-      latestAu = au;
-      latestIsKey = true;
-    } else if (latestAu === null || latestIsKey) {
-      latestAu = au;
-      latestIsKey = false;
+      // Keyframe: always kept in its own slot, never superseded by a later
+      // P-frame (that was the previous bug → decoder got no IDR → blank).
+      pendingKey = au;
     } else {
-      skippedFrames++;
+      // P-frame: keep only the newest; drop the previous one.
+      if (latestP !== null) skippedFrames++;
+      latestP = au;
     }
   };
 
-  // Steady real-time emission clock. Emits the freshest buffered frame once
-  // per tick (≈ videoFps); never buffers more than one, so no backlog and
-  // no lag. This — not the encoder rate — defines playback speed.
+  // Steady real-time emission clock. Emits the freshest frame once per tick
+  // (≈ videoFps); never buffers more than one of each kind, so no backlog and
+  // no lag. This — not the encoder rate — defines playback speed. Order: an
+  // IDR is always emitted first when present so the decoder re-establishes a
+  // reference; otherwise emit the newest P-frame once a reference exists.
   const emitTick = () => {
-    if (latestAu === null) return;
-    const au = latestAu;
-    const isKey = latestIsKey;
-    latestAu = null;
+    let au: Buffer | null = null;
+    let isKey = false;
+    if (pendingKey !== null) {
+      au = pendingKey;
+      isKey = true;
+      pendingKey = null;
+      haveReference = true;
+    } else if (latestP !== null && haveReference) {
+      au = latestP;
+      isKey = false;
+      latestP = null;
+    }
+    if (au === null) return;
     vPipe.write({
       data: au,
       // One frame at videoFps: duration=1 in a 1/fps timebase →
