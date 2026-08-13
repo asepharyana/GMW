@@ -171,6 +171,17 @@ export async function demux(
     // stderr and are parsed for dimensions/fps.
     "-loglevel",
     "info",
+    // Real-time throttle: read piped input at 1x so the WHOLE upstream chain
+    // (encoder x264, merge ffmpeg, yt-dlp download) is paced by wall-clock,
+    // not by network/VOD speed. Without this the encoder bursts ~10x faster
+    // than real-time and the vPipe queue grows unboundedly — the WebRTC
+    // sender correctly paces 30fps but always emits the OLDEST buffered
+    // frame, so video freezes/lags while audio (small, jitter-buffer
+    // recoverable) stays smooth. Pausing proc.stdout instead (previous fix)
+    // stalled the same ffmpeg's fd3 audio too → audio stuttered AND the
+    // already-built backlog never drained. `-re` fixes production rate at
+    // source; a bounded backlog below still protects against sender stalls.
+    ...(isStream ? ["-re"] : []),
     // Input format hint: raw H264 has NO magic header, so ffmpeg's
     // auto-detection fails with "Invalid data found when processing input"
     // whenever the first bytes arrive late/buffered. Pin the demuxer input
@@ -366,31 +377,18 @@ export async function demux(
   // NALs and flush one frame per slice, prepending the parameter sets that
   // precede it, and timestamp it as ONE frame at the video frame rate.
 
-  // BACKPRESSURE: the encoder (prepareStream ffmpeg) produces frames at the
-  // download/CPU rate, which for a fast VOD is ~10x real-time. The sender
-  // (BaseMediaStream) paces at 30fps. Without a gate, the demuxer buffers an
-  // unbounded backlog and the sender always emits the OLDEST frames → the
-  // viewer sees frozen/laggy video while audio (tiny, jitter-buffer
-  // recoverable) stays smooth. That is the "video stuck, voice normal"
-  // symptom. So we propagate vPipe backpressure UP to the demuxer's ffmpeg
-  // stdout: when vPipe is full we pause it, which stalls the demuxer, which
-  // stalls its stdin, which back-pressures the encoder, pinning the whole
-  // pipeline to 1x. This is the real-time throttle for the streaming path
-  // (-re only works for file/URL inputs; screen share is always a pipe).
-  let sourcePaused = false;
-  const gateSource = (ok: boolean) => {
-    if (!ok && !sourcePaused) {
-      sourcePaused = true;
-      proc.stdout?.pause();
-    }
-  };
-  vPipe.on("drain", () => {
-    if (sourcePaused) {
-      sourcePaused = false;
-      proc.stdout?.resume();
-    }
-  });
-
+  // PACING: ffmpeg is spawned with `-re` (see spawn args) so it reads the
+  // piped NUT input at 1x wall-clock. That back-pressures the whole upstream
+  // chain (encoder x264 → merge ffmpeg → yt-dlp download) through their OS
+  // pipes, pinning production at real-time — the old design (no throttle)
+  // had the encoder burst ~10x faster than the 30fps WebRTC sender, so the
+  // demuxer buffered an unbounded backlog and the sender always emitted the
+  // OLDEST frames → frozen/laggy video while audio (tiny, jitter-buffer
+  // recoverable) stayed smooth. That is the "video stuck, voice normal"
+  // symptom. The first fix paused proc.stdout when vPipe was full, but that
+  // stalled fd3 audio too (same process) → audio patah-patah, and the
+  // accumulated backlog never drained → permanent ~8s lag. `-re` + bounded
+  // drop is the correct throttle.
   let videoBuf = Buffer.alloc(0);
   let frameCount = 0;
   let pendingNals: Buffer[] = [];
@@ -414,7 +412,18 @@ export async function demux(
     pendingNals = [];
     pendingHasSlice = false;
     pendingIsKey = false;
-    const ok = vPipe.write({
+    // Bounded backlog: if the sender ever stalls (slow network, CPU spike),
+    // drop the oldest queued frame instead of letting vPipe grow. The
+    // WebRTC sender paces 30fps from the newest frames; ffmpeg's `-re` (see
+    // spawn args) keeps production at 1x so this only triggers on stalls —
+    // never during normal playback. Without it, a transient sender stall
+    // becomes a permanent multi-second lag (sender emits oldest frames
+    // forever). NEVER pause proc.stdout here: fd3 audio shares the same
+    // process, so pausing video output also stalls audio (patah-patah).
+    if (vPipe.readableLength >= 30) {
+      vPipe.read(); // drop the oldest queued frame
+    }
+    vPipe.write({
       data: au,
       // One frame at videoFps: duration=1 in a 1/fps timebase →
       // BaseMediaStream computes frametime=1000/fps ms → the RTP timestamp
@@ -427,9 +436,6 @@ export async function demux(
       streamIndex: 0,
       free: () => {},
     });
-    // vPipe is full (sender can't keep up) → pause the demuxer's ffmpeg
-    // stdout so the backlog can't grow. Resumed on 'drain' above.
-    gateSource(ok);
     frameCount++;
     if (frameCount === 1 || frameCount % 30 === 0) {
       console.log(
