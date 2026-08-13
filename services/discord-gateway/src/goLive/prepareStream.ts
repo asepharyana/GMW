@@ -369,6 +369,10 @@ export async function playStream(
     console.log(
       `[goLive:playStream] audio stream attached (${audio.codecName})`,
     );
+    // A/V sync (faithful to @dank074 newApi.js): audio is the master clock.
+    // Video sleeps/wakes based on ptsDelta(video - audio) so they can't drift
+    // apart under variable encoder throughput.
+    vStream.syncStream = aStream;
   }
 
   const cleanup = () => {

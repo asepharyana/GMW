@@ -155,8 +155,14 @@ export async function demux(
   audio: DemuxedStream | undefined;
   close: () => void;
 }> {
-  const vPipe = new PassThrough({ objectMode: true, highWaterMark: 128 });
-  const aPipe = new PassThrough({ objectMode: true, highWaterMark: 128 });
+  // objectMode pipes carrying one frame per item. HWM 2 keeps backpressure
+  // near-instant: at most ~1-2 frames in flight (~66ms @ 30fps) before the
+  // encoder is throttled, so the viewer sees near-live video instead of a
+  // multi-second backlog (the old HWM 128 held 128 frames ≈ 4.3s of lag).
+  // BaseMediaStream below has HWM 0, so the chain is tightly coupled to the
+  // WebRTC sender's real pace — faithful to @dank074/discord-video-stream.
+  const vPipe = new PassThrough({ objectMode: true, highWaterMark: 2 });
+  const aPipe = new PassThrough({ objectMode: true, highWaterMark: 2 });
 
   const isStream = typeof input !== "string";
   // NUT/matroska input (prepareStream with includeAudio) carries audio; the
