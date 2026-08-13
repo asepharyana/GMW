@@ -375,18 +375,12 @@ export async function demux(
   // NALs and flush one frame per slice, prepending the parameter sets that
   // precede it, and timestamp it as ONE frame at the video frame rate.
 
-  // EMISSION CLOCK: a steady setInterval at the video frame period is the
-  // authoritative real-time clock for OUTPUT. Whatever the encoder's actual
-  // production rate (it bursts ~330fps in production because ffmpeg `-re`
-  // does not reliably throttle YouTube-DASH webm and may read a local file
-  // instantly), we always emit exactly ONE frame per tick — the NEWEST one
-  // we have buffered — and discard everything older. This is TAIL-DROP: the
-  // viewer always sees the freshest picture, so video and audio stay in sync
-  // and the in-flight buffer can never grow (we keep at most one frame). The
-  // previous token-bucket design used HEAD-DROP (emit in arrival order,
-  // dropping later frames) which, under the encoder burst, left the viewer
-  // watching frames ~10s behind live → frozen / "patah-patah" video while
-  // audio (not rate-limited) played current → desync. Tail-drop fixes that.
+  // EMISSION: faithful to @dank074/discord-video-stream — the demuxer does NOT
+  // pace. It writes each access unit straight to vPipe (objectMode, HWM 128)
+  // with a monotonically increasing PTS; BaseMediaStream (ported 1:1 from dank)
+  // then paces playback via sleep-PTS + A/V sync and applies backpressure when
+  // the WebRTC sender can't keep up. This is what works upstream; the custom
+  // setInterval/tail-drop clocks we tried broke IDR delivery → blank tiles.
   let videoBuf = Buffer.alloc(0);
   let frameCount = 0;
   let pendingNals: Buffer[] = [];
@@ -397,17 +391,23 @@ export async function demux(
   // setting); it drives both RTP timestamp advance and pacing.
   const videoFps =
     opts.frameRate ?? (vInfo.framerate_num / vInfo.framerate_den || 30);
-  const emitIntervalMs = 1000 / videoFps;
 
-  // The frames we will emit. Keyframes (IDR) get their OWN slot that P-frames
-  // can never supersede — a missing IDR means the decoder has no reference and
-  // shows a BLANK tile. P-frames keep only the newest (tail-drop); older ones
-  // are skipped. A P-frame is only emitted once we have already shown at least
-  // one keyframe (reference established), otherwise it is dropped.
-  let pendingKey: Buffer | null = null; // most recent IDR, not yet emitted
-  let latestP: Buffer | null = null; // newest P-frame, not yet emitted
-  let haveReference = false; // an IDR has been shown
-  let skippedFrames = 0; // P-frames superseded/useless before emit
+  // Write one frame to the video pipe with backpressure: if the pipe buffer is
+  // full, pause ffmpeg's stdout so the encoder self-throttles (instead of
+  // building an unbounded backlog). Resumed on drain. Faithful to dank's
+  // `resume &&= vPipe.write(packet)` in LibavDemuxer.
+  const writeFrame = (frame: {
+    data: Buffer;
+    pts: number;
+    duration: number;
+    timeBase: { num: number; den: number };
+    flags: number;
+    streamIndex: number;
+    free: () => void;
+  }): void => {
+    const ok = vPipe.write(frame);
+    if (!ok) proc.stdout?.pause();
+  };
 
   const flushAccessUnit = () => {
     if (pendingNals.length === 0) return;
@@ -421,42 +421,14 @@ export async function demux(
     pendingNals = [];
     pendingHasSlice = false;
     pendingIsKey = false;
-    if (isKey) {
-      // Keyframe: always kept in its own slot, never superseded by a later
-      // P-frame (that was the previous bug → decoder got no IDR → blank).
-      pendingKey = au;
-    } else {
-      // P-frame: keep only the newest; drop the previous one.
-      if (latestP !== null) skippedFrames++;
-      latestP = au;
-    }
-  };
-
-  // Steady real-time emission clock. Emits the freshest frame once per tick
-  // (≈ videoFps); never buffers more than one of each kind, so no backlog and
-  // no lag. This — not the encoder rate — defines playback speed. Order: an
-  // IDR is always emitted first when present so the decoder re-establishes a
-  // reference; otherwise emit the newest P-frame once a reference exists.
-  const emitTick = () => {
-    let au: Buffer | null = null;
-    let isKey = false;
-    if (pendingKey !== null) {
-      au = pendingKey;
-      isKey = true;
-      pendingKey = null;
-      haveReference = true;
-    } else if (latestP !== null && haveReference) {
-      au = latestP;
-      isKey = false;
-      latestP = null;
-    }
-    if (au === null) return;
-    vPipe.write({
+    // Write directly to the video pipe (with backpressure via writeFrame).
+    // PTS advances one frame per output frame at videoFps (duration=1 in a
+    // 1/fps timebase) so BaseMediaStream computes the correct frametime and the
+    // WebRTC RTP timestamp advances by clockRate/fps per frame (3000 @ 30fps /
+    // 90kHz). Keyframes carry AV_PKT_FLAG_KEY so the decoder re-establishes a
+    // reference.
+    writeFrame({
       data: au,
-      // One frame at videoFps: duration=1 in a 1/fps timebase →
-      // BaseMediaStream computes frametime=1000/fps ms → the RTP timestamp
-      // advances clockRate/fps per frame (3000 @ 30fps / 90kHz), which is
-      // what Discord's receiver expects for real-time video.
       pts: frameCount,
       duration: 1,
       timeBase: { num: 1, den: videoFps },
@@ -467,14 +439,13 @@ export async function demux(
     frameCount++;
     if (frameCount === 1 || frameCount % 30 === 0) {
       console.log(
-        `[goLive:Demuxer] frames=${frameCount} last=${au.length}B key=${isKey} skipped=${skippedFrames}`,
+        `[goLive:Demuxer] frames=${frameCount} last=${au.length}B key=${isKey}`,
       );
     }
   };
 
-  const emitTimer = setInterval(emitTick, emitIntervalMs);
-
   if (proc.stdout) {
+    vPipe.on("drain", () => proc.stdout?.resume());
     proc.stdout.on("data", (chunk: Buffer) => {
       videoBuf = Buffer.concat([videoBuf, chunk]);
       // Find start codes (00 00 01 or 00 00 00 01) and split NALs
@@ -549,23 +520,24 @@ export async function demux(
         videoBuf = videoBuf.subarray(videoBuf.length - 3);
       }
     });
+    // Backpressure (faithful to dank's `resume &&= vPipe.write`): when the
+    // downstream pipe's buffer is full, stop reading from ffmpeg's stdout so
+    // the encoder self-throttles instead of building an unbounded backlog.
+    // Resume on drain.
+    vPipe.on("drain", () => proc.stdout?.resume());
     proc.stdout.on("end", () => {
       flushAccessUnit();
-      emitTick(); // flush the final frame if any
-      clearInterval(emitTimer);
       vPipe.end();
       aPipe.end();
     });
   }
 
   proc.on("close", () => {
-    clearInterval(emitTimer);
     vPipe.end();
     aPipe.end();
   });
 
   const close = () => {
-    clearInterval(emitTimer);
     proc.kill("SIGTERM");
     vPipe.end();
     aPipe.end();
