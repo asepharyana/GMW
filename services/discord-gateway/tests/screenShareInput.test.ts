@@ -113,4 +113,47 @@ describe("downloadScreenInput", () => {
       process.env.PATH = realPath2;
     }
   });
+
+  it("copies the on-disk cookies to a temp file instead of handing yt-dlp the original path", async () => {
+    // Regression: recent yt-dlp rewrites `--cookies` file on close. If we hand
+    // it the original system file (root-owned, not writable by the service
+    // user), save-back throws PermissionError → exit 1 → screen share fails.
+    // The copy lives in tmpdir where the service user owns it.
+    const cookieDir = mkdtempSync(join(tmpdir(), "gmw-fake-cookies-"));
+    const cookiePath = join(cookieDir, "ytcookies.txt");
+    writeFileSync(
+      cookiePath,
+      "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tLOGIN_INFO\tabc123\n",
+    );
+    const argsDump = join(
+      tmpdir(),
+      `gmw-ytargs-${process.pid}-${Date.now()}.txt`,
+    );
+    process.env.GMW_FAKE_YTDLP_DUMP_ARGS = argsDump;
+    process.env.GMW_YT_COOKIES_PATH = cookiePath;
+    const realPath2 = process.env.PATH;
+    const dir = fakeBinDir as unknown as string;
+    const existing = join(dir, "yt-dlp");
+    writeFileSync(existing, ytShimDump);
+    chmodSync(existing, 0o755);
+    try {
+      await downloadScreenInput("https://youtu.be/abc");
+      await new Promise((r) => setTimeout(r, 100));
+      const args = readFileSync(argsDump, "utf8").trim();
+      expect(args).toContain("--cookies");
+      const cookieArg = args
+        .split(/\s+/)
+        .at(args.split(/\s+/).indexOf("--cookies") + 1);
+      expect(cookieArg).toBeDefined();
+      expect(cookieArg).not.toBe(cookiePath); // never the original system file
+      expect(cookieArg).toMatch(/gmw-ytcookies\.\d+\.txt/); // per-process temp copy
+      expect(cookieArg).not.toMatch(/^\/etc\//);
+    } finally {
+      delete process.env.GMW_FAKE_YTDLP_DUMP_ARGS;
+      delete process.env.GMW_YT_COOKIES_PATH;
+      rmSync(argsDump, { force: true });
+      rmSync(cookieDir, { recursive: true, force: true });
+      process.env.PATH = realPath2;
+    }
+  });
 });

@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -244,7 +245,7 @@ function buildCookieArgs(): string[] {
   // which the Nix deploy writes from BWS once at start.
   if (_cachedCookiePath) return ["--cookies", _cachedCookiePath];
   const envCookies = process.env.GMW_YT_DOWNLOADER_COOKIES?.trim();
-  if (envCookies && envCookies.includes("LOGIN_INFO")) {
+  if (envCookies?.includes("LOGIN_INFO")) {
     const fdPath = join(tmpdir(), `gmw-ytcookies.${process.pid}.txt`);
     writeFileSync(fdPath, envCookies);
     try {
@@ -263,12 +264,37 @@ function buildCookieArgs(): string[] {
     process.env.GMW_YT_COOKIES_PATH ?? "/etc/gmw-discord-gateway/ytcookies.txt";
   try {
     if (cookiePath && existsSync(cookiePath)) {
-      _cachedCookiePath = cookiePath;
+      // Never hand the ORIGINAL system file to yt-dlp: recent yt-dlp rewrites
+      // the cookie file on close (`--cookies` implies write-back). The system
+      // file is owned by another user (root/deploy) and the service user
+      // cannot write it → PermissionError → yt-dlp exits 1 → screen share
+      // fails for every attempt. Copy to a per-run temp file (like the env
+      // branch above) so write-back lands somewhere we own; if the original
+      // is not readable we fall back to anonymous (YouTube may 403 → the
+      // screen-share controller retries via Invidious mirrors without auth).
+      let cookieContents: string;
+      try {
+        cookieContents = readFileSync(cookiePath, "utf8");
+      } catch {
+        logger.warn(
+          { cookiePath },
+          "Cookie file not readable; continuing without cookies (anon)",
+        );
+        return [];
+      }
+      const fdPath = join(tmpdir(), `gmw-ytcookies.${process.pid}.txt`);
+      writeFileSync(fdPath, cookieContents);
+      try {
+        chmodSync(fdPath, 0o600);
+      } catch {
+        /* best-effort */
+      }
+      _cachedCookiePath = fdPath;
       logger.info(
-        { cookiePath, source: "on-disk file" },
+        { cookiePath: fdPath, source: "on-disk file (copied)" },
         "Using YouTube cookies for yt-dlp",
       );
-      return ["--cookies", cookiePath];
+      return ["--cookies", fdPath];
     }
   } catch {
     /* ignore — fallback to anon */

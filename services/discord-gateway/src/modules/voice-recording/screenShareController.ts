@@ -87,7 +87,9 @@ export class ScreenShareController {
       if (
         isYt &&
         lastError &&
-        /403|bot|Sign in|not a bot|access denied/i.test(lastError.message) &&
+        /403|bot|Sign in|not a bot|access denied|permission|EACCES|cookie/i.test(
+          lastError.message,
+        ) &&
         invidiousIdx < INVIDIOUS_INSTANCES.length
       ) {
         const inst = INVIDIOUS_INSTANCES[invidiousIdx];
