@@ -3,7 +3,9 @@ import {
   chmodSync,
   existsSync,
   mkdtempSync,
+  readdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -478,27 +480,24 @@ export function resolveMediaUrl(
 }
 
 /**
- * Resolve a media URL to a single playable input stream for screen share /
- * GoLive streaming.
+ * Download the merged video+audio media for screen share to a TEMP FILE
+ * first, then return the file path.
  *
- * Streams the merged video+audio media directly from yt-dlp stdout (`-o -`).
+ * Screen-share playback does NOT stream from yt-dlp stdout anymore: the
+ * merge feed is delivered at network speed (bursts + stalls), and a live
+ * pipe defeats ffmpeg's `-re` throttle (the input PTS timeline is
+ * unreliable), so the encoder force-duplicates held frames → ~1fps video.
+ * Downloading the FULL clip to a file first gives the encoder a clean,
+ * monotonic-PTS input, where `-re` (applied in prepareStream for string
+ * inputs) pacing is proven reliable.
  *
- * This is deliberately NOT the old --dump-single-json + manual URL-fetch
- * approach: YouTube signs DASH URLs for the extracting client and rejects
- * them with 403 when fetched raw by ffmpeg/curl (verified 2026-08-12: even
- * curl with the EXACT http_headers from the yt-dlp dump got 403 on some
- * videos, while yt-dlp's own downloader succeeded). Streaming from yt-dlp
- * lets it handle auth, cookies and transient retries internally — the same
- * mechanism resolveMediaUrl already uses for music playback.
- *
- * @returns a Readable of the merged media stream.
+ * @returns absolute path of the completed media file (caller should delete
+ *          it via cleanup after playback ends).
  */
-export function getDirectScreenInput(url: string): Promise<Readable> {
-  return new Promise<Readable>((resolve) => {
-    // Merge fragments must NOT be written to the process CWD — the Nix
-    // store dir is read-only for the deployed gateway (EACCES). Use a
-    // per-run temp dir (world-writable like /tmp) so parallel/retry runs
-    // never collide on merge fragments and any user can write to it.
+export function downloadScreenInput(url: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    // Temp dir per run (world-writable like /tmp) so parallel/retry runs
+    // never collide on merge fragments.
     const tmpDir = mkdtempSync(join(tmpdir(), "gmw-ytdlp-"));
     chmodSync(tmpDir, 0o1777);
 
@@ -506,27 +505,24 @@ export function getDirectScreenInput(url: string): Promise<Readable> {
     const args = [
       "-f",
       "bestvideo[protocol^=http]+bestaudio[protocol^=http]/best[protocol^=http]/best",
+      // File output (NOT `-o -`): yt-dlp merges DASH fragments into a real
+      // container with clean timestamps, which is what -re needs to pace.
       "-o",
-      "-",
+      join(tmpDir, "media.%(ext)s"),
       "--no-playlist",
       "--no-warnings",
       "--no-progress",
       ...cookieArgs,
-      "-P",
-      tmpDir,
       url,
     ];
 
-    logger.info({ url }, "Spawning yt-dlp for screen share input streaming");
+    logger.info({ url }, "Downloading full media for screen share input");
 
     const proc = spawn("yt-dlp", args, {
       stdio: ["ignore", "pipe", "pipe"],
     });
 
     activeProcesses.add(proc);
-
-    const stream = new PassThrough();
-    proc.stdout.pipe(stream);
 
     let stderrBuf = "";
     const MAX_STDERR = 4096;
@@ -536,41 +532,58 @@ export function getDirectScreenInput(url: string): Promise<Readable> {
       }
     });
 
-    let producedData = false;
-    stream.once("data", () => {
-      producedData = true;
-    });
+    let settled = false;
+    const failOnce = (message: string) => {
+      if (settled) return;
+      settled = true;
+      activeProcesses.delete(proc);
+      rmSync(tmpDir, { recursive: true, force: true });
+      reject(new Error(message));
+    };
 
     proc.on("error", (err: NodeJS.ErrnoException) => {
-      activeProcesses.delete(proc);
-      rmSync(tmpDir, { recursive: true, force: true });
-      if (err.code === "ENOENT") {
-        stream.destroy(buildNotInstalledError());
-      } else {
-        stream.destroy(new Error(`yt-dlp failed to start: ${err.message}`));
-      }
+      failOnce(`yt-dlp failed to start: ${err.message}`);
     });
 
+    let procFinished = false;
     proc.on("close", (code) => {
+      procFinished = true;
       activeProcesses.delete(proc);
-      rmSync(tmpDir, { recursive: true, force: true });
-      // Fail fast: a download that dies before producing ANY bytes (e.g.
-      // transient YouTube 403) cannot feed the encoder — destroy the stream
-      // so the caller retries with a fresh yt-dlp run instead of streaming
-      // a silent black tile.
-      if (code !== 0 && !producedData && !stream.destroyed) {
+      if (code !== 0) {
         const detail = stderrBuf.trim() ? `: ${stderrBuf.trim()}` : "";
-        stream.destroy(
-          new Error(
-            `yt-dlp screen input stream failed (exit ${code})${detail}`,
-          ),
-        );
+        failOnce(`yt-dlp download failed (exit ${code})${detail}`);
+        return;
+      }
+      // Find the media file yt-dlp wrote (skip .part / .ytdl temp state).
+      let mediaPath: string | null = null;
+      for (const entry of readdirSync(tmpDir)) {
+        if (entry.endsWith(".part") || entry.endsWith(".ytdl")) continue;
+        mediaPath = join(tmpDir, entry);
+        break;
+      }
+      if (mediaPath && existsSync(mediaPath) && statSync(mediaPath).size > 0) {
+        settled = true;
+        resolve(mediaPath);
+      } else {
+        failOnce("yt-dlp finished but produced no media file");
       }
     });
 
-    // Resolve immediately — data flows as yt-dlp downloads. The caller's
-    // resolveInputWithRetry validates the first byte and retries on failure.
-    resolve(stream);
+    // Safety net: a stalled download must not hang the gateway forever.
+    const timer = setTimeout(
+      () => {
+        try {
+          proc.kill("SIGTERM");
+        } catch {
+          /* already dead */
+        }
+        if (!procFinished) {
+          failOnce("yt-dlp download timed out (10 min)");
+        }
+      },
+      10 * 60 * 1000,
+    );
+    proc.once("close", () => clearTimeout(timer));
   });
 }
 

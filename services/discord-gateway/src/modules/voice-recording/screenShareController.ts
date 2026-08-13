@@ -1,4 +1,5 @@
-import { PassThrough, type Readable } from "node:stream";
+import { rmSync } from "node:fs";
+import { dirname } from "node:path";
 import type { Client } from "discord.js-selfbot-v13";
 import { createChildLogger } from "@/shared/logger/index";
 import {
@@ -9,7 +10,7 @@ import {
   Streamer,
 } from "../../goLive/index.js";
 import {
-  getDirectScreenInput,
+  downloadScreenInput,
   INVIDIOUS_INSTANCES,
   isYoutubeWatchUrl,
   toInvidiousUrl,
@@ -61,17 +62,17 @@ export class ScreenShareController {
   }
 
   /**
-   * Resolve the screen-share input with retry + first-byte validation.
+   * Resolve the screen-share input with retry (downloads the FULL media to a
+   * temp file; returns the file path).
    *
-   * Transient YouTube 403s kill the merge ffmpeg BEFORE it produces any
-   * output; without validation the stream would "start" with a dead input
-   * and show a black tile forever. So after getDirectScreenInput resolves we
-   * tee the stream through a PassThrough and wait for the FIRST readable
-   * byte (or an error / early EOF). On failure the whole resolution is
-   * retried with a FRESH yt-dlp run (signed DASH URLs expire quickly — the
-   * old URLs cannot simply be re-fetched).
+   * Transient YouTube 403s kill a download BEFORE completion; we validate
+   * the finished file and retry with a FRESH yt-dlp run (signed DASH URLs
+   * expire quickly). Downloading to a file (instead of streaming the merge
+   * pipe) gives the encoder a monotonic-PTS input, so ffmpeg `-re` pacing
+   * in prepareStream actually works (it does NOT on live pipes — the root
+   * of the ~1fps video).
    */
-  private async resolveInputWithRetry(source: string): Promise<Readable> {
+  private async resolveInputWithRetry(source: string): Promise<string> {
     const MAX_ATTEMPTS = 3;
     let lastError: Error | null = null;
 
@@ -99,73 +100,12 @@ export class ScreenShareController {
       }
 
       try {
-        const input = await getDirectScreenInput(source);
-
-        const tee = new PassThrough();
-        input.on("error", (err) => tee.destroy(err));
-        input.on("end", () => tee.end());
-        input.pipe(tee);
-        // If the merge process is stuck (no data, no exit) destroy the raw
-        // stream too so ffmpeg gets EPIPE on its next write and dies —
-        // otherwise every failed attempt leaks a merge process.
-        const destroyInput = () => {
-          try {
-            input.destroy();
-          } catch {
-            /* already gone */
-          }
-        };
-
-        await new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(() => {
-            cleanup();
-            destroyInput();
-            // Listeners were just removed by cleanup() — destroying tee WITH
-            // an error would emit "error" on an unlistened PassThrough and
-            // surface as an unhandled 'error' event (crash). Destroy
-            // silently; the error lives in the rejection only.
-            tee.destroy();
-            reject(
-              new Error(
-                "Screen input produced no data within 12s — merge likely failed",
-              ),
-            );
-          }, 12000);
-          const onReadable = () => {
-            if (tee.readableLength > 0) {
-              cleanup();
-              resolve();
-            }
-            // readableLength === 0 can mean "EOF reached" — handled by onEnd.
-          };
-          const onError = (err: Error) => {
-            cleanup();
-            reject(err);
-          };
-          const onEnd = () => {
-            cleanup();
-            destroyInput();
-            reject(new Error("Screen input ended before producing any data"));
-          };
-          const cleanup = () => {
-            clearTimeout(timer);
-            tee.removeListener("readable", onReadable);
-            tee.removeListener("error", onError);
-            tee.removeListener("end", onEnd);
-          };
-          tee.once("readable", onReadable);
-          tee.once("error", onError);
-          tee.once("end", onEnd);
-        });
-
-        // Safety net: cleanup() removes the once() listeners on timeout/error,
-        // but a late error event from input.pipe(tee) can still fire on an
-        // unlistened PassThrough and crash the gateway (unhandled 'error').
-        // A permanent no-op listener guarantees the event is always swallowed.
-        tee.on("error", () => {});
-        // Pass the tee onward — the encoder consumes the same buffered
-        // stream, so no data from the merge is lost.
-        return tee;
+        const mediaPath = await downloadScreenInput(source);
+        this.logger.info(
+          { mediaPath, attempt },
+          "Screen input downloaded to file",
+        );
+        return mediaPath;
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         this.logger.warn(
@@ -174,7 +114,7 @@ export class ScreenShareController {
             maxAttempts: MAX_ATTEMPTS,
             error: lastError.message,
           },
-          "Screen input resolution failed; retrying with fresh yt-dlp",
+          "Screen input download failed; retrying with fresh yt-dlp",
         );
         if (attempt < MAX_ATTEMPTS) {
           await new Promise((r) => setTimeout(r, 1500 * attempt));
@@ -250,6 +190,19 @@ export class ScreenShareController {
       });
       const { command } = prepared;
 
+      // The downloaded temp media lives in a per-run tmpdir; remove it once
+      // playback is done (natural end, failure, or user stop). The tmpdir is
+      // the parent of the media file, so deleting it removes the file too.
+      const cleanupTempMedia = () => {
+        try {
+          if (typeof input === "string") {
+            rmSync(dirname(input), { recursive: true, force: true });
+          }
+        } catch {
+          /* best-effort — tmp dirs are world-writable, leak is bounded */
+        }
+      };
+
       let stopped = false;
       // Restore the @discordjs/voice connection after the stream ends (both
       // natural end and failure), so the user can keep using audio/mic.
@@ -262,6 +215,7 @@ export class ScreenShareController {
             /* already dead */
           }
         }
+        cleanupTempMedia();
         try {
           this.streamer?.voiceConnection?.stop();
         } catch {
@@ -312,6 +266,7 @@ export class ScreenShareController {
           } catch {
             /* already dead */
           }
+          cleanupTempMedia();
           // Leave the voice channel the Streamer joined (its own connection).
           try {
             this.streamer?.voiceConnection?.stop();
