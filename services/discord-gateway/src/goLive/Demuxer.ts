@@ -365,6 +365,32 @@ export async function demux(
   // frames, each with a near-zero RTP timestamp delta). We therefore buffer
   // NALs and flush one frame per slice, prepending the parameter sets that
   // precede it, and timestamp it as ONE frame at the video frame rate.
+
+  // BACKPRESSURE: the encoder (prepareStream ffmpeg) produces frames at the
+  // download/CPU rate, which for a fast VOD is ~10x real-time. The sender
+  // (BaseMediaStream) paces at 30fps. Without a gate, the demuxer buffers an
+  // unbounded backlog and the sender always emits the OLDEST frames → the
+  // viewer sees frozen/laggy video while audio (tiny, jitter-buffer
+  // recoverable) stays smooth. That is the "video stuck, voice normal"
+  // symptom. So we propagate vPipe backpressure UP to the demuxer's ffmpeg
+  // stdout: when vPipe is full we pause it, which stalls the demuxer, which
+  // stalls its stdin, which back-pressures the encoder, pinning the whole
+  // pipeline to 1x. This is the real-time throttle for the streaming path
+  // (-re only works for file/URL inputs; screen share is always a pipe).
+  let sourcePaused = false;
+  const gateSource = (ok: boolean) => {
+    if (!ok && !sourcePaused) {
+      sourcePaused = true;
+      proc.stdout?.pause();
+    }
+  };
+  vPipe.on("drain", () => {
+    if (sourcePaused) {
+      sourcePaused = false;
+      proc.stdout?.resume();
+    }
+  });
+
   let videoBuf = Buffer.alloc(0);
   let frameCount = 0;
   let pendingNals: Buffer[] = [];
@@ -388,7 +414,7 @@ export async function demux(
     pendingNals = [];
     pendingHasSlice = false;
     pendingIsKey = false;
-    vPipe.write({
+    const ok = vPipe.write({
       data: au,
       // One frame at videoFps: duration=1 in a 1/fps timebase →
       // BaseMediaStream computes frametime=1000/fps ms → the RTP timestamp
@@ -401,6 +427,9 @@ export async function demux(
       streamIndex: 0,
       free: () => {},
     });
+    // vPipe is full (sender can't keep up) → pause the demuxer's ffmpeg
+    // stdout so the backlog can't grow. Resumed on 'drain' above.
+    gateSource(ok);
     frameCount++;
     if (frameCount === 1 || frameCount % 30 === 0) {
       console.log(

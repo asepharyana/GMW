@@ -109,6 +109,16 @@ export function prepareStream(
     customInputOptions: (options.customInputOptions as string[]) ?? [],
     customFfmpegFlags: (options.customFfmpegFlags as string[]) ?? [],
     minimizeLatency: options.minimizeLatency ?? false,
+    // realtime: throttle ffmpeg's INPUT read to 1x so the encoder tracks
+    // wall-clock instead of slurping a VOD at network speed. Without this,
+    // a YouTube screen share downloads the whole clip fast and the encoder
+    // produces a ~10x frame backlog that the demuxer buffers unboundedly —
+    // the sender paces at 30fps but always emits the OLDEST buffered frames,
+    // so the viewer sees frozen/laggy video while audio (tiny, jitter-
+    // buffer recoverable) stays smooth. That is the "video stuck, voice
+    // normal" symptom. `-re` caps the pipeline at 1x end-to-end. Default on
+    // because this prepareStream is only used for screen share (VOD URLs).
+    realtime: options.realtime ?? true,
   };
 
   const output = new PassThrough();
@@ -117,6 +127,10 @@ export function prepareStream(
     "-hide_banner",
     "-loglevel",
     "error",
+    // Real-time throttle: when the input is a URL/VOD, read it at 1x so the
+    // encoder paces with wall-clock (see `realtime` option above). For live
+    // pipe (PassThrough) input we DON'T add -re — the producer already paces.
+    ...(mergedOptions.realtime && typeof input === "string" ? ["-re"] : []),
     ...(typeof input === "string" ? ["-i", input] : ["-i", "pipe:0"]),
     ...mergedOptions.customInputOptions,
   ];
