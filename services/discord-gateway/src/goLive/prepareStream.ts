@@ -369,10 +369,15 @@ export async function playStream(
     console.log(
       `[goLive:playStream] audio stream attached (${audio.codecName})`,
     );
-    // A/V sync (faithful to @dank074 newApi.js): audio is the master clock.
-    // Video sleeps/wakes based on ptsDelta(video - audio) so they can't drift
-    // apart under variable encoder throughput.
-    vStream.syncStream = aStream;
+    // NOTE: NO syncStream wiring here. Upstream dank sets
+    // `vStream.syncStream = aStream` because node-av provides real PTS from the
+    // NUT container, so ptsDelta() is meaningful (both streams in media time).
+    // Our raw-h264 demuxer synthesizes PTS per-stream from frame indexes in
+    // DIFFERENT timebases (video 1/fps, audio 1/48000). If audio starts late
+    // (ffmpeg audio init, Ogg header), ptsDelta stays positive forever →
+    // isAhead() → video sleeps in a loop → video freezes after ~1s. Per-stream
+    // sleep-PTS pacing alone keeps both at 1000ms/s, which is correct without
+    // a shared clock. (If real PTS is ever added, re-enable syncStream.)
   }
 
   const cleanup = () => {
