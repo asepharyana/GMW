@@ -127,10 +127,18 @@ export function prepareStream(
     "-hide_banner",
     "-loglevel",
     "error",
-    // Real-time throttle: when the input is a URL/VOD, read it at 1x so the
-    // encoder paces with wall-clock (see `realtime` option above). For live
-    // pipe (PassThrough) input we DON'T add -re — the producer already paces.
-    ...(mergedOptions.realtime && typeof input === "string" ? ["-re"] : []),
+    // Real-time throttle: read the input at 1x so the encoder paces with
+    // wall-clock and does NOT force-duplicate frames to fill -r 30. This
+    // applies to BOTH URL and live-Pipe (Readable) inputs: a screen-share
+    // pipe (yt-dlp merge → ffmpeg → stdout) is delivered at NETWORK speed
+    // (bursts, stalls) and is NOT self-paced — without -re the encoder slurps
+    // it instantly and, when the merge stalls, x264 -r 30 repeats the last
+    // held frame ~30x → the viewer sees ~1fps while WebRTC still pushes
+    // 30fps. -re reads the pipe at the stream's native PTS rate so each
+    // output frame is a fresh picture. (Previous builds only added -re for
+    // string URLs, so the screen-share pipe got none — root of the 1fps
+    // symptom.)
+    ...(mergedOptions.realtime ? ["-re"] : []),
     ...(typeof input === "string" ? ["-i", input] : ["-i", "pipe:0"]),
     ...mergedOptions.customInputOptions,
   ];
