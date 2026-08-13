@@ -231,12 +231,10 @@ export async function demux(
     console.log("[goLive:Demuxer] audio pipe wired (fd3 → Ogg Opus → aPipe)");
   }
 
-  // Set true once stderr metadata has been parsed (see handler below).
-  let parsedMeta = false;
   // Track which stream kinds we've seen. We must NOT stop parsing on the
   // first stream found: ffmpeg can print the video line and audio line in
   // separate stderr chunks (input arrives slowly), and the old
-  // early-return (`if (parsedMeta) return`) dropped the audio line forever
+  // early-return dropped the audio line forever
   // → aInfo undefined → no audio RTP → static GoLive tile.
   let seenVideo = false;
   let seenAudio = false;
@@ -345,7 +343,7 @@ export async function demux(
       // handler AFTER `return { audio: aInfo }` had already captured
       // `undefined` → no audio RTP → static GoLive tile even though the NUT
       // carried audio. Wait for BOTH kinds (when audio is expected).
-      if (seenVideo || seenAudio) parsedMeta = true;
+      // (parsedMeta removed — we now wait for both via allSeen() below.)
     });
   }
 
@@ -407,7 +405,10 @@ export async function demux(
     const now = Date.now();
     const elapsed = now - lastToken;
     if (elapsed >= tokenIntervalMs) {
-      tokens = Math.min(videoFps, tokens + Math.floor(elapsed / tokenIntervalMs));
+      tokens = Math.min(
+        videoFps,
+        tokens + Math.floor(elapsed / tokenIntervalMs),
+      );
       lastToken = now - (elapsed % tokenIntervalMs);
     }
     if (tokens >= 1) {

@@ -35,7 +35,8 @@
       "suspicious": {
         "noUnknownAtRules": "off",
         "useIterableCallbackReturn": "off",
-        "noArrayIndexKey": "warn"
+        "noArrayIndexKey": "warn",
+        "noExplicitAny": "off"
       },
       "a11y": {
         "useSemanticElements": "off",
@@ -50,7 +51,10 @@
       },
       "correctness": {
         "noInvalidUseBeforeDeclaration": "off",
-        "noUnusedFunctionParameters": "warn"
+        "noUnusedFunctionParameters": "warn",
+        "noUnusedVariables": "warn",
+        "noUnusedImports": "warn",
+        "noUnusedPrivateClassMembers": "warn"
       }
     },
     "domains": {
