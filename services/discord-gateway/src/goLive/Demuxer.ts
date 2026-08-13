@@ -375,16 +375,18 @@ export async function demux(
   // NALs and flush one frame per slice, prepending the parameter sets that
   // precede it, and timestamp it as ONE frame at the video frame rate.
 
-  // PACING: a token-bucket rate limiter enforces 1x video output at the
-  // encoder's frame rate, independent of how fast ffmpeg produces frames.
-  // ffmpeg `-re` was tried here (see spawn args) but does NOT reliably
-  // throttle a multi-stage live pipe (encoder x264 -> NUT -> demuxer): in
-  // production the demuxer still emitted ~240fps while the sender consumed
-  // 30fps, building a 100k+ frame backlog → video frozen on the oldest
-  // buffered frame while audio (tiny, jitter-buffer recoverable) stayed
-  // smooth. A Node-level limiter is deterministic and never stalls the
-  // ffmpeg process, so audio on fd3 keeps flowing. Surplus video frames are
-  // DROPPED (not buffered) so the sender always emits the newest frame.
+  // EMISSION CLOCK: a steady setInterval at the video frame period is the
+  // authoritative real-time clock for OUTPUT. Whatever the encoder's actual
+  // production rate (it bursts ~330fps in production because ffmpeg `-re`
+  // does not reliably throttle YouTube-DASH webm and may read a local file
+  // instantly), we always emit exactly ONE frame per tick — the NEWEST one
+  // we have buffered — and discard everything older. This is TAIL-DROP: the
+  // viewer always sees the freshest picture, so video and audio stay in sync
+  // and the in-flight buffer can never grow (we keep at most one frame). The
+  // previous token-bucket design used HEAD-DROP (emit in arrival order,
+  // dropping later frames) which, under the encoder burst, left the viewer
+  // watching frames ~10s behind live → frozen / "patah-patah" video while
+  // audio (not rate-limited) played current → desync. Tail-drop fixes that.
   let videoBuf = Buffer.alloc(0);
   let frameCount = 0;
   let pendingNals: Buffer[] = [];
@@ -395,28 +397,13 @@ export async function demux(
   // setting); it drives both RTP timestamp advance and pacing.
   const videoFps =
     opts.frameRate ?? (vInfo.framerate_num / vInfo.framerate_den || 30);
-  // token-bucket: capacity = 1s of frames; refill one token per 1000/fps ms.
-  const tokenIntervalMs = 1000 / videoFps;
-  let tokens = videoFps; // start with 1s of credit
-  let lastToken = Date.now();
-  let droppedFrames = 0;
+  const emitIntervalMs = 1000 / videoFps;
 
-  const tryConsume = (): boolean => {
-    const now = Date.now();
-    const elapsed = now - lastToken;
-    if (elapsed >= tokenIntervalMs) {
-      tokens = Math.min(
-        videoFps,
-        tokens + Math.floor(elapsed / tokenIntervalMs),
-      );
-      lastToken = now - (elapsed % tokenIntervalMs);
-    }
-    if (tokens >= 1) {
-      tokens -= 1;
-      return true;
-    }
-    return false;
-  };
+  // The single frame we will emit on the next tick. Only the newest survives;
+  // keyframes are never superseded so the decoder always gets its IDRs.
+  let latestAu: Buffer | null = null;
+  let latestIsKey = false;
+  let skippedFrames = 0; // frames superseded before they could be shown
 
   const flushAccessUnit = () => {
     if (pendingNals.length === 0) return;
@@ -430,18 +417,28 @@ export async function demux(
     pendingNals = [];
     pendingHasSlice = false;
     pendingIsKey = false;
-    // Drop surplus frames: if no token is available, discard this AU so the
-    // sender never emits a stale (old) frame. Keyframes are forced through
-    // even when over budget so the decoder always has a fresh IDR to recover.
-    if (!isKey && !tryConsume()) {
-      droppedFrames++;
-      if (droppedFrames === 1 || droppedFrames % 300 === 0) {
-        console.log(
-          `[goLive:Demuxer] drop=${droppedFrames} (pacing ${videoFps}fps; encoder burst)`,
-        );
-      }
-      return;
+    // Tail-drop: keep only the newest frame. A keyframe always wins (never
+    // superseded by later non-keys in the same tick window) so the decoder
+    // keeps getting IDRs; a non-key only replaces a pending non-key.
+    if (isKey) {
+      latestAu = au;
+      latestIsKey = true;
+    } else if (latestAu === null || latestIsKey) {
+      latestAu = au;
+      latestIsKey = false;
+    } else {
+      skippedFrames++;
     }
+  };
+
+  // Steady real-time emission clock. Emits the freshest buffered frame once
+  // per tick (≈ videoFps); never buffers more than one, so no backlog and
+  // no lag. This — not the encoder rate — defines playback speed.
+  const emitTick = () => {
+    if (latestAu === null) return;
+    const au = latestAu;
+    const isKey = latestIsKey;
+    latestAu = null;
     vPipe.write({
       data: au,
       // One frame at videoFps: duration=1 in a 1/fps timebase →
@@ -458,10 +455,12 @@ export async function demux(
     frameCount++;
     if (frameCount === 1 || frameCount % 30 === 0) {
       console.log(
-        `[goLive:Demuxer] frames=${frameCount} last=${au.length}B key=${isKey}`,
+        `[goLive:Demuxer] frames=${frameCount} last=${au.length}B key=${isKey} skipped=${skippedFrames}`,
       );
     }
   };
+
+  const emitTimer = setInterval(emitTick, emitIntervalMs);
 
   if (proc.stdout) {
     proc.stdout.on("data", (chunk: Buffer) => {
@@ -540,17 +539,21 @@ export async function demux(
     });
     proc.stdout.on("end", () => {
       flushAccessUnit();
+      emitTick(); // flush the final frame if any
+      clearInterval(emitTimer);
       vPipe.end();
       aPipe.end();
     });
   }
 
   proc.on("close", () => {
+    clearInterval(emitTimer);
     vPipe.end();
     aPipe.end();
   });
 
   const close = () => {
+    clearInterval(emitTimer);
     proc.kill("SIGTERM");
     vPipe.end();
     aPipe.end();
