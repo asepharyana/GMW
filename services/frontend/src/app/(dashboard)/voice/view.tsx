@@ -1,7 +1,7 @@
 "use client";
 
 import { Headphones, Loader2, Radio, RadioOff } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { SignalField } from "@/components/three";
 import { WebGLGuard } from "@/components/three/webgl-guard";
 import { StaticFallback } from "@/components/three/static-fallback";
@@ -21,6 +21,7 @@ import {
   useVoiceConnect,
   useVoiceDisconnect,
   useVoiceListen,
+  useVoiceStatus,
 } from "@/hooks";
 import type { VoiceStatus } from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
@@ -30,11 +31,11 @@ export default function VoiceView({ initialStatus }: { initialStatus?: VoiceStat
   const [selectedGuild, setSelectedGuild] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("");
 
-  const initialSpeakers = useMemo(
-    () => initialStatus?.activeSpeakers ?? [],
-    [initialStatus],
-  );
-  const { speakers, subscribe } = useSpeakers(initialSpeakers);
+  // Live connection status — SWR revalidates on connect/disconnect (the
+  // useVoiceConnect/Disconnect actions invalidate the "voice-status" key),
+  // so this reflects real-time state instead of the static SSR snapshot.
+  const { data: status } = useVoiceStatus(initialStatus);
+  const { speakers, subscribe } = useSpeakers(status?.activeSpeakers ?? []);
   const { data: guilds = [] } = useGuilds();
   const { data: voiceChannels = [] } = useVoiceChannels(selectedGuild);
   const connect = useVoiceConnect();
@@ -47,7 +48,7 @@ export default function VoiceView({ initialStatus }: { initialStatus?: VoiceStat
   }, [subscribe, ws]);
 
   const active = speakers.filter((s) => s.speaking);
-  const connected = initialStatus?.connected ?? false;
+  const connected = status?.connected ?? false;
 
   const handleGuildChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const g = e.target.value;
@@ -63,10 +64,10 @@ export default function VoiceView({ initialStatus }: { initialStatus?: VoiceStat
           <Badge tone={connected ? "signal" : "neutral"} dot>
             {connected ? "Connected" : "Disconnected"}
           </Badge>
-          {connected && initialStatus?.activeChannelName && (
+          {connected && status?.activeChannelName && (
             <span className="hidden items-center gap-1.5 text-xs text-[var(--color-ink-soft)] sm:flex">
               <Headphones className="size-3.5" />
-              {initialStatus.activeChannelName}
+              {status.activeChannelName}
             </span>
           )}
         </div>

@@ -24,6 +24,7 @@ export function useVoiceStatus(initialData?: VoiceStatus) {
   return useSWR<VoiceStatus>(STATUS_KEY, () => voiceApi.getStatus(), {
     shouldRetryOnError: false,
     fallbackData: initialData,
+    refreshInterval: 4000,
   });
 }
 
