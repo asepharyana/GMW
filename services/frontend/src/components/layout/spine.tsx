@@ -26,7 +26,7 @@ export function Spine() {
         <Link
           href="/dashboard"
           className="mb-3 flex size-9 items-center justify-center rounded-[var(--radius-r-control)] bg-[var(--color-signal)] text-sm font-black text-[var(--color-signal-ink)]"
-          aria-label="Bete"
+          aria-label="GMW"
         >
           B
         </Link>

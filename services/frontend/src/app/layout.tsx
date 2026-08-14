@@ -23,7 +23,7 @@ const bricolage = Bricolage_Grotesque({
 });
 
 export const metadata: Metadata = {
-  title: "Bete — Discord Moderation Console",
+  title: "GMW — Discord Moderation Console",
   description:
     "AI-powered Discord moderation, voice monitoring, and media control console",
 };

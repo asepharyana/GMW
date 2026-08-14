@@ -192,7 +192,7 @@ function Hero({
       </div>
       <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="display text-3xl">Bete Console</div>
+          <div className="display text-3xl">GMW Console</div>
           <div className="mt-1 text-sm text-[var(--color-ink-soft)]">
             {stats?.total_messages?.toLocaleString() ?? 0} messages watched ·{" "}
             {stats?.total_users?.toLocaleString() ?? 0} users
