@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/primitives/badge";
+import { Progress } from "@/components/primitives/progress";
 import { cn } from "@/lib/utils";
 
 interface AiAnalysisPanelProps {
@@ -16,11 +17,11 @@ interface AiAnalysisPanelProps {
 }
 
 const severityColor: Record<string, string> = {
-  none: "text-emerald-500",
-  low: "text-text-secondary",
-  medium: "text-accent-amber",
-  high: "text-accent-purple",
-  critical: "text-destructive",
+  none: "text-[var(--color-ink-soft)]",
+  low: "text-[var(--color-ink-soft)]",
+  medium: "text-[var(--color-amber)]",
+  high: "text-orange-500",
+  critical: "text-[var(--color-vermilion)]",
 };
 
 export function AiAnalysisPanel({
@@ -37,11 +38,11 @@ export function AiAnalysisPanel({
 
   if (!status || status === "pending") {
     return (
-      <Card className={cn("[--card-spacing:0px]", "p-3")}>
-        <span className="text-xs text-text-secondary/50">
+      <div className="surface-2 p-3">
+        <span className="text-xs text-[var(--color-ink-soft)]/60">
           AI analysis pending
         </span>
-      </Card>
+      </div>
     );
   }
 
@@ -54,28 +55,27 @@ export function AiAnalysisPanel({
         : []
       : categories || [];
 
+  const statusTone =
+    status === "clean"
+      ? "signal"
+      : status === "flagged"
+        ? "vermilion"
+        : status === "warn"
+          ? "amber"
+          : "neutral";
+
   return (
-    <Card className={cn("space-y-2", "[--card-spacing:0px]", "p-3")}>
+    <div className="surface-2 flex flex-col gap-2.5 p-3">
       <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">
+        <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">
           AI Analysis
         </span>
-        <span
-          className={cn(
-            "text-[10px] font-mono px-1.5 py-0.5 rounded",
-            status === "clean" && "bg-emerald-500/10 text-emerald-500",
-            status === "flagged" && "bg-accent-purple/10 text-accent-purple",
-            status === "warn" && "bg-accent-amber/10 text-accent-amber",
-            status === "error" && "bg-destructive/10 text-destructive",
-          )}
-        >
-          {status}
-        </span>
+        <Badge tone={statusTone}>{status}</Badge>
       </div>
 
       {severity && (
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-text-secondary/60">Severity:</span>
+          <span className="text-[var(--color-ink-soft)]/60">Severity:</span>
           <span
             className={cn(
               "font-mono font-medium",
@@ -89,14 +89,19 @@ export function AiAnalysisPanel({
 
       {confidence !== null && confidence !== undefined && (
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-text-secondary/60">Confidence:</span>
-          <span className="font-mono">{(confidence * 100).toFixed(0)}%</span>
+          <span className="text-[var(--color-ink-soft)]/60">Confidence</span>
+          <Progress
+            value={confidence * 100}
+            max={100}
+            tone="signal"
+            showLabel
+          />
         </div>
       )}
 
       {score !== null && score !== undefined && (
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-text-secondary/60">Score:</span>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[var(--color-ink-soft)]/60">Score</span>
           <span className="font-mono">{score.toFixed(2)}</span>
         </div>
       )}
@@ -104,12 +109,9 @@ export function AiAnalysisPanel({
       {flagsArray.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {flagsArray.map((f: string) => (
-            <span
-              key={f}
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-destructive/10 text-destructive"
-            >
+            <Badge key={f} tone="vermilion">
               {f}
-            </span>
+            </Badge>
           ))}
         </div>
       )}
@@ -117,21 +119,18 @@ export function AiAnalysisPanel({
       {categoriesArray.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {categoriesArray.map((c: string) => (
-            <span
-              key={c}
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary"
-            >
+            <Badge key={c} tone="neutral">
               {c}
-            </span>
+            </Badge>
           ))}
         </div>
       )}
 
       {analysis && (
-        <div className="border-l-2 border-glass-border pl-2">
+        <div className="border-l-2 border-[var(--color-hairline)] pl-2">
           <p
             className={cn(
-              "text-xs leading-relaxed text-text-secondary/90",
+              "text-xs leading-relaxed text-[var(--color-ink-soft)]",
               !expanded && "line-clamp-3",
             )}
           >
@@ -141,7 +140,7 @@ export function AiAnalysisPanel({
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
-              className="mt-1 text-[10px] font-medium uppercase tracking-wide text-text-secondary/50 transition-colors hover:text-text-primary"
+              className="mt-1 text-[10px] font-medium uppercase tracking-wide text-[var(--color-ink-soft)]/50 transition-colors hover:text-[var(--color-ink)]"
             >
               {expanded ? "Show less" : "Show more"}
             </button>
@@ -151,10 +150,10 @@ export function AiAnalysisPanel({
 
       {action && action !== "none" && (
         <div className="text-xs">
-          <span className="text-text-secondary/60">Recommended: </span>
-          <span className="font-mono text-accent-amber">{action}</span>
+          <span className="text-[var(--color-ink-soft)]/60">Recommended: </span>
+          <span className="font-mono text-[var(--color-amber)]">{action}</span>
         </div>
       )}
-    </Card>
+    </div>
   );
 }

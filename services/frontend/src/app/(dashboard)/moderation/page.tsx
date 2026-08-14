@@ -1,24 +1,25 @@
 /**
- * Moderation page — Server Component. Seeds summary + action log from
- * server-fetched moderation state (shared across all users).
+ * Moderation — Server Component.
+ * Seeds moderation stats + action log for SSR first paint; live via WS.
  */
-import { ModerationSection } from "@/components/moderation/moderation-section";
 import { getModerationActions, getModerationStats } from "@/lib/api/server";
+import ModerationView from "./view";
 
 export default async function ModerationPage() {
   const [stats, actions] = await Promise.allSettled([
-    getModerationStats(),
-    getModerationActions(100),
+    getModerationStats().catch(() => undefined),
+    getModerationActions(100).catch(() => undefined),
   ]);
-
   return (
-    <div className="space-y-4 animate-fade-in-up">
-      <ModerationSection
-        initialStats={stats.status === "fulfilled" ? stats.value : undefined}
-        initialActions={
-          actions.status === "fulfilled" ? actions.value : undefined
-        }
-      />
-    </div>
+    <ModerationView
+      initialStats={
+        stats.status === "fulfilled" && stats.value ? stats.value : undefined
+      }
+      initialActions={
+        actions.status === "fulfilled" && actions.value
+          ? actions.value
+          : undefined
+      }
+    />
   );
 }

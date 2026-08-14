@@ -1,8 +1,5 @@
-"use client";
-
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { Component, type ReactNode } from "react";
-import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -25,26 +22,19 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         this.props.fallback || (
-          <Card
-            className={cn(
-              "flex flex-col items-center gap-2 py-8",
-              "border border-red-500/30 ring-red-500/20",
-              "[--card-spacing:0px]",
-              "rounded-2xl",
-            )}
-          >
-            <AlertCircle className="size-6 text-destructive" />
-            <p className="text-sm text-text-secondary">
+          <div className={cn("surface flex flex-col items-center gap-2 py-8")}>
+            <AlertCircle className="size-6 text-[var(--color-vermilion)]" />
+            <p className="text-sm text-[var(--color-ink)]">
               {this.state.error?.message || "Something went wrong"}
             </p>
             <button
               type="button"
               onClick={() => this.setState({ hasError: false })}
-              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+              className="flex items-center gap-1 text-xs text-[var(--color-signal)] hover:opacity-80 transition-colors"
             >
               <RefreshCw className="size-3" /> Try again
             </button>
-          </Card>
+          </div>
         )
       );
     }

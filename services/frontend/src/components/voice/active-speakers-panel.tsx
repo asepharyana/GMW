@@ -1,45 +1,62 @@
 "use client";
 
-import { UserCheck } from "lucide-react";
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMemo } from "react";
+import { Avatar } from "@/components/primitives/avatar";
+import { Badge } from "@/components/primitives/badge";
 import type { ActiveSpeaker } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
-interface ActiveSpeakersPanelProps {
-  activeSpeakers: ActiveSpeaker[];
+export interface ActiveSpeakersPanelProps {
+  speakers: ActiveSpeaker[];
 }
 
-export function ActiveSpeakersPanel({
-  activeSpeakers,
-}: ActiveSpeakersPanelProps) {
-  if (activeSpeakers.length === 0) {
-    return null;
+export function ActiveSpeakersPanel({ speakers }: ActiveSpeakersPanelProps) {
+  const sorted = useMemo(
+    () => [...speakers].sort((a, b) => Number(b.speaking) - Number(a.speaking)),
+    [speakers],
+  );
+
+  if (sorted.length === 0) {
+    return (
+      <div className="surface p-5 text-center text-sm text-[var(--color-ink-soft)]">
+        No speakers in range.
+      </div>
+    );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-          <UserCheck className="size-4 text-primary" />
-          Active Speakers
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap gap-2">
-          {activeSpeakers.map((s) => (
-            <div
-              key={s.userId}
-              className="flex items-center gap-2 rounded-full border border-border/50 bg-card px-3 py-1.5 shadow-sm"
-            >
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full rounded-full bg-green-400 opacity-75 live-pulse-ring" />
-                <span className="relative inline-flex size-2 rounded-full bg-green-500" />
-              </span>
-              <span className="text-sm">{s.username}</span>
+    <div className="surface divide-y divide-[var(--color-hairline)] overflow-hidden">
+      <div className="px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-[var(--color-ink-soft)]">
+        Active speakers ({sorted.length})
+      </div>
+      <div className="flex flex-col">
+        {sorted.map((s) => (
+          <div
+            key={s.userId}
+            className={cn(
+              "flex items-center gap-3 px-4 py-2.5 transition-colors",
+              s.speaking && "bg-[var(--color-signal)]/5",
+            )}
+          >
+            <div className="relative">
+              <Avatar src={s.avatar} name={s.username} size={34} />
+              {s.speaking && (
+                <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-[var(--color-signal)] ring-2 ring-[var(--color-canvas)]" />
+              )}
             </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium">{s.username}</span>
+                {s.speaking ? (
+                  <Badge tone="signal">speaking</Badge>
+                ) : (
+                  <Badge tone="neutral">idle</Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

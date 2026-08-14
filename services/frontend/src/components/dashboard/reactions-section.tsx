@@ -1,135 +1,85 @@
 "use client";
 
 import { Flame, Heart, SmilePlus } from "lucide-react";
+import { Avatar } from "@/components/primitives/avatar";
+import { Badge } from "@/components/primitives/badge";
 import { EmptyState, LoadingSkeleton } from "@/components/shared";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { useTopReactions, useTopReactors } from "@/hooks";
-import { renderMessageContent } from "@/lib/format";
-import { cn } from "@/lib/utils";
 
-function formatReactionTime(ts: number | null): string {
-  if (!ts) return "";
-  const diff = Date.now() - ts;
-  const hours = Math.floor(diff / 3600000);
-  if (hours < 1) return "baru saja";
-  if (hours < 24) return `${hours} jam lalu`;
-  const days = Math.floor(hours / 24);
-  return `${days} hari lalu`;
+export interface ReactionsSectionProps {
+  initialReactions?: Awaited<ReturnType<typeof useTopReactions>>["data"];
 }
 
 export function ReactionsSection() {
   const { data: reactions, isLoading: reactionsLoading } = useTopReactions();
   const { data: reactors, isLoading: reactorsLoading } = useTopReactors();
 
+  if (reactionsLoading || reactorsLoading) return <LoadingSkeleton count={5} />;
+
+  const topReactions = (reactions ?? []).slice(0, 6);
+  const topReactors = (reactors ?? []).slice(0, 6);
+
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-secondary/50">
-          <Heart className="size-3" />
-          Top pesan paling di-reaksi
+    <div className="grid gap-3 lg:grid-cols-2">
+      <div className="surface p-4">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+          <Heart className="size-4 text-[var(--color-vermilion)]" />
+          Top reactions
         </h3>
-        {reactionsLoading ? (
-          <LoadingSkeleton count={5} height="h-16" />
-        ) : !reactions || reactions.length === 0 ? (
-          <Card className={cn("p-6", "[--card-spacing:0px]", "rounded-2xl")}>
-            <EmptyState
-              icon={Heart}
-              title="Belum ada reaksi"
-              description="Pesan dengan reaksi emoji akan muncul di sini."
-            />
-          </Card>
+        {topReactions.length === 0 ? (
+          <EmptyState
+            icon={SmilePlus}
+            title="No reactions"
+            description="No reactions yet."
+          />
         ) : (
-          <div className="space-y-2">
-            {reactions.map((r, i) => (
-              <Card
-                key={r.message_id}
-                className={cn(
-                  "flex items-center gap-3 p-3",
-                  "[--card-spacing:0px]",
-                  "rounded-2xl",
-                )}
-              >
-                <span className="w-6 shrink-0 text-center font-mono text-xs text-text-secondary/50">
-                  {i + 1}
+          <div className="flex flex-wrap gap-2">
+            {topReactions
+              .flatMap((m) =>
+                m.top_emojis.map((e) => ({ emoji: e.emoji, count: e.count })),
+              )
+              .reduce<{ emoji: string; count: number }[]>((acc, cur) => {
+                const found = acc.find((x) => x.emoji === cur.emoji);
+                if (found) found.count += cur.count;
+                else acc.push(cur);
+                return acc;
+              }, [])
+              .sort((a, b) => b.count - a.count)
+              .slice(0, 8)
+              .map((r) => (
+                <span
+                  key={r.emoji}
+                  className="flex items-center gap-1.5 rounded-[var(--radius-r-control)] bg-[var(--color-surface-2)] px-2.5 py-1 text-sm"
+                >
+                  <span>{r.emoji}</span>
+                  <span className="mono text-xs text-[var(--color-ink-soft)]">
+                    {r.count}
+                  </span>
                 </span>
-                <div className="flex shrink-0 gap-0.5 text-base">
-                  {r.top_emojis.map((e) => (
-                    <span
-                      key={`${r.message_id}-${e.emoji}`}
-                      title={`${e.emoji} ×${e.count}`}
-                    >
-                      {e.emoji}
-                    </span>
-                  ))}
-                  {r.top_emojis.length === 0 && (
-                    <Heart className="size-4 text-text-secondary/30" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="line-clamp-1 text-xs text-text-secondary">
-                    {renderMessageContent(r.content, undefined) ||
-                      "(tanpa teks)"}
-                  </p>
-                  <p className="mt-0.5 truncate text-[10px] font-mono text-text-secondary/40">
-                    {r.username ?? "unknown"} · #
-                    {r.channel_name ?? r.channel_id?.slice(0, 8)} ·{" "}
-                    {formatReactionTime(r.created_at)}
-                  </p>
-                </div>
-                <Badge variant="secondary" className="shrink-0 gap-1">
-                  <Heart className="size-3" />
-                  {r.reaction_count}
-                </Badge>
-              </Card>
-            ))}
+              ))}
           </div>
         )}
       </div>
 
-      <div>
-        <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-secondary/50">
-          <Flame className="size-3" />
-          Top reaktor — paling sering ngasih reaksi
+      <div className="surface p-4">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+          <Flame className="size-4 text-[var(--color-amber)]" />
+          Top reactors
         </h3>
-        {reactorsLoading ? (
-          <LoadingSkeleton count={5} height="h-14" />
-        ) : !reactors || reactors.length === 0 ? (
-          <Card className={cn("p-6", "[--card-spacing:0px]", "rounded-2xl")}>
-            <EmptyState
-              icon={SmilePlus}
-              title="Belum ada reaktor"
-              description="User yang ngasih reaksi emoji akan muncul di sini."
-            />
-          </Card>
+        {topReactors.length === 0 ? (
+          <EmptyState
+            icon={SmilePlus}
+            title="No reactors"
+            description="No reactors yet."
+          />
         ) : (
-          <div className="space-y-2">
-            {reactors.map((r, i) => (
-              <Card
-                key={r.user_id}
-                className={cn(
-                  "flex items-center gap-3 p-3",
-                  "[--card-spacing:0px]",
-                  "rounded-2xl",
-                )}
-              >
-                <span className="w-6 shrink-0 text-center font-mono text-xs text-text-secondary/50">
-                  {i + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-text-primary">
-                    {r.username}
-                  </p>
-                  <p className="mt-0.5 truncate text-[10px] font-mono text-text-secondary/40">
-                    {r.messages_reacted} pesan di-reaksi · {r.emojis_used} emoji
-                    unik · {r.adds_count} total reaksi
-                  </p>
-                </div>
-                <Badge variant="secondary" className="shrink-0 gap-1">
-                  <Flame className="size-3" />
-                  {r.net_count}
-                </Badge>
-              </Card>
+          <div className="flex flex-col gap-2">
+            {topReactors.map((r) => (
+              <div key={r.user_id} className="flex items-center gap-3">
+                <Avatar name={r.username} size={28} />
+                <span className="flex-1 text-sm">{r.username}</span>
+                <Badge tone="signal">+{r.net_count}</Badge>
+              </div>
             ))}
           </div>
         )}
@@ -137,5 +87,3 @@ export function ReactionsSection() {
     </div>
   );
 }
-
-export default ReactionsSection;

@@ -1,45 +1,55 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import type { MessageRecord } from "@/lib/types";
-import { MessageCard } from "./message-card";
+import { MessageEntry } from "./message-entry";
 
-interface MessageListProps {
+export { MessageEntry };
+
+export function MessageList({
+  messages,
+  selectedId,
+  onSelect,
+  hasMore,
+  onLoadMore,
+  isLoadingMore,
+}: {
   messages: MessageRecord[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
-}
-
-export function MessageList({
-  messages,
-  selectedId: _selectedId,
-  onSelect,
-  hasMore,
-  onLoadMore,
-  isLoadingMore,
-}: MessageListProps) {
+}) {
+  if (messages.length === 0) {
+    return (
+      <div className="py-10 text-center">
+        <p className="text-sm text-[var(--color-ink-soft)]">
+          No messages found.
+        </p>
+      </div>
+    );
+  }
   return (
     <>
-      {messages.map((msg) => (
-        <MessageCard key={msg.id} message={msg} onClick={onSelect} />
-      ))}
+      <div className="space-y-0.5">
+        {messages.map((m) => (
+          <MessageEntry
+            key={m.id}
+            message={m}
+            selected={selectedId === m.id}
+            onSelect={() => onSelect(m.id)}
+          />
+        ))}
+      </div>
       {hasMore && (
-        <div className="flex justify-center py-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onLoadMore}
-            disabled={isLoadingMore}
-            className="text-xs glass"
-          >
-            {isLoadingMore && <Loader2 className="size-3 animate-spin mr-1" />}
-            Load more
-          </Button>
-        </div>
+        <button
+          type="button"
+          onClick={onLoadMore}
+          disabled={isLoadingMore}
+          className="mt-3 w-full text-center text-xs text-[var(--color-amber)] hover:underline disabled:opacity-50"
+        >
+          {isLoadingMore ? "Loading…" : "Load more"}
+        </button>
       )}
     </>
   );

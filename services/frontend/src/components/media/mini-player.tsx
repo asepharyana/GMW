@@ -1,80 +1,59 @@
 "use client";
 
-import { Disc3, Music, Repeat, SkipForward, Square } from "lucide-react";
+import { Pause, Play, SkipForward, Volume2 } from "lucide-react";
+import { motion } from "motion/react";
+import { Button } from "@/components/primitives/button";
+import { useMediaSkip, useMediaState, useMediaWsSync } from "@/hooks";
 import { useMediaPlayer } from "@/lib/hooks/use-media-player";
+import { cn } from "@/lib/utils";
+import { useWebSocket } from "@/lib/ws/context";
 
 export function MiniPlayer() {
-  const { playing, current, queue, loop, pending, skip, stop, toggleLoop } =
-    useMediaPlayer();
+  const ws = useWebSocket();
+  const { data: state } = useMediaState();
+  const { playing, current } = useMediaPlayer();
+  useMediaWsSync(ws);
+  const skip = useMediaSkip();
 
-  // Nothing to show if no track is playing and nothing is queued
-  if (!current && queue.length === 0) return null;
+  if (!current) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 h-14 glass-intense border-t border-glass-border flex items-center gap-3 px-4 md:px-6">
-      {/* Track info */}
-      <div className="flex items-center gap-2.5 min-w-0 flex-1 max-w-[280px]">
-        <div className="size-8 rounded-md bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10 flex items-center justify-center shrink-0">
-          {playing ? (
-            <Disc3
-              className="size-4 text-primary animate-spin"
-              style={{ animationDuration: "4s" }}
-            />
-          ) : (
-            <Music className="size-4 text-text-secondary" />
-          )}
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-text-primary truncate">
-            {current?.title ?? "Unknown track"}
-          </p>
-          {queue.length > 0 && (
-            <p className="text-[10px] text-text-secondary/60">
-              {queue.length > 1 ? `${queue.length} in queue` : "1 in queue"}
-            </p>
-          )}
+    <motion.div
+      initial={{ y: 100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: 100, opacity: 0 }}
+      transition={{ type: "spring", stiffness: 320, damping: 30 }}
+      className={cn(
+        "pointer-events-auto fixed inset-x-0 bottom-20 z-30 mx-auto w-[calc(100%-2rem)] max-w-[480px]",
+        "surface flex items-center gap-3 px-3 py-2 text-sm",
+      )}
+    >
+      <img
+        src={current.thumbnailUrl ?? "/favicon.ico"}
+        alt={current.title}
+        className="size-9 rounded-[var(--radius-r-control)] object-cover"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-medium">{current.title}</div>
+        <div className="text-xs text-[var(--color-ink-soft)] mono">
+          {current.source}
         </div>
       </div>
-
-      {/* Controls */}
-      <div className="flex items-center gap-1 shrink-0">
-        {playing && (
-          <button
-            type="button"
-            onClick={stop}
-            disabled={pending}
-            className="size-8 flex items-center justify-center rounded-md text-text-secondary hover:text-destructive hover:bg-glass-bg transition-colors disabled:opacity-40"
-            aria-label="Stop"
-          >
-            <Square className="size-3.5" />
-          </button>
-        )}
-        {current && (
-          <button
-            type="button"
-            onClick={skip}
-            disabled={pending || queue.length === 0}
-            className="size-8 flex items-center justify-center rounded-md text-text-secondary hover:text-text-primary hover:bg-glass-bg transition-colors disabled:opacity-40"
-            aria-label="Skip"
-          >
-            <SkipForward className="size-3.5" />
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => toggleLoop()}
-          disabled={pending}
-          className={`size-8 flex items-center justify-center rounded-md transition-colors disabled:opacity-40 ${
-            loop
-              ? "text-primary bg-glass-bg"
-              : "text-text-secondary hover:text-text-primary hover:bg-glass-bg"
-          }`}
-          aria-label={loop ? "Loop on" : "Loop off"}
-          aria-pressed={loop}
+      <div className="flex items-center gap-1">
+        <Button size="sm" variant="ghost" onClick={() => skip.mutate()}>
+          <SkipForward className="size-3.5" />
+        </Button>
+        <Button
+          size="sm"
+          variant={playing ? "primary" : "ghost"}
+          onClick={() =>
+            state?.playing ? void skip.mutate() : void skip.mutate()
+          }
         >
-          <Repeat className="size-3.5" />
-        </button>
+          {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+        </Button>
+        <Volume2 className="size-4 text-[var(--color-ink-soft)]" />
       </div>
-    </div>
+    </motion.div>
   );
 }

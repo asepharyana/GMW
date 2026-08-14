@@ -2,193 +2,139 @@
 
 import { Hash, Search } from "lucide-react";
 import { useCallback, useState } from "react";
+import { Badge } from "@/components/primitives/badge";
+import { Button } from "@/components/primitives/button";
+import { Input } from "@/components/primitives/input";
 import { EmptyState, LoadingSkeleton } from "@/components/shared";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { useChannelDetail, useChannels } from "@/hooks";
-import { renderMessageContent } from "@/lib/format";
 import type { DashboardChannel } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 export function ChannelsSection({ guildId }: { guildId?: string }) {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const {
-    data: channels = [],
-    isLoading,
-    error,
-    mutate: refetch,
-  } = useChannels(guildId ?? "", search);
+  const { data: channels = [], isLoading } = useChannels(guildId ?? "", search);
   const { data: detail } = useChannelDetail(selectedId);
 
-  const handleSearch = useCallback((v: string) => {
-    setSearch(v);
-    setSelectedId(null);
-  }, []);
+  const handleSearch = useCallback((v: string) => setSearch(v), []);
 
-  if (error) {
+  if (isLoading) return <LoadingSkeleton count={8} />;
+  if (channels.length === 0)
     return (
-      <Card
-        className={cn(
-          "p-6 text-sm",
-          "border border-red-500/30 ring-red-500/20",
-          "[--card-spacing:0px]",
-          "rounded-2xl",
-        )}
-      >
-        Failed to load channels: {error.message}
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-2"
-          onClick={() => refetch()}
-        >
-          Retry
-        </Button>
-      </Card>
+      <EmptyState
+        icon={Hash}
+        title="No channels"
+        description="No channels in this guild."
+      />
     );
-  }
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div className="space-y-3">
+    <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
+      <div className="surface flex flex-col gap-2 p-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-ink-soft)]" />
           <Input
-            placeholder="Search by channel ID or name…"
+            mono
+            placeholder="search channels…"
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
-            className="pl-9 h-9"
+            className="pl-9"
           />
         </div>
-
-        {isLoading ? (
-          <LoadingSkeleton count={5} height="h-14" />
-        ) : channels.length === 0 ? (
-          <EmptyState icon={Hash} title="No channels found" />
-        ) : (
-          <div className="space-y-2">
-            {channels.map((channel) => (
-              <ChannelRow
-                key={channel.channel_id}
-                channel={channel}
-                active={selectedId === channel.channel_id}
-                onSelect={setSelectedId}
-              />
-            ))}
-          </div>
-        )}
+        {channels.map((c) => (
+          <ChannelRow
+            key={c.channel_id}
+            channel={c}
+            selected={selectedId === c.channel_id}
+            onSelect={() => setSelectedId(c.channel_id)}
+          />
+        ))}
       </div>
 
-      <Card
-        className={cn("h-fit", "[--card-spacing:0px]", "rounded-2xl", "p-5")}
-      >
+      <div className="surface p-4">
         {detail ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Hash className="size-4 text-primary" />
-              <p className="text-sm font-semibold text-text-primary">
-                {detail.channel_name ?? detail.channel_id}
-              </p>
-              <p className="text-[10px] font-mono text-text-secondary/50 ml-auto">
-                {detail.channel_id}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
-              <Badge variant="outline">Messages: {detail.total_messages}</Badge>
-              <Badge variant="destructive">
-                Flagged: {detail.flagged_count}
-              </Badge>
-              <Badge
-                variant="outline"
-                className="border-green-500/40 text-green-500"
-              >
-                Clean: {detail.clean_count}
-              </Badge>
-            </div>
-
-            {detail.culture_summary && (
-              <div className="rounded-lg border border-border/40 bg-card/40 px-3 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary/50 mb-1">
-                  Culture summary
-                </p>
-                <p className="text-xs leading-relaxed text-text-secondary">
-                  {detail.culture_summary}
-                </p>
+          <div className="flex flex-col gap-3.5">
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-9 items-center justify-center rounded-[var(--radius-r-control)] bg-[var(--color-surface-2)]">
+                <Hash className="size-4 text-[var(--color-ink-soft)]" />
+              </span>
+              <div>
+                <div className="font-semibold">
+                  {detail.channel_name ?? detail.channel_id}
+                </div>
+                <div className="text-xs text-[var(--color-ink-soft)]">
+                  {detail.total_messages.toLocaleString()} messages
+                </div>
               </div>
-            )}
-
-            {detail.recent_messages.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary/50">
-                  Recent messages
-                </p>
-                {detail.recent_messages.slice(0, 5).map((msg) => (
-                  <div
-                    key={msg.id}
-                    className="rounded-lg border border-border/40 bg-card/40 px-3 py-2"
-                  >
-                    <p className="text-xs leading-relaxed text-text-secondary line-clamp-2">
-                      {msg.username}:{" "}
-                      {renderMessageContent(msg.content, msg.metadata) ||
-                        "(no text content)"}
-                    </p>
-                    <p className="mt-1 text-[10px] font-mono text-text-secondary/40">
-                      {new Date(msg.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex h-48 flex-col items-center justify-center text-center">
-            <Hash className="size-8 text-text-secondary/30 mb-2" />
-            <p className="text-xs text-text-secondary/60">
-              Select a channel to see its culture summary and recent messages.
+            </div>
+            <Stat
+              label="Flagged"
+              value={detail.flagged_count}
+              tone="vermilion"
+            />
+            <p className="text-xs text-[var(--color-ink-soft)]">
+              {detail.culture_summary ?? "No data yet."}
             </p>
           </div>
+        ) : (
+          <p className="text-sm text-[var(--color-ink-soft)]">
+            Select a channel to inspect.
+          </p>
         )}
-      </Card>
+      </div>
     </div>
   );
 }
 
 function ChannelRow({
   channel,
-  active,
+  selected,
   onSelect,
 }: {
   channel: DashboardChannel;
-  active: boolean;
-  onSelect: (id: string) => void;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const total = channel.total_messages + channel.flagged_count || 1;
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className="flex items-center gap-3 rounded-[var(--radius-r-control)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--color-surface-2)] data-[selected]:bg-[var(--color-signal)]/8"
+      data-selected={selected}
+    >
+      <Hash className="size-4 text-[var(--color-ink-soft)]" />
+      <span className="min-w-0 flex-1 truncate text-sm">
+        {channel.channel_name ?? channel.channel_id}
+      </span>
+      <span className="mono text-xs text-[var(--color-ink-soft)]">
+        {channel.flagged_count}/{channel.total_messages}
+      </span>
+      <div className="h-1.5 w-10 overflow-hidden rounded-full bg-[var(--color-hairline)]">
+        <div
+          className="h-full bg-[var(--color-signal)]"
+          style={{ width: `${(channel.flagged_count / total) * 100}%` }}
+        />
+      </div>
+    </button>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "vermilion";
 }) {
   return (
-    <Card
-      className={active ? "border-primary/40 bg-primary/5" : undefined}
-      onClick={() => onSelect(channel.channel_id)}
-    >
-      <CardContent className="flex cursor-pointer items-center gap-3 p-3">
-        <Hash className="size-4 shrink-0 text-text-secondary/50" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-text-primary">
-            {channel.channel_name ?? channel.channel_id}
-          </p>
-          <p className="truncate text-[10px] font-mono text-text-secondary/50">
-            {channel.channel_id}
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-1.5">
-          <Badge variant="outline">{channel.total_messages}</Badge>
-          {channel.flagged_count > 0 && (
-            <Badge variant="destructive">{channel.flagged_count}</Badge>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="surface-2 flex items-center justify-between p-2.5">
+      <span className="text-xs text-[var(--color-ink-soft)]">{label}</span>
+      <span className="mono font-semibold text-[var(--color-vermilion)]">
+        {value}
+      </span>
+    </div>
   );
 }

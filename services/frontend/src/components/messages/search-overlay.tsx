@@ -1,108 +1,82 @@
 "use client";
 
-import { Search, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { useMessageSearch } from "@/hooks";
-import { getMessageChannelLabel, renderMessageContent } from "@/lib/format";
+import { Search } from "lucide-react";
+import { useState } from "react";
+import { Dialog } from "@/components/primitives/dialog";
+import { Input } from "@/components/primitives/input";
+import { cn } from "@/lib/utils";
 
-interface SearchOverlayProps {
-  open: boolean;
-  onClose: () => void;
-  onSelect: (id: string) => void;
+export interface Message {
+  id: string;
+  content: string;
+  username: string;
+  channel: string;
+  time: string;
 }
 
-export function SearchOverlay({ open, onClose, onSelect }: SearchOverlayProps) {
+export interface SearchOverlayProps {
+  open: boolean;
+  onClose: () => void;
+  results: Message[];
+  onSelect: (msg: Message) => void;
+}
+
+export function SearchOverlay({
+  open,
+  onClose,
+  results,
+  onSelect,
+}: SearchOverlayProps) {
   const [query, setQuery] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data: results } = useMessageSearch(query, true);
-
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    } else {
-      setQuery("");
-    }
-  }, [open]);
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        onClose(); // this is called when Cmd+K is pressed globally — toggle
-      }
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [onClose]);
-
-  if (!open) return null;
+  const filtered = query
+    ? results.filter(
+        (m) =>
+          m.content.toLowerCase().includes(query.toLowerCase()) ||
+          m.username.toLowerCase().includes(query.toLowerCase()),
+      )
+    : results;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]">
-      <button
-        type="button"
-        aria-label="Close search"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-default"
-        onClick={onClose}
-      />
-      <div className="relative w-full max-w-lg glass-intense rounded-[var(--radius-card)] overflow-hidden shadow-2xl">
-        {/* Input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-glass-border">
-          <Search className="size-4 text-text-secondary/60 shrink-0" />
-          <input
-            ref={inputRef}
-            type="text"
+    <Dialog open={open} onClose={onClose} className="p-0 max-w-xl">
+      <div className="p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-ink-soft)]" />
+          <Input
+            autoFocus
+            placeholder="Search messages… (Esc to close)"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search messages..."
-            className="flex-1 bg-transparent text-sm text-text-primary placeholder-text-secondary/40 outline-none"
+            className="pl-9 font-mono"
           />
-          <button
-            type="button"
-            onClick={onClose}
-            className="size-6 flex items-center justify-center rounded hover:bg-glass-bg"
-          >
-            <X className="size-3.5 text-text-secondary/60" />
-          </button>
         </div>
-
-        {/* Results */}
-        <div className="max-h-80 overflow-y-auto p-2 space-y-1">
-          {!results || results.length === 0 ? (
-            <div className="py-8 text-center text-xs text-text-secondary/40">
-              {query.length < 2
-                ? "Type at least 2 characters"
-                : "No results found"}
-            </div>
+        <div className="mt-3 max-h-[420px] overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="py-6 text-center text-sm text-[var(--color-ink-soft)]">
+              No results.
+            </p>
           ) : (
-            results.map((msg) => (
-              <button
-                key={msg.id}
-                type="button"
-                onClick={() => {
-                  onSelect(msg.id);
-                  onClose();
-                }}
-                className="w-full text-left px-3 py-2 rounded-lg hover:bg-glass-bg transition-colors"
-              >
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="font-medium text-text-primary">
-                    {msg.username}
+            <div className="flex flex-col gap-1">
+              {filtered.slice(0, 32).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => onSelect(m)}
+                  className="group flex flex-col items-start gap-1 rounded-[var(--radius-r-control)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--color-surface-2)]"
+                >
+                  <span className="text-xs text-[var(--color-ink-soft)] group-hover:text-[var(--color-ink)]">
+                    #{m.channel} · {m.username}
                   </span>
-                  <span className="text-text-secondary/40">
-                    {getMessageChannelLabel(msg)}
+                  <span className="text-sm">{m.content}</span>
+                  <span className="text-[10px] text-[var(--color-ink-soft)]/60">
+                    {m.time}
                   </span>
-                </div>
-                <p className="text-xs text-text-secondary/80 line-clamp-1 mt-0.5">
-                  {renderMessageContent(msg.content, msg.metadata)}
-                </p>
-              </button>
-            ))
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

@@ -1,74 +1,39 @@
-"use client";
+import { Hash } from "lucide-react";
+import type { TopChannel } from "@/lib/types";
 
-import {
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { Card } from "@/components/ui/card";
-import { useMounted } from "@/lib/hooks/use-mounted";
-import { cn } from "@/lib/utils";
-
-interface TopChannelsChartProps {
-  data?: { name: string; count: number }[];
+export interface TopChannelsChartProps {
+  channels: TopChannel[];
 }
 
-export function TopChannelsChart({ data = [] }: TopChannelsChartProps) {
-  const mounted = useMounted();
-
+export function TopChannelsChart({ channels }: TopChannelsChartProps) {
+  const max = Math.max(...channels.map((c) => c.message_count), 1);
+  const top = [...channels]
+    .sort((a, b) => b.message_count - a.message_count)
+    .slice(0, 8);
   return (
-    <Card className={cn("[--card-spacing:0px]", "rounded-2xl", "p-5")}>
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">
-          Top Channels
-        </span>
+    <div className="surface p-4">
+      <h3 className="mb-3 text-sm font-semibold">Top channels</h3>
+      <div className="flex flex-col gap-2.5">
+        {top.map((c) => (
+          <div key={c.channel_id} className="flex items-center gap-3">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-[var(--radius-r-control)] bg-[var(--color-surface-2)] text-[var(--color-ink-soft)]">
+              <Hash className="size-3.5" />
+            </span>
+            <span className="w-32 shrink-0 truncate text-xs text-[var(--color-ink)]">
+              {c.channel_name ?? c.channel_id}
+            </span>
+            <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-surface-2)]">
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-[var(--color-signal)] transition-[width] duration-500"
+                style={{ width: `${(c.message_count / max) * 100}%` }}
+              />
+            </div>
+            <span className="mono w-12 shrink-0 text-right text-xs text-[var(--color-ink-soft)]">
+              {c.message_count.toLocaleString()}
+            </span>
+          </div>
+        ))}
       </div>
-      <div className="h-48">
-        {mounted ? (
-          <ResponsiveContainer
-            width="100%"
-            height={192}
-            minWidth={0}
-            minHeight={0}
-          >
-            <BarChart data={data} layout="vertical">
-              <XAxis
-                type="number"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "oklch(0.55 0.02 245)", fontSize: 10 }}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "oklch(0.55 0.02 245)", fontSize: 10 }}
-                width={80}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "oklch(0.11 0.02 245 / 0.9)",
-                  border: "1px solid oklch(1 0 0 / 0.08)",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  color: "oklch(0.93 0.01 245)",
-                }}
-              />
-              <Bar
-                dataKey="count"
-                fill="var(--color-primary)"
-                radius={[0, 4, 4, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="h-full w-full animate-pulse rounded-md bg-card/40" />
-        )}
-      </div>
-    </Card>
+    </div>
   );
 }

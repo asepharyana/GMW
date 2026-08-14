@@ -1,11 +1,8 @@
 /**
- * Messages page — Server Component.
- *
- * Reads the URL (guild/channel/tab/selected) on the server and, when a guild
- * is already selected, fetches the first message page server-side so the
- * initial list is server-rendered, not a client round-trip.
+ * Messages — Server Component.
+ * Reads URL guild/channel/selected/tab on the server; seeds first page SSR.
  */
-import { getMessages, type MessagePageResult } from "@/lib/api/server";
+import { getMessages } from "@/lib/api/server";
 import MessagesView from "./view";
 
 export default async function MessagesPage({
@@ -22,7 +19,7 @@ export default async function MessagesPage({
       ? (sp.tab as "all" | "images" | "review")
       : "all";
 
-  let initialPage: MessagePageResult | undefined;
+  let initialPage;
   if (guild) {
     initialPage = await getMessages(guild, channel || undefined).catch(
       () => undefined,

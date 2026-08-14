@@ -12,9 +12,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
+import { Badge } from "@/components/primitives/badge";
 import { EmptyState, LoadingSkeleton } from "@/components/shared";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { useModerationActions, useModerationStats } from "@/hooks";
 import { renderMessageContent } from "@/lib/format";
 import type {
@@ -26,42 +25,22 @@ import { cn } from "@/lib/utils";
 
 const ACTION_META: Record<
   ModerationActionType,
-  { label: string; Icon: typeof Trash2; className: string }
+  { label: string; Icon: typeof Trash2; tone: "vermilion" | "amber" }
 > = {
-  delete_message: {
-    label: "Delete message",
-    Icon: Trash2,
-    className: "text-red-500",
-  },
-  mute_user: { label: "Mute user", Icon: MicOff, className: "text-orange-500" },
-  warn_user: {
-    label: "Warn user",
-    Icon: AlertTriangle,
-    className: "text-amber-500",
-  },
-  kick_user: { label: "Kick user", Icon: UserX, className: "text-orange-500" },
-  ban_user: { label: "Ban user", Icon: Ban, className: "text-red-500" },
+  delete_message: { label: "Delete message", Icon: Trash2, tone: "vermilion" },
+  mute_user: { label: "Mute user", Icon: MicOff, tone: "amber" },
+  warn_user: { label: "Warn user", Icon: AlertTriangle, tone: "amber" },
+  kick_user: { label: "Kick user", Icon: UserX, tone: "amber" },
+  ban_user: { label: "Ban user", Icon: Ban, tone: "vermilion" },
 };
 
 const STATUS_META: Record<
   ModerationAction["status"],
-  { label: string; className: string; dot: string }
+  { label: string; tone: "signal" | "vermilion" | "amber" }
 > = {
-  executed: {
-    label: "Executed",
-    className: "border-green-500/40 text-green-500",
-    dot: "bg-green-500",
-  },
-  failed: {
-    label: "Failed",
-    className: "border-red-500/40 text-red-500",
-    dot: "bg-red-500",
-  },
-  pending: {
-    label: "Pending",
-    className: "border-amber-500/40 text-amber-500",
-    dot: "bg-amber-500",
-  },
+  executed: { label: "Executed", tone: "signal" },
+  failed: { label: "Failed", tone: "vermilion" },
+  pending: { label: "Pending", tone: "amber" },
 };
 
 function fmtTime(ts: number | null): string {
@@ -115,31 +94,28 @@ export function ModerationSection({
   ];
 
   return (
-    <div className="space-y-4 animate-fade-in-up">
+    <div className="space-y-4">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <SummaryCard
-          label="Total aksi"
-          value={s.total}
-          color="text-text-primary"
-        />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <SummaryCard label="Total aksi" value={s.total} />
         <SummaryCard
           label="Executed"
           value={s.executed}
-          color="text-green-500"
+          tone="signal"
+          hint={undefined}
         />
         <SummaryCard
           label="Failed"
           value={s.failed}
-          color="text-red-500"
+          tone="vermilion"
           hint={s.total > 0 ? `${s.failed_rate}%` : undefined}
         />
-        <SummaryCard label="Pending" value={s.pending} color="text-amber-500" />
+        <SummaryCard label="Pending" value={s.pending} tone="amber" />
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary/50">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">
           Status
         </span>
         {statusFilters.map((f) => (
@@ -154,7 +130,7 @@ export function ModerationSection({
             onClick={() => setStatus(f)}
           />
         ))}
-        <span className="ml-3 text-[10px] font-semibold uppercase tracking-wide text-text-secondary/50">
+        <span className="ml-3 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">
           Tipe
         </span>
         {typeFilters.map((f) => (
@@ -173,13 +149,13 @@ export function ModerationSection({
       {actionsLoading && !actions ? (
         <LoadingSkeleton count={6} height="h-16" />
       ) : !actions || actions.length === 0 ? (
-        <Card className={cn("p-6", "[--card-spacing:0px]", "rounded-2xl")}>
+        <div className="surface p-6">
           <EmptyState
             icon={ShieldAlert}
             title="Belum ada aksi moderasi"
-            description="Aksi auto- moderasi (delete, warn, kick, ban) akan muncul di sini."
+            description="Aksi auto-moderasi (delete, warn, kick, ban) akan muncul di sini."
           />
-        </Card>
+        </div>
       ) : (
         <div className="space-y-2">
           {actions.map((a) => (
@@ -188,7 +164,7 @@ export function ModerationSection({
         </div>
       )}
 
-      <p className="text-[10px] text-text-secondary/40">
+      <p className="text-[10px] text-[var(--color-ink-soft)]">
         {actions?.length ?? 0} aksi ditampilkan · log moderasi gateway Discord
       </p>
     </div>
@@ -198,26 +174,34 @@ export function ModerationSection({
 function SummaryCard({
   label,
   value,
-  color,
+  tone,
   hint,
 }: {
   label: string;
   value: number;
-  color: string;
+  tone?: "signal" | "vermilion" | "amber";
   hint?: string;
 }) {
   return (
-    <Card className={cn("p-4", "[--card-spacing:0px]", "rounded-2xl")}>
-      <p className="text-[10px] uppercase tracking-wide text-text-secondary/50">
+    <div className="surface p-4">
+      <p className="text-[10px] uppercase tracking-wide text-[var(--color-ink-soft)]">
         {label}
       </p>
-      <p className={cn("mt-1 text-2xl font-bold", color)}>
+      <p
+        className={cn(
+          "mt-1 text-2xl font-bold",
+          tone === "signal" && "text-[var(--color-signal)]",
+          tone === "vermilion" && "text-[var(--color-vermilion)]",
+          tone === "amber" && "text-[var(--color-amber)]",
+          !tone && "text-[var(--color-ink)]",
+        )}
+      >
         {value}
         {hint && (
           <span className="ml-1 text-xs font-medium opacity-80">({hint})</span>
         )}
       </p>
-    </Card>
+    </div>
   );
 }
 
@@ -237,8 +221,8 @@ function FilterChip({
       className={cn(
         "rounded-full px-3 py-1 text-[11px] transition-colors",
         active
-          ? "bg-primary/20 text-primary"
-          : "text-text-secondary/60 hover:text-text-primary glass",
+          ? "bg-[var(--color-signal)] text-[var(--color-signal-ink)]"
+          : "text-[var(--color-ink-soft)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)]",
       )}
     >
       {label}
@@ -251,49 +235,45 @@ function ActionRow({ action }: { action: ModerationAction }) {
   const st = STATUS_META[action.status];
   const Icon = meta.Icon;
   return (
-    <Card
-      className={cn(
-        "flex items-start gap-3 p-3",
-        "[--card-spacing:0px]",
-        "rounded-2xl",
-      )}
-    >
-      <span className={cn("mt-0.5 shrink-0", meta.className)}>
+    <div className="surface flex items-start gap-3 p-3">
+      <span
+        className={cn(
+          "mt-0.5 shrink-0",
+          meta.tone === "vermilion"
+            ? "text-[var(--color-vermilion)]"
+            : "text-[var(--color-amber)]",
+        )}
+      >
         <Icon className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-text-primary">
+          <span className="text-xs font-semibold text-[var(--color-ink)]">
             {meta.label}
           </span>
           {action.username && (
-            <span className="text-xs text-text-secondary">
+            <span className="text-xs text-[var(--color-ink-soft)]">
               @{action.username}
             </span>
           )}
-          <Badge variant="outline" className={cn("text-[10px]", st.className)}>
-            <span
-              className={cn("mr-1 inline-block size-1.5 rounded-full", st.dot)}
-            />
-            {st.label}
-          </Badge>
+          <Badge tone={st.tone}>{st.label}</Badge>
         </div>
         {action.content && (
-          <p className="mt-1 line-clamp-2 text-xs text-text-secondary/80">
+          <p className="mt-1 line-clamp-2 text-xs text-[var(--color-ink-soft)]">
             {renderMessageContent(action.content, null)}
           </p>
         )}
         {action.reason && (
-          <p className="mt-1 text-[11px] text-text-secondary/60">
+          <p className="mt-1 text-[11px] text-[var(--color-ink-soft)]">
             Alasan: {action.reason}
           </p>
         )}
         {action.error && (
-          <p className="mt-1 text-[11px] text-red-500/80 line-clamp-2">
+          <p className="mt-1 text-[11px] text-[var(--color-vermilion)] line-clamp-2">
             Error: {action.error}
           </p>
         )}
-        <p className="mt-1.5 text-[10px] font-mono text-text-secondary/40">
+        <p className="mt-1.5 text-[10px] font-mono text-[var(--color-ink-soft)]">
           dibuat {fmtTime(action.created_at)}
           {action.executed_at
             ? ` · dieksekusi ${fmtTime(action.executed_at)}`
@@ -301,13 +281,13 @@ function ActionRow({ action }: { action: ModerationAction }) {
         </p>
       </div>
       {action.status === "executed" ? (
-        <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-green-500" />
+        <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-[var(--color-signal)]" />
       ) : action.status === "failed" ? (
-        <XCircle className="mt-0.5 size-3.5 shrink-0 text-red-500" />
+        <XCircle className="mt-0.5 size-3.5 shrink-0 text-[var(--color-vermilion)]" />
       ) : (
-        <Loader2 className="mt-0.5 size-3.5 shrink-0 animate-spin text-amber-500" />
+        <Loader2 className="mt-0.5 size-3.5 shrink-0 animate-spin text-[var(--color-amber)]" />
       )}
-    </Card>
+    </div>
   );
 }
 

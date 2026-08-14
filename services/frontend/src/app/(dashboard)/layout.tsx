@@ -7,25 +7,19 @@ import {
   ChatbotProvider,
   useChatbot,
 } from "@/components/chatbot/chatbot-context";
-import { AppSidebar } from "@/components/layout/app-sidebar";
+import { Spine } from "@/components/layout/spine";
+import { StatusBar } from "@/components/layout/status-bar";
 import { MiniPlayer } from "@/components/media/mini-player";
+import { RouteTransition } from "@/components/motion/route-transition";
 import { GuildSelector } from "@/components/shared/guild-selector";
-import { Separator } from "@/components/ui/separator";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
 import { MediaPlayerProvider } from "@/lib/hooks/use-media-player";
 import { useWebSocket, WsProvider } from "@/lib/ws/context";
 
 function ChatbotGuildSync({ guildId }: { guildId: string }) {
   const { setGuildId } = useChatbot();
-
   useEffect(() => {
     setGuildId(guildId);
   }, [guildId, setGuildId]);
-
   return null;
 }
 
@@ -39,17 +33,12 @@ function ChatbotExpressionSync() {
         setTimeout(() => setExpression("idle"), 2000);
       }
     });
-
-    const unsub2 = ws.on("voice_active_user", () => {
-      setExpression("listening");
-    });
-
+    const unsub2 = ws.on("voice_active_user", () => setExpression("listening"));
     return () => {
       unsub1();
       unsub2();
     };
   }, [ws, setExpression]);
-
   return null;
 }
 
@@ -74,41 +63,27 @@ export default function DashboardLayout({
           <ChatbotProvider>
             <ChatbotGuildSync guildId={guildId} />
             <ChatbotExpressionSync />
-            <div className="min-h-svh bg-canvas">
-              <SidebarProvider>
-                <AppSidebar />
-                <SidebarInset className="gap-0">
-                  <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 bg-canvas">
-                    <SidebarTrigger className="-ml-1" />
-                    <Separator
-                      orientation="vertical"
-                      className="mr-2 h-6 max-md:hidden"
-                    />
-                    <div className="font-semibold max-md:hidden">Overview</div>
-                    <div className="ms-auto">
-                      <GuildSelector
-                        value={guildId}
-                        onChange={(g) => setGuildId(g ?? "")}
-                      />
-                    </div>
-                  </header>
-
-                  <main className="flex flex-1 flex-col gap-4 p-4 pb-28 md:p-6 lg:pb-8">
-                    <div className="mx-auto w-full max-w-[1440px]">
-                      <Suspense
-                        fallback={
-                          <div className="flex h-[60vh] items-center justify-center">
-                            <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                          </div>
-                        }
-                      >
-                        {children}
-                      </Suspense>
-                    </div>
-                  </main>
-                </SidebarInset>
-              </SidebarProvider>
-
+            <div className="min-h-svh bg-[var(--color-canvas)] md:pl-[68px]">
+              <Spine />
+              <div className="flex min-h-svh flex-col">
+                <StatusBar
+                  guildId={guildId}
+                  onGuildChange={(g) => setGuildId(g)}
+                />
+                <main className="flex flex-1 flex-col gap-4 p-4 pb-24 md:p-6 lg:pb-8">
+                  <div className="mx-auto w-full max-w-[1440px]">
+                    <Suspense
+                      fallback={
+                        <div className="flex h-[60vh] items-center justify-center">
+                          <div className="size-8 animate-spin rounded-full border-2 border-[var(--color-signal)] border-t-transparent" />
+                        </div>
+                      }
+                    >
+                      <RouteTransition>{children}</RouteTransition>
+                    </Suspense>
+                  </div>
+                </main>
+              </div>
               <MiniPlayer />
               <ChatbotContainer />
             </div>

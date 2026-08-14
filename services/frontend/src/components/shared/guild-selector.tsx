@@ -1,18 +1,12 @@
 "use client";
 
-import { AlertCircle, RefreshCw, Server } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/primitives/badge";
+import { Button } from "@/components/primitives/button";
+import { Select } from "@/components/primitives/select";
+import { Skeleton } from "@/components/primitives/skeleton";
 import { useConfig, useGuilds } from "@/hooks";
 
 export interface GuildSelectorProps {
@@ -24,10 +18,6 @@ export interface GuildSelectorProps {
   autoHide?: boolean;
 }
 
-/**
- * Guild selector bar — fetches the guild list and renders a <Select>.
- * Optionally auto-hides when there's exactly one guild.
- */
 export function GuildSelector({
   value,
   onChange,
@@ -45,24 +35,23 @@ export function GuildSelector({
     if (preferred) onChange(preferred);
   }, [value, guilds, config, onChange]);
 
-  // Auto-hide when there's exactly one guild and autoHide is on
   if (autoHide && guilds.length <= 1 && !isLoading && !error) return null;
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-card p-3">
+      <div className="flex items-center gap-3 rounded-[var(--radius-r)] bg-[var(--color-surface)] p-3">
         <Skeleton className="h-8 w-36" />
-        <Skeleton className="h-8 w-8 rounded-full" />
+        <Skeleton rounded className="h-8 w-8" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/5 p-3">
+      <div className="flex items-center justify-between rounded-[var(--radius-r)] bg-[var(--color-vermilion)]/10 p-3">
         <div className="flex items-center gap-2">
-          <AlertCircle className="size-4 text-destructive shrink-0" />
-          <p className="text-sm text-muted-foreground">
+          <AlertCircle className="size-4 text-[var(--color-vermilion)] shrink-0" />
+          <p className="text-sm text-[var(--color-ink-soft)]">
             Could not load guilds: {error?.message ?? "Failed to load"}
           </p>
         </div>
@@ -76,10 +65,10 @@ export function GuildSelector({
 
   if (guilds.length === 0) {
     return (
-      <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3">
+      <div className="rounded-[var(--radius-r)] bg-[var(--color-amber)]/10 p-3">
         <div className="flex items-center gap-2">
-          <AlertCircle className="size-4 text-yellow-500 shrink-0" />
-          <p className="text-sm text-muted-foreground">
+          <AlertCircle className="size-4 text-[var(--color-amber)] shrink-0" />
+          <p className="text-sm text-[var(--color-ink-soft)]">
             No guilds available. Make sure the Discord gateway is connected.
           </p>
         </div>
@@ -88,35 +77,20 @@ export function GuildSelector({
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-card p-3">
-      <Badge variant="outline" className="shrink-0 text-xs font-normal">
+    <div className="flex items-center gap-3 rounded-[var(--radius-r)] bg-[var(--color-surface)] p-3">
+      <Badge tone="neutral" className="shrink-0 text-xs font-normal">
         Guild
       </Badge>
-      <Select value={value} onValueChange={(v) => v && onChange(v)}>
-        <SelectTrigger className="h-10 w-full max-w-sm">
-          <SelectValue placeholder="Select a guild…">
-            {guilds.find((g) => g.id === value)?.name}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {guilds.map((g) => (
-            <SelectItem key={g.id} value={g.id}>
-              <span className="flex items-center gap-2">
-                {g.icon ? (
-                  // biome-ignore lint/performance/noImgElement: guild icon is a remote Discord CDN URL
-                  <img
-                    src={g.icon}
-                    alt=""
-                    className="size-4 rounded-full object-cover"
-                  />
-                ) : (
-                  <Server className="size-4 text-muted-foreground" />
-                )}
-                <span className="line-clamp-1">{g.name}</span>
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
+      <Select
+        value={value}
+        onChange={(e) => e.target.value && onChange(e.target.value)}
+        className="h-10 w-full max-w-sm"
+      >
+        {guilds.map((g) => (
+          <option key={g.id} value={g.id}>
+            {g.name}
+          </option>
+        ))}
       </Select>
     </div>
   );

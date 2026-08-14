@@ -1,189 +1,200 @@
 "use client";
 
-import { Clock, Database, Mic, Users } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
-import { StatCard } from "@/components/dashboard/stat-card";
-import { SubNav } from "@/components/layout/sub-nav";
-import { RecordingCard } from "@/components/recordings/recording-card";
-import { RecordingPlayer } from "@/components/recordings/recording-player";
-import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/shared";
-import { useRecordings, useRecordingsWsSync } from "@/hooks";
-import { formatBytes } from "@/lib/format";
+import { Delete, Download, Play } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useCallback, useState } from "react";
+import { Waveform } from "@/components/charts/waveform";
+import { StaggerGroup, StaggerItem } from "@/components/motion/stagger";
+import { Avatar } from "@/components/primitives/avatar";
+import { Badge } from "@/components/primitives/badge";
+import { Button } from "@/components/primitives/button";
+import { Dialog } from "@/components/primitives/dialog";
+import {
+  useDeleteRecording,
+  useRecordings,
+  useRecordingsWsSync,
+} from "@/hooks";
 import type { VoiceRecording } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
-type RecordingsTab = "library" | "stats";
+interface RecordingsListProps {
+  recordings: VoiceRecording[];
+  error: Error | null;
+  isLoading: boolean;
+  deleting: string | null;
+  onSelect: (rec: VoiceRecording) => void;
+  onDelete: (rec: VoiceRecording) => void;
+  preview: VoiceRecording | null;
+  onClosePreview: () => void;
+}
+
+function RecordingsList({
+  recordings,
+  error,
+  isLoading,
+  deleting,
+  onSelect,
+  onDelete,
+  preview,
+  onClosePreview,
+}: RecordingsListProps) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-16 surface animate-shimmer" />
+        ))}
+      </div>
+    );
+  }
+  if (error)
+    return (
+      <p className="text-sm text-[var(--color-vermilion)]">
+        Failed to load: {error.message}
+      </p>
+    );
+
+  return (
+    <div className="flex flex-col gap-3">
+      <AnimatePresence>
+        {recordings.map((rec) => (
+          <StaggerItem key={rec.id} className="surface p-3" layout>
+            <motion.div layout className="flex items-center gap-3">
+              <Waveform
+                seed={rec.id}
+                bars={20}
+                height={40}
+                className="w-20 shrink-0"
+              />
+              <Avatar name={rec.username} src={rec.avatar_url} size={34} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium">
+                    {rec.username ?? "unknown"}
+                  </span>
+                  <Badge
+                    tone={
+                      rec.upload_status === "uploaded"
+                        ? "signal"
+                        : rec.upload_status === "failed"
+                          ? "vermilion"
+                          : "amber"
+                    }
+                  >
+                    .{rec.filename.split(".").pop() ?? "mp3"}
+                  </Badge>
+                </div>
+                <div className="mono text-xs text-[var(--color-ink-soft)]">
+                  {(rec.size_bytes / 1024).toFixed(0)} KB ·{" "}
+                  {new Date(rec.created_at * 1000).toLocaleTimeString()}
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                {rec.download_url && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onSelect(rec)}
+                    >
+                      <Play className="size-4" />
+                    </Button>
+                    <a
+                      href={rec.download_url}
+                      download={rec.filename}
+                      aria-label="Download"
+                      className="flex size-9 items-center justify-center rounded-[var(--radius-r-control)] text-xs text-[var(--color-ink-soft)] hover:bg-[var(--color-surface-2)]"
+                    >
+                      <Download className="size-4" />
+                    </a>
+                  </>
+                )}
+                <Button
+                  size="sm"
+                  variant="danger"
+                  disabled={deleting === rec.id}
+                  onClick={() => onDelete(rec)}
+                  aria-label="Delete"
+                >
+                  <Delete className="size-4" />
+                </Button>
+              </div>
+            </motion.div>
+          </StaggerItem>
+        ))}
+      </AnimatePresence>
+      <PreviewDialog
+        open={!!preview}
+        onClose={onClosePreview}
+        recording={preview}
+      />
+    </div>
+  );
+}
+
+function PreviewDialog({
+  open,
+  onClose,
+  recording,
+}: {
+  open: boolean;
+  onClose: () => void;
+  recording: VoiceRecording | null;
+}) {
+  if (!recording) return null;
+  return (
+    <Dialog open={open} onClose={onClose} className="p-6 max-w-xl">
+      <div className="space-y-3">
+        <div className="display text-lg text-[var(--color-signal)]">
+          {recording.filename}
+        </div>
+        <audio controls src={recording.download_url ?? ""} className="w-full" />
+        <div className="mono text-xs text-[var(--color-ink-soft)]">
+          {(recording.size_bytes / 1024).toFixed(0)} KB ·{" "}
+          {recording.upload_status}
+        </div>
+      </div>
+    </Dialog>
+  );
+}
 
 export default function RecordingsView({
   initialRecordings,
 }: {
   initialRecordings?: VoiceRecording[];
 }) {
-  const {
-    data: recordings,
-    error,
-    mutate: refetch,
-  } = useRecordings(initialRecordings);
-  const [playingId, setPlayingId] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
-  const [tab, setTab] = useState<RecordingsTab>("library");
   const ws = useWebSocket();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Live-update the library when the gateway publishes voice_recording_uploaded
+  const {
+    data: recordings = [],
+    error,
+    isLoading,
+  } = useRecordings(initialRecordings);
+  const del = useDeleteRecording();
+  const [deleting, setDeleting] = useState<string | null>(null);
   useRecordingsWsSync(ws);
 
-  const currentTrack =
-    playingId && recordings
-      ? recordings.find((r: VoiceRecording) => r.id === playingId)
-      : null;
+  const handleDelete = useCallback(
+    (rec: VoiceRecording) => {
+      setDeleting(rec.id);
+      del.mutate(rec.id);
+      setTimeout(() => setDeleting(null), 800);
+    },
+    [del],
+  );
 
-  const togglePlay = (id: string) => {
-    if (playingId !== id) {
-      setPlayingId(id); // RecordingPlayer picks up the new url + autoplays
-    } else {
-      const audio = audioRef.current;
-      if (!audio) return;
-      if (audio.paused) audio.play().catch(() => {});
-      else audio.pause();
-    }
-  };
-
-  const stats = useMemo(() => {
-    const list = recordings ?? [];
-    const totalSize = list.reduce((sum, r) => sum + (r.size_bytes ?? 0), 0);
-    const byUser = new Map<
-      string,
-      { name: string; count: number; size: number }
-    >();
-    for (const rec of list) {
-      const key = rec.user_id ?? rec.username;
-      const cur = byUser.get(key) ?? { name: rec.username, count: 0, size: 0 };
-      cur.count += 1;
-      cur.size += rec.size_bytes ?? 0;
-      byUser.set(key, cur);
-    }
-    const topUsers = [...byUser.values()]
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
-    return {
-      total: list.length,
-      totalSize,
-      uniqueUsers: byUser.size,
-      topUsers,
-    };
-  }, [recordings]);
+  const [preview, setPreview] = useState<VoiceRecording | null>(null);
 
   return (
-    <div className="space-y-4 animate-fade-in-up">
-      <SubNav
-        tabs={[
-          { id: "library", label: "Library", icon: undefined },
-          { id: "stats", label: "Stats", icon: undefined },
-        ]}
-        activeTab={tab}
-        onTabChange={(t) => setTab(t as RecordingsTab)}
-      />
-
-      {tab === "library" &&
-        (error ? (
-          <ErrorState message={error.message} onRetry={refetch} />
-        ) : !recordings ? (
-          <LoadingSkeleton count={4} height="h-28" />
-        ) : (
-          <div className="space-y-2">
-            {(recordings ?? []).map((rec: VoiceRecording) => (
-              <RecordingCard
-                key={rec.id}
-                recording={rec}
-                active={playingId === rec.id}
-                playing={playingId === rec.id && isPlaying}
-                loading={playingId === rec.id && isLoadingAudio}
-                onTogglePlay={togglePlay}
-              />
-            ))}
-            {(recordings ?? []).length === 0 && (
-              <EmptyState
-                icon={Mic}
-                title="No records yet"
-                description="Voice recordings will appear here once members speak in a monitored voice channel."
-              />
-            )}
-          </div>
-        ))}
-
-      {tab === "stats" &&
-        (!recordings ? (
-          <LoadingSkeleton count={4} height="h-28" columns={3} />
-        ) : stats.total === 0 ? (
-          <EmptyState
-            icon={Clock}
-            title="No recording stats yet"
-            description="Recordings are captured from monitored voice channels."
-          />
-        ) : (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <StatCard
-                label="Total Recordings"
-                value={stats.total}
-                icon={Mic}
-              />
-              <StatCard
-                label="Total Size"
-                value={stats.totalSize}
-                icon={Database}
-                formatter={(v) => formatBytes(v)}
-              />
-              <StatCard
-                label="Unique Speakers"
-                value={stats.uniqueUsers}
-                icon={Users}
-              />
-            </div>
-
-            {stats.topUsers.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="text-xs text-text-secondary font-medium uppercase tracking-wide">
-                  Top Speakers
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {stats.topUsers.map((u) => (
-                    <div
-                      key={u.name}
-                      className="flex items-center gap-3 rounded-lg border border-border/40 bg-card/40 px-3 py-2"
-                    >
-                      <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 font-mono text-xs text-primary">
-                        {u.count}
-                      </span>
-                      <span className="flex-1 min-w-0 truncate text-sm text-text-primary">
-                        {u.name}
-                      </span>
-                      <span className="text-[10px] font-mono text-text-secondary/50">
-                        {formatBytes(u.size)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-
-      <RecordingPlayer
-        url={currentTrack?.download_url ?? undefined}
-        filename={currentTrack?.filename ?? undefined}
-        playing={isPlaying}
-        loading={isLoadingAudio}
-        audioRef={audioRef}
-        onToggle={() => togglePlay(playingId!)}
-        onStateChange={(s) => {
-          setIsPlaying(s.playing);
-          setIsLoadingAudio(s.loading);
-        }}
-        onClose={() => setPlayingId(null)}
-      />
-    </div>
+    <RecordingsList
+      recordings={recordings}
+      error={error}
+      isLoading={isLoading}
+      deleting={deleting}
+      onSelect={setPreview}
+      onDelete={handleDelete}
+      preview={preview}
+      onClosePreview={() => setPreview(null)}
+    />
   );
 }

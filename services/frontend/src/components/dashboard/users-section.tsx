@@ -1,50 +1,24 @@
 "use client";
 
-import { Search, Users, UserX } from "lucide-react";
+import { Search, Users } from "lucide-react";
 import { useCallback, useState } from "react";
+import { Avatar } from "@/components/primitives/avatar";
+import { Badge } from "@/components/primitives/badge";
+import { Input } from "@/components/primitives/input";
 import { EmptyState, LoadingSkeleton } from "@/components/shared";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { useUserDetail, useUsers } from "@/hooks";
-import { renderMessageContent } from "@/lib/format";
-import type { DashboardUser } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 const TRUST_TIERS = [
-  {
-    min: 75,
-    label: "Trusted",
-    className: "border-green-500/40 text-green-500",
-  },
-  { min: 40, label: "Netral", className: "border-sky-500/40 text-sky-500" },
-  {
-    min: 10,
-    label: "At Risk",
-    className: "border-orange-500/40 text-orange-500",
-  },
-  { min: 0, label: "Kritis", className: "border-red-500/40 text-red-500" },
-] as const;
+  { min: 75, label: "Trusted", tone: "signal" as const },
+  { min: 40, label: "Neutral", tone: "neutral" as const },
+  { min: 10, label: "At Risk", tone: "amber" as const },
+  { min: 0, label: "Critical", tone: "vermilion" as const },
+];
 
-export function trustTier(score: number) {
+function trustTier(score?: number | null) {
+  const s = score ?? 0;
   return (
-    TRUST_TIERS.find((t) => score >= t.min) ??
-    TRUST_TIERS[TRUST_TIERS.length - 1]
-  );
-}
-
-function TrustBadge({ score }: { score: number }) {
-  const tier = trustTier(score);
-  return (
-    <Badge
-      variant="outline"
-      className={tier.className}
-      title={`Trust score ${score}`}
-    >
-      {tier.label}: {score}
-    </Badge>
+    TRUST_TIERS.find((t) => s >= t.min) ?? TRUST_TIERS[TRUST_TIERS.length - 1]
   );
 }
 
@@ -52,201 +26,126 @@ export function UsersSection() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const {
-    data: users = [],
-    isLoading,
-    error,
-    mutate: refetch,
-  } = useUsers(search);
+  const { data: users = [], isLoading } = useUsers(search);
   const { data: detail } = useUserDetail(selectedId);
 
-  const handleSearch = useCallback((v: string) => {
-    setSearch(v);
-    setSelectedId(null);
-  }, []);
+  const handleSearch = useCallback((v: string) => setSearch(v), []);
 
-  if (error) {
+  if (isLoading) return <LoadingSkeleton count={6} />;
+  if (users.length === 0)
     return (
-      <Card
-        className={cn(
-          "p-6 text-sm",
-          "border border-red-500/30 ring-red-500/20",
-          "[--card-spacing:0px]",
-          "rounded-2xl",
-        )}
-      >
-        Failed to load users: {error.message}
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-2"
-          onClick={() => refetch()}
-        >
-          Retry
-        </Button>
-      </Card>
+      <EmptyState
+        icon={Users}
+        title="No users found"
+        description="Try a different search."
+      />
     );
-  }
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div className="space-y-3">
+    <div className="grid gap-3 lg:grid-cols-[1fr_360px]">
+      <div className="surface flex flex-col gap-2 p-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-ink-soft)]" />
           <Input
-            placeholder="Search by user ID or username…"
+            mono
+            placeholder="search users…"
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
-            className="pl-9 h-9"
+            className="pl-9"
           />
         </div>
-
-        {isLoading ? (
-          <LoadingSkeleton count={5} height="h-16" />
-        ) : users.length === 0 ? (
-          <EmptyState icon={Users} title="No users found" />
-        ) : (
-          <div className="space-y-2">
-            {users.map((user) => (
-              <UserRow
-                key={user.user_id}
-                user={user}
-                active={selectedId === user.user_id}
-                onSelect={setSelectedId}
-              />
-            ))}
-          </div>
-        )}
+        <div className="flex flex-col">
+          {users.map((u) => {
+            const tier = trustTier(u.trust_score);
+            return (
+              <button
+                key={u.user_id}
+                type="button"
+                onClick={() => setSelectedId(u.user_id)}
+                className="flex items-center gap-3 rounded-[var(--radius-r-control)] px-2 py-2 text-left transition-colors hover:bg-[var(--color-surface-2)]"
+              >
+                <Avatar src={u.avatar_url} name={u.username} size={34} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">
+                    {u.username ?? "unknown"}
+                  </div>
+                  <div className="mono text-xs text-[var(--color-ink-soft)]">
+                    {u.total_messages.toLocaleString()} msg
+                  </div>
+                </div>
+                <Badge tone={tier.tone}>{tier.label}</Badge>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <Card
-        className={cn("h-fit", "[--card-spacing:0px]", "rounded-2xl", "p-5")}
-      >
+      <div className="surface p-4">
         {detail ? (
-          <div className="space-y-3">
+          <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
-              <Avatar className="size-10">
-                <AvatarImage src={detail.avatar_url ?? undefined} />
-                <AvatarFallback>
-                  {detail.username?.charAt(0).toUpperCase() ?? "?"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-text-primary">
-                  {detail.username ?? "Unknown user"}
-                </p>
-                <p className="text-[10px] font-mono text-text-secondary/50">
-                  {detail.user_id}
-                </p>
+              <Avatar
+                src={detail.avatar_url}
+                name={detail.username}
+                size={44}
+              />
+              <div>
+                <div className="font-semibold">{detail.username}</div>
+                <div className="text-xs text-[var(--color-ink-soft)]">
+                  {detail.total_messages.toLocaleString()} messages
+                </div>
               </div>
             </div>
-
-            <div className="flex flex-wrap gap-1.5">
-              <Badge variant="outline">Messages: {detail.total_messages}</Badge>
-              <Badge variant="destructive">
-                Flagged: {detail.flagged_count}
-              </Badge>
-              <Badge
-                variant="outline"
-                className="border-green-500/40 text-green-500"
-              >
-                Clean: {detail.clean_count}
-              </Badge>
-              {detail.trust_score != null && (
-                <TrustBadge score={detail.trust_score} />
-              )}
-              {detail.clean_message_streak != null && (
-                <Badge variant="outline">
-                  Streak: {detail.clean_message_streak}
-                </Badge>
-              )}
-              {detail.total_infractions != null && (
-                <Badge variant="destructive">
-                  Infractions: {detail.total_infractions}
-                </Badge>
-              )}
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <Stat label="Trust" value={`${detail.trust_score ?? 0}`} />
+              <Stat
+                label="Clean streak"
+                value={`${detail.clean_message_streak ?? 0}`}
+              />
+              <Stat
+                label="Infractions"
+                value={`${detail.total_infractions ?? 0}`}
+                tone="vermilion"
+              />
+              <Stat
+                label="Flagged"
+                value={`${detail.flagged_count}`}
+                tone="amber"
+              />
             </div>
-
-            {detail.profile_summary && (
-              <p className="text-xs leading-relaxed text-text-secondary">
-                {detail.profile_summary}
-              </p>
-            )}
-
-            {detail.recent_messages.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary/50">
-                  Recent messages
-                </p>
-                {detail.recent_messages.slice(0, 5).map((msg) => (
-                  <div
-                    key={msg.id}
-                    className="rounded-lg border border-border/40 bg-card/40 px-3 py-2"
-                  >
-                    <p className="text-xs leading-relaxed text-text-secondary line-clamp-2">
-                      {renderMessageContent(msg.content, msg.metadata) ||
-                        "(no text content)"}
-                    </p>
-                    <p className="mt-1 text-[10px] font-mono text-text-secondary/40">
-                      {msg.channel_id?.slice(0, 8)} ·{" "}
-                      {new Date(msg.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex h-48 flex-col items-center justify-center text-center">
-            <UserX className="size-8 text-text-secondary/30 mb-2" />
-            <p className="text-xs text-text-secondary/60">
-              Select a user to see their profile, trust score and recent
-              messages.
+            <p className="text-xs text-[var(--color-ink-soft)]">
+              {detail.profile_summary}
             </p>
           </div>
+        ) : (
+          <p className="text-sm text-[var(--color-ink-soft)]">
+            Select a user to inspect.
+          </p>
         )}
-      </Card>
+      </div>
     </div>
   );
 }
 
-function UserRow({
-  user,
-  active,
-  onSelect,
+function Stat({
+  label,
+  value,
+  tone,
 }: {
-  user: DashboardUser;
-  active: boolean;
-  onSelect: (id: string) => void;
+  label: string;
+  value: string;
+  tone?: "amber" | "vermilion";
 }) {
   return (
-    <Card
-      className={active ? "border-primary/40 bg-primary/5" : undefined}
-      onClick={() => onSelect(user.user_id)}
-    >
-      <CardContent className="flex cursor-pointer items-center gap-3 p-3">
-        <Avatar className="size-8 shrink-0">
-          <AvatarImage src={user.avatar_url ?? undefined} />
-          <AvatarFallback className="text-xs">
-            {user.username?.charAt(0).toUpperCase() ?? "?"}
-          </AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-text-primary">
-            {user.username ?? "Unknown user"}
-          </p>
-          <p className="truncate text-[10px] font-mono text-text-secondary/50">
-            {user.user_id}
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-1.5">
-          <Badge variant="outline">{user.total_messages}</Badge>
-          {user.flagged_count > 0 && (
-            <Badge variant="destructive">{user.flagged_count}</Badge>
-          )}
-          {user.trust_score != null && <TrustBadge score={user.trust_score} />}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="surface-2 p-2.5">
+      <div className="text-[11px] uppercase tracking-wide text-[var(--color-ink-soft)]">
+        {label}
+      </div>
+      <div
+        className={`mono text-lg font-semibold ${tone === "amber" ? "text-[var(--color-amber)]" : tone === "vermilion" ? "text-[var(--color-vermilion)]" : "text-[var(--color-ink)]"}`}
+      >
+        {value}
+      </div>
+    </div>
   );
 }

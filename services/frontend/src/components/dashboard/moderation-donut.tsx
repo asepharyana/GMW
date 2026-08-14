@@ -1,102 +1,53 @@
-"use client";
+import { RadialGauge } from "@/components/charts/radial-gauge";
+import type { DashboardStats } from "@/lib/types";
 
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { Card } from "@/components/ui/card";
-import { useMounted } from "@/lib/hooks/use-mounted";
-import { cn } from "@/lib/utils";
-
-interface ModerationDonutProps {
-  data?: { name: string; value: number; color: string }[];
+export interface ModerationDonutProps {
+  stats?: DashboardStats;
 }
 
-const TOOLTIP_STYLE = {
-  background: "oklch(0.11 0.02 245 / 0.95)",
-  border: "1px solid oklch(1 0 0 / 0.08)",
-  borderRadius: 8,
-  fontSize: 12,
-  color: "oklch(0.93 0.01 245)",
-} as const;
-
-export function ModerationDonut({ data = [] }: ModerationDonutProps) {
-  const mounted = useMounted();
-  const total = data.reduce((sum, d) => sum + d.value, 0);
-  const cleanPct =
-    total > 0
-      ? Math.round(
-          ((data.find((d) => d.name === "Clean")?.value ?? 0) / total) * 100,
-        )
-      : 0;
+export function ModerationDonut({ stats }: ModerationDonutProps) {
+  const clean = stats?.total_clean ?? 0;
+  const flagged = stats?.total_flagged ?? 0;
+  const warned = stats?.total_warned ?? 0;
+  const total = clean + flagged + warned || 1;
+  const ratio = clean / total;
 
   return (
-    <Card className={cn("[--card-spacing:0px]", "rounded-2xl", "p-5")}>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-semibold tracking-wide uppercase text-text-secondary">
-          Moderation Breakdown
-        </span>
+    <div className="surface flex flex-col items-center gap-3 p-4">
+      <h3 className="self-start text-sm font-semibold">Moderation health</h3>
+      <RadialGauge
+        value={ratio}
+        size={150}
+        label="Clean"
+        tone={ratio > 0.8 ? "signal" : ratio > 0.6 ? "amber" : "vermilion"}
+      />
+      <div className="flex w-full flex-col gap-1.5 text-xs">
+        <Row label="Clean" value={clean} tone="var(--color-signal)" />
+        <Row label="Warned" value={warned} tone="var(--color-amber)" />
+        <Row label="Flagged" value={flagged} tone="var(--color-vermilion)" />
       </div>
-      <div className="flex items-center gap-4">
-        <div className="relative h-40 w-40 shrink-0">
-          {mounted ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={data}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={52}
-                  outerRadius={72}
-                  paddingAngle={2}
-                  strokeWidth={0}
-                >
-                  {data.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={TOOLTIP_STYLE} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full w-full animate-pulse rounded-full bg-card/40" />
-          )}
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-2xl font-bold text-text-primary">
-              {total.toLocaleString()}
-            </span>
-            <span className="text-[10px] uppercase tracking-wide text-text-secondary/60">
-              messages
-            </span>
-          </div>
-        </div>
+    </div>
+  );
+}
 
-        <div className="min-w-0 flex-1 space-y-1.5">
-          {data.map((d) => (
-            <div key={d.name} className="flex items-center gap-2 text-xs">
-              <span
-                className="size-2.5 shrink-0 rounded-sm"
-                style={{ background: d.color }}
-              />
-              <span className="text-text-secondary">{d.name}</span>
-              <span className="ml-auto font-mono text-text-primary">
-                {d.value.toLocaleString()}
-              </span>
-              <span className="w-10 text-right font-mono text-text-secondary/50">
-                {total > 0 ? Math.round((d.value / total) * 100) : 0}%
-              </span>
-            </div>
-          ))}
-          {cleanPct >= 90 && (
-            <p className="pt-1 text-[10px] text-green-500/80">
-              ✓ Server is {cleanPct}% clean — moderation is holding up well
-            </p>
-          )}
-          {cleanPct < 90 && cleanPct > 0 && (
-            <p className="pt-1 text-[10px] text-amber-500/80">
-              {100 - cleanPct}% of messages were flagged or warned — review
-              activity in the Analysis tab
-            </p>
-          )}
-        </div>
-      </div>
-    </Card>
+function Row({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="flex items-center gap-2 text-[var(--color-ink-soft)]">
+        <span className="size-2 rounded-full" style={{ background: tone }} />
+        {label}
+      </span>
+      <span className="mono text-[var(--color-ink)]">
+        {value.toLocaleString()}
+      </span>
+    </div>
   );
 }

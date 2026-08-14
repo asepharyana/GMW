@@ -1,82 +1,41 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Card } from "@/components/ui/card";
+import { Avatar } from "@/components/primitives/avatar";
 import type { ActiveSpeaker } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-interface SpeakerWaveformProps {
-  speakers: ActiveSpeaker[];
-}
-
-export function SpeakerWaveform({ speakers }: SpeakerWaveformProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animRef = useRef<number>(0);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || speakers.length === 0) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const barCount = 40;
-      const barWidth = canvas.width / barCount - 1;
-
-      speakers.forEach((speaker, si) => {
-        const yBase = si * 30 + 10;
-        for (let i = 0; i < barCount; i++) {
-          const height = speaker.speaking
-            ? Math.random() * 20 + 4
-            : Math.random() * 4 + 2;
-          const x = i * (barWidth + 1);
-          const hue = 185 + si * 30;
-          ctx.fillStyle = `oklch(0.62 ${0.12 + si * 0.02} ${hue} / ${speaker.speaking ? 0.9 : 0.3})`;
-          ctx.fillRect(x, yBase + 20 - height, barWidth, height);
-        }
-      });
-
-      animRef.current = requestAnimationFrame(draw);
-    };
-
-    draw();
-    return () => cancelAnimationFrame(animRef.current);
-  }, [speakers]);
-
+export function SpeakerWaveform({ speakers }: { speakers: ActiveSpeaker[] }) {
   if (speakers.length === 0) {
     return (
-      <Card className={cn("[--card-spacing:0px]", "p-3")}>
-        <span className="text-xs text-text-secondary/40">
-          No speakers detected
-        </span>
-      </Card>
+      <div className="flex items-center gap-2 rounded-[var(--radius-r-control)] bg-[var(--color-surface-2)] px-3 py-1.5 text-xs text-[var(--color-ink-soft)]">
+        No active speakers
+      </div>
     );
   }
-
   return (
-    <Card className={cn("[--card-spacing:0px]", "p-3")}>
-      <div className="space-y-1">
-        {speakers.map((s) => (
-          <div key={s.userId} className="flex items-center gap-2 text-xs">
-            <span
-              className={
-                s.speaking
-                  ? "text-primary font-medium"
-                  : "text-text-secondary/60"
-              }
-            >
-              {s.username}
-            </span>
+    <div className="flex items-end gap-1.5 rounded-[var(--radius-r-control)] bg-[var(--color-surface-2)] px-3 py-2">
+      {speakers.map((s) => (
+        <div key={s.userId} className="flex flex-col items-center gap-1">
+          <Avatar src={s.avatar} name={s.username} size={28} />
+          <div className="flex items-end gap-0.5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "w-0.5 rounded-t-[2px] bg-[var(--color-signal)] transition-[height]",
+                  s.speaking ? "h-3 animate-eq" : "h-1 opacity-30",
+                )}
+                style={
+                  s.speaking ? { animationDelay: `${i * 0.08}s` } : undefined
+                }
+              />
+            ))}
           </div>
-        ))}
-      </div>
-      <canvas
-        ref={canvasRef}
-        width={400}
-        height={speakers.length * 30}
-        className="w-full h-auto mt-2 rounded"
-      />
-    </Card>
+          <span className="mono text-[9px] text-[var(--color-ink-soft)]">
+            {s.username.split(/[\s.#]/)[0]}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }

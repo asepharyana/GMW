@@ -1,24 +1,20 @@
 "use client";
 
-import { Flag, Image, Loader2, Search } from "lucide-react";
+import { Flag, Image, Loader2, Search, Send, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { SubNav } from "@/components/layout/sub-nav";
 import { Lightbox } from "@/components/messages/lightbox";
-import { extractFirstImage } from "@/components/messages/message-card";
 import { MessageDetailView } from "@/components/messages/message-detail-view";
 import { MessageList } from "@/components/messages/message-list";
 import { SearchOverlay } from "@/components/messages/search-overlay";
+import { StaggerGroup, StaggerItem } from "@/components/motion/stagger";
+import { Avatar } from "@/components/primitives/avatar";
+import { Badge } from "@/components/primitives/badge";
+import { Dialog } from "@/components/primitives/dialog";
+import { Input } from "@/components/primitives/input";
+import { Select } from "@/components/primitives/select";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/shared";
 import { GuildSelector } from "@/components/shared/guild-selector";
-import { Card } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   useImages,
   useLoadMore,
@@ -44,11 +40,6 @@ interface MessagesViewProps {
   initialMessagePage?: { data: MessageRecord[]; nextCursor: string | null };
 }
 
-/**
- * Messages view — hydrated on the client. Initial guild/channel/detail/tab
- * come from the URL (server-read on first SSR), and the first message page is
- * seeded from the server when a guild is already selected.
- */
 export default function MessagesView({
   initialGuild = "",
   initialChannel = "",
@@ -87,16 +78,11 @@ export default function MessagesView({
   const loadMoreMut = useLoadMore();
   const { data: images } = useImages(guildId);
   const { data: reviews } = useReview(selectedChannel || undefined);
-
-  const {
-    message: detailMessage,
-    attachments: detailAttachments,
-    loading: detailLoading,
-  } = useMessageDetail(detailId);
+  const { message: detailMessage, loading: detailLoading } =
+    useMessageDetail(detailId);
 
   useMessagesWsSync(ws, guildId);
 
-  // Sync state to URL
   useEffect(() => {
     const params = new URLSearchParams();
     if (guildId) params.set("guild", guildId);
@@ -106,16 +92,16 @@ export default function MessagesView({
     router.replace(`/messages?${params.toString()}`, { scroll: false });
   }, [guildId, selectedChannel, detailId, tab, router]);
 
-  // Global Cmd+K search trigger
+  // global Cmd+K
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setSearchOpen(true);
       }
     };
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, []);
 
   const handleLoadMore = useCallback(() => {
@@ -133,153 +119,151 @@ export default function MessagesView({
     setDetailId(null);
   }, []);
 
-  const subNavTabs = [
+  const tabs: { id: MessagesTab; label: string; icon: React.ReactNode }[] = [
     { id: "all", label: "All", icon: null },
-    { id: "images", label: "Images", icon: <Image className="size-3" /> },
-    { id: "review", label: "Review", icon: <Flag className="size-3" /> },
+    { id: "images", label: "Images", icon: <Image className="size-3.5" /> },
+    { id: "review", label: "Review", icon: <Flag className="size-3.5" /> },
   ];
 
   const currentMessages = messages ?? [];
 
   return (
-    <div className="animate-fade-in-up space-y-4">
-      {/* ── Controls bar ── */}
+    <div className="flex flex-col gap-4">
+      {/* Controls */}
       <div className="flex items-center gap-3">
         <GuildSelector value={guildId} onChange={handleGuildChange} />
         {channels.length > 0 && (
           <Select
             value={selectedChannel}
-            onValueChange={(v) => setSelectedChannel(v ?? "")}
+            onChange={(e) => setSelectedChannel(e.target.value || "")}
+            className="w-48"
           >
-            <SelectTrigger className="h-9 w-48">
-              <SelectValue placeholder="All channels" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All channels</SelectItem>
-              {channels.map((ch) => (
-                <SelectItem key={ch.id} value={ch.id}>
-                  # {ch.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
+            <option value="">All channels</option>
+            {channels.map((ch) => (
+              <option key={ch.id} value={ch.id}>
+                # {ch.name}
+              </option>
+            ))}
           </Select>
         )}
         <button
           type="button"
           onClick={() => setSearchOpen(true)}
-          className="ml-auto flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs text-text-secondary/60 hover:text-text-primary glass hover:glass-elevated transition-all"
+          className="ms-auto flex items-center gap-1.5 rounded-[var(--radius-r-control)] px-3 py-1.5 text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
         >
           <Search className="size-3.5" />
-          Search
-          <span className="hidden font-mono text-[10px] text-text-secondary/30 sm:inline">
-            &#8984;K
-          </span>
+          Search{" "}
+          <span className="hidden font-mono text-[10px] sm:inline">(⌘K)</span>
         </button>
       </div>
 
-      {/* ── Sub navigation ── */}
-      <SubNav
-        tabs={subNavTabs}
-        activeTab={tab}
-        onTabChange={(t) => setTab(t as MessagesTab)}
-      />
-
-      {/* ── Split pane ── */}
-      {error ? (
-        <ErrorState message={error.message} onRetry={refetch} />
-      ) : !messages ? (
-        <LoadingSkeleton count={6} height="h-20" />
-      ) : (
-        <div className="flex gap-4">
-          {/* Left pane */}
-          <div
-            className={cn("space-y-2", detailId ? "w-1/2 lg:w-2/5" : "w-full")}
+      {/* Tabs */}
+      <div className="flex gap-1 rounded-[var(--radius-r)] bg-[var(--color-surface-2)] p-1">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-[var(--radius-r-control)] px-3 py-1.5 text-xs font-medium transition-colors",
+              tab === t.id
+                ? "bg-[var(--color-signal)] text-[var(--color-signal-ink)]"
+                : "text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]",
+            )}
           >
-            {tab === "all" && (
-              <MessageList
-                messages={currentMessages}
-                selectedId={detailId}
-                onSelect={setDetailId}
-                hasMore={cursorData?.hasMore}
-                onLoadMore={handleLoadMore}
-                isLoadingMore={loadMoreMut.isPending}
-              />
-            )}
-            {tab === "images" && (
-              <ImageGrid items={images ?? []} onSelect={setDetailId} />
-            )}
-            {tab === "review" && (
-              <ReviewList items={reviews ?? []} onSelect={setDetailId} />
-            )}
-          </div>
+            {t.icon}
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-          {/* Right pane — message detail */}
-          {detailId && (
-            <div className="sticky top-16 hidden w-1/2 self-start md:block lg:w-3/5">
+      <div className="flex gap-4">
+        {/* Left — timeline spine + entries */}
+        <div
+          className={cn("surface p-3", detailId ? "w-1/2 lg:w-2/5" : "w-full")}
+        >
+          {error ? (
+            <ErrorState message={error.message} onRetry={refetch} />
+          ) : !messages ? (
+            <LoadingSkeleton count={6} />
+          ) : tab === "all" ? (
+            <MessageList
+              messages={currentMessages}
+              selectedId={detailId}
+              onSelect={setDetailId}
+              hasMore={cursorData?.hasMore}
+              onLoadMore={handleLoadMore}
+              isLoadingMore={loadMoreMut.isPending}
+            />
+          ) : tab === "images" ? (
+            <ImageGrid items={images ?? []} onSelect={setDetailId} />
+          ) : (
+            <ReviewList items={reviews ?? []} onSelect={setDetailId} />
+          )}
+        </div>
+
+        {/* Right — detail */}
+        {detailId && (
+          <div className="sticky top-16 hidden w-1/2 self-start md:block lg:w-3/5">
+            <div className="surface h-full p-4">
               {detailLoading ? (
-                <Card
-                  className={cn(
-                    "flex items-center justify-center py-12",
-                    "[--card-spacing:0px]",
-                  )}
-                >
-                  <Loader2 className="size-5 animate-spin text-text-secondary/60" />
-                </Card>
+                <div className="flex h-40 items-center justify-center">
+                  <Loader2 className="size-5 animate-spin text-[var(--color-ink-soft)]" />
+                </div>
               ) : detailMessage ? (
-                <div className="space-y-3">
+                <div className="flex flex-col gap-3">
                   <button
                     type="button"
                     onClick={() => setDetailId(null)}
-                    className="text-xs text-text-secondary/60 hover:text-text-primary transition-colors"
+                    className="text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
                   >
-                    &larr; Back to list
+                    ← Back to list
                   </button>
-                  <MessageDetailView
-                    message={detailMessage}
-                    attachments={detailAttachments}
-                    onImageClick={(index) => {
-                      const imgs = (detailAttachments ?? [])
-                        .filter((a) => a.type?.startsWith("image/"))
-                        .map((a) => ({
-                          src: a.uploaded_url || a.discord_url,
-                          alt: a.filename,
-                        }));
-                      if (imgs.length > 0) {
-                        setLightbox({ images: imgs, index });
-                      }
-                    }}
-                  />
+                  <MessageDetailView message={detailMessage} />
+                  {detailMessage && (
+                    <Lightbox
+                      open={!!lightbox}
+                      onClose={() => setLightbox(null)}
+                      images={extractImages(detailMessage.metadata)}
+                    />
+                  )}
                 </div>
               ) : null}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
-      {/* ── Search overlay ── */}
       <SearchOverlay
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
-        onSelect={(id) => {
-          setDetailId(id);
+        results={(currentMessages ?? []).map((m) => ({
+          id: m.id,
+          content: m.edited_content ?? m.content,
+          username: m.username ?? "unknown",
+          channel: m.channel_id,
+          time: m.created_at
+            ? new Date(m.created_at * 1000).toLocaleTimeString()
+            : "",
+        }))}
+        onSelect={(msg) => {
+          const found = currentMessages.find((m) => m.id === msg.id);
+          if (found) setDetailId(found.id);
           setTab("all");
         }}
       />
 
-      {/* ── Lightbox ── */}
       {lightbox && (
         <Lightbox
+          open={!!lightbox}
+          onClose={() => setLightbox(null)}
           images={lightbox.images}
           initialIndex={lightbox.index}
-          open
-          onClose={() => setLightbox(null)}
         />
       )}
     </div>
   );
 }
-
-// ── Inline ImageGrid (glass-styled) ────────────────
 
 function ImageGrid({
   items,
@@ -288,45 +272,41 @@ function ImageGrid({
   items: MessageRecord[];
   onSelect: (id: string) => void;
 }) {
-  return (
-    <div className="grid grid-cols-3 gap-2">
+  return !items.length ? (
+    <EmptyState
+      icon={Image}
+      title="No images"
+      description="Messages with image attachments will appear here."
+    />
+  ) : (
+    <div className="grid grid-cols-3 gap-2.5">
       {items.map((item) => {
-        const imgUrl = extractFirstImage(item.metadata);
+        const url = extractFirstImage(item.metadata);
         return (
           <button
             key={item.id}
             type="button"
             onClick={() => onSelect(item.id)}
-            className="glass overflow-hidden rounded-lg transition-transform hover:scale-[1.02]"
+            className="overflow-hidden rounded-[var(--radius-r)] border border-[var(--color-hairline)]"
           >
-            {imgUrl ? (
+            {url ? (
               <img
-                src={imgUrl}
+                src={url}
                 alt=""
                 className="h-24 w-full object-cover"
                 loading="lazy"
               />
             ) : (
-              <div className="flex h-24 w-full items-center justify-center text-xs text-text-secondary/40">
+              <div className="flex h-24 w-full items-center justify-center text-xs text-[var(--color-ink-soft)]/40">
                 No image
               </div>
             )}
           </button>
         );
       })}
-      {items.length === 0 && (
-        <EmptyState
-          icon={Image}
-          title="No images"
-          description="Messages with image attachments will show up here."
-          className="col-span-3"
-        />
-      )}
     </div>
   );
 }
-
-// ── Inline ReviewList (glass-styled) ────────────────
 
 function ReviewList({
   items,
@@ -335,36 +315,63 @@ function ReviewList({
   items: MessageRecord[];
   onSelect: (id: string) => void;
 }) {
-  return (
-    <div className="space-y-2">
+  return !items.length ? (
+    <EmptyState
+      icon={Flag}
+      title="No flagged messages"
+      description="Review-flagged messages will appear here."
+    />
+  ) : (
+    <StaggerGroup className="space-y-2">
       {items.map((item) => (
-        <Card
-          key={item.id}
-          className={cn(
-            "cursor-pointer p-3",
-            "border border-red-500/30 ring-red-500/20",
-            "[--card-spacing:0px]",
-            "rounded-2xl",
-          )}
-          onClick={() => onSelect(item.id)}
-        >
-          <div className="flex items-start gap-2">
-            <Flag className="mt-0.5 size-3.5 shrink-0 text-accent-purple" />
-            <div className="min-w-0 flex-1">
-              <p className="line-clamp-2 text-xs text-text-secondary">
-                {renderMessageContent(item.content, item.metadata) || item.id}
-              </p>
-            </div>
-          </div>
-        </Card>
+        <StaggerItem key={item.id} className="surface p-3">
+          <button
+            type="button"
+            onClick={() => onSelect(item.id)}
+            className="flex items-start gap-2 w-full text-left"
+          >
+            <Flag className="mt-0.5 size-3.5 shrink-0 text-[var(--color-vermilion)]" />
+            <p className="line-clamp-2 text-xs text-[var(--color-ink-soft)]">
+              {renderMessageContent(item.content, item.metadata) || item.id}
+            </p>
+          </button>
+        </StaggerItem>
       ))}
-      {items.length === 0 && (
-        <EmptyState
-          icon={Flag}
-          title="No flagged messages"
-          description="Messages flagged by AI moderation will appear here for review."
-        />
-      )}
-    </div>
+    </StaggerGroup>
   );
+}
+
+function extractFirstImage(metadata?: string | null): string | null {
+  try {
+    if (!metadata) return null;
+    const m = JSON.parse(metadata);
+    const atts = m?.attachments ?? [];
+    const img = atts.find(
+      (a: {
+        contentType?: string | null;
+        url?: string;
+        discord_url?: string;
+      }) => /image/i.test(a.contentType ?? ""),
+    );
+    return img?.url ?? img?.discord_url ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function extractImages(metadata?: string | null) {
+  try {
+    if (!metadata) return [];
+    const m = JSON.parse(metadata);
+    return (m?.attachments ?? [])
+      .filter((a: { contentType?: string | null }) =>
+        /image/i.test(a.contentType ?? ""),
+      )
+      .map((a: { url?: string; discord_url?: string; name?: string }) => ({
+        src: a.url ?? a.discord_url ?? "",
+        alt: a.name,
+      }));
+  } catch {
+    return [];
+  }
 }

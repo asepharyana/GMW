@@ -1,23 +1,13 @@
 /**
- * Voice page — Server Component.
- *
- * Fetches the authoritative voice connection status + guild list on the server
- * so the first paint reflects the shared gateway voice state (which channel is
- * joined, across ALL users), independent of any single browser's WS history.
+ * Voice — Server Component.
+ * Seeds authoritative voice status (shared active speakers snapshot) on the
+ * server, then hands off to the client View for the 3D scene + WS live updates.
  */
-import { getGuilds, getVoiceStatus } from "@/lib/api/server";
+import { getVoiceStatus } from "@/lib/api/server";
+import type { VoiceStatus } from "@/lib/types";
 import VoiceView from "./view";
 
 export default async function VoicePage() {
-  const [status, guilds] = await Promise.allSettled([
-    getVoiceStatus(),
-    getGuilds(),
-  ]);
-
-  return (
-    <VoiceView
-      initialStatus={status.status === "fulfilled" ? status.value : undefined}
-      initialGuilds={guilds.status === "fulfilled" ? guilds.value : undefined}
-    />
-  );
+  const status = await getVoiceStatus().catch(() => undefined);
+  return <VoiceView initialStatus={status} />;
 }

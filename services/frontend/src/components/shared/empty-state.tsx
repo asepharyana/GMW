@@ -1,8 +1,5 @@
-"use client";
-
 import type { LucideIcon } from "lucide-react";
 import { Inbox } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface EmptyStateProps {
@@ -19,16 +16,15 @@ export function EmptyState({
   className,
 }: EmptyStateProps) {
   return (
-    <Card
+    <div
       className={cn(
-        "flex flex-col items-center gap-2 py-12",
+        "surface flex flex-col items-center gap-2 py-12 text-center",
         className,
-        "[--card-spacing:0px]",
       )}
     >
-      <Icon className="size-8 text-text-secondary/20" />
-      <p className="text-sm text-text-secondary/60">{title}</p>
-      <p className="text-xs text-text-secondary/40">{description}</p>
-    </Card>
+      <Icon className="size-8 text-[var(--color-ink-soft)]" />
+      <p className="text-sm font-medium text-[var(--color-ink)]">{title}</p>
+      <p className="text-xs text-[var(--color-ink-soft)]">{description}</p>
+    </div>
   );
 }
