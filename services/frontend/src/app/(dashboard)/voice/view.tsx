@@ -16,6 +16,7 @@ import { MicControl } from "@/components/voice/mic-control";
 import { ListenControl } from "@/components/voice/listen-control";
 import {
   useGuilds,
+  useMicTransmit,
   useSpeakers,
   useVoiceChannels,
   useVoiceConnect,
@@ -41,6 +42,9 @@ export default function VoiceView({ initialStatus }: { initialStatus?: VoiceStat
   const connect = useVoiceConnect();
   const disconnect = useVoiceDisconnect();
   const listen = useVoiceListen(ws);
+  const mic = useMicTransmit(ws);
+  const [micActive, setMicActive] = useState(false);
+  const [micVolume, setMicVolume] = useState(75);
 
   useEffect(() => {
     const unsub = subscribe(ws);
@@ -49,6 +53,33 @@ export default function VoiceView({ initialStatus }: { initialStatus?: VoiceStat
 
   const active = speakers.filter((s) => s.speaking);
   const connected = status?.connected ?? false;
+
+  const handleMicToggle = async (on: boolean) => {
+    if (on) {
+      try {
+        await mic.mutateAsync(true);
+        setMicActive(true);
+      } catch {
+        setMicActive(false);
+      }
+    } else {
+      setMicActive(false);
+      try {
+        await mic.mutateAsync(false);
+      } catch {
+        // Stop already tore down — ignore remote error
+      }
+    }
+  };
+
+  const handleMicVolume = (v: number) => {
+    setMicVolume(v);
+    mic.setVolume(v);
+  };
+
+  const handleListenVolume = (v: number) => {
+    listen.setVolume(v);
+  };
 
   const handleGuildChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const g = e.target.value;
@@ -165,8 +196,8 @@ export default function VoiceView({ initialStatus }: { initialStatus?: VoiceStat
       <StaggerGroup className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
         <StaggerItem>
           <MicControl
-            micOn={listen.active}
-            onToggle={(on) => listen.toggle(on)}
+            micOn={micActive}
+            onToggle={handleMicToggle}
             levels={listen.levels}
           />
         </StaggerItem>
@@ -175,7 +206,7 @@ export default function VoiceView({ initialStatus }: { initialStatus?: VoiceStat
             listening={listen.active}
             onToggle={(on) => listen.toggle(on)}
             volume={75}
-            onVolume={listen.setVolume}
+            onVolume={handleListenVolume}
           />
         </StaggerItem>
       </StaggerGroup>
