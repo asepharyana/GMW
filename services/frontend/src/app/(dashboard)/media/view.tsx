@@ -1,30 +1,23 @@
 "use client";
 
-import {
-  Pause,
-  Play,
-  Repeat2,
-  SkipForward,
-  Square,
-  Volume2,
-} from "lucide-react";
+import { Pause, Play, Repeat2, SkipForward, Square, Volume2 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect } from "react";
+import { useState } from "react";
 import { Waveform } from "@/components/charts/waveform";
 import { StaggerGroup, StaggerItem } from "@/components/motion/stagger";
-import { Avatar } from "@/components/primitives/avatar";
 import { Badge } from "@/components/primitives/badge";
 import { Button } from "@/components/primitives/button";
+import { Input } from "@/components/primitives/input";
 import { Progress } from "@/components/primitives/progress";
 import {
   useMediaLoop,
+  useMediaQueue,
   useMediaSkip,
   useMediaState,
   useMediaStop,
   useMediaWsSync,
 } from "@/hooks";
 import type { MediaState } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
 export default function MediaView({
@@ -33,7 +26,8 @@ export default function MediaView({
   initialStatus?: MediaState;
 }) {
   const ws = useWebSocket();
-  const { data: state, mutate } = useMediaState(initialStatus);
+  const { data: state } = useMediaState(initialStatus);
+  const queueMut = useMediaQueue();
   const skip = useMediaSkip();
   const stop = useMediaStop();
   const loopMut = useMediaLoop();
@@ -45,23 +39,55 @@ export default function MediaView({
   const loop = state?.loop ?? false;
 
   const duration = current?.durationMs ?? 0;
-  const [seed] = useWaveformSeed();
+  const [queueUrl, setQueueUrl] = useState("");
+  const [screenMode, setScreenMode] = useState(false);
+
+  const handleQueue = () => {
+    if (!queueUrl.trim()) return;
+    queueMut.mutate({ url: queueUrl.trim(), mode: screenMode ? "screen" : "music" });
+    setQueueUrl("");
+  };
 
   return (
     <div className="flex flex-col gap-5">
+      {/* URL queue input */}
+      <div className="flex gap-2">
+        <Input
+          placeholder="Queue a URL (YouTube, audio file…)"
+          value={queueUrl}
+          onChange={(e) => setQueueUrl(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleQueue()}
+          className="flex-1 h-9"
+        />
+        <Button
+          size="sm"
+          variant={screenMode ? "primary" : "ghost"}
+          onClick={() => setScreenMode((v) => !v)}
+          title="Queue as Discord GoLive screenshare instead of audio playback"
+        >
+          Screen
+        </Button>
+        <Button
+          size="sm"
+          onClick={handleQueue}
+          disabled={!queueUrl.trim() || queueMut.isPending}
+        >
+          <Play className="size-4 mr-1.5" />
+          Queue
+        </Button>
+      </div>
+
       {/* Turntable hero */}
       <div className="flex items-center gap-6 surface scan-tick flex-wrap p-5">
         {current && (
           <motion.div
-            className={cn(
-              "relative mx-auto size-[160px] rounded-full",
-              playing && "animate-spin-disc",
-              !playing && "animate-spin-disc paused",
-            )}
+            className={`relative mx-auto size-[160px] rounded-full ${
+              playing ? "animate-spin-disc" : "animate-spin-disc paused"
+            }`}
           >
             <img
               src={current.thumbnailUrl ?? "/favicon.ico"}
-              alt={current.title}
+              alt={current.title ?? "cover"}
               className="size-full rounded-full object-cover ring-4 ring-[var(--color-signal)]/20"
               style={{ animationPlayState: playing ? "running" : "paused" }}
             />
@@ -97,11 +123,7 @@ export default function MediaView({
             variant="primary"
             onClick={() => loopMut.mutate(!loop)}
           >
-            {playing ? (
-              <Pause className="size-5" />
-            ) : (
-              <Play className="size-5" />
-            )}
+            {playing ? <Pause className="size-5" /> : <Play className="size-5" />}
           </Button>
         </StaggerItem>
         <StaggerItem>
@@ -131,9 +153,9 @@ export default function MediaView({
             <Badge tone="neutral">{loop ? "loop" : "queue"}</Badge>
           </div>
           <div className="flex flex-col gap-1">
-            {queue.map((item, i) => (
+            {queue.map((item) => (
               <motion.div
-                key={item.id ?? i}
+                key={item.id ?? item.source}
                 layout
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -141,7 +163,7 @@ export default function MediaView({
                 className="flex items-center gap-2.5 rounded-[var(--radius-r-control)] px-2 py-1.5 text-sm hover:bg-[var(--color-surface-2)]"
               >
                 <Waveform
-                  seed={item.id ?? String(i)}
+                  seed={item.id ?? item.source}
                   bars={12}
                   height={20}
                   className="w-16"
@@ -160,13 +182,4 @@ function formatMs(ms: number): string {
   const m = Math.floor(ms / 60000);
   const s = Math.floor((ms % 60000) / 1000);
   return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function useWaveformSeed() {
-  const [seed] = useStateValue();
-  return [seed];
-}
-function useStateValue(): [string] {
-  // lightweight deterministic seed so waveform shape is stable per session
-  return ["media-waveform"];
 }

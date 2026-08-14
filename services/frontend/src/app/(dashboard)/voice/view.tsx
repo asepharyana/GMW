@@ -1,52 +1,42 @@
 "use client";
 
-import {
-  Activity,
-  Headphones,
-  Mic,
-  MicOff,
-  Pause,
-  Play,
-  Settings,
-  Wifi,
-} from "lucide-react";
+import { Headphones, Loader2, Radio, RadioOff } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { SessionRibbon } from "@/components/charts/session-ribbon";
-import { StaggerGroup, StaggerItem } from "@/components/motion/stagger";
-import { Badge } from "@/components/primitives/badge";
-import { Button } from "@/components/primitives/button";
 import { SignalField } from "@/components/three";
-import { StaticFallback } from "@/components/three/static-fallback";
 import { WebGLGuard } from "@/components/three/webgl-guard";
-import { ActiveSpeakersPanel } from "@/components/voice/active-speakers-panel";
-import { ListenControl } from "@/components/voice/listen-control";
-import { MicControl } from "@/components/voice/mic-control";
+import { StaticFallback } from "@/components/three/static-fallback";
+import { StaggerGroup, StaggerItem } from "@/components/motion/stagger";
+import { Button } from "@/components/primitives/button";
+import { Badge } from "@/components/primitives/badge";
+import { Select } from "@/components/primitives/select";
 import { SpeakerWaveform } from "@/components/voice/speaker-waveform";
+import { SessionRibbon } from "@/components/charts/session-ribbon";
+import { ActiveSpeakersPanel } from "@/components/voice/active-speakers-panel";
+import { MicControl } from "@/components/voice/mic-control";
+import { ListenControl } from "@/components/voice/listen-control";
 import {
+  useGuilds,
   useSpeakers,
+  useVoiceChannels,
   useVoiceConnect,
   useVoiceDisconnect,
   useVoiceListen,
 } from "@/hooks";
-import type { ActiveSpeaker, VoiceStatus } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import type { VoiceStatus } from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
 
-type VoiceTab = "stage" | "activity";
-
-export default function VoiceView({
-  initialStatus,
-}: {
-  initialStatus?: VoiceStatus;
-}) {
+export default function VoiceView({ initialStatus }: { initialStatus?: VoiceStatus }) {
   const ws = useWebSocket();
-  const [tab, setTab] = useState<VoiceTab>("stage");
+  const [selectedGuild, setSelectedGuild] = useState("");
+  const [selectedChannel, setSelectedChannel] = useState("");
 
   const initialSpeakers = useMemo(
     () => initialStatus?.activeSpeakers ?? [],
     [initialStatus],
   );
   const { speakers, subscribe } = useSpeakers(initialSpeakers);
+  const { data: guilds = [] } = useGuilds();
+  const { data: voiceChannels = [] } = useVoiceChannels(selectedGuild);
   const connect = useVoiceConnect();
   const disconnect = useVoiceDisconnect();
   const listen = useVoiceListen(ws);
@@ -57,45 +47,101 @@ export default function VoiceView({
   }, [subscribe, ws]);
 
   const active = speakers.filter((s) => s.speaking);
+  const connected = initialStatus?.connected ?? false;
+
+  const handleGuildChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const g = e.target.value;
+    setSelectedGuild(g);
+    setSelectedChannel("");
+  };
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Connection bar */}
-      <div className="flex items-center gap-3">
-        <Badge tone={initialStatus?.connected ? "signal" : "neutral"} dot>
-          {initialStatus?.connected ? "Connected" : "Disconnected"}
-        </Badge>
-        {initialStatus?.activeChannelName && (
-          <span className="text-sm text-[var(--color-ink-soft)]">
-            #{initialStatus.activeChannelName}
-          </span>
-        )}
-        {initialStatus?.connected ? (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => disconnect.mutate()}
-          >
-            Disconnect
-          </Button>
+      {/* Connection bar with guild + voice channel pickers */}
+      <div className="surface flex flex-col gap-3 p-4">
+        <div className="flex items-center gap-3">
+          <Badge tone={connected ? "signal" : "neutral"} dot>
+            {connected ? "Connected" : "Disconnected"}
+          </Badge>
+          {connected && initialStatus?.activeChannelName && (
+            <span className="hidden items-center gap-1.5 text-xs text-[var(--color-ink-soft)] sm:flex">
+              <Headphones className="size-3.5" />
+              {initialStatus.activeChannelName}
+            </span>
+          )}
+        </div>
+
+        {!connected ? (
+          <div className="flex flex-wrap gap-2">
+            <Select
+              value={selectedGuild}
+              onChange={handleGuildChange}
+              className="flex-1 min-w-[140px] h-9"
+            >
+              <option value="" disabled>
+                Select guild…
+              </option>
+              {guilds.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </Select>
+
+            <Select
+              value={selectedChannel}
+              onChange={(e) => setSelectedChannel(e.target.value)}
+              disabled={!selectedGuild}
+              className="flex-1 min-w-[140px] h-9"
+            >
+              <option value="" disabled>
+                Select channel…
+              </option>
+              {(voiceChannels ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() =>
+                void connect.mutate({
+                  guildId: selectedGuild,
+                  channelId: selectedChannel,
+                })
+              }
+              disabled={connect.isPending || !selectedGuild || !selectedChannel}
+            >
+              {connect.isPending ? (
+                <Loader2 className="size-3.5 animate-spin mr-1.5" />
+              ) : (
+                <Radio className="size-3.5 mr-1.5" />
+              )}
+              Connect
+            </Button>
+          </div>
         ) : (
           <Button
             size="sm"
-            variant="primary"
-            onClick={() =>
-              connect.mutate({
-                guildId: initialStatus?.activeGuildId ?? "",
-                channelId: initialStatus?.activeChannelId ?? "",
-              })
-            }
+            variant="danger"
+            onClick={() => void disconnect.mutate(undefined)}
+            disabled={disconnect.isPending}
           >
-            Connect
+            {disconnect.isPending ? (
+              <Loader2 className="size-3.5 animate-spin mr-1.5" />
+            ) : (
+              <RadioOff className="size-3.5 mr-1.5" />
+            )}
+            Disconnect
           </Button>
         )}
       </div>
 
       {/* Stage hero */}
-      <div className="surface relative flex h-[280px] items-end justify-center overflow-hidden rounded-[var(--radius-r)] p-5">
+      <div className="relative surface h-[280px] items-end justify-center overflow-hidden rounded-[var(--radius-r)] p-5">
         <WebGLGuard
           fallback={
             <StaticFallback
@@ -133,44 +179,22 @@ export default function VoiceView({
         </StaggerItem>
       </StaggerGroup>
 
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-[var(--radius-r)] bg-[var(--color-surface-2)] p-1">
-        {(["stage", "activity"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={cn(
-              "flex items-center gap-1.5 rounded-[var(--radius-r-control)] px-3 py-1.5 text-xs font-medium transition-colors",
-              tab === t
-                ? "bg-[var(--color-signal)] text-[var(--color-signal-ink)]"
-                : "text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]",
-            )}
-          >
-            {t === "stage" ? (
-              <Activity className="size-3.5" />
-            ) : (
-              <Headphones className="size-3.5" />
-            )}
-            {t === "stage" ? "Stage" : "Activity"}
-          </button>
-        ))}
+      {/* Activity timeline */}
+      <div className="surface p-4">
+        <h3 className="mb-3 text-sm font-semibold">
+          Live session timeline
+        </h3>
+        <SessionRibbon
+          segments={speakers.map((s) => ({
+            id: s.userId,
+            label: s.username,
+            value: s.speaking ? 3 : 1,
+            tone: s.speaking ? "signal" : "neutral",
+          }))}
+        />
       </div>
 
-      {tab === "stage" && <ActiveSpeakersPanel speakers={speakers} />}
-      {tab === "activity" && (
-        <div className="surface p-4">
-          <h3 className="mb-3 text-sm font-semibold">Live session timeline</h3>
-          <SessionRibbon
-            segments={speakers.map((s) => ({
-              id: s.userId,
-              label: s.username,
-              value: s.speaking ? 3 : 1,
-              tone: s.speaking ? "signal" : "neutral",
-            }))}
-          />
-        </div>
-      )}
+      <ActiveSpeakersPanel speakers={speakers} />
     </div>
   );
 }
