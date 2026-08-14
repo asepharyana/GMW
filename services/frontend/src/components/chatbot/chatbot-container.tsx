@@ -47,50 +47,49 @@ export function ChatbotContainer() {
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {/* Main chatbot bubble — minimized FAB opens the full chat directly */}
       <div
-        className={`glass-intense rounded-2xl overflow-hidden transition-all duration-200 ${
-          minimized ? "w-14 h-14 cursor-pointer" : "w-[320px] h-[460px]"
+        className={`surface-2 overflow-hidden shadow-2xl transition-all duration-200 ${
+          minimized ? "h-14 w-14 cursor-pointer" : "h-[460px] w-[320px]"
         }`}
       >
         {minimized ? (
           <button
             type="button"
             onClick={() => setMinimized(false)}
-            className="w-full h-full flex items-center justify-center"
+            className="flex size-full items-center justify-center"
             onMouseDown={handleMouseDown}
             aria-label="Buka chatbot"
             title="Buka chatbot"
           >
-            <Bot className="size-6 text-primary" />
+            <Bot className="size-6 text-[var(--color-signal)]" />
           </button>
         ) : (
-          <div className="flex flex-col h-full">
+          <div className="flex h-full flex-col">
             {/* Drag handle + controls */}
             {/* biome-ignore lint/a11y/noStaticElementInteractions: drag handle — mouse-only gesture, keyboard users use the buttons in this header */}
             <div
-              className="flex items-center justify-between px-3 py-2 border-b border-glass-border cursor-grab active:cursor-grabbing shrink-0"
+              className="flex shrink-0 cursor-grab items-center justify-between border-b border-[var(--color-hairline)] px-3 py-2 active:cursor-grabbing"
               onMouseDown={handleMouseDown}
             >
-              <span className="flex items-center gap-1.5 text-[10px] font-semibold text-text-secondary tracking-wide uppercase">
-                <Bot className="size-3.5 text-primary" />
+              <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">
+                <Bot className="size-3.5 text-[var(--color-signal)]" />
                 Chatbot
               </span>
               <div className="flex items-center gap-0.5">
                 <button
                   type="button"
                   onClick={() => setMinimized(true)}
-                  className="size-6 flex items-center justify-center rounded hover:bg-glass-bg transition-colors"
+                  className="flex size-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-surface-2)]"
                   aria-label="Kecilkan chatbot"
                   title="Kecilkan chatbot"
                 >
-                  <Minimize2 className="size-3.5 text-text-secondary/60 hover:text-text-primary" />
+                  <Minimize2 className="size-3.5 text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]" />
                 </button>
               </div>
             </div>
 
             {/* Chat panel — always open when bubble is expanded */}
-            <div className="flex-1 min-h-0">
+            <div className="min-h-0 flex-1">
               <ChatPanel inputRef={inputRef} />
             </div>
           </div>

@@ -52,15 +52,15 @@ export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       {/* Chat messages */}
       <div
         ref={listRef}
-        className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5"
+        className="flex-1 space-y-1.5 overflow-y-auto px-2 py-2"
       >
         {messages.length === 0 ? (
-          <div className="flex flex-col justify-center h-full gap-3 px-3 text-center">
-            <p className="text-[11px] text-text-secondary/50">
+          <div className="flex h-full flex-col justify-center gap-3 px-3 text-center">
+            <p className="text-[11px] text-[var(--color-ink-soft)]">
               Halo! 👋 Aku tau soal server ini — pesan, flag, dan aktivitas.
             </p>
             <div className="flex flex-wrap justify-center gap-1.5">
@@ -70,9 +70,9 @@ export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
                   type="button"
                   onClick={() => handleSuggestion(s)}
                   disabled={isTyping}
-                  className="flex items-center gap-1 rounded-full border border-glass-border px-2.5 py-1 text-[10px] text-text-secondary/70 transition-colors hover:bg-glass-bg hover:text-text-primary disabled:opacity-40"
+                  className="flex items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface-2)] px-2.5 py-1 text-[10px] text-[var(--color-ink-soft)] transition-colors hover:bg-[var(--color-signal)] hover:text-[var(--color-signal-ink)] disabled:opacity-40"
                 >
-                  <Sparkles className="size-2.5 text-primary/60" />
+                  <Sparkles className="size-2.5 text-[var(--color-signal)]" />
                   {s}
                 </button>
               ))}
@@ -85,15 +85,15 @@ export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
               className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
             >
               <div
-                className={`text-[11px] px-2.5 py-1.5 rounded-xl max-w-[85%] leading-relaxed whitespace-pre-wrap break-words ${
+                className={`max-w-[85%] break-words whitespace-pre-wrap rounded-xl px-2.5 py-1.5 text-[11px] leading-relaxed ${
                   msg.role === "user"
-                    ? "bg-primary/20 text-text-primary rounded-br-sm"
-                    : "glass text-text-secondary rounded-bl-sm"
+                    ? "rounded-br-sm bg-[var(--color-signal)] text-[var(--color-signal-ink)]"
+                    : "rounded-bl-sm bg-[var(--color-surface-2)] text-[var(--color-ink)]"
                 }`}
               >
                 {msg.content}
               </div>
-              <span className="mt-0.5 px-1 text-[9px] text-text-secondary/30">
+              <span className="mt-0.5 px-1 text-[9px] text-[var(--color-ink-soft)]">
                 {formatTime(msg.timestamp)}
               </span>
             </div>
@@ -101,18 +101,18 @@ export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
         )}
         {isTyping && (
           <div className="flex justify-start">
-            <div className="glass rounded-xl rounded-bl-sm px-2.5 py-2">
+            <div className="rounded-xl rounded-bl-sm bg-[var(--color-surface-2)] px-2.5 py-2">
               <span className="inline-flex gap-1">
                 <span
-                  className="size-1.5 rounded-full bg-text-secondary animate-bounce"
+                  className="size-1.5 animate-bounce rounded-full bg-[var(--color-ink-soft)]"
                   style={{ animationDelay: "0ms" }}
                 />
                 <span
-                  className="size-1.5 rounded-full bg-text-secondary animate-bounce"
+                  className="size-1.5 animate-bounce rounded-full bg-[var(--color-ink-soft)]"
                   style={{ animationDelay: "150ms" }}
                 />
                 <span
-                  className="size-1.5 rounded-full bg-text-secondary animate-bounce"
+                  className="size-1.5 animate-bounce rounded-full bg-[var(--color-ink-soft)]"
                   style={{ animationDelay: "300ms" }}
                 />
               </span>
@@ -124,13 +124,13 @@ export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
       {/* Input bar */}
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-1.5 px-2 py-2 border-t border-glass-border shrink-0"
+        className="flex shrink-0 items-center gap-1.5 border-t border-[var(--color-hairline)] px-2 py-2"
       >
         <input
           ref={inputRef}
           type="text"
           placeholder="Tanya soal server, pesan, atau statistik…"
-          className="flex-1 bg-transparent text-[11px] text-text-primary placeholder-text-secondary/30 outline-none"
+          className="flex-1 bg-transparent text-[11px] text-[var(--color-ink)] outline-none placeholder:text-[var(--color-ink-soft)]/50"
           disabled={isTyping}
           autoComplete="off"
         />
@@ -138,22 +138,22 @@ export function ChatPanel({ inputRef: externalInputRef }: ChatPanelProps) {
           <button
             type="button"
             onClick={() => void clearMessages()}
-            className="size-6 flex items-center justify-center rounded hover:bg-glass-bg transition-colors disabled:opacity-40"
+            className="flex size-6 items-center justify-center rounded transition-colors hover:bg-[var(--color-surface-2)] disabled:opacity-40"
             disabled={isTyping}
             aria-label="Hapus riwayat chat"
             title="Hapus riwayat"
           >
-            <Eraser className="size-3 text-text-secondary/50 hover:text-destructive" />
+            <Eraser className="size-3 text-[var(--color-ink-soft)] hover:text-[var(--color-vermilion)]" />
           </button>
         )}
         <button
           type="submit"
-          className="size-7 flex items-center justify-center rounded-lg bg-primary/15 hover:bg-primary/25 transition-colors disabled:opacity-40"
+          className="flex size-7 items-center justify-center rounded-lg bg-[var(--color-signal)] text-[var(--color-signal-ink)] transition-colors hover:opacity-90 disabled:opacity-40"
           disabled={isTyping}
           aria-label="Kirim pesan"
           title="Kirim"
         >
-          <Send className="size-3.5 text-primary" />
+          <Send className="size-3.5" />
         </button>
       </form>
     </div>

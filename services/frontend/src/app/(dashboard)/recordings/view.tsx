@@ -149,7 +149,13 @@ function PreviewDialog({
         <div className="display text-lg text-[var(--color-signal)]">
           {recording.filename}
         </div>
-        <audio controls src={recording.download_url ?? ""} className="w-full" />
+        {/* biome-ignore lint/a11y/useMediaCaption: voice recordings are uncaptioned audio previews — no transcript available */}
+        <audio
+          controls
+          src={recording.download_url ?? ""}
+          aria-label={`Audio recording: ${recording.filename}`}
+          className="w-full"
+        />
         <div className="mono text-xs text-[var(--color-ink-soft)]">
           {(recording.size_bytes / 1024).toFixed(0)} KB ·{" "}
           {recording.upload_status}

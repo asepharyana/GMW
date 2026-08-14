@@ -25,6 +25,7 @@ export function Tooltip({
 }: TooltipProps) {
   const [show, setShow] = useState(false);
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: tooltip wrapper — reveals on hover AND focus (keyboard-accessible via focus handlers above)
     <span
       className="relative inline-flex"
       onMouseEnter={() => setShow(true)}

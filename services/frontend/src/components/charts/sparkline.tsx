@@ -21,7 +21,15 @@ export function Sparkline({
 }: SparklineProps) {
   const id = useId().replace(/:/g, "");
   if (data.length < 2)
-    return <svg width={width} height={height} className={className} />;
+    return (
+      <svg
+        width={width}
+        height={height}
+        className={className}
+        role="img"
+        aria-label="No data"
+      />
+    );
 
   const min = Math.min(...data);
   const max = Math.max(...data);
@@ -46,6 +54,8 @@ export function Sparkline({
       viewBox={`0 0 ${width} ${height}`}
       className={className}
       preserveAspectRatio="none"
+      role="img"
+      aria-label="Trend sparkline"
     >
       <defs>
         <linearGradient id={`spark-${id}`} x1="0" y1="0" x2="0" y2="1">

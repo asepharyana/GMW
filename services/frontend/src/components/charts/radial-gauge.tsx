@@ -43,6 +43,8 @@ export function RadialGauge({
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         className="-rotate-90"
+        role="img"
+        aria-label={`${Math.round(pct * 100)}% ${label ?? "gauge"}`}
       >
         <circle
           cx={size / 2}

@@ -39,11 +39,12 @@ export function MessageEntry({
   const status = msg.ai_status ?? null;
 
   return (
-    <div
+    <button
+      type="button"
       data-selected={selected}
       onClick={onSelect}
       className={cn(
-        "group relative mb-1.5 flex items-start gap-2.5 rounded-[var(--radius-r)] p-2.5 cursor-pointer",
+        "group relative mb-1.5 flex w-full items-start gap-2.5 rounded-[var(--radius-r)] p-2.5 text-left cursor-pointer",
         "transition-all hover:bg-[var(--color-surface-2)]",
         selected && "bg-[var(--color-signal)]/6",
       )}
@@ -81,6 +82,6 @@ export function MessageEntry({
           )}
         </div>
       </div>
-    </div>
+    </button>
   );
 }

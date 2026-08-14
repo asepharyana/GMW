@@ -33,6 +33,7 @@ export function StaticFallback({
         aria-hidden
         preserveAspectRatio="xMidYMid slice"
       >
+        <title>Speaker orbs</title>
         <rect width="200" height="200" fill="oklch(0.18 0.02 70)" />
         {orbs.map((o, i) => (
           <g
@@ -71,6 +72,7 @@ export function StaticFallback({
       aria-hidden
       preserveAspectRatio="xMidYMid slice"
     >
+      <title>Signal dots</title>
       <rect width="200" height="200" fill="oklch(0.18 0.02 70)" />
       {dots.map((d, i) => (
         <circle

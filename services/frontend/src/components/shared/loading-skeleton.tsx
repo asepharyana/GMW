@@ -21,7 +21,7 @@ export function LoadingSkeleton({
     <div
       key={i}
       className={cn(
-        "glass rounded-[var(--radius-card)] overflow-hidden",
+        "surface-2 overflow-hidden",
         height,
         width,
         className,
