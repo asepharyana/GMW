@@ -15,13 +15,17 @@ export function Equalizer({
       {bars.length === 0 ? (
         <div className="flex w-full items-end gap-[3px]">
           {Array.from({ length: 28 }).map((_, i) => (
-            <span key={i} className="flex-1 rounded-full bg-white/10" style={{ height: "12%" }} />
+            <span
+              key={`eq-${i}`}
+              className="flex-1 rounded-full bg-white/10"
+              style={{ height: "12%" }}
+            />
           ))}
         </div>
       ) : (
         bars.map((b, i) => (
           <span
-            key={i}
+            key={`bar-${i}`}
             className="flex-1 rounded-full"
             style={{
               height: `${Math.max(6, b * 100)}%`,

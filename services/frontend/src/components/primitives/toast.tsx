@@ -1,7 +1,7 @@
 "use client";
 
+import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { CheckCircle2, AlertTriangle, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type ToastTone = "signal" | "vermilion" | "neutral";
@@ -63,7 +63,12 @@ export function Toaster({ position = "bottom-right" }: { position?: string }) {
         : "bottom-4 left-1/2 -translate-x-1/2";
 
   return (
-    <div className={cn("pointer-events-none fixed z-[100] flex w-[min(92vw,360px)] flex-col gap-2", pos)}>
+    <div
+      className={cn(
+        "pointer-events-none fixed z-[100] flex w-[min(92vw,360px)] flex-col gap-2",
+        pos,
+      )}
+    >
       {items.map((t) => {
         const Icon = icons[t.tone];
         return (
@@ -83,7 +88,9 @@ export function Toaster({ position = "bottom-right" }: { position?: string }) {
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold text-ink">{t.title}</div>
               {t.description && (
-                <div className="mt-0.5 text-xs text-ink-soft">{t.description}</div>
+                <div className="mt-0.5 text-xs text-ink-soft">
+                  {t.description}
+                </div>
               )}
             </div>
             <button

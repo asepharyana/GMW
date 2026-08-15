@@ -17,10 +17,19 @@ export function Progress({
         ? "var(--color-amber)"
         : "var(--color-signal)";
   return (
-    <div className={cn("h-1.5 w-full overflow-hidden rounded-full bg-white/8", className)}>
+    <div
+      className={cn(
+        "h-1.5 w-full overflow-hidden rounded-full bg-white/8",
+        className,
+      )}
+    >
       <div
         className="h-full rounded-full transition-[width] duration-500"
-        style={{ width: `${pct}%`, background: color, boxShadow: `0 0 12px -2px ${color}` }}
+        style={{
+          width: `${pct}%`,
+          background: color,
+          boxShadow: `0 0 12px -2px ${color}`,
+        }}
       />
     </div>
   );

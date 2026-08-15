@@ -27,7 +27,9 @@ export function VoiceStage({ speakers }: { speakers: ActiveSpeaker[] }) {
           background: "oklch(1 0 0 / 0.04)",
         }}
       >
-        <Radio className={`size-7 ${live ? "text-signal" : "text-ink-faint"}`} />
+        <Radio
+          className={`size-7 ${live ? "text-signal" : "text-ink-faint"}`}
+        />
         <span className="mono mt-1 text-xs text-ink-soft">{n} live</span>
       </div>
 
@@ -45,7 +47,12 @@ export function VoiceStage({ speakers }: { speakers: ActiveSpeaker[] }) {
           >
             <div className="relative flex flex-col items-center gap-1">
               <span className="relative">
-                <Avatar src={s.avatar} name={s.username} size={46} ring={s.speaking} />
+                <Avatar
+                  src={s.avatar}
+                  name={s.username}
+                  size={46}
+                  ring={s.speaking}
+                />
                 {s.speaking && (
                   <span className="absolute inset-0 rounded-full ring-2 ring-signal animate-pulse-ring" />
                 )}

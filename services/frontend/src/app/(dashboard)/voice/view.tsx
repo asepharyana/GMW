@@ -1,25 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Mic, MicOff, Headphones, PhoneOff, Radio, Volume2, Waves } from "lucide-react";
-import { useWebSocket } from "@/lib/ws/context";
 import {
-  useGuilds,
-  useVoiceStatus,
+  Headphones,
+  Mic,
+  MicOff,
+  PhoneOff,
+  Radio,
+  Volume2,
+  Waves,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { useAmbient } from "@/components/ambient/ambient-context";
+import { Equalizer } from "@/components/charts";
+import { Button, GlassPanel, toast } from "@/components/primitives";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  SectionHeader,
+} from "@/components/shared";
+import { GuildChannelPicker } from "@/components/shared/guild-picker";
+import { VoiceStage } from "@/components/voice/voice-stage";
+import {
+  useMicTransmit,
+  useSpeakers,
   useVoiceConnect,
   useVoiceDisconnect,
-  useSpeakers,
-  useMicTransmit,
   useVoiceListen,
+  useVoiceStatus,
 } from "@/hooks";
-import { useAmbient } from "@/components/ambient/ambient-context";
-import { GlassPanel, Button } from "@/components/primitives";
-import { VoiceStage } from "@/components/voice/voice-stage";
-import { Equalizer } from "@/components/charts";
-import { SectionHeader, EmptyState, ErrorState, LoadingState } from "@/components/shared";
-import { GuildChannelPicker } from "@/components/shared/guild-picker";
-import { toast } from "@/components/primitives";
 import type { Guild, VoiceStatus } from "@/lib/types";
+import { useWebSocket } from "@/lib/ws/context";
 
 export function VoiceView({
   initialStatus,
@@ -30,7 +41,6 @@ export function VoiceView({
 }) {
   const ws = useWebSocket();
   const { data: status, isLoading, error } = useVoiceStatus(initialStatus);
-  const { data: guilds } = useGuilds(initialGuilds);
   const connect = useVoiceConnect();
   const disconnect = useVoiceDisconnect();
   const mic = useMicTransmit(ws);
@@ -71,7 +81,11 @@ export function VoiceView({
       await connect.mutateAsync({ guildId, channelId });
       toast({ title: "Connected to voice", tone: "signal" });
     } catch (e) {
-      toast({ title: "Connect failed", description: String(e), tone: "vermilion" });
+      toast({
+        title: "Connect failed",
+        description: String(e),
+        tone: "vermilion",
+      });
     }
   };
 
@@ -100,11 +114,21 @@ export function VoiceView({
           />
           <div className="flex items-center gap-2">
             {connected ? (
-              <Button variant="danger" size="sm" onClick={() => disconnect.mutate()} disabled={disconnect.isPending}>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => disconnect.mutate()}
+                disabled={disconnect.isPending}
+              >
                 <PhoneOff className="size-4" /> Disconnect
               </Button>
             ) : (
-              <Button variant="primary" size="sm" onClick={onConnect} disabled={connect.isPending}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={onConnect}
+                disabled={connect.isPending}
+              >
                 <Radio className="size-4" /> Connect
               </Button>
             )}
@@ -127,7 +151,11 @@ export function VoiceView({
             size="sm"
             onClick={() => listen.toggle(!listen.active)}
           >
-            {listen.active ? <Headphones className="size-4" /> : <Volume2 className="size-4" />}
+            {listen.active ? (
+              <Headphones className="size-4" />
+            ) : (
+              <Volume2 className="size-4" />
+            )}
             {listen.active ? "Listening" : "Listen in"}
           </Button>
           {listen.active && (
@@ -154,7 +182,11 @@ export function VoiceView({
             <EmptyState
               icon={<MicOff className="size-7" />}
               title={connected ? "Silent right now" : "Not connected"}
-              description={connected ? "Speakers appear as they talk." : "Connect to a voice channel to see presence."}
+              description={
+                connected
+                  ? "Speakers appear as they talk."
+                  : "Connect to a voice channel to see presence."
+              }
             />
           ) : (
             <>
@@ -169,7 +201,9 @@ export function VoiceView({
                         : "border-hairline bg-white/5 text-ink-soft"
                     }`}
                   >
-                    <span className={`size-1.5 rounded-full ${sp.speaking ? "bg-signal animate-breathe" : "bg-ink-faint"}`} />
+                    <span
+                      className={`size-1.5 rounded-full ${sp.speaking ? "bg-signal animate-breathe" : "bg-ink-faint"}`}
+                    />
                     {sp.username}
                   </span>
                 ))}
@@ -182,14 +216,23 @@ export function VoiceView({
           <SectionHeader eyebrow="links" title="Connections" />
           <div className="space-y-2">
             {(status?.connections ?? []).map((c) => (
-              <div key={`${c.guildId}-${c.channelId}`} className="flex items-center gap-2 rounded-[10px] border border-hairline bg-white/5 px-3 py-2 text-sm">
+              <div
+                key={`${c.guildId}-${c.channelId}`}
+                className="flex items-center gap-2 rounded-[10px] border border-hairline bg-white/5 px-3 py-2 text-sm"
+              >
                 <span className="size-2 rounded-full bg-signal" />
-                <span className="flex-1 truncate text-ink-soft">{c.channelName}</span>
-                <span className="mono text-[0.6rem] text-ink-faint">{new Date(c.connectedAt).toLocaleTimeString()}</span>
+                <span className="flex-1 truncate text-ink-soft">
+                  {c.channelName}
+                </span>
+                <span className="mono text-[0.6rem] text-ink-faint">
+                  {new Date(c.connectedAt).toLocaleTimeString()}
+                </span>
               </div>
             ))}
             {(status?.connections ?? []).length === 0 && (
-              <div className="py-6 text-center text-xs text-ink-faint">No active links</div>
+              <div className="py-6 text-center text-xs text-ink-faint">
+                No active links
+              </div>
             )}
           </div>
           <div className="mt-3 rounded-[10px] border border-hairline bg-white/5 px-3 py-2 text-xs text-ink-soft">

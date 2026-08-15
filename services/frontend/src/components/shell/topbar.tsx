@@ -1,13 +1,13 @@
 "use client";
 
+import { Moon, Sun } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Moon, Sun } from "lucide-react";
-import { navItems } from "@/lib/navigation";
-import { useAmbient } from "@/components/ambient/ambient-context";
-import { ConnectionStatus } from "./status-dot";
 import { useEffect, useState } from "react";
+import { useAmbient } from "@/components/ambient/ambient-context";
+import { navItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
+import { ConnectionStatus } from "./status-dot";
 
 function useActiveLabel() {
   const pathname = usePathname();
@@ -41,9 +41,7 @@ export function TopBar() {
       <div className="ml-auto flex items-center gap-3">
         <span className={cn("pill", signalTone)}>
           <span
-            className={cn(
-              "size-1.5 rounded-full bg-current animate-breathe",
-            )}
+            className={cn("size-1.5 rounded-full bg-current animate-breathe")}
           />
           {state.label ?? "nominal"}
         </span>
@@ -51,7 +49,9 @@ export function TopBar() {
         <button
           type="button"
           aria-label="Open command palette"
-          onClick={() => window.dispatchEvent(new Event("command-palette:open"))}
+          onClick={() =>
+            window.dispatchEvent(new Event("command-palette:open"))
+          }
           className="hidden items-center gap-1.5 rounded-[11px] border border-hairline bg-white/5 px-2.5 py-1.5 text-xs text-ink-soft transition-colors hover:text-ink hover:border-signal/40 sm:flex"
         >
           <span className="mono text-[0.65rem]">⌘K</span>

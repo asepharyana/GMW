@@ -1,11 +1,16 @@
 "use client";
 
+import { Bot, MessageCircle, Send, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Bot, Send, X, MessageCircle } from "lucide-react";
-import { chatbotApi } from "@/lib/api";
+import {
+  Avatar,
+  Button,
+  GlassPanel,
+  Input,
+  toast,
+} from "@/components/primitives";
 import { useChatbotUserId } from "@/hooks/use-chatbot-user";
-import { GlassPanel, Input, Button, Avatar } from "@/components/primitives";
-import { toast } from "@/components/primitives";
+import { chatbotApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface Msg {
@@ -27,12 +32,10 @@ export function Chatbot() {
       .getHistory(userId)
       .then((res) => {
         setMsgs(
-          res.history
-            .slice(-12)
-            .flatMap((h) => [
-              { role: "user" as const, content: h.user_message },
-              { role: "bot" as const, content: h.bot_response },
-            ]),
+          res.history.slice(-12).flatMap((h) => [
+            { role: "user" as const, content: h.user_message },
+            { role: "bot" as const, content: h.bot_response },
+          ]),
         );
       })
       .catch(() => {});
@@ -40,7 +43,7 @@ export function Chatbot() {
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-  }, [msgs, loading]);
+  }, []);
 
   const send = async () => {
     const text = input.trim();
@@ -80,20 +83,39 @@ export function Chatbot() {
               <Bot className="size-4" />
             </span>
             <div>
-              <div className="text-sm font-semibold text-ink">GMW Assistant</div>
-              <div className="mono text-[0.6rem] text-ink-faint">context-aware</div>
+              <div className="text-sm font-semibold text-ink">
+                GMW Assistant
+              </div>
+              <div className="mono text-[0.6rem] text-ink-faint">
+                context-aware
+              </div>
             </div>
           </div>
 
-          <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+          <div
+            ref={listRef}
+            className="flex-1 space-y-3 overflow-y-auto px-4 py-3"
+          >
             {msgs.length === 0 && (
               <div className="py-8 text-center text-xs text-ink-faint">
                 Ask about moderation, voice, or media.
               </div>
             )}
             {msgs.map((m, i) => (
-              <div key={i} className={cn("flex gap-2", m.role === "user" ? "justify-end" : "justify-start")}>
-                {m.role === "bot" && <Avatar name="GMW" size={26} className="mt-0.5 bg-signal/15 text-signal" />}
+              <div
+                key={`${m.role}-${i}`}
+                className={cn(
+                  "flex gap-2",
+                  m.role === "user" ? "justify-end" : "justify-start",
+                )}
+              >
+                {m.role === "bot" && (
+                  <Avatar
+                    name="GMW"
+                    size={26}
+                    className="mt-0.5 bg-signal/15 text-signal"
+                  />
+                )}
                 <div
                   className={cn(
                     "max-w-[80%] rounded-2xl px-3 py-2 text-sm",
@@ -108,8 +130,14 @@ export function Chatbot() {
             ))}
             {loading && (
               <div className="flex gap-2">
-                <Avatar name="GMW" size={26} className="bg-signal/15 text-signal" />
-                <div className="rounded-2xl rounded-bl-sm bg-white/5 px-3 py-2 text-sm text-ink-faint">…</div>
+                <Avatar
+                  name="GMW"
+                  size={26}
+                  className="bg-signal/15 text-signal"
+                />
+                <div className="rounded-2xl rounded-bl-sm bg-white/5 px-3 py-2 text-sm text-ink-faint">
+                  …
+                </div>
               </div>
             )}
           </div>
@@ -121,7 +149,12 @@ export function Chatbot() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send()}
             />
-            <Button variant="primary" size="icon" onClick={send} disabled={loading}>
+            <Button
+              variant="primary"
+              size="icon"
+              onClick={send}
+              disabled={loading}
+            >
               <Send className="size-4" />
             </Button>
           </div>

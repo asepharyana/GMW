@@ -21,6 +21,7 @@ export function Tooltip({
       onMouseLeave={() => setShow(false)}
       onFocus={() => setShow(true)}
       onBlur={() => setShow(false)}
+      role="presentation"
     >
       {children}
       {show && (

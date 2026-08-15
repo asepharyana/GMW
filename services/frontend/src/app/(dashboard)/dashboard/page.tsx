@@ -4,10 +4,13 @@ import { DashboardView } from "./view";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  let stats = undefined;
-  let activity = undefined;
+  let stats: Awaited<ReturnType<typeof getDashboardStats>> | undefined;
+  let activity: Awaited<ReturnType<typeof getActivity>> | undefined;
   try {
-    [stats, activity] = await Promise.all([getDashboardStats(), getActivity(14)]);
+    [stats, activity] = await Promise.all([
+      getDashboardStats(),
+      getActivity(14),
+    ]);
   } catch {
     // Backend unavailable — client hooks will surface the error state.
   }

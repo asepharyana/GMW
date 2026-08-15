@@ -14,10 +14,19 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col items-center justify-center gap-2 py-12 text-center", className)}>
-      <div className="text-ink-faint">{icon ?? <Inbox className="size-7" />}</div>
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center gap-2 py-12 text-center",
+        className,
+      )}
+    >
+      <div className="text-ink-faint">
+        {icon ?? <Inbox className="size-7" />}
+      </div>
       <div className="text-sm font-medium text-ink-soft">{title}</div>
-      {description && <div className="max-w-xs text-xs text-ink-faint">{description}</div>}
+      {description && (
+        <div className="max-w-xs text-xs text-ink-faint">{description}</div>
+      )}
     </div>
   );
 }
@@ -36,7 +45,11 @@ export function ErrorState({
     <div className="glass flex flex-col items-center gap-3 p-8 text-center">
       <AlertTriangle className="size-7 text-vermilion" />
       <div className="text-sm font-medium text-ink">{title}</div>
-      {msg && <div className="mono max-w-md break-words text-xs text-ink-faint">{msg}</div>}
+      {msg && (
+        <div className="mono max-w-md break-words text-xs text-ink-faint">
+          {msg}
+        </div>
+      )}
       {onRetry && (
         <button
           type="button"

@@ -1,8 +1,8 @@
 import { AmbientProvider } from "@/components/ambient/ambient-context";
-import { WsProvider } from "@/lib/ws/context";
-import { AppFrame } from "@/components/shell";
 import { Chatbot } from "@/components/chatbot/chatbot";
 import { CommandPalette } from "@/components/command/command-palette";
+import { AppFrame } from "@/components/shell";
+import { WsProvider } from "@/lib/ws/context";
 
 export default function DashboardLayout({
   children,

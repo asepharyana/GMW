@@ -1,30 +1,45 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
-  MessageSquare,
-  Search,
-  Paperclip,
-  Image as ImageIcon,
-  ShieldAlert,
   AlertTriangle,
   CheckCircle2,
+  Image as ImageIcon,
   Loader2,
+  MessageSquare,
+  Paperclip,
+  Search,
+  ShieldAlert,
 } from "lucide-react";
-import { useWebSocket } from "@/lib/ws/context";
+import { useEffect, useState } from "react";
+import { useAmbient } from "@/components/ambient/ambient-context";
 import {
-  useGuilds,
+  Avatar,
+  Badge,
+  GlassPanel,
+  Input,
+  Skeleton,
+} from "@/components/primitives";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  SectionHeader,
+} from "@/components/shared";
+import { GuildChannelPicker } from "@/components/shared/guild-picker";
+import {
+  useMessageDetail,
+  useMessageSearch,
   useMessages,
   useMessagesWsSync,
-  useMessageSearch,
-  useMessageDetail,
 } from "@/hooks";
-import { useAmbient } from "@/components/ambient/ambient-context";
-import { GlassPanel, GlassCard, Avatar, Badge, Input, Skeleton } from "@/components/primitives";
-import { SectionHeader, EmptyState, ErrorState, LoadingState } from "@/components/shared";
-import { GuildChannelPicker } from "@/components/shared/guild-picker";
-import { renderMessageContent, getMessageChannelLabel, safeParseJsonArray, formatBytes } from "@/lib/format";
+import {
+  formatBytes,
+  getMessageChannelLabel,
+  renderMessageContent,
+  safeParseJsonArray,
+} from "@/lib/format";
 import type { AiStatus, Guild, MessageRecord } from "@/lib/types";
+import { useWebSocket } from "@/lib/ws/context";
 
 function relTime(ts?: number | null) {
   if (!ts) return "";
@@ -37,7 +52,9 @@ function relTime(ts?: number | null) {
   return `${Math.floor(h / 24)}d`;
 }
 
-function aiTone(s?: AiStatus | null): "signal" | "amber" | "vermilion" | "neutral" {
+function aiTone(
+  s?: AiStatus | null,
+): "signal" | "amber" | "vermilion" | "neutral" {
   if (s === "clean") return "signal";
   if (s === "warn") return "amber";
   if (s === "flagged" || s === "error") return "vermilion";
@@ -53,7 +70,6 @@ export function MessagesView({
   initialGuildId?: string | null;
 }) {
   const ws = useWebSocket();
-  const { data: guilds } = useGuilds(initialGuilds);
   const [guildId, setGuildId] = useState<string | null>(
     initialGuildId ?? initialGuilds?.[0]?.id ?? null,
   );
@@ -61,7 +77,11 @@ export function MessagesView({
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
-  const { data: messages, isLoading, error } = useMessages(guildId ?? "", channelId ?? undefined);
+  const {
+    data: messages,
+    isLoading,
+    error,
+  } = useMessages(guildId ?? "", channelId ?? undefined);
   useMessagesWsSync(ws, guildId ?? "");
   const search = useMessageSearch(query, query.trim().length >= 2);
   const detail = useMessageDetail(selected);
@@ -72,7 +92,7 @@ export function MessagesView({
   }, [query, ambient]);
 
   const searching = query.trim().length >= 2;
-  const list = searching ? search.data ?? [] : (messages ?? []);
+  const list = searching ? (search.data ?? []) : (messages ?? []);
 
   return (
     <div className="space-y-4">
@@ -115,7 +135,11 @@ export function MessagesView({
           ) : isLoading && !messages ? (
             <LoadingState label="Capturing" />
           ) : list.length === 0 ? (
-            <EmptyState icon={<MessageSquare className="size-7" />} title="No messages" description="Pick a guild to begin, or run a search." />
+            <EmptyState
+              icon={<MessageSquare className="size-7" />}
+              title="No messages"
+              description="Pick a guild to begin, or run a search."
+            />
           ) : (
             <div className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1">
               {list.map((m) => (
@@ -124,18 +148,30 @@ export function MessagesView({
                   type="button"
                   onClick={() => setSelected(m.id)}
                   className={`flex w-full items-start gap-3 rounded-[12px] border p-3 text-left transition-colors ${
-                    selected === m.id ? "border-signal/40 bg-signal/8" : "border-hairline bg-white/[0.03] hover:bg-white/[0.06]"
+                    selected === m.id
+                      ? "border-signal/40 bg-signal/8"
+                      : "border-hairline bg-white/[0.03] hover:bg-white/[0.06]"
                   }`}
                 >
                   <Avatar src={m.avatar_url} name={m.username} size={34} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-semibold text-ink">{m.username}</span>
-                      <span className="mono text-[0.65rem] text-ink-faint">{getMessageChannelLabel(m)}</span>
-                      <span className="mono ml-auto text-[0.6rem] text-ink-faint">{relTime(m.created_at)}</span>
+                      <span className="truncate text-sm font-semibold text-ink">
+                        {m.username}
+                      </span>
+                      <span className="mono text-[0.65rem] text-ink-faint">
+                        {getMessageChannelLabel(m)}
+                      </span>
+                      <span className="mono ml-auto text-[0.6rem] text-ink-faint">
+                        {relTime(m.created_at)}
+                      </span>
                     </div>
                     <div className="mt-0.5 line-clamp-2 text-sm text-ink-soft">
-                      {renderMessageContent(m.content, m.metadata) || <span className="italic text-ink-faint">(empty / embed)</span>}
+                      {renderMessageContent(m.content, m.metadata) || (
+                        <span className="italic text-ink-faint">
+                          (empty / embed)
+                        </span>
+                      )}
                     </div>
                   </div>
                   <AiBadge status={m.ai_status} />
@@ -148,14 +184,20 @@ export function MessagesView({
         <GlassPanel className="lg:col-span-2">
           <SectionHeader eyebrow="inspect" title="Detail" />
           {!selected ? (
-            <EmptyState title="Select a message" description="Click any message to inspect AI analysis, attachments and edit history." />
+            <EmptyState
+              title="Select a message"
+              description="Click any message to inspect AI analysis, attachments and edit history."
+            />
           ) : detail.loading ? (
             <div className="space-y-2">
               <Skeleton className="h-20" />
               <Skeleton className="h-12" />
             </div>
           ) : detail.message ? (
-            <MessageDetail m={detail.message} attachments={detail.attachments} />
+            <MessageDetail
+              m={detail.message}
+              attachments={detail.attachments}
+            />
           ) : (
             <EmptyState title="Not found" />
           )}
@@ -169,15 +211,32 @@ function AiBadge({ status }: { status?: AiStatus | null }) {
   if (!status) return null;
   const tone = aiTone(status);
   const icon =
-    status === "clean" ? <CheckCircle2 className="size-3" /> :
-    status === "flagged" ? <ShieldAlert className="size-3" /> :
-    status === "warn" ? <AlertTriangle className="size-3" /> :
-    status === "processing" || status === "pending" ? <Loader2 className="size-3 animate-spin" /> :
-    <AlertTriangle className="size-3" />;
-  return <Badge tone={tone} dot={status === "processing" || status === "pending"}>{icon}{status}</Badge>;
+    status === "clean" ? (
+      <CheckCircle2 className="size-3" />
+    ) : status === "flagged" ? (
+      <ShieldAlert className="size-3" />
+    ) : status === "warn" ? (
+      <AlertTriangle className="size-3" />
+    ) : status === "processing" || status === "pending" ? (
+      <Loader2 className="size-3 animate-spin" />
+    ) : (
+      <AlertTriangle className="size-3" />
+    );
+  return (
+    <Badge tone={tone} dot={status === "processing" || status === "pending"}>
+      {icon}
+      {status}
+    </Badge>
+  );
 }
 
-function MessageDetail({ m, attachments }: { m: MessageRecord; attachments: import("@/lib/types").AttachmentRecord[] }) {
+function MessageDetail({
+  m,
+  attachments,
+}: {
+  m: MessageRecord;
+  attachments: import("@/lib/types").AttachmentRecord[];
+}) {
   const flags = safeParseJsonArray(m.ai_moderation_flags);
   const cats = safeParseJsonArray(m.ai_categories);
   return (
@@ -186,38 +245,63 @@ function MessageDetail({ m, attachments }: { m: MessageRecord; attachments: impo
         <Avatar src={m.avatar_url} name={m.username} size={40} />
         <div>
           <div className="font-semibold text-ink">{m.username}</div>
-          <div className="mono text-[0.65rem] text-ink-faint">{getMessageChannelLabel(m)} · {relTime(m.created_at)}</div>
+          <div className="mono text-[0.65rem] text-ink-faint">
+            {getMessageChannelLabel(m)} · {relTime(m.created_at)}
+          </div>
         </div>
-        <div className="ml-auto"><AiBadge status={m.ai_status} /></div>
+        <div className="ml-auto">
+          <AiBadge status={m.ai_status} />
+        </div>
       </div>
 
       <div className="rounded-[10px] border border-hairline bg-white/[0.03] p-3 text-ink-soft">
-        {renderMessageContent(m.edited_content ?? m.content, m.metadata) || "(no text)"}
+        {renderMessageContent(m.edited_content ?? m.content, m.metadata) ||
+          "(no text)"}
       </div>
 
       {m.ai_analysis && (
         <div>
           <div className="eyebrow mb-1">AI analysis</div>
-          <div className="rounded-[10px] border border-hairline bg-white/[0.03] p-3 text-ink-soft">{m.ai_analysis}</div>
+          <div className="rounded-[10px] border border-hairline bg-white/[0.03] p-3 text-ink-soft">
+            {m.ai_analysis}
+          </div>
         </div>
       )}
 
       {(flags.length > 0 || cats.length > 0) && (
         <div className="flex flex-wrap gap-1.5">
-          {flags.map((f) => <Badge key={f} tone="vermilion">{f}</Badge>)}
-          {cats.map((c) => <Badge key={c} tone="amber">{c}</Badge>)}
+          {flags.map((f) => (
+            <Badge key={f} tone="vermilion">
+              {f}
+            </Badge>
+          ))}
+          {cats.map((c) => (
+            <Badge key={c} tone="amber">
+              {c}
+            </Badge>
+          ))}
         </div>
       )}
 
       {attachments.length > 0 && (
         <div>
-          <div className="eyebrow mb-1 flex items-center gap-1.5"><Paperclip className="size-3" /> Attachments ({attachments.length})</div>
+          <div className="eyebrow mb-1 flex items-center gap-1.5">
+            <Paperclip className="size-3" /> Attachments ({attachments.length})
+          </div>
           <div className="space-y-1.5">
             {attachments.map((a) => (
-              <a key={a.id} href={a.discord_url ?? a.uploaded_url ?? "#"} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-[10px] border border-hairline bg-white/5 px-3 py-2 text-xs text-ink-soft hover:text-ink">
+              <a
+                key={a.id}
+                href={a.discord_url ?? a.uploaded_url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 rounded-[10px] border border-hairline bg-white/5 px-3 py-2 text-xs text-ink-soft hover:text-ink"
+              >
                 <ImageIcon className="size-3.5 text-signal" />
                 <span className="flex-1 truncate">{a.filename}</span>
-                <span className="mono text-ink-faint">{formatBytes(a.size)}</span>
+                <span className="mono text-ink-faint">
+                  {formatBytes(a.size)}
+                </span>
               </a>
             ))}
           </div>

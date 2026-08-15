@@ -4,8 +4,8 @@ import { ModerationView } from "./view";
 export const dynamic = "force-dynamic";
 
 export default async function ModerationPage() {
-  let stats = undefined;
-  let actions = undefined;
+  let stats: import("@/lib/types").ModerationStats | undefined;
+  let actions: import("@/lib/types").ModerationAction[] | undefined;
   try {
     [stats, actions] = await Promise.all([
       getModerationStats(),

@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
 import { LayoutDashboard } from "lucide-react";
-import { navItems, isActivePath } from "@/lib/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { isActivePath, navItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 function NavItem({
@@ -64,4 +64,3 @@ export function NavRail() {
     </nav>
   );
 }
-

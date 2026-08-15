@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useGuilds, useTextChannels, useVoiceChannels } from "@/hooks";
 import { Select, type SelectOption } from "@/components/primitives";
+import { useGuilds, useTextChannels, useVoiceChannels } from "@/hooks";
 import type { Guild } from "@/lib/types";
 
 export function GuildChannelPicker({

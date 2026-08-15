@@ -65,15 +65,15 @@ export function useChannels(guildId?: string, search?: string) {
 
 export function useUserDetail(userId: string | null) {
   return useSWR<DashboardUserDetail>(
-    userId ? ["dashboard-user", userId] : null,
-    () => dashboardApi.getUserDetail(userId!),
+    userId ? (["dashboard-user", userId] as const) : null,
+    () => dashboardApi.getUserDetail(userId ?? ""),
   );
 }
 
 export function useChannelDetail(channelId: string | null) {
   return useSWR<DashboardChannelDetail>(
-    channelId ? ["dashboard-channel", channelId] : null,
-    () => dashboardApi.getChannelDetail(channelId!),
+    channelId ? (["dashboard-channel", channelId] as const) : null,
+    () => dashboardApi.getChannelDetail(channelId ?? ""),
   );
 }
 

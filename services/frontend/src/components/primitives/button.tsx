@@ -1,5 +1,5 @@
-import { Slot } from "./slot";
 import { cn } from "@/lib/utils";
+import { Slot } from "./slot";
 
 type Variant = "primary" | "ghost" | "outline" | "danger" | "subtle";
 type Size = "sm" | "md" | "lg" | "icon";

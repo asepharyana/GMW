@@ -17,14 +17,24 @@ export function Donut({
   const c = 2 * Math.PI * r;
   let offset = 0;
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-hairline)" strokeWidth={thickness} />
-        {segments.map((s, i) => {
+    <div
+      className="relative inline-flex items-center justify-center"
+      style={{ width: size, height: size }}
+    >
+      <svg width={size} height={size} className="-rotate-90" role="img" aria-label="Composition donut">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="var(--color-hairline)"
+          strokeWidth={thickness}
+        />
+        {segments.map((s) => {
           const len = (s.value / total) * c;
           const el = (
             <circle
-              key={i}
+              key={`seg-${s.label}`}
               cx={size / 2}
               cy={size / 2}
               r={r}
@@ -42,8 +52,14 @@ export function Donut({
       </svg>
       {(centerLabel || centerSub) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          {centerLabel && <span className="display text-lg">{centerLabel}</span>}
-          {centerSub && <span className="mono text-[0.6rem] text-ink-faint">{centerSub}</span>}
+          {centerLabel && (
+            <span className="display text-lg">{centerLabel}</span>
+          )}
+          {centerSub && (
+            <span className="mono text-[0.6rem] text-ink-faint">
+              {centerSub}
+            </span>
+          )}
         </div>
       )}
     </div>

@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AmbientCanvas } from "./ambient-canvas";
 
 export type SignalTone = "signal" | "amber" | "vermilion";
@@ -25,7 +32,11 @@ export interface AmbientControls {
   state: AmbientState;
 }
 
-const DEFAULT: AmbientState = { tone: "signal", intensity: 0.35, label: "nominal" };
+const DEFAULT: AmbientState = {
+  tone: "signal",
+  intensity: 0.35,
+  label: "nominal",
+};
 
 const AmbientContext = createContext<AmbientControls | null>(null);
 
@@ -38,14 +49,17 @@ export function AmbientProvider({ children }: { children: React.ReactNode }) {
   const targetRef = useRef<AmbientState>({ ...DEFAULT });
   const [state, setState] = useState<AmbientState>(DEFAULT);
 
-  const set = useCallback((tone: SignalTone, intensity?: number, label?: string) => {
-    targetRef.current = {
-      tone,
-      intensity: intensity ?? targetRef.current.intensity,
-      label: label ?? targetRef.current.label,
-    };
-    setState({ ...targetRef.current });
-  }, []);
+  const set = useCallback(
+    (tone: SignalTone, intensity?: number, label?: string) => {
+      targetRef.current = {
+        tone,
+        intensity: intensity ?? targetRef.current.intensity,
+        label: label ?? targetRef.current.label,
+      };
+      setState({ ...targetRef.current });
+    },
+    [],
+  );
 
   const reset = useCallback(() => {
     targetRef.current = { ...DEFAULT };

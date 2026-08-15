@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export interface SelectOption {
@@ -31,7 +31,8 @@ export function Select({
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
@@ -54,7 +55,10 @@ export function Select({
           {selected?.label ?? placeholder}
         </span>
         <ChevronDown
-          className={cn("size-4 shrink-0 text-ink-faint transition-transform", open && "rotate-180")}
+          className={cn(
+            "size-4 shrink-0 text-ink-faint transition-transform",
+            open && "rotate-180",
+          )}
         />
       </button>
 
@@ -76,11 +80,17 @@ export function Select({
               }}
               className={cn(
                 "flex w-full items-center justify-between gap-2 rounded-[9px] px-3 py-2 text-left text-sm transition-colors",
-                o.value === value ? "bg-signal/15 text-signal" : "text-ink hover:bg-white/6",
+                o.value === value
+                  ? "bg-signal/15 text-signal"
+                  : "text-ink hover:bg-white/6",
               )}
             >
               <span className="truncate">{o.label}</span>
-              {o.hint && <span className="mono text-[0.65rem] text-ink-faint">{o.hint}</span>}
+              {o.hint && (
+                <span className="mono text-[0.65rem] text-ink-faint">
+                  {o.hint}
+                </span>
+              )}
               {o.value === value && <Check className="size-3.5 shrink-0" />}
             </button>
           ))}

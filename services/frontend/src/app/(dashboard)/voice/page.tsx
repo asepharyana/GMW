@@ -4,8 +4,8 @@ import { VoiceView } from "./view";
 export const dynamic = "force-dynamic";
 
 export default async function VoicePage() {
-  let status = undefined;
-  let guilds = undefined;
+  let status: import("@/lib/types").VoiceStatus | undefined;
+  let guilds: import("@/lib/types").Guild[] | undefined;
   try {
     [status, guilds] = await Promise.all([getVoiceStatus(), getGuilds()]);
   } catch {

@@ -59,7 +59,9 @@ export function MetricTile({
       >
         {value}
       </div>
-      {hint && <div className="mono mt-1 text-[0.68rem] text-ink-faint">{hint}</div>}
+      {hint && (
+        <div className="mono mt-1 text-[0.68rem] text-ink-faint">{hint}</div>
+      )}
       {spark && spark.length > 1 && (
         <div className="mt-2">
           <div
@@ -68,7 +70,11 @@ export function MetricTile({
           >
             <div
               className="h-full rounded-full"
-              style={{ width: `${Math.min(100, (spark[spark.length - 1] / (Math.max(...spark) || 1)) * 100)}%`, background: toneColor, opacity: 0.7 }}
+              style={{
+                width: `${Math.min(100, (spark[spark.length - 1] / (Math.max(...spark) || 1)) * 100)}%`,
+                background: toneColor,
+                opacity: 0.7,
+              }}
             />
           </div>
         </div>
