@@ -83,12 +83,7 @@ export class CommandHandler {
 
     // Create domain-specific handlers with their dependencies
     this.voiceHandler = new VoiceHandler(client, voiceController);
-    this.mediaHandler = new MediaHandler(client, () =>
-      voiceController.getStatus(),
-    );
-    // Give media handler access to disconnect/reconnect voice around screen
-    // share (GoLive needs its own WebRTC connection).
-    this.mediaHandler.setVoiceController(() => voiceController);
+    this.mediaHandler = new MediaHandler();
     this.guildHandler = new GuildHandler(client);
     this.moderationHandler = new ModerationHandler(client);
 

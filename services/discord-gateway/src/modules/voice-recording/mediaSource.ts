@@ -1,14 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import {
-  chmodSync,
-  existsSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough, type Readable } from "node:stream";
@@ -232,7 +223,7 @@ function buildNotInstalledError(): Error {
  * in account's cookies. The path is configurable via GMW_YT_COOKIES_PATH
  * (default: the BWS-provided file the deploy writes to /etc/.../ytcookies.txt).
  * If the file doesn't exist we pass nothing and fall back to anon (YouTube
- * may 403 — screen share will fail gracefully, not crash).
+ * may 403 — playback will fail gracefully, not crash).
  */
 var _cachedCookiePath: string | null = null;
 function buildCookieArgs(): string[] {
@@ -267,7 +258,7 @@ function buildCookieArgs(): string[] {
       // Never hand the ORIGINAL system file to yt-dlp: recent yt-dlp rewrites
       // the cookie file on close (`--cookies` implies write-back). The system
       // file is owned by another user (root/deploy) and the service user
-      // cannot write it → PermissionError → yt-dlp exits 1 → screen share
+      // cannot write it → PermissionError → yt-dlp exits 1 → playback
       // fails for every attempt. Copy to a per-run temp file (like the env
       // branch above) so write-back lands somewhere we own; if the original
       // is not readable we fall back to anonymous (YouTube may 403 → the
@@ -303,44 +294,6 @@ function buildCookieArgs(): string[] {
     "No YouTube cookies available; yt-dlp will use anonymous (YouTube may 403)",
   );
   return [];
-}
-
-/** Invidious instances for anon YouTube fetch (fallback when cookies 403). */
-export const INVIDIOUS_INSTANCES = [
-  "yewtu.be",
-  "yewtu.nanomorph.dev",
-  "invidious.snopyta.org",
-  "invidious.kavin.rocks",
-];
-
-/** True if url is a YouTube watch URL (youtu.be / youtube.com/watch). */
-export function isYoutubeWatchUrl(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return (
-      u.hostname === "youtu.be" ||
-      (u.hostname === "www.youtube.com" && u.pathname === "/watch") ||
-      (u.hostname === "youtube.com" && u.pathname === "/watch")
-    );
-  } catch {
-    return false;
-  }
-}
-
-/** Rewrite a YouTube watch URL to an invidious instance (anon, no bot-check). */
-export function toInvidiousUrl(url: string, instance: string): string {
-  try {
-    const u = new URL(url);
-    if (u.hostname === "youtu.be") {
-      const id = u.pathname.slice(1);
-      return `https://${instance}/watch?v=${id}`;
-    }
-    const id = u.searchParams.get("v");
-    if (id) return `https://${instance}/watch?v=${id}`;
-    return url;
-  } catch {
-    return url;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -502,114 +455,6 @@ export function resolveMediaUrl(
 
       proc.once("close", () => clearTimeout(timer));
     }
-  });
-}
-
-/**
- * Download the merged video+audio media for screen share to a TEMP FILE
- * first, then return the file path.
- *
- * Screen-share playback does NOT stream from yt-dlp stdout anymore: the
- * merge feed is delivered at network speed (bursts + stalls), and a live
- * pipe defeats ffmpeg's `-re` throttle (the input PTS timeline is
- * unreliable), so the encoder force-duplicates held frames → ~1fps video.
- * Downloading the FULL clip to a file first gives the encoder a clean,
- * monotonic-PTS input, where `-re` (applied in prepareStream for string
- * inputs) pacing is proven reliable.
- *
- * @returns absolute path of the completed media file (caller should delete
- *          it via cleanup after playback ends).
- */
-export function downloadScreenInput(url: string): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    // Temp dir per run (world-writable like /tmp) so parallel/retry runs
-    // never collide on merge fragments.
-    const tmpDir = mkdtempSync(join(tmpdir(), "gmw-ytdlp-"));
-    chmodSync(tmpDir, 0o1777);
-
-    const cookieArgs = buildCookieArgs();
-    const args = [
-      "-f",
-      "bestvideo[protocol^=http]+bestaudio[protocol^=http]/best[protocol^=http]/best",
-      // File output (NOT `-o -`): yt-dlp merges DASH fragments into a real
-      // container with clean timestamps, which is what -re needs to pace.
-      "-o",
-      join(tmpDir, "media.%(ext)s"),
-      "--no-playlist",
-      "--no-warnings",
-      "--no-progress",
-      ...cookieArgs,
-      url,
-    ];
-
-    logger.info({ url }, "Downloading full media for screen share input");
-
-    const proc = spawn("yt-dlp", args, {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    activeProcesses.add(proc);
-
-    let stderrBuf = "";
-    const MAX_STDERR = 4096;
-    proc.stderr?.on("data", (chunk: Buffer) => {
-      if (stderrBuf.length < MAX_STDERR) {
-        stderrBuf += chunk.toString("utf8");
-      }
-    });
-
-    let settled = false;
-    const failOnce = (message: string) => {
-      if (settled) return;
-      settled = true;
-      activeProcesses.delete(proc);
-      rmSync(tmpDir, { recursive: true, force: true });
-      reject(new Error(message));
-    };
-
-    proc.on("error", (err: NodeJS.ErrnoException) => {
-      failOnce(`yt-dlp failed to start: ${err.message}`);
-    });
-
-    let procFinished = false;
-    proc.on("close", (code) => {
-      procFinished = true;
-      activeProcesses.delete(proc);
-      if (code !== 0) {
-        const detail = stderrBuf.trim() ? `: ${stderrBuf.trim()}` : "";
-        failOnce(`yt-dlp download failed (exit ${code})${detail}`);
-        return;
-      }
-      // Find the media file yt-dlp wrote (skip .part / .ytdl temp state).
-      let mediaPath: string | null = null;
-      for (const entry of readdirSync(tmpDir)) {
-        if (entry.endsWith(".part") || entry.endsWith(".ytdl")) continue;
-        mediaPath = join(tmpDir, entry);
-        break;
-      }
-      if (mediaPath && existsSync(mediaPath) && statSync(mediaPath).size > 0) {
-        settled = true;
-        resolve(mediaPath);
-      } else {
-        failOnce("yt-dlp finished but produced no media file");
-      }
-    });
-
-    // Safety net: a stalled download must not hang the gateway forever.
-    const timer = setTimeout(
-      () => {
-        try {
-          proc.kill("SIGTERM");
-        } catch {
-          /* already dead */
-        }
-        if (!procFinished) {
-          failOnce("yt-dlp download timed out (10 min)");
-        }
-      },
-      10 * 60 * 1000,
-    );
-    proc.once("close", () => clearTimeout(timer));
   });
 }
 

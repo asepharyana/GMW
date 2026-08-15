@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { StreamType } from "@discordjs/voice";
-import type { Client } from "discord.js-selfbot-v13";
 import type { CommandMessage, CommandReply } from "../../shared/index.js";
 import { createChildLogger } from "../../shared/logger/index.js";
 import {
@@ -13,10 +12,6 @@ import type {
   MediaQueueItem,
 } from "../voice-recording/mediaTypes.js";
 import { discordPlayer } from "../voice-recording/player.js";
-import {
-  ScreenShareController,
-  type ScreenShareVoiceStatus,
-} from "../voice-recording/screenShareController.js";
 import { setMediaStatusKey } from "./mediaStatusSink.js";
 
 // ---------------------------------------------------------------------------
@@ -84,17 +79,8 @@ function buildStatusPayload(): MediaStatusPayload {
 
 export class MediaHandler {
   private logger = createChildLogger("media-handler");
-  private screenController: ScreenShareController | null = null;
-  private screenPlayback: { stop(): void } | null = null;
 
-  constructor(
-    private readonly client: Client | null = null,
-    private readonly getVoiceStatus: () => ScreenShareVoiceStatus = () => ({
-      connected: false,
-      activeGuildId: null,
-      activeChannelId: null,
-    }),
-  ) {
+  constructor() {
     // Register auto-advance on natural track end. advanceQueue mutates the
     // module-level currentTrackItem/queue, so we must re-publish the status
     // key afterward: otherwise the backend's Redis `media:status` cache (and
@@ -109,30 +95,10 @@ export class MediaHandler {
   }
 
   /**
-   * Give MediaHandler access to the VoiceController so screen-share can
-   * disconnect/reconnect the @discordjs audio connection around a GoLive
-   * stream (Discord allows only one voice session per user).
-   */
-  private voiceControllerAccessor:
-    | (() => {
-        disconnectGuild(guildId: string): Promise<void>;
-        connect(guildId: string, channelId: string): Promise<unknown>;
-        getStatus(): {
-          activeGuildId: string | null;
-          activeChannelId: string | null;
-        };
-      })
-    | null = null;
-
-  setVoiceController(accessor: typeof this.voiceControllerAccessor): void {
-    this.voiceControllerAccessor = accessor;
-  }
-
-  /**
    * Persist the latest media state to Redis so the backend/frontend see queue
-   * advances that happen outside a command (natural track end, screen-share
-   * done). CommandHandler owns the Redis status-key writes for command-triggered
-   * changes; this covers the side-effect-only path.
+   * advances that happen outside a command (natural track end). CommandHandler
+   * owns the Redis status-key writes for command-triggered changes; this
+   * covers the side-effect-only path.
    */
   private publishStatus(): void {
     try {
@@ -152,7 +118,6 @@ export class MediaHandler {
   async handleMediaQueue(cmd: CommandMessage): Promise<CommandReply<unknown>> {
     // Accept both `url` (canonical) and `source` (legacy FE) for resilience.
     const url = String(cmd.payload.url ?? cmd.payload.source ?? "").trim();
-    const mode: MediaMode = cmd.payload.mode === "screen" ? "screen" : "music";
     const requestedBy = String(cmd.payload.requestedBy ?? "unknown");
 
     if (!url) {
@@ -173,74 +138,6 @@ export class MediaHandler {
         data: null,
         error: "Not connected to a voice channel. Connect to voice first.",
       };
-    }
-
-    // Screen share (GoLive) path — bypasses the audio queue entirely.
-    if (mode === "screen") {
-      try {
-        if (!this.client) {
-          return {
-            id: cmd.id,
-            success: false,
-            data: null,
-            error: "Gateway client not initialized",
-          };
-        }
-        if (!this.screenController) {
-          this.screenController = new ScreenShareController(
-            this.client,
-            this.getVoiceStatus,
-            // releaseVoice — disconnect the @discordjs/voice connection so the
-            // dank074 Streamer can take over (Discord: one voice session/user).
-            async (status) => {
-              const vc = this.voiceControllerAccessor?.();
-              const guildId = status.activeGuildId ?? null;
-              if (vc && guildId) {
-                await vc.disconnectGuild(guildId);
-              }
-            },
-            // restoreVoice — reconnect the @discordjs audio connection after
-            // the stream ends so mic/listen keep working.
-            async (status) => {
-              const vc = this.voiceControllerAccessor?.();
-              if (vc && status.activeGuildId && status.activeChannelId) {
-                await vc.connect(status.activeGuildId, status.activeChannelId);
-              }
-            },
-          );
-        }
-        const playback = await this.screenController.start(url);
-        this.screenPlayback = playback;
-        currentTrackItem = {
-          id: randomUUID(),
-          source: url,
-          title: url,
-          kind: "url",
-          mode: "screen",
-          requestedBy,
-          addedAt: Date.now(),
-          status: "playing",
-        };
-        playback.done
-          .catch((err) => {
-            this.logger.error(
-              { error: err instanceof Error ? err.message : String(err) },
-              "Screen playback promise rejected",
-            );
-          })
-          .finally(() => {
-            this.screenPlayback = null;
-            if (currentTrackItem?.mode === "screen") {
-              currentTrackItem = null;
-            }
-          });
-        this.logger.info({ url }, "Screen share started");
-        return { id: cmd.id, success: true, data: buildStatusPayload() };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        this.logger.error({ error: message }, "Screen share failed to start");
-        return { id: cmd.id, success: false, data: null, error: message };
-      }
     }
 
     // Lightweight metadata fetch for display — the full resolve happens in playNext
@@ -264,7 +161,7 @@ export class MediaHandler {
       source: url,
       title,
       kind: "url" as const,
-      mode,
+      mode: "music",
       requestedBy,
       addedAt: Date.now(),
       status: "queued",
@@ -308,12 +205,6 @@ export class MediaHandler {
   }
 
   async handleMediaStop(cmd: CommandMessage): Promise<CommandReply<unknown>> {
-    // Stop screen share if active — playback.done.finally clears the item.
-    this.screenPlayback?.stop();
-    this.screenPlayback = null;
-    if (currentTrackItem?.mode === "screen") {
-      currentTrackItem = null;
-    }
     discordPlayer.stop("music");
     currentTrackItem = null;
     mediaQueue.length = 0; // Clear entire queue
@@ -394,7 +285,7 @@ export class MediaHandler {
       // Music playback: transcode once to high-quality OggOpus (48kHz stereo,
       // 192kbps) with volume baked into the encode. This avoids the double
       // lossy encode that inlineVolume would cause and gives Discord the
-      // cleanest possible stream. Screen share bypasses this entirely.
+      // cleanest possible stream.
       const transcoded = transcodeToHighQualityOgg(
         resolution.stream,
         discordPlayer.getMusicVolume(),

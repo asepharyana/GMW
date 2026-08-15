@@ -1,7 +1,7 @@
 import type { Readable } from "node:stream";
 import type { StreamType } from "@discordjs/voice";
 
-export type MediaMode = "music" | "screen";
+export type MediaMode = "music";
 export type MediaSourceKind =
   | "url"
   | "local"
@@ -51,23 +51,7 @@ export interface MusicPlayer {
   play(source: ResolvedMediaSource): MusicPlayback;
 }
 
-export interface ScreenSharePlayback {
-  done: Promise<void>;
-  stop(): void;
-}
-
-export interface ScreenShareVoiceStatus {
-  connected: boolean;
-  activeGuildId: string | null;
-  activeChannelId: string | null;
-}
-
-export interface ScreenShareController {
-  isActive(): boolean;
-  start(source: string): Promise<ScreenSharePlayback>;
-}
-
-export type DiscordPlayerOwner = "none" | "browser-bridge" | "music" | "screen";
+export type DiscordPlayerOwner = "none" | "browser-bridge" | "music";
 
 export interface DiscordPlayOptions {
   inputType?: StreamType;
