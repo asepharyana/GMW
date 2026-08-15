@@ -221,7 +221,7 @@ export function AmbientCanvas({
     <div
       ref={mountRef}
       aria-hidden
-      className="fixed inset-0 -z-10 overflow-hidden"
+      className="fixed inset-0 -z-10 overflow-hidden pointer-events-none select-none"
       style={{
         background:
           "radial-gradient(120% 90% at 50% 0%, oklch(0.2 0.04 70 / 0.5), oklch(0.1 0.015 70) 60%)",
