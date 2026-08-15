@@ -283,6 +283,15 @@ export async function llmChat(
  * Convenience for vision (image/sticker/emoji) analysis.
  * Returns the raw completion content (trimmed) or null.
  *
+ * When AI_LLM_VISION_BASE_URL + AI_LLM_VISION_API_KEY are configured, vision is
+ * sent DIRECTLY to a dedicated multimodal endpoint (e.g. NVIDIA direct API),
+ * separate from the text/moderation router (omniroute/9router). This keeps
+ * image analysis on a vision-capable model while text moderation stays on the
+ * router's text combo.
+ *
+ * Otherwise it falls back to the shared AI_LLM_BASE_URL (router combo) using
+ * AI_LLM_VISION_MODEL.
+ *
  * NOTE: retries are disabled here on purpose — visionAnalyzer.ts already
  * wraps this call in its own 3-attempt loop with exponential backoff.
  * A second retry layer would multiply worst-case API calls (3×3=9/image).
@@ -291,6 +300,12 @@ export async function llmVision(
   promptText: string,
   imageUrl: { url: string },
 ): Promise<string | null> {
+  // ── Dedicated vision endpoint (NVIDIA direct, etc.) ──────────────────────
+  if (config.AI_LLM_VISION_BASE_URL && config.AI_LLM_VISION_API_KEY) {
+    return llmVisionDirect(promptText, imageUrl);
+  }
+
+  // ── Fallback: shared router combo ─────────────────────────────────────────
   const completion = await llmChat({
     messages: [
       {
@@ -311,4 +326,65 @@ export async function llmVision(
 
   if (!completion) return null;
   return completion.choices[0]?.message?.content?.trim() ?? null;
+}
+
+import axios from "axios";
+
+/**
+ * Direct vision call to a dedicated multimodal endpoint (NVIDIA integrate API).
+ * Model is fixed to the vision-capable one configured via AI_LLM_VISION_MODEL
+ * (default nvidia/nemotron-3-nano-omni-30b-a3b-reasoning). Uses reasoning_budget
+ * + non-streaming (axios JSON) — NVIDIA direct does not need the SSE streaming
+ * gymnastics the composite routers require.
+ */
+async function llmVisionDirect(
+  promptText: string,
+  imageUrl: { url: string },
+): Promise<string | null> {
+  const visionModel = config.AI_LLM_VISION_MODEL || "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning";
+  try {
+    const response = await axios.post(
+      `${config.AI_LLM_VISION_BASE_URL}/chat/completions`,
+      {
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: promptText },
+              { type: "image_url", image_url: imageUrl },
+            ],
+          },
+        ],
+        model: visionModel,
+        max_tokens: 65536,
+        reasoning_budget: 16384,
+        stream: false,
+        temperature: 0.6,
+        top_p: 0.95,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${config.AI_LLM_VISION_API_KEY}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        timeout: 120_000,
+      },
+    );
+
+    const content: string | undefined =
+      response.data?.choices?.[0]?.message?.content;
+    if (!content) return null;
+    return content.trim();
+  } catch (err: any) {
+    const status = err?.response?.status ?? "n/a";
+    const detail = err?.response?.data
+      ? JSON.stringify(err.response.data).slice(0, 300)
+      : err?.message;
+    log.error(
+      { status, detail, model: visionModel },
+      "Direct vision API call failed",
+    );
+    return null;
+  }
 }
