@@ -1,90 +1,45 @@
-"use client";
+import { cn } from "@/lib/utils";
 
-import { motion, useReducedMotion } from "motion/react";
-import { useId } from "react";
-
-export interface RadialGaugeProps {
-  /** 0..1 health ratio */
-  value: number;
-  size?: number;
-  label?: string;
-  sublabel?: string;
-  tone?: "signal" | "amber" | "vermilion";
-}
-
-const toneColor = {
-  signal: "var(--color-signal)",
-  amber: "var(--color-amber)",
-  vermilion: "var(--color-vermilion)",
-};
-
+/** Circular progress gauge. value 0..1. */
 export function RadialGauge({
   value,
-  size = 160,
   label,
   sublabel,
   tone = "signal",
-}: RadialGaugeProps) {
-  const id = useId().replace(/:/g, "");
-  const reduce = useReducedMotion();
-  const stroke = 12;
-  const r = (size - stroke) / 2;
+  size = 120,
+}: {
+  value: number;
+  label: string;
+  sublabel?: string;
+  tone?: "signal" | "amber" | "vermilion";
+  size?: number;
+}) {
+  const v = Math.max(0, Math.min(1, value));
+  const stroke = tone === "vermilion" ? "var(--color-vermilion)" : tone === "amber" ? "var(--color-amber)" : "var(--color-signal)";
+  const r = size / 2 - 10;
   const c = 2 * Math.PI * r;
-  const pct = Math.max(0, Math.min(1, value));
-  const dash = c * pct;
-
   return (
-    <div
-      className="relative inline-flex items-center justify-center"
-      style={{ width: size, height: size }}
-    >
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        className="-rotate-90"
-        role="img"
-        aria-label={`${Math.round(pct * 100)}% ${label ?? "gauge"}`}
-      >
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-hairline)" strokeWidth={8} />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="var(--color-hairline)"
-          strokeWidth={stroke}
-        />
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke={toneColor[tone]}
-          strokeWidth={stroke}
+          stroke={stroke}
+          strokeWidth={8}
           strokeLinecap="round"
           strokeDasharray={c}
-          initial={reduce ? false : { strokeDashoffset: c }}
-          animate={{ strokeDashoffset: c - dash }}
-          transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+          strokeDashoffset={c * (1 - v)}
+          style={{ transition: "stroke-dashoffset 0.6s ease", filter: `drop-shadow(0 0 6px ${stroke})` }}
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span
-          className="display text-2xl mono"
-          style={{ color: toneColor[tone] }}
-        >
-          {Math.round(pct * 100)}%
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className={cn("display text-xl", tone === "vermilion" && "text-vermilion", tone === "amber" && "text-amber", tone === "signal" && "text-signal")}>
+          {label}
         </span>
-        {label && (
-          <span className="text-[11px] font-medium text-[var(--color-ink-soft)] uppercase tracking-wide">
-            {label}
-          </span>
-        )}
-        {sublabel && (
-          <span className="text-[10px] text-[var(--color-ink-soft)]/70">
-            {sublabel}
-          </span>
-        )}
+        {sublabel && <span className="mono text-[0.6rem] text-ink-faint">{sublabel}</span>}
       </div>
     </div>
   );

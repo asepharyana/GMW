@@ -3,69 +3,66 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * GMW — new design system (visual overhaul).
+ * GMW — Ambient Ops Console design system.
  *
- * Replaces the old teal-cyan + purple + glassmorphism language with a warm,
- * signal-driven ops-console aesthetic. Hierarchy comes from scale/weight and
- * tonal surface blocks, NOT from borders/shadows. Three semantic signals:
- *   lime  = OK / live      (--signal)
- *   amber = warn           (--amber)
- *   vermilion = flag/danger (--vermilion)
+ * A signal-driven, immersive ops aesthetic. Hierarchy comes from scale/weight
+ * and tonal surface blocks, not borders. The whole app sits behind a live
+ * WebGL haze (see components/ambient) tinted by a semantic signal:
+ *   lime      = OK / live
+ *   amber     = warn
+ *   vermilion = flag / danger
  */
 
 @theme {
-  /* ── Surfaces ── */
-  --color-canvas: oklch(0.96 0.012 80);
-  --color-surface: oklch(0.92 0.014 80);
-  --color-surface-2: oklch(0.88 0.016 80);
+  /* ── Surfaces (dark-first; light overrides below) ── */
+  --color-canvas: oklch(0.12 0.014 70);
+  --color-canvas-2: oklch(0.16 0.02 70);
+  --color-surface: oklch(0.2 0.022 70 / 0.55);
+  --color-surface-2: oklch(0.26 0.024 70 / 0.45);
 
   /* ── Ink ── */
-  --color-ink: oklch(0.22 0.02 70);
-  --color-ink-soft: oklch(0.46 0.02 70);
+  --color-ink: oklch(0.95 0.008 75);
+  --color-ink-soft: oklch(0.66 0.02 75);
+  --color-ink-faint: oklch(0.5 0.02 75);
 
   /* ── Structural ── */
-  --color-hairline: oklch(0.22 0.02 70 / 0.1);
+  --color-hairline: oklch(1 0 0 / 0.1);
   --hairline-w: 1px;
 
   /* ── Semantic signals ── */
-  --color-signal: oklch(0.78 0.17 125);
-  --color-signal-ink: oklch(0.20 0.03 70);
-  --color-signal-glow: oklch(0.78 0.17 125 / 0.35);
-  --color-amber: oklch(0.80 0.15 70);
-  --color-vermilion: oklch(0.62 0.21 25);
-  --color-vermilion-soft: oklch(0.62 0.21 25 / 0.15);
+  --color-signal: oklch(0.86 0.19 128);
+  --color-signal-ink: oklch(0.18 0.03 70);
+  --color-signal-glow: oklch(0.86 0.19 128 / 0.4);
+  --color-amber: oklch(0.85 0.15 72);
+  --color-vermilion: oklch(0.68 0.21 25);
+  --color-vermilion-glow: oklch(0.68 0.21 25 / 0.4);
 
   --color-ring: var(--color-signal);
 
   /* ── Fonts ── */
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-display: "Bricolage Grotesque", "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: "Bricolage Grotesque", "Inter", system-ui, sans-serif;
 
   /* ── Radii ── */
-  --radius-r: 14px;
+  --radius-r: 16px;
   --radius-r-panel: 12px;
-  --radius-r-control: 8px;
+  --radius-r-control: 9px;
   --radius-r-pill: 9999px;
 }
 
-/* ── Dark theme overrides ── */
-.dark {
-  --color-canvas: oklch(0.13 0.015 70);
-  --color-surface: oklch(0.18 0.02 70);
-  --color-surface-2: oklch(0.23 0.022 70);
+/* ── Light theme overrides ── */
+.light {
+  --color-canvas: oklch(0.96 0.012 80);
+  --color-canvas-2: oklch(0.92 0.014 80);
+  --color-surface: oklch(1 0 0 / 0.7);
+  --color-surface-2: oklch(1 0 0 / 0.5);
 
-  --color-ink: oklch(0.93 0.01 75);
-  --color-ink-soft: oklch(0.62 0.02 75);
+  --color-ink: oklch(0.22 0.02 70);
+  --color-ink-soft: oklch(0.46 0.02 70);
+  --color-ink-faint: oklch(0.6 0.02 70);
 
-  --color-hairline: oklch(1 0 0 / 0.09);
-
-  --color-signal: oklch(0.88 0.18 125);
-  --color-signal-ink: oklch(0.18 0.03 70);
-  --color-signal-glow: oklch(0.88 0.18 125 / 0.4);
-  --color-amber: oklch(0.85 0.15 70);
-  --color-vermilion: oklch(0.68 0.21 25);
-  --color-vermilion-soft: oklch(0.68 0.21 25 / 0.18);
+  --color-hairline: oklch(0.22 0.02 70 / 0.12);
 }
 
 @layer base {
@@ -79,41 +76,28 @@
 
   body {
     @apply bg-canvas text-ink font-sans antialiased;
-    /* warm dot-grid texture + faint glow — replaces old bluish radial layers */
-    background-image:
-      radial-gradient(circle, oklch(0.45 0.03 70 / 0.05) 1px, transparent 1px),
-      radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.78 0.17 125 / 0.06), transparent),
-      radial-gradient(ellipse 50% 40% at 85% 90%, oklch(0.80 0.15 70 / 0.04), transparent);
-    background-size: 26px 26px, 100% 100%, 100% 100%;
-  }
-
-  .dark body {
-    background-image:
-      radial-gradient(circle, oklch(1 0 0 / 0.022) 1px, transparent 1px),
-      radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.88 0.18 125 / 0.05), transparent),
-      radial-gradient(ellipse 50% 40% at 85% 90%, oklch(0.85 0.15 70 / 0.03), transparent);
-    background-size: 26px 26px, 100% 100%, 100% 100%;
+    min-height: 100dvh;
   }
 
   ::selection {
-    background: oklch(0.78 0.17 125 / 0.35);
+    background: var(--color-signal-glow);
     color: inherit;
   }
 
-  /* Scrollbar — warm */
+  /* Scrollbar */
   ::-webkit-scrollbar {
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: oklch(0.4 0.02 70 / 0.22);
+    background: oklch(1 0 0 / 0.14);
     border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: oklch(0.4 0.02 70 / 0.38);
+    background: oklch(1 0 0 / 0.26);
   }
 
   :focus-visible {
@@ -122,59 +106,48 @@
   }
 }
 
-@layer utilities {
-  /* Tonal block that replaces bordered cards */
-  .surface {
+@layer components {
+  /* Glass panel — the workhorse container. Floating, blurred, faint glow. */
+  .glass {
     background: var(--color-surface);
-    border-radius: var(--radius-r);
     border: var(--hairline-w) solid var(--color-hairline);
+    border-radius: var(--radius-r);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    box-shadow:
+      0 1px 0 0 oklch(1 0 0 / 0.06) inset,
+      0 18px 50px -28px oklch(0 0 0 / 0.8);
   }
-  .surface-2 {
+
+  .glass-2 {
     background: var(--color-surface-2);
+    border: var(--hairline-w) solid var(--color-hairline);
     border-radius: var(--radius-r-panel);
-    border: var(--hairline-w) solid var(--color-hairline);
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
   }
 
-  /* 1px animated pulse line marking a live/section header */
-  .scan-tick {
-    position: relative;
-    overflow: hidden;
-  }
-  .scan-tick::after {
-    content: "";
-    position: absolute;
-    inset-inline-start: 0;
-    inset-block-start: 0;
-    block-size: 1px;
-    inline-size: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--color-signal) 20%,
-      var(--color-signal) 80%,
-      transparent
-    );
-    background-size: 200% 100%;
-    animation: scan 2.6s linear infinite;
-    opacity: 0.7;
-  }
-
-  .ticker {
-    background: var(--color-surface);
-    border-radius: var(--radius-r);
-    border: var(--hairline-w) solid var(--color-hairline);
-    padding: clamp(1rem, 2vw, 1.5rem);
+  /* Section label — small uppercase mono eyebrow */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
   }
 
   .pill {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.2rem 0.7rem;
+    gap: 0.4rem;
+    padding: 0.22rem 0.7rem;
     border-radius: var(--radius-r-pill);
     font-size: 0.72rem;
     font-weight: 600;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
+    background: oklch(1 0 0 / 0.06);
+    border: 1px solid var(--color-hairline);
+    color: var(--color-ink-soft);
   }
 
   .mono {
@@ -186,26 +159,58 @@
   .display {
     font-family: var(--font-display);
     font-weight: 800;
-    letter-spacing: -0.02em;
-    line-height: 1.02;
+    letter-spacing: -0.03em;
+    line-height: 0.96;
   }
+}
 
-  /* text tone helpers */
+@layer utilities {
   .text-signal { color: var(--color-signal); }
   .text-amber { color: var(--color-amber); }
   .text-vermilion { color: var(--color-vermilion); }
   .text-ink-soft { color: var(--color-ink-soft); }
+  .text-ink-faint { color: var(--color-ink-faint); }
 
-  /* focus ring helper for interactive blocks */
+  .glow-signal {
+    text-shadow: 0 0 22px var(--color-signal-glow);
+  }
+  .glow-vermilion {
+    text-shadow: 0 0 22px var(--color-vermilion-glow);
+  }
+
+  /* animated scan line for live headers */
+  .scan-line {
+    position: relative;
+    overflow: hidden;
+  }
+  .scan-line::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 1px;
+    width: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-signal) 25%,
+      var(--color-signal) 75%,
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: scan 2.8s linear infinite;
+    opacity: 0.7;
+  }
+
   .ring-focus {
-    transition: box-shadow 0.18s ease;
+    transition: box-shadow 0.18s ease, border-color 0.18s ease;
   }
   .ring-focus:hover {
     box-shadow: 0 0 0 1px var(--color-signal-glow);
   }
 }
 
-/* ── Keyframes ──────────────────────────── */
+/* ── Keyframes ── */
 @keyframes scan {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
@@ -216,54 +221,52 @@
   60% { transform: scaleY(0.5); }
 }
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 @keyframes spin-disc {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
-/* kept for live status dots */
 @keyframes pulse-ring {
-  0% { transform: scale(0.8); opacity: 1; }
-  100% { transform: scale(2.5); opacity: 0; }
+  0% { transform: scale(0.85); opacity: 1; }
+  100% { transform: scale(2.6); opacity: 0; }
 }
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
+}
+@keyframes breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
 }
 
 .animate-eq {
   animation: eq 0.9s ease-in-out infinite;
   transform-origin: bottom;
 }
-.animate-spin-disc {
-  animation: spin-disc 8s linear infinite;
-}
-.animate-spin-disc.paused {
-  animation-play-state: paused;
-}
-.animate-pulse-ring {
-  animation: pulse-ring 1.5s ease-out infinite;
-}
+.animate-spin-disc { animation: spin-disc 9s linear infinite; }
+.animate-spin-disc.paused { animation-play-state: paused; }
+.animate-pulse-ring { animation: pulse-ring 1.6s ease-out infinite; }
 .animate-shimmer {
   background: linear-gradient(
     90deg,
     transparent,
-    oklch(0.78 0.17 125 / 0.08),
+    oklch(0.86 0.19 128 / 0.1),
     transparent
   );
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 1.6s infinite;
 }
+.animate-breathe { animation: breathe 3.5s ease-in-out infinite; }
 
-/* ── Reduced motion: kill all decorative animation ── */
 @media (prefers-reduced-motion: reduce) {
-  .scan-tick::after,
+  .scan-line::after,
   .animate-eq,
   .animate-spin-disc,
   .animate-pulse-ring,
-  .animate-shimmer {
+  .animate-shimmer,
+  .animate-breathe {
     animation: none !important;
   }
   html { scroll-behavior: auto; }

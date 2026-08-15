@@ -1,20 +1,16 @@
 import { cn } from "@/lib/utils";
 
-export interface SkeletonProps {
-  className?: string;
-  rounded?: boolean;
-}
-
-export function Skeleton({ className, rounded }: SkeletonProps) {
+export function Skeleton({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      aria-hidden
       className={cn(
-        "animate-shimmer rounded-[var(--radius-r-control)]",
-        "bg-[var(--color-surface-2)]",
-        rounded && "rounded-full",
+        "rounded-[10px] bg-white/[0.06] animate-shimmer relative overflow-hidden",
         className,
       )}
+      {...props}
     />
   );
 }

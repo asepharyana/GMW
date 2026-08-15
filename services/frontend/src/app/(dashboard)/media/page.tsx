@@ -1,13 +1,14 @@
-/**
- * Media page — Server Component. Seeds the music player with the shared media
- * state fetched on the server (same state every user sees), then live-updates
- * over WS.
- */
 import { getMediaStatus } from "@/lib/api/server";
-import MediaView from "./view";
+import { MediaView } from "./view";
+
+export const dynamic = "force-dynamic";
 
 export default async function MediaPage() {
-  const status = await getMediaStatus().catch(() => undefined);
-
+  let status = undefined;
+  try {
+    status = await getMediaStatus();
+  } catch {
+    /* client hooks surface errors */
+  }
   return <MediaView initialStatus={status} />;
 }

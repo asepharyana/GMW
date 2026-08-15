@@ -1,377 +1,228 @@
 "use client";
 
-import { Flag, Image, Loader2, Search, Send, X } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { Lightbox } from "@/components/messages/lightbox";
-import { MessageDetailView } from "@/components/messages/message-detail-view";
-import { MessageList } from "@/components/messages/message-list";
-import { SearchOverlay } from "@/components/messages/search-overlay";
-import { StaggerGroup, StaggerItem } from "@/components/motion/stagger";
-import { Avatar } from "@/components/primitives/avatar";
-import { Badge } from "@/components/primitives/badge";
-import { Dialog } from "@/components/primitives/dialog";
-import { Input } from "@/components/primitives/input";
-import { Select } from "@/components/primitives/select";
-import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/shared";
-import { GuildSelector } from "@/components/shared/guild-selector";
+import { useEffect, useState } from "react";
 import {
-  useImages,
-  useLoadMore,
-  useMessageDetail,
-  useMessages,
-  useMessagesHasMore,
-  useMessagesWsSync,
-  useReview,
-  useTextChannels,
-} from "@/hooks";
-import { renderMessageContent } from "@/lib/format";
-import type { MessageRecord } from "@/lib/types";
-import { cn } from "@/lib/utils";
+  MessageSquare,
+  Search,
+  Paperclip,
+  Image as ImageIcon,
+  ShieldAlert,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+} from "lucide-react";
 import { useWebSocket } from "@/lib/ws/context";
+import {
+  useGuilds,
+  useMessages,
+  useMessagesWsSync,
+  useMessageSearch,
+  useMessageDetail,
+} from "@/hooks";
+import { useAmbient } from "@/components/ambient/ambient-context";
+import { GlassPanel, GlassCard, Avatar, Badge, Input, Skeleton } from "@/components/primitives";
+import { SectionHeader, EmptyState, ErrorState, LoadingState } from "@/components/shared";
+import { GuildChannelPicker } from "@/components/shared/guild-picker";
+import { renderMessageContent, getMessageChannelLabel, safeParseJsonArray, formatBytes } from "@/lib/format";
+import type { AiStatus, Guild, MessageRecord } from "@/lib/types";
 
-type MessagesTab = "all" | "images" | "review";
-
-interface MessagesViewProps {
-  initialGuild?: string;
-  initialChannel?: string;
-  initialDetailId?: string | null;
-  initialTab?: MessagesTab;
-  initialMessagePage?: { data: MessageRecord[]; nextCursor: string | null };
+function relTime(ts?: number | null) {
+  if (!ts) return "";
+  const d = Date.now() - ts;
+  const m = Math.floor(d / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
 }
 
-export default function MessagesView({
-  initialGuild = "",
-  initialChannel = "",
-  initialDetailId = null,
-  initialTab = "all",
-  initialMessagePage,
-}: MessagesViewProps) {
-  const router = useRouter();
-  const [guildId, setGuildId] = useState(initialGuild);
-  const [selectedChannel, setSelectedChannel] = useState(initialChannel);
-  const [detailId, setDetailId] = useState<string | null>(initialDetailId);
-  const [tab, setTab] = useState<MessagesTab>(initialTab);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [lightbox, setLightbox] = useState<{
-    images: Array<{ src: string; alt?: string }>;
-    index: number;
-  } | null>(null);
+function aiTone(s?: AiStatus | null): "signal" | "amber" | "vermilion" | "neutral" {
+  if (s === "clean") return "signal";
+  if (s === "warn") return "amber";
+  if (s === "flagged" || s === "error") return "vermilion";
+  if (s === "processing" || s === "pending") return "neutral";
+  return "neutral";
+}
 
+export function MessagesView({
+  initialGuilds,
+  initialGuildId,
+}: {
+  initialGuilds?: Guild[];
+  initialGuildId?: string | null;
+}) {
   const ws = useWebSocket();
-  const { data: channels = [] } = useTextChannels(guildId);
-  const {
-    data: messages,
-    error,
-    refetch,
-  } = useMessages(
-    guildId,
-    selectedChannel || undefined,
-    guildId === initialGuild && selectedChannel === initialChannel
-      ? initialMessagePage
-      : undefined,
+  const { data: guilds } = useGuilds(initialGuilds);
+  const [guildId, setGuildId] = useState<string | null>(
+    initialGuildId ?? initialGuilds?.[0]?.id ?? null,
   );
-  const { data: cursorData } = useMessagesHasMore(
-    guildId,
-    selectedChannel || undefined,
-  );
-  const loadMoreMut = useLoadMore();
-  const { data: images } = useImages(guildId);
-  const { data: reviews } = useReview(selectedChannel || undefined);
-  const { message: detailMessage, loading: detailLoading } =
-    useMessageDetail(detailId);
+  const [channelId, setChannelId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
-  useMessagesWsSync(ws, guildId);
+  const { data: messages, isLoading, error } = useMessages(guildId ?? "", channelId ?? undefined);
+  useMessagesWsSync(ws, guildId ?? "");
+  const search = useMessageSearch(query, query.trim().length >= 2);
+  const detail = useMessageDetail(selected);
+  const ambient = useAmbient();
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (guildId) params.set("guild", guildId);
-    if (selectedChannel) params.set("channel", selectedChannel);
-    if (detailId) params.set("selected", detailId);
-    if (tab !== "all") params.set("tab", tab);
-    router.replace(`/messages?${params.toString()}`, { scroll: false });
-  }, [guildId, selectedChannel, detailId, tab, router]);
+    ambient.set(query ? "amber" : "signal", 0.3, query ? "search" : "messages");
+  }, [query, ambient]);
 
-  // global Cmd+K
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
-
-  const handleLoadMore = useCallback(() => {
-    if (!cursorData?.cursor || loadMoreMut.isPending) return;
-    loadMoreMut.mutate({
-      guildId,
-      channelId: selectedChannel || undefined,
-      cursor: cursorData.cursor,
-    });
-  }, [cursorData, loadMoreMut, guildId, selectedChannel]);
-
-  const handleGuildChange = useCallback((g: string) => {
-    setGuildId(g);
-    setSelectedChannel("");
-    setDetailId(null);
-  }, []);
-
-  const tabs: { id: MessagesTab; label: string; icon: React.ReactNode }[] = [
-    { id: "all", label: "All", icon: null },
-    { id: "images", label: "Images", icon: <Image className="size-3.5" /> },
-    { id: "review", label: "Review", icon: <Flag className="size-3.5" /> },
-  ];
-
-  const currentMessages = messages ?? [];
+  const searching = query.trim().length >= 2;
+  const list = searching ? search.data ?? [] : (messages ?? []);
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Controls */}
-      <div className="flex items-center gap-3">
-        <GuildSelector value={guildId} onChange={handleGuildChange} />
-        {channels.length > 0 && (
-          <Select
-            value={selectedChannel}
-            onChange={(e) => setSelectedChannel(e.target.value || "")}
-            className="w-48"
-          >
-            <option value="">All channels</option>
-            {channels.map((ch) => (
-              <option key={ch.id} value={ch.id}>
-                # {ch.name}
-              </option>
-            ))}
-          </Select>
-        )}
-        <button
-          type="button"
-          onClick={() => setSearchOpen(true)}
-          className="ms-auto flex items-center gap-1.5 rounded-[var(--radius-r-control)] px-3 py-1.5 text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
-        >
-          <Search className="size-3.5" />
-          Search{" "}
-          <span className="hidden font-mono text-[10px] sm:inline">(⌘K)</span>
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-[var(--radius-r)] bg-[var(--color-surface-2)] p-1">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={cn(
-              "flex items-center gap-1.5 rounded-[var(--radius-r-control)] px-3 py-1.5 text-xs font-medium transition-colors",
-              tab === t.id
-                ? "bg-[var(--color-signal)] text-[var(--color-signal-ink)]"
-                : "text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]",
-            )}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex gap-4">
-        {/* Left — timeline spine + entries */}
-        <div
-          className={cn("surface p-3", detailId ? "w-1/2 lg:w-2/5" : "w-full")}
-        >
-          {error ? (
-            <ErrorState message={error.message} onRetry={refetch} />
-          ) : !messages ? (
-            <LoadingSkeleton count={6} />
-          ) : tab === "all" ? (
-            <MessageList
-              messages={currentMessages}
-              selectedId={detailId}
-              onSelect={setDetailId}
-              hasMore={cursorData?.hasMore}
-              onLoadMore={handleLoadMore}
-              isLoadingMore={loadMoreMut.isPending}
-            />
-          ) : tab === "images" ? (
-            <ImageGrid items={images ?? []} onSelect={setDetailId} />
-          ) : (
-            <ReviewList items={reviews ?? []} onSelect={setDetailId} />
-          )}
-        </div>
-
-        {/* Right — detail */}
-        {detailId && (
-          <div className="sticky top-16 hidden w-1/2 self-start md:block lg:w-3/5">
-            <div className="surface h-full p-4">
-              {detailLoading ? (
-                <div className="flex h-40 items-center justify-center">
-                  <Loader2 className="size-5 animate-spin text-[var(--color-ink-soft)]" />
-                </div>
-              ) : detailMessage ? (
-                <div className="flex flex-col gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setDetailId(null)}
-                    className="text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
-                  >
-                    ← Back to list
-                  </button>
-                  <MessageDetailView message={detailMessage} />
-                  {detailMessage && (
-                    <Lightbox
-                      open={!!lightbox}
-                      onClose={() => setLightbox(null)}
-                      images={extractImages(detailMessage.metadata)}
-                    />
-                  )}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <SearchOverlay
-        open={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        results={(currentMessages ?? []).map((m) => ({
-          id: m.id,
-          content: m.edited_content ?? m.content,
-          username: m.username ?? "unknown",
-          channel: m.channel_id,
-          time: m.created_at
-            ? new Date(m.created_at * 1000).toLocaleTimeString()
-            : "",
-        }))}
-        onSelect={(msg) => {
-          const found = currentMessages.find((m) => m.id === msg.id);
-          if (found) setDetailId(found.id);
-          setTab("all");
-        }}
-      />
-
-      {lightbox && (
-        <Lightbox
-          open={!!lightbox}
-          onClose={() => setLightbox(null)}
-          images={lightbox.images}
-          initialIndex={lightbox.index}
+    <div className="space-y-4">
+      <GlassPanel className="flex flex-wrap items-center gap-3">
+        <GuildChannelPicker
+          mode="text"
+          guildsInitial={initialGuilds}
+          guildId={guildId}
+          channelId={channelId}
+          onChange={(g, c) => {
+            setGuildId(g);
+            setChannelId(c);
+            setSelected(null);
+          }}
         />
+        <div className="relative ml-auto w-64">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
+          <Input
+            className="pl-9"
+            placeholder="Search messages…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      </GlassPanel>
+
+      <div className="grid gap-4 lg:grid-cols-5">
+        <GlassPanel className="lg:col-span-3">
+          <SectionHeader
+            eyebrow={searching ? "results" : "live feed"}
+            title={searching ? `“${query}”` : "Messages"}
+            action={
+              <span className="mono text-xs text-ink-faint">
+                {list.length} shown
+              </span>
+            }
+          />
+          {error && !messages ? (
+            <ErrorState error={error} />
+          ) : isLoading && !messages ? (
+            <LoadingState label="Capturing" />
+          ) : list.length === 0 ? (
+            <EmptyState icon={<MessageSquare className="size-7" />} title="No messages" description="Pick a guild to begin, or run a search." />
+          ) : (
+            <div className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1">
+              {list.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setSelected(m.id)}
+                  className={`flex w-full items-start gap-3 rounded-[12px] border p-3 text-left transition-colors ${
+                    selected === m.id ? "border-signal/40 bg-signal/8" : "border-hairline bg-white/[0.03] hover:bg-white/[0.06]"
+                  }`}
+                >
+                  <Avatar src={m.avatar_url} name={m.username} size={34} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-ink">{m.username}</span>
+                      <span className="mono text-[0.65rem] text-ink-faint">{getMessageChannelLabel(m)}</span>
+                      <span className="mono ml-auto text-[0.6rem] text-ink-faint">{relTime(m.created_at)}</span>
+                    </div>
+                    <div className="mt-0.5 line-clamp-2 text-sm text-ink-soft">
+                      {renderMessageContent(m.content, m.metadata) || <span className="italic text-ink-faint">(empty / embed)</span>}
+                    </div>
+                  </div>
+                  <AiBadge status={m.ai_status} />
+                </button>
+              ))}
+            </div>
+          )}
+        </GlassPanel>
+
+        <GlassPanel className="lg:col-span-2">
+          <SectionHeader eyebrow="inspect" title="Detail" />
+          {!selected ? (
+            <EmptyState title="Select a message" description="Click any message to inspect AI analysis, attachments and edit history." />
+          ) : detail.loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-20" />
+              <Skeleton className="h-12" />
+            </div>
+          ) : detail.message ? (
+            <MessageDetail m={detail.message} attachments={detail.attachments} />
+          ) : (
+            <EmptyState title="Not found" />
+          )}
+        </GlassPanel>
+      </div>
+    </div>
+  );
+}
+
+function AiBadge({ status }: { status?: AiStatus | null }) {
+  if (!status) return null;
+  const tone = aiTone(status);
+  const icon =
+    status === "clean" ? <CheckCircle2 className="size-3" /> :
+    status === "flagged" ? <ShieldAlert className="size-3" /> :
+    status === "warn" ? <AlertTriangle className="size-3" /> :
+    status === "processing" || status === "pending" ? <Loader2 className="size-3 animate-spin" /> :
+    <AlertTriangle className="size-3" />;
+  return <Badge tone={tone} dot={status === "processing" || status === "pending"}>{icon}{status}</Badge>;
+}
+
+function MessageDetail({ m, attachments }: { m: MessageRecord; attachments: import("@/lib/types").AttachmentRecord[] }) {
+  const flags = safeParseJsonArray(m.ai_moderation_flags);
+  const cats = safeParseJsonArray(m.ai_categories);
+  return (
+    <div className="space-y-3 text-sm">
+      <div className="flex items-center gap-3">
+        <Avatar src={m.avatar_url} name={m.username} size={40} />
+        <div>
+          <div className="font-semibold text-ink">{m.username}</div>
+          <div className="mono text-[0.65rem] text-ink-faint">{getMessageChannelLabel(m)} · {relTime(m.created_at)}</div>
+        </div>
+        <div className="ml-auto"><AiBadge status={m.ai_status} /></div>
+      </div>
+
+      <div className="rounded-[10px] border border-hairline bg-white/[0.03] p-3 text-ink-soft">
+        {renderMessageContent(m.edited_content ?? m.content, m.metadata) || "(no text)"}
+      </div>
+
+      {m.ai_analysis && (
+        <div>
+          <div className="eyebrow mb-1">AI analysis</div>
+          <div className="rounded-[10px] border border-hairline bg-white/[0.03] p-3 text-ink-soft">{m.ai_analysis}</div>
+        </div>
+      )}
+
+      {(flags.length > 0 || cats.length > 0) && (
+        <div className="flex flex-wrap gap-1.5">
+          {flags.map((f) => <Badge key={f} tone="vermilion">{f}</Badge>)}
+          {cats.map((c) => <Badge key={c} tone="amber">{c}</Badge>)}
+        </div>
+      )}
+
+      {attachments.length > 0 && (
+        <div>
+          <div className="eyebrow mb-1 flex items-center gap-1.5"><Paperclip className="size-3" /> Attachments ({attachments.length})</div>
+          <div className="space-y-1.5">
+            {attachments.map((a) => (
+              <a key={a.id} href={a.discord_url ?? a.uploaded_url ?? "#"} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-[10px] border border-hairline bg-white/5 px-3 py-2 text-xs text-ink-soft hover:text-ink">
+                <ImageIcon className="size-3.5 text-signal" />
+                <span className="flex-1 truncate">{a.filename}</span>
+                <span className="mono text-ink-faint">{formatBytes(a.size)}</span>
+              </a>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
-}
-
-function ImageGrid({
-  items,
-  onSelect,
-}: {
-  items: MessageRecord[];
-  onSelect: (id: string) => void;
-}) {
-  return !items.length ? (
-    <EmptyState
-      icon={Image}
-      title="No images"
-      description="Messages with image attachments will appear here."
-    />
-  ) : (
-    <div className="grid grid-cols-3 gap-2.5">
-      {items.map((item) => {
-        const url = extractFirstImage(item.metadata);
-        return (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onSelect(item.id)}
-            className="overflow-hidden rounded-[var(--radius-r)] border border-[var(--color-hairline)]"
-          >
-            {url ? (
-              <img
-                src={url}
-                alt=""
-                className="h-24 w-full object-cover"
-                loading="lazy"
-              />
-            ) : (
-              <div className="flex h-24 w-full items-center justify-center text-xs text-[var(--color-ink-soft)]/40">
-                No image
-              </div>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function ReviewList({
-  items,
-  onSelect,
-}: {
-  items: MessageRecord[];
-  onSelect: (id: string) => void;
-}) {
-  return !items.length ? (
-    <EmptyState
-      icon={Flag}
-      title="No flagged messages"
-      description="Review-flagged messages will appear here."
-    />
-  ) : (
-    <StaggerGroup className="space-y-2">
-      {items.map((item) => (
-        <StaggerItem key={item.id} className="surface p-3">
-          <button
-            type="button"
-            onClick={() => onSelect(item.id)}
-            className="flex items-start gap-2 w-full text-left"
-          >
-            <Flag className="mt-0.5 size-3.5 shrink-0 text-[var(--color-vermilion)]" />
-            <p className="line-clamp-2 text-xs text-[var(--color-ink-soft)]">
-              {renderMessageContent(item.content, item.metadata) || item.id}
-            </p>
-          </button>
-        </StaggerItem>
-      ))}
-    </StaggerGroup>
-  );
-}
-
-function extractFirstImage(metadata?: string | null): string | null {
-  try {
-    if (!metadata) return null;
-    const m = JSON.parse(metadata);
-    const atts = m?.attachments ?? [];
-    const img = atts.find(
-      (a: {
-        contentType?: string | null;
-        url?: string;
-        discord_url?: string;
-      }) => /image/i.test(a.contentType ?? ""),
-    );
-    return img?.url ?? img?.discord_url ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function extractImages(metadata?: string | null) {
-  try {
-    if (!metadata) return [];
-    const m = JSON.parse(metadata);
-    return (m?.attachments ?? [])
-      .filter((a: { contentType?: string | null }) =>
-        /image/i.test(a.contentType ?? ""),
-      )
-      .map((a: { url?: string; discord_url?: string; name?: string }) => ({
-        src: a.url ?? a.discord_url ?? "",
-        alt: a.name,
-      }));
-  } catch {
-    return [];
-  }
 }

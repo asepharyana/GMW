@@ -1,55 +1,52 @@
-"use client";
-
-import { type HTMLMotionProps, motion, useReducedMotion } from "motion/react";
-import { forwardRef } from "react";
+import { Slot } from "./slot";
 import { cn } from "@/lib/utils";
 
-type Variant = "primary" | "ghost" | "danger" | "outline";
+type Variant = "primary" | "ghost" | "outline" | "danger" | "subtle";
 type Size = "sm" | "md" | "lg" | "icon";
 
-const variantClass: Record<Variant, string> = {
+const variants: Record<Variant, string> = {
   primary:
-    "bg-[var(--color-signal)] text-[var(--color-signal-ink)] hover:opacity-90",
-  ghost:
-    "bg-transparent text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]",
-  danger: "bg-[var(--color-vermilion)] text-white hover:opacity-90",
+    "bg-signal text-signal-ink hover:brightness-110 shadow-[0_8px_24px_-10px_var(--color-signal-glow)] font-semibold",
+  ghost: "text-ink-soft hover:text-ink hover:bg-white/5",
   outline:
-    "bg-transparent text-[var(--color-ink)] border border-[var(--color-hairline)] hover:bg-[var(--color-surface-2)]",
+    "border border-hairline bg-white/0 text-ink hover:bg-white/5 hover:border-signal/40",
+  danger:
+    "bg-vermilion text-white hover:brightness-110 shadow-[0_8px_24px_-10px_var(--color-vermilion-glow)] font-semibold",
+  subtle: "bg-white/5 text-ink hover:bg-white/10",
 };
 
-const sizeClass: Record<Size, string> = {
-  sm: "h-8 px-3 text-xs rounded-[var(--radius-r-control)]",
-  md: "h-10 px-4 text-sm rounded-[var(--radius-r-control)]",
-  lg: "h-12 px-6 text-base rounded-[var(--radius-r)]",
-  icon: "size-9 rounded-[var(--radius-r-control)]",
+const sizes: Record<Size, string> = {
+  sm: "h-8 px-3 text-xs rounded-[9px] gap-1.5",
+  md: "h-10 px-4 text-sm rounded-[11px] gap-2",
+  lg: "h-12 px-6 text-base rounded-[13px] gap-2",
+  icon: "h-10 w-10 rounded-[11px]",
 };
 
-export interface ButtonProps extends Omit<HTMLMotionProps<"button">, "ref"> {
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
+  asChild?: boolean;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  (
-    { className, variant = "primary", size = "md", children, ...props },
-    ref,
-  ) => {
-    const reduce = useReducedMotion();
-    return (
-      <motion.button
-        ref={ref}
-        className={cn(
-          "inline-flex items-center justify-center gap-2 select-none cursor-pointer font-medium outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] disabled:opacity-50 disabled:pointer-events-none transition-colors duration-150",
-          variantClass[variant],
-          sizeClass[size],
-          className,
-        )}
-        whileTap={reduce ? undefined : { scale: 0.97 }}
-        {...props}
-      >
-        {children}
-      </motion.button>
-    );
-  },
-);
-Button.displayName = "Button";
+export const Button = ({
+  className,
+  variant = "subtle",
+  size = "md",
+  asChild,
+  ...props
+}: ButtonProps) => {
+  const Comp = asChild ? Slot : "button";
+  return (
+    <Comp
+      className={cn(
+        "inline-flex items-center justify-center whitespace-nowrap transition-all duration-150 select-none",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/60 disabled:opacity-40 disabled:pointer-events-none",
+        variants[variant],
+        sizes[size],
+        className,
+      )}
+      {...props}
+    />
+  );
+};

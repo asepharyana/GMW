@@ -1,83 +1,48 @@
-"use client";
+import type { DailyActivityPoint } from "@/lib/types";
 
-import { motion, useReducedMotion } from "motion/react";
-import { useId } from "react";
-
-export interface AreaPoint {
-  label: string;
-  value: number;
-}
-
-export interface AreaActivityProps {
-  data: AreaPoint[];
-  height?: number;
-  stroke?: string;
-  className?: string;
-  label?: string;
-}
-
+/**
+ * Dual-area activity chart: total messages (signal) vs flagged (vermilion).
+ * Pure SVG, scales to container. Includes a 7-day trailing window hint.
+ */
 export function AreaActivity({
-  data,
-  height = 160,
-  stroke = "var(--color-signal)",
-  className,
-  label,
-}: AreaActivityProps) {
-  const id = useId().replace(/:/g, "");
-  const reduce = useReducedMotion();
-  const width = 600;
-  if (data.length === 0)
-    return <div className={className} style={{ height }} />;
+  daily,
+  height = 200,
+}: {
+  daily: DailyActivityPoint[];
+  height?: number;
+}) {
+  const w = 720;
+  const pad = 8;
+  const n = daily.length;
+  const max = Math.max(...daily.map((d) => d.messages), 1);
+  const x = (i: number) => pad + (i / Math.max(n - 1, 1)) * (w - pad * 2);
+  const y = (v: number) => height - pad - (v / max) * (height - pad * 2);
 
-  const max = Math.max(...data.map((d) => d.value), 1);
-  const stepX = width / Math.max(data.length - 1, 1);
-  const pts = data.map((d, i) => {
-    const x = i * stepX;
-    const y = height - (d.value / max) * (height - 10) - 5;
-    return [x, y] as const;
-  });
-  const line = pts
-    .map(
-      (p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`,
-    )
-    .join(" ");
-  const area = `${line} L${width},${height} L0,${height} Z`;
-  const pathLen = 1400;
+  const msgLine = daily.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(d.messages).toFixed(1)}`).join(" ");
+  const flagLine = daily.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(d.flagged).toFixed(1)}`).join(" ");
+  const msgArea = `${msgLine} L${x(n - 1).toFixed(1)},${height - pad} L${x(0).toFixed(1)},${height - pad} Z`;
 
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className={className}
-      style={{ width: "100%", height }}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={label ?? "Activity chart"}
-    >
+    <svg viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" className="w-full" style={{ height }}>
       <defs>
-        <linearGradient id={`area-${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={stroke} stopOpacity="0.32" />
-          <stop offset="100%" stopColor={stroke} stopOpacity="0.02" />
+        <linearGradient id="area-msg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--color-signal)" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="var(--color-signal)" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <motion.path
-        d={area}
-        fill={`url(#area-${id})`}
-        initial={reduce ? false : { pathLength: 0, opacity: 0.4 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-      />
-      <motion.path
-        d={line}
-        fill="none"
-        stroke={stroke}
-        strokeWidth={2}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        initial={reduce ? false : { pathLength: 0 }}
-        animate={{ pathLength: 1 }}
-        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-        style={{ strokeDasharray: pathLen }}
-      />
+      {[0.25, 0.5, 0.75].map((g) => (
+        <line key={g} x1={pad} x2={w - pad} y1={height * g} y2={height * g} stroke="var(--color-hairline)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+      ))}
+      <path d={msgArea} fill="url(#area-msg)" />
+      <path d={msgLine} fill="none" stroke="var(--color-signal)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+      <path d={flagLine} fill="none" stroke="var(--color-vermilion)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeDasharray="3 3" />
+      {daily.map((d, i) =>
+        i % 2 === 0 ? (
+          <text key={d.day} x={x(i)} y={height - 1} fill="var(--color-ink-faint)" fontSize={9} textAnchor="middle" className="mono">
+            {d.day.slice(5)}
+          </text>
+        ) : null,
+      )}
     </svg>
   );
 }

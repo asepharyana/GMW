@@ -1,144 +1,228 @@
 "use client";
 
-/**
- * Dashboard — Ambient Field layout.
- *
- * No top bar. No side rail. No grid. No panels.
- *
- * A full-bleed WebGL haze (AmbientField) is the page. Content floats over it:
- * a giant headline bottom-left, a live metric cluster top-right, a drifting
- * event ribbon mid-screen, a command whispher at the very bottom. Whitespace
- * is the layout — density comes from data, not chrome.
- */
+import { useEffect } from "react";
+import {
+  Activity,
+  Flag,
+  MessageSquare,
+  Mic,
+  Radio,
+  ShieldAlert,
+  Users,
+} from "lucide-react";
+import {
+  useActivity,
+  useStats,
+  useTopReactors,
+  useTopReactions,
+} from "@/hooks";
+import { useAmbient } from "@/components/ambient/ambient-context";
+import { GlassPanel, GlassCard } from "@/components/primitives";
+import {
+  AreaActivity,
+  Donut,
+  RadialGauge,
+  Sparkline,
+} from "@/components/charts";
+import { MetricTile, SectionHeader } from "@/components/shared/section";
+import { ErrorState, LoadingState } from "@/components/shared";
+import { formatNumber } from "@/lib/format";
+import type { DashboardStats } from "@/lib/types";
 
-import { useCallback, useMemo, useState } from "react";
-import { AmbientField } from "@/components/ambient/ambient-field";
-import { DashCommandLine } from "@/components/command/dash-command-line";
-import type { DashboardActivity, DashboardStats } from "@/lib/types";
-import { useWebSocket } from "@/lib/ws/context";
+function deriveSignal(stats?: DashboardStats) {
+  if (!stats) return { tone: "signal" as const, label: "nominal" };
+  const total = stats.total_flagged + stats.total_clean || 1;
+  const ratio = stats.total_flagged / total;
+  if (stats.moderation_overview.error > 0) return { tone: "vermilion" as const, label: "moderation fault" };
+  if (ratio > 0.25) return { tone: "vermilion" as const, label: "elevated flags" };
+  if (ratio > 0.1) return { tone: "amber" as const, label: "watch" };
+  return { tone: "signal" as const, label: "nominal" };
+}
 
-export default function DashboardView({
+export function DashboardView({
   initialStats,
   initialActivity,
 }: {
   initialStats?: DashboardStats;
-  initialActivity?: DashboardActivity;
+  initialActivity?: Awaited<ReturnType<typeof useActivity>>["data"];
 }) {
-  const ws = useWebSocket();
-  const [signal, setSignal] = useState<
-    "signal" | "amber" | "vermilion" | "neutral"
-  >("signal");
-  const [load, setLoad] = useState(0.3);
+  const { data: stats, isLoading, error } = useStats(initialStats);
+  const { data: activity } = useActivity(14, initialActivity as never);
+  const { data: reactors } = useTopReactors();
+  const { data: reactions } = useTopReactions();
+  const ambient = useAmbient();
 
-  const total = initialStats?.total_messages ?? 0;
-  const clean = initialStats?.total_clean ?? 0;
-  const flagged = initialStats?.total_flagged ?? 0;
-  const warned = initialStats?.total_warned ?? 0;
-  const ratio = ((clean / (clean + flagged + warned || 1)) * 100).toFixed(1);
+  useEffect(() => {
+    const s = deriveSignal(stats);
+    ambient.set(s.tone, 0.3 + Math.min(0.5, (stats?.today_flagged ?? 0) / 50), s.label);
+  }, [stats, ambient]);
 
-  const _subscribe = useCallback(
-    (handler: (e: { severity: string; ts: number }) => void) => {
-      const unsub = ws.on("message_created", (data: any) => {
-        const s = data.ai_status;
-        setSignal(
-          s === "flagged" ? "vermilion" : s === "warn" ? "amber" : "signal",
-        );
-        setLoad((l) => Math.min(1, l + 0.02));
-        handler({
-          severity: s ?? "neutral",
-          ts: data.created_at ?? Date.now(),
-        });
-      });
-      return unsub;
-    },
-    [ws],
-  );
+  if (error && !stats) return <ErrorState error={error} />;
+  if (!stats && isLoading) return <LoadingState label="Reading grid" />;
 
-  const seedEvents = useMemo(() => {
-    if (!initialActivity) return [];
-    return initialActivity.daily.slice(-10).flatMap((d) =>
-      Array.from({ length: Math.min(3, d.messages) }, (_, i) => ({
-        id: `seed-${d.day}-${i}`,
-        ts: Date.now() - i * 120_000,
-        severity: i < d.flagged ? "vermilion" : "signal",
-        actor: i < d.flagged ? "ai" : "user",
-        action: i < d.flagged ? "flagged" : "sent",
-        channel: "#general",
-        excerpt: `seed ${d.day}`,
-      })),
-    );
-  }, [initialActivity]);
+  const s = stats!;
+  const total = s.total_flagged + s.total_clean || 1;
+  const cleanRatio = s.total_clean / total;
 
   return (
-    <div className="relative h-[calc(100svh-3rem)] w-full overflow-hidden bg-[var(--color-canvas)]">
-      <AmbientField load={load} signal={signal} />
-
-      {/* Metric cluster — top right, floating, no container */}
-      <div className="absolute right-6 top-6 flex flex-col items-end gap-1 font-mono text-right">
-        <span className="text-[10px] uppercase tracking-[0.3em] text-[var(--color-ink-soft)]">
-          watched
-        </span>
-        <span className="display text-5xl font-medium tabular-nums leading-none text-[var(--color-ink)]">
-          {total.toLocaleString()}
-        </span>
-        <div className="mt-2 flex gap-4 text-[12px]">
-          <span className="text-[var(--color-signal)]">
-            {clean.toLocaleString()} clean
-          </span>
-          <span className="text-[var(--color-amber)]">{warned} warn</span>
-          <span className="text-[var(--color-vermilion)]">{flagged} flag</span>
-        </div>
-        <span className="text-[10px] text-[var(--color-ink-soft)]">
-          {ratio}% ratio
-        </span>
-      </div>
-
-      {/* Headline — bottom left, massive */}
-      <div className="absolute bottom-20 left-6 max-w-[60vw]">
-        <h1 className="display text-[clamp(3rem,9vw,7rem)] font-medium leading-[0.95] tracking-tight text-[var(--color-ink)]">
-          GMW
-          <br />
-          Console
-        </h1>
-        <p className="mt-3 font-mono text-[12px] text-[var(--color-ink-soft)]">
-          {(initialStats?.total_users ?? 0).toLocaleString()} users ·{" "}
-          {initialStats?.active_users_24h ?? 0} active 24h
-        </p>
-      </div>
-
-      {/* Event ribbon — mid screen, drifting row */}
-      <div className="absolute left-1/2 top-1/2 w-[min(90vw,900px)] -translate-x-1/2 -translate-y-1/2">
-        <div className="flex flex-col gap-1 font-mono text-[11px]">
-          {seedEvents.slice(0, 6).map((e) => (
-            <div
-              key={e.id}
-              className="flex items-center gap-2 opacity-70"
-              data-severity={e.severity}
-            >
-              <span
-                className="inline-block size-1.5 rounded-full"
-                style={{
-                  background:
-                    e.severity === "vermilion"
-                      ? "var(--color-vermilion)"
-                      : "var(--color-signal)",
-                }}
-              />
-              <span className="text-[var(--color-ink-soft)] tabular-nums">
-                {new Date(e.ts).toLocaleTimeString()}
-              </span>
-              <span className="truncate text-[var(--color-ink)]">
-                {e.excerpt}
+    <div className="space-y-5">
+        {/* Hero */}
+        <GlassPanel glow className="relative overflow-hidden">
+          <div className="scan-line absolute inset-x-0 top-0" />
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <div className="eyebrow mb-2">GMW · Operations Grid</div>
+              <h2 className="display text-[2.6rem] leading-none text-ink glow-signal">
+                Ambient Field
+              </h2>
+              <p className="mt-2 max-w-md text-sm text-ink-soft">
+                Real-time moderation, voice & media presence across the monitored
+                guild. {formatNumber(s.total_messages)} messages captured.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-ink-soft">
+              <Radio className="size-4 text-signal animate-breathe" />
+              <span className="mono text-xs uppercase tracking-wider">
+                {deriveSignal(s).label}
               </span>
             </div>
-          ))}
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <MetricTile label="Messages" value={formatNumber(s.total_messages)} tone="signal" icon={<MessageSquare className="size-3.5" />} />
+            <MetricTile label="Flagged" value={formatNumber(s.total_flagged)} tone={s.total_flagged > 0 ? "vermilion" : "neutral"} hint={`${s.today_flagged} today`} />
+            <MetricTile label="Active 24h" value={formatNumber(s.active_users_24h)} tone="signal" icon={<Users className="size-3.5" />} />
+            <MetricTile label="Voice clips" value={formatNumber(s.total_voice_recordings)} icon={<Mic className="size-3.5" />} />
+          </div>
+        </GlassPanel>
+
+        {/* Activity */}
+        <GlassPanel>
+          <SectionHeader
+            eyebrow="14-day signal"
+            title={
+              <span className="flex items-center gap-2">
+                <Activity className="size-4 text-signal" /> Activity & moderation
+              </span>
+            }
+            action={
+              <div className="flex items-center gap-3 text-xs text-ink-soft">
+                <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-signal" /> messages</span>
+                <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-vermilion" /> flagged</span>
+              </div>
+            }
+          />
+          {activity ? (
+            <AreaActivity daily={activity.daily} />
+          ) : (
+            <LoadingState label="streaming" />
+          )}
+        </GlassPanel>
+
+        {/* Two-column: channels + moderation */}
+        <div className="grid gap-5 lg:grid-cols-5">
+          <GlassPanel className="lg:col-span-3">
+            <SectionHeader eyebrow="throughput" title="Top channels" />
+            <div className="space-y-2.5">
+              {s.top_channels.slice(0, 7).map((c) => {
+                const pct = (c.message_count / (s.top_channels[0]?.message_count || 1)) * 100;
+                return (
+                  <div key={c.channel_id} className="flex items-center gap-3">
+                    <span className="w-40 truncate text-sm text-ink-soft">{c.channel_name ?? c.channel_id.slice(0, 8)}</span>
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/8">
+                      <div className="h-full rounded-full bg-signal/70" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="mono w-14 text-right text-xs text-ink-faint">{formatNumber(c.message_count)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </GlassPanel>
+
+          <GlassPanel className="lg:col-span-2">
+            <SectionHeader eyebrow="trust" title="Moderation" />
+            <div className="flex items-center gap-5">
+              <RadialGauge
+                value={cleanRatio}
+                tone={cleanRatio > 0.8 ? "signal" : cleanRatio > 0.6 ? "amber" : "vermilion"}
+                label={`${Math.round(cleanRatio * 100)}%`}
+                sublabel="clean"
+              />
+              <div className="flex-1 space-y-2 text-sm">
+                <Row icon={<ShieldAlert className="size-4 text-signal" />} label="Clean" value={formatNumber(s.total_clean)} />
+                <Row icon={<Flag className="size-4 text-vermilion" />} label="Flagged" value={formatNumber(s.total_flagged)} />
+                <Row icon={<Activity className="size-4 text-amber" />} label="Warned" value={formatNumber(s.total_warned)} />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-around border-t border-hairline pt-3 text-center">
+              <Mini label="pending" value={s.moderation_overview.pending} tone="amber" />
+              <Mini label="processing" value={s.moderation_overview.processing} tone="signal" />
+              <Mini label="errors" value={s.moderation_overview.error} tone="vermilion" />
+            </div>
+          </GlassPanel>
+        </div>
+
+        {/* Reactors + reactions */}
+        <div className="grid gap-5 lg:grid-cols-2">
+          <GlassPanel>
+            <SectionHeader eyebrow="engagement" title="Top reactors" />
+            <div className="space-y-2">
+              {(reactors ?? []).slice(0, 6).map((r, i) => (
+                <div key={r.user_id} className="flex items-center gap-3">
+                  <span className="mono w-5 text-ink-faint">{i + 1}</span>
+                  <span className="flex-1 truncate text-sm text-ink">{r.username}</span>
+                  <span className="mono text-xs text-signal">+{formatNumber(r.net_count)}</span>
+                </div>
+              ))}
+              {(reactors ?? []).length === 0 && <EmptyHint />}
+            </div>
+          </GlassPanel>
+
+          <GlassPanel>
+            <SectionHeader eyebrow="culture" title="Top reactions" />
+            <div className="space-y-3">
+              {(reactions ?? []).slice(0, 5).map((m) => (
+                <div key={m.message_id} className="flex items-start gap-3">
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {m.top_emojis.slice(0, 3).map((e, i) => (
+                      <span key={i} className="text-lg leading-none">{e.emoji}</span>
+                    ))}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm text-ink">{m.content || "(no text)"}</div>
+                    <div className="mono text-[0.65rem] text-ink-faint">{m.username} · {m.channel_name ?? m.channel_id.slice(0, 8)}</div>
+                  </div>
+                  <span className="mono text-xs text-ink-soft">{m.reaction_count}</span>
+                </div>
+              ))}
+              {(reactions ?? []).length === 0 && <EmptyHint />}
+            </div>
+          </GlassPanel>
         </div>
       </div>
+  );
+}
 
-      {/* Command whisper — very bottom, minimal */}
-      <div className="absolute inset-x-0 bottom-0">
-        <DashCommandLine />
-      </div>
+function Row({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      {icon}
+      <span className="flex-1 text-ink-soft">{label}</span>
+      <span className="mono text-ink">{value}</span>
     </div>
   );
+}
+
+function Mini({ label, value, tone }: { label: string; value: number; tone: "signal" | "amber" | "vermilion" }) {
+  const color = tone === "vermilion" ? "text-vermilion" : tone === "amber" ? "text-amber" : "text-signal";
+  return (
+    <div>
+      <div className={`display text-xl ${color}`}>{value}</div>
+      <div className="eyebrow mt-0.5">{label}</div>
+    </div>
+  );
+}
+
+function EmptyHint() {
+  return <div className="py-6 text-center text-xs text-ink-faint">Awaiting data…</div>;
 }

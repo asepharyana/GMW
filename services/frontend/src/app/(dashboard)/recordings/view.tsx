@@ -1,206 +1,92 @@
 "use client";
 
-import { Delete, Download, Play } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useState } from "react";
-import { Waveform } from "@/components/charts/waveform";
-import { StaggerGroup, StaggerItem } from "@/components/motion/stagger";
-import { Avatar } from "@/components/primitives/avatar";
-import { Badge } from "@/components/primitives/badge";
-import { Button } from "@/components/primitives/button";
-import { Dialog } from "@/components/primitives/dialog";
-import {
-  useDeleteRecording,
-  useRecordings,
-  useRecordingsWsSync,
-} from "@/hooks";
-import type { VoiceRecording } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { useEffect } from "react";
+import { Headphones, Trash2, Download } from "lucide-react";
 import { useWebSocket } from "@/lib/ws/context";
+import { useRecordings, useDeleteRecording, useRecordingsWsSync } from "@/hooks";
+import { useAmbient } from "@/components/ambient/ambient-context";
+import { GlassPanel, GlassCard, Avatar, Button } from "@/components/primitives";
+import { SectionHeader, EmptyState, ErrorState, LoadingState } from "@/components/shared";
+import { formatBytes } from "@/lib/format";
+import { toast } from "@/components/primitives";
+import type { VoiceRecording } from "@/lib/types";
 
-interface RecordingsListProps {
-  recordings: VoiceRecording[];
-  error: Error | null;
-  isLoading: boolean;
-  deleting: string | null;
-  onSelect: (rec: VoiceRecording) => void;
-  onDelete: (rec: VoiceRecording) => void;
-  preview: VoiceRecording | null;
-  onClosePreview: () => void;
-}
+export function RecordingsView({ initialItems }: { initialItems?: VoiceRecording[] }) {
+  const ws = useWebSocket();
+  const { data: items, isLoading, error } = useRecordings(initialItems);
+  const del = useDeleteRecording();
+  useRecordingsWsSync(ws);
+  const ambient = useAmbient();
 
-function RecordingsList({
-  recordings,
-  error,
-  isLoading,
-  deleting,
-  onSelect,
-  onDelete,
-  preview,
-  onClosePreview,
-}: RecordingsListProps) {
-  if (isLoading) {
-    return (
-      <div className="flex flex-col gap-2">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-16 surface animate-shimmer" />
-        ))}
-      </div>
-    );
-  }
-  if (error)
-    return (
-      <p className="text-sm text-[var(--color-vermilion)]">
-        Failed to load: {error.message}
-      </p>
-    );
+  useEffect(() => {
+    ambient.set("signal", 0.3, "recordings");
+  }, [ambient]);
+
+  const onDelete = async (id: string) => {
+    try {
+      await del.mutateAsync(id);
+      toast({ title: "Recording deleted", tone: "signal" });
+    } catch (e) {
+      toast({ title: "Delete failed", description: String(e), tone: "vermilion" });
+    }
+  };
+
+  if (error && !items) return <ErrorState error={error} />;
+  if (!items && isLoading) return <LoadingState label="Loading clips" />;
 
   return (
-    <div className="flex flex-col gap-3">
-      <AnimatePresence>
-        {recordings.map((rec) => (
-          <StaggerItem key={rec.id} className="surface p-3" layout>
-            <motion.div layout className="flex items-center gap-3">
-              <Waveform
-                seed={rec.id}
-                bars={20}
-                height={40}
-                className="w-20 shrink-0"
-              />
-              <Avatar name={rec.username} src={rec.avatar_url} size={34} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-medium">
-                    {rec.username ?? "unknown"}
-                  </span>
-                  <Badge
-                    tone={
-                      rec.upload_status === "uploaded"
-                        ? "signal"
-                        : rec.upload_status === "failed"
-                          ? "vermilion"
-                          : "amber"
-                    }
-                  >
-                    .{rec.filename.split(".").pop() ?? "mp3"}
-                  </Badge>
+    <GlassPanel>
+      <SectionHeader
+        eyebrow="voice captures"
+        title="Recordings"
+        action={<span className="mono text-xs text-ink-faint">{(items ?? []).length} clips</span>}
+      />
+      {(items ?? []).length === 0 ? (
+        <EmptyState icon={<Headphones className="size-7" />} title="No recordings" description="Voice clips captured by the bot appear here." />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {(items ?? []).map((r) => (
+            <GlassCard key={r.id} className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <Avatar src={r.avatar_url} name={r.username} size={38} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-ink">{r.username}</div>
+                  <div className="mono text-[0.65rem] text-ink-faint">
+                    {r.channel_name ?? "voice"} · {new Date(r.created_at).toLocaleString()}
+                  </div>
                 </div>
-                <div className="mono text-xs text-[var(--color-ink-soft)]">
-                  {(rec.size_bytes / 1024).toFixed(0)} KB ·{" "}
-                  {new Date(rec.created_at * 1000).toLocaleTimeString()}
-                </div>
+                <span className="mono text-[0.65rem] text-ink-faint">{formatBytes(r.size_bytes)}</span>
               </div>
-              <div className="flex items-center gap-1">
-                {rec.download_url && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onSelect(rec)}
-                    >
-                      <Play className="size-4" />
-                    </Button>
-                    <a
-                      href={rec.download_url}
-                      download={rec.filename}
-                      aria-label="Download"
-                      className="flex size-9 items-center justify-center rounded-[var(--radius-r-control)] text-xs text-[var(--color-ink-soft)] hover:bg-[var(--color-surface-2)]"
-                    >
-                      <Download className="size-4" />
-                    </a>
-                  </>
+
+              {r.download_url ? (
+                // eslint-disable-next-line jsx-a11y/media-has-caption
+                <audio controls src={r.download_url} className="h-9 w-full" preload="none" />
+              ) : (
+                <div className="rounded-[10px] border border-hairline bg-white/5 px-3 py-2 text-xs text-ink-faint">
+                  Upload pending…
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                {r.download_url && (
+                  <a href={r.download_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-[9px] border border-hairline px-2.5 py-1.5 text-xs text-ink-soft hover:text-ink hover:border-signal/40">
+                    <Download className="size-3.5" /> Download
+                  </a>
                 )}
                 <Button
+                  variant="outline"
                   size="sm"
-                  variant="danger"
-                  disabled={deleting === rec.id}
-                  onClick={() => onDelete(rec)}
-                  aria-label="Delete"
+                  className="ml-auto"
+                  onClick={() => onDelete(r.id)}
+                  disabled={del.isPending}
                 >
-                  <Delete className="size-4" />
+                  <Trash2 className="size-3.5" /> Delete
                 </Button>
               </div>
-            </motion.div>
-          </StaggerItem>
-        ))}
-      </AnimatePresence>
-      <PreviewDialog
-        open={!!preview}
-        onClose={onClosePreview}
-        recording={preview}
-      />
-    </div>
-  );
-}
-
-function PreviewDialog({
-  open,
-  onClose,
-  recording,
-}: {
-  open: boolean;
-  onClose: () => void;
-  recording: VoiceRecording | null;
-}) {
-  if (!recording) return null;
-  return (
-    <Dialog open={open} onClose={onClose} className="p-6 max-w-xl">
-      <div className="space-y-3">
-        <div className="display text-lg text-[var(--color-signal)]">
-          {recording.filename}
+            </GlassCard>
+          ))}
         </div>
-        {/* biome-ignore lint/a11y/useMediaCaption: voice recordings are uncaptioned audio previews — no transcript available */}
-        <audio
-          controls
-          src={recording.download_url ?? ""}
-          aria-label={`Audio recording: ${recording.filename}`}
-          className="w-full"
-        />
-        <div className="mono text-xs text-[var(--color-ink-soft)]">
-          {(recording.size_bytes / 1024).toFixed(0)} KB ·{" "}
-          {recording.upload_status}
-        </div>
-      </div>
-    </Dialog>
-  );
-}
-
-export default function RecordingsView({
-  initialRecordings,
-}: {
-  initialRecordings?: VoiceRecording[];
-}) {
-  const ws = useWebSocket();
-  const {
-    data: recordings = [],
-    error,
-    isLoading,
-  } = useRecordings(initialRecordings);
-  const del = useDeleteRecording();
-  const [deleting, setDeleting] = useState<string | null>(null);
-  useRecordingsWsSync(ws);
-
-  const handleDelete = useCallback(
-    (rec: VoiceRecording) => {
-      setDeleting(rec.id);
-      del.mutate(rec.id);
-      setTimeout(() => setDeleting(null), 800);
-    },
-    [del],
-  );
-
-  const [preview, setPreview] = useState<VoiceRecording | null>(null);
-
-  return (
-    <RecordingsList
-      recordings={recordings}
-      error={error}
-      isLoading={isLoading}
-      deleting={deleting}
-      onSelect={setPreview}
-      onDelete={handleDelete}
-      preview={preview}
-      onClosePreview={() => setPreview(null)}
-    />
+      )}
+    </GlassPanel>
   );
 }

@@ -1,13 +1,15 @@
-/**
- * Voice — Server Component.
- * Seeds authoritative voice status (shared active speakers snapshot) on the
- * server, then hands off to the client View for the 3D scene + WS live updates.
- */
-import { getVoiceStatus } from "@/lib/api/server";
-import type { VoiceStatus } from "@/lib/types";
-import VoiceView from "./view";
+import { getGuilds, getVoiceStatus } from "@/lib/api/server";
+import { VoiceView } from "./view";
+
+export const dynamic = "force-dynamic";
 
 export default async function VoicePage() {
-  const status = await getVoiceStatus().catch(() => undefined);
-  return <VoiceView initialStatus={status} />;
+  let status = undefined;
+  let guilds = undefined;
+  try {
+    [status, guilds] = await Promise.all([getVoiceStatus(), getGuilds()]);
+  } catch {
+    /* client hooks surface errors */
+  }
+  return <VoiceView initialStatus={status} initialGuilds={guilds} />;
 }

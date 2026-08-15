@@ -1,40 +1,38 @@
-import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-export type BadgeTone = "signal" | "amber" | "vermilion" | "neutral";
+type Tone = "signal" | "amber" | "vermilion" | "neutral";
 
-const toneClass: Record<BadgeTone, string> = {
-  signal: "bg-[var(--color-signal)]/15 text-[var(--color-signal)]",
-  amber: "bg-[var(--color-amber)]/15 text-[var(--color-amber)]",
-  vermilion: "bg-[var(--color-vermilion)]/15 text-[var(--color-vermilion)]",
-  neutral: "bg-[var(--color-hairline)] text-[var(--color-ink-soft)]",
+const tones: Record<Tone, string> = {
+  signal: "bg-signal/12 text-signal border-signal/30",
+  amber: "bg-amber/12 text-amber border-amber/30",
+  vermilion: "bg-vermilion/12 text-vermilion border-vermilion/30",
+  neutral: "bg-white/6 text-ink-soft border-white/10",
 };
-
-export interface BadgeProps {
-  tone?: BadgeTone;
-  children: ReactNode;
-  className?: string;
-  dot?: boolean;
-}
 
 export function Badge({
   tone = "neutral",
-  children,
-  className,
   dot,
-}: BadgeProps) {
+  className,
+  children,
+}: {
+  tone?: Tone;
+  dot?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <span className={cn("pill", toneClass[tone], className)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[0.7rem] font-semibold tracking-wide",
+        tones[tone],
+        className,
+      )}
+    >
       {dot && (
-        <span
-          className={cn(
-            "size-1.5 rounded-full",
-            tone === "signal" && "bg-[var(--color-signal)]",
-            tone === "amber" && "bg-[var(--color-amber)]",
-            tone === "vermilion" && "bg-[var(--color-vermilion)]",
-            tone === "neutral" && "bg-[var(--color-ink-soft)]",
-          )}
-        />
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full rounded-full bg-current opacity-60 animate-pulse-ring" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
+        </span>
       )}
       {children}
     </span>

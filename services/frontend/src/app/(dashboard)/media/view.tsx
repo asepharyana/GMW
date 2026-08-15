@@ -1,185 +1,149 @@
 "use client";
 
-import { Pause, Play, Repeat2, SkipForward, Square, Volume2 } from "lucide-react";
-import { motion } from "motion/react";
-import { useState } from "react";
-import { Waveform } from "@/components/charts/waveform";
-import { StaggerGroup, StaggerItem } from "@/components/motion/stagger";
-import { Badge } from "@/components/primitives/badge";
-import { Button } from "@/components/primitives/button";
-import { Input } from "@/components/primitives/input";
-import { Progress } from "@/components/primitives/progress";
+import { useEffect, useState } from "react";
 import {
-  useMediaLoop,
+  ListMusic,
+  Pause,
+  Play,
+  Repeat,
+  SkipForward,
+  Square,
+  Radio,
+} from "lucide-react";
+import { useWebSocket } from "@/lib/ws/context";
+import {
+  useMediaState,
   useMediaQueue,
   useMediaSkip,
-  useMediaState,
   useMediaStop,
+  useMediaLoop,
   useMediaWsSync,
 } from "@/hooks";
+import { useAmbient } from "@/components/ambient/ambient-context";
+import { GlassPanel, GlassCard, Button, Input } from "@/components/primitives";
+import { SectionHeader, ErrorState, LoadingState } from "@/components/shared";
+import { toast } from "@/components/primitives";
 import type { MediaState } from "@/lib/types";
-import { useWebSocket } from "@/lib/ws/context";
 
-export default function MediaView({
-  initialStatus,
-}: {
-  initialStatus?: MediaState;
-}) {
+export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
   const ws = useWebSocket();
-  const { data: state } = useMediaState(initialStatus);
-  const queueMut = useMediaQueue();
+  const { data: media, isLoading, error } = useMediaState(initialStatus);
+  const queue = useMediaQueue();
   const skip = useMediaSkip();
   const stop = useMediaStop();
-  const loopMut = useMediaLoop();
+  const loop = useMediaLoop();
   useMediaWsSync(ws);
+  const ambient = useAmbient();
 
-  const current = state?.current;
-  const playing = state?.playing ?? false;
-  const queue = state?.queue ?? [];
-  const loop = state?.loop ?? false;
+  const [url, setUrl] = useState("");
 
-  const duration = current?.durationMs ?? 0;
-  const [queueUrl, setQueueUrl] = useState("");
-  const [screenMode, setScreenMode] = useState(false);
+  const playing = media?.playing ?? false;
+  const current = media?.current ?? null;
+  const queueList = media?.queue ?? [];
 
-  const handleQueue = () => {
-    if (!queueUrl.trim()) return;
-    queueMut.mutate({ url: queueUrl.trim(), mode: screenMode ? "screen" : "music" });
-    setQueueUrl("");
+  const tone = playing ? "signal" : queueList.length ? "amber" : "signal";
+  useEffect(() => {
+    ambient.set(tone, playing ? 0.5 : 0.25, playing ? "now playing" : "media idle");
+  }, [tone, playing, ambient]);
+
+  const onPlay = async () => {
+    const u = url.trim();
+    if (!u) {
+      toast({ title: "Enter a media URL", tone: "vermilion" });
+      return;
+    }
+    try {
+      await queue.mutateAsync({ url: u, mode: "music" });
+      setUrl("");
+      toast({ title: "Queued", tone: "signal" });
+    } catch (e) {
+      toast({ title: "Queue failed", description: String(e), tone: "vermilion" });
+    }
   };
 
-  return (
-    <div className="flex flex-col gap-5">
-      {/* URL queue input */}
-      <div className="flex gap-2">
-        <Input
-          placeholder="Queue a URL (YouTube, audio file…)"
-          value={queueUrl}
-          onChange={(e) => setQueueUrl(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleQueue()}
-          className="flex-1 h-9"
-        />
-        <Button
-          size="sm"
-          variant={screenMode ? "primary" : "ghost"}
-          onClick={() => setScreenMode((v) => !v)}
-          title="Queue as Discord GoLive screenshare instead of audio playback"
-        >
-          Screen
-        </Button>
-        <Button
-          size="sm"
-          onClick={handleQueue}
-          disabled={!queueUrl.trim() || queueMut.isPending}
-        >
-          <Play className="size-4 mr-1.5" />
-          Queue
-        </Button>
-      </div>
+  if (error && !media) return <ErrorState error={error} />;
+  if (!media && isLoading) return <LoadingState label="Reading deck" />;
 
-      {/* Turntable hero */}
-      <div className="flex items-center gap-6 surface scan-tick flex-wrap p-5">
-        {current && (
-          <motion.div
-            className={`relative mx-auto size-[160px] rounded-full ${
-              playing ? "animate-spin-disc" : "animate-spin-disc paused"
-            }`}
+  return (
+    <div className="space-y-5">
+      <GlassPanel glow className="relative overflow-hidden">
+        <div className="scan-line absolute inset-x-0 top-0" />
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+          <div
+            className={`flex size-32 shrink-0 items-center justify-center rounded-full border border-hairline bg-gradient-to-br from-white/10 to-white/[0.02] ${playing ? "animate-spin-disc" : "animate-spin-disc paused"}`}
           >
-            <img
-              src={current.thumbnailUrl ?? "/favicon.ico"}
-              alt={current.title ?? "cover"}
-              className="size-full rounded-full object-cover ring-4 ring-[var(--color-signal)]/20"
-              style={{ animationPlayState: playing ? "running" : "paused" }}
-            />
-          </motion.div>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="display text-2xl text-[var(--color-signal)]">
-            {current?.title ?? "No track playing"}
+            <div className="flex size-28 items-center justify-center rounded-full bg-canvas/60">
+              <ListMusic className="size-10 text-signal" />
+            </div>
           </div>
-          <div className="mt-1 mono text-xs text-[var(--color-ink-soft)]">
-            {current?.source ?? "idle"} · {duration ? formatMs(duration) : "—"}
-          </div>
-          <div className="mt-3">
-            <Progress value={42} max={100} tone="signal" />
-            <div className="mt-1 flex justify-between text-[10px] mono text-[var(--color-ink-soft)]">
-              <span>0:00</span>
-              <span>{duration ? formatMs(duration) : "—"}</span>
+
+          <div className="min-w-0 flex-1">
+            <div className="eyebrow mb-1">Now playing</div>
+            <h2 className="display truncate text-2xl text-ink">
+              {current?.title ?? "Nothing queued"}
+            </h2>
+            {current?.source && (
+              <div className="mono mt-1 truncate text-xs text-ink-faint">{current.source}</div>
+            )}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Button variant="primary" size="sm" onClick={onPlay} disabled={queue.isPending}>
+                <Play className="size-4" /> Queue & play
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => skip.mutate()} disabled={skip.isPending}>
+                <SkipForward className="size-4" /> Skip
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => stop.mutate()} disabled={stop.isPending}>
+                <Square className="size-4" /> Stop
+              </Button>
+              <Button
+                variant={media?.loop ? "primary" : "outline"}
+                size="sm"
+                onClick={() => loop.mutate(!media?.loop)}
+                aria-pressed={!!media?.loop}
+              >
+                <Repeat className="size-4" /> Loop
+              </Button>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Transport */}
-      <StaggerGroup className="flex items-center gap-2">
-        <StaggerItem>
-          <Button size="sm" variant="ghost" onClick={() => skip.mutate()}>
-            <SkipForward className="size-4" />
-          </Button>
-        </StaggerItem>
-        <StaggerItem>
-          <Button
-            size="icon"
-            variant="primary"
-            onClick={() => loopMut.mutate(!loop)}
-          >
-            {playing ? <Pause className="size-5" /> : <Play className="size-5" />}
-          </Button>
-        </StaggerItem>
-        <StaggerItem>
-          <Button size="sm" variant="ghost" onClick={() => stop.mutate()}>
-            <Square className="size-4" />
-          </Button>
-        </StaggerItem>
-        <StaggerItem>
-          <Button
-            size="sm"
-            variant={loop ? "primary" : "ghost"}
-            onClick={() => loopMut.mutate(!loop)}
-          >
-            <Repeat2 className="size-4" />
-          </Button>
-        </StaggerItem>
-        <StaggerItem>
-          <Volume2 className="size-4 text-[var(--color-ink-soft)]" />
-        </StaggerItem>
-      </StaggerGroup>
+        <div className="mt-5 flex items-center gap-2">
+          <Input
+            placeholder="Paste a YouTube / music URL…"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onPlay()}
+          />
+        </div>
+      </GlassPanel>
 
-      {/* Queue */}
-      {queue.length > 0 && (
-        <div className="surface flex flex-col gap-1.5 p-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Queue ({queue.length})</h3>
-            <Badge tone="neutral">{loop ? "loop" : "queue"}</Badge>
+      <GlassPanel>
+        <SectionHeader
+          eyebrow="up next"
+          title="Queue"
+          action={<span className="mono text-xs text-ink-faint">{queueList.length} tracks</span>}
+        />
+        {queueList.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <Radio className="size-6 text-ink-faint" />
+            <div className="text-sm text-ink-soft">Queue is empty</div>
+            <div className="text-xs text-ink-faint">Paste a URL above to start playback.</div>
           </div>
-          <div className="flex flex-col gap-1">
-            {queue.map((item) => (
-              <motion.div
-                key={item.id ?? item.source}
-                layout
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="flex items-center gap-2.5 rounded-[var(--radius-r-control)] px-2 py-1.5 text-sm hover:bg-[var(--color-surface-2)]"
-              >
-                <Waveform
-                  seed={item.id ?? item.source}
-                  bars={12}
-                  height={20}
-                  className="w-16"
-                />
-                <span className="mono truncate">{item.title}</span>
-              </motion.div>
+        ) : (
+          <div className="space-y-2">
+            {queueList.map((item, i) => (
+              <div key={`${item.source}-${i}`} className="flex items-center gap-3 rounded-[10px] border border-hairline bg-white/5 px-3 py-2.5">
+                <span className="mono w-5 text-ink-faint">{i + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm text-ink">{item.title}</div>
+                  <div className="mono truncate text-[0.65rem] text-ink-faint">{item.source}</div>
+                </div>
+                <span className="pill">{item.mode ?? "music"}</span>
+              </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </GlassPanel>
     </div>
   );
-}
-
-function formatMs(ms: number): string {
-  const m = Math.floor(ms / 60000);
-  const s = Math.floor((ms % 60000) / 1000);
-  return `${m}:${s.toString().padStart(2, "0")}`;
 }

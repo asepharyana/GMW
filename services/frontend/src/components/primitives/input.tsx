@@ -1,23 +1,35 @@
-import { forwardRef, type InputHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  mono?: boolean;
-}
-
-export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, mono, ...props }, ref) => (
+export function Input({
+  className,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
     <input
-      ref={ref}
       className={cn(
-        "w-full bg-[var(--color-surface-2)] text-[var(--color-ink)] placeholder:text-[var(--color-ink-soft)]/60",
-        "rounded-[var(--radius-r-control)] border border-[var(--color-hairline)] px-3 py-2 text-sm",
-        "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] transition-colors",
-        mono && "font-mono tracking-tight",
+        "h-10 w-full rounded-[11px] bg-white/5 border border-hairline px-3.5 text-sm text-ink",
+        "placeholder:text-ink-faint transition-colors",
+        "focus:outline-none focus:border-signal/50 focus:bg-white/8",
         className,
       )}
       {...props}
     />
-  ),
-);
-Input.displayName = "Input";
+  );
+}
+
+export function Textarea({
+  className,
+  ...props
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      className={cn(
+        "w-full rounded-[11px] bg-white/5 border border-hairline px-3.5 py-2.5 text-sm text-ink",
+        "placeholder:text-ink-faint transition-colors resize-none",
+        "focus:outline-none focus:border-signal/50 focus:bg-white/8",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
