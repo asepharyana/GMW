@@ -1,32 +1,28 @@
 "use client";
 
-import {
-  Activity as ActivityIcon,
-  Flag,
-  MessagesSquare,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
-import { useState } from "react";
-import { RadialGauge } from "@/components/charts/radial-gauge";
-import { Sparkline } from "@/components/charts/sparkline";
-import { ActivityChart } from "@/components/dashboard/activity-chart";
-import { ChannelsSection } from "@/components/dashboard/channels-section";
-import { HourlyActivityChart } from "@/components/dashboard/hourly-activity-chart";
-import { ModerationDonut } from "@/components/dashboard/moderation-donut";
-import { ReactionsSection } from "@/components/dashboard/reactions-section";
-import { TopChannelsChart } from "@/components/dashboard/top-channels-chart";
-import { UsersSection } from "@/components/dashboard/users-section";
-import { StaggerGroup, StaggerItem } from "@/components/motion/stagger";
-import { SignalField } from "@/components/three";
-import { useActivity, useStats } from "@/hooks";
+/**
+ * Dashboard — Event Horizon layout.
+ *
+ * Renders inside `ConsoleShell` from `/(dashboard)/layout.tsx`, so this view
+ * just paints the central column: hero strip (mono headline + counters) and
+ * the live event feed. Time runs vertically through the feed; the right
+ * rail lives in the shell. The bottom command line is the signature —
+ * press `/` anywhere to focus.
+ *
+ * SSR seed is preserved: the server component (page.tsx) hands us
+ * `initialActivity` and `initialStats`; we use activity's daily buckets as
+ * synthetic seed events so the feed has something to render before WS
+ * kicks in. Then WS subscribe replaces the stream with live messages.
+ */
+
+import { useCallback, useMemo } from "react";
+import { DashCommandLine } from "@/components/command/dash-command-line";
+import { EventFeed } from "@/components/feed/event-feed";
+import type { FeedEvent } from "@/components/feed/event-row";
+import { DashRightRail } from "@/components/layout/dash-right-rail";
 import type { DashboardActivity, DashboardStats } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-type Tab = "stats" | "users" | "channels" | "reactions";
-
-const DAYS = [7, 14, 30] as const;
+import { useWebSocket } from "@/lib/ws/context";
 
 export default function DashboardView({
   initialStats,
@@ -35,216 +31,167 @@ export default function DashboardView({
   initialStats?: DashboardStats;
   initialActivity?: DashboardActivity;
 }) {
-  const [tab, setTab] = useState<Tab>("stats");
-  const [days, setDays] = useState<number>(14);
-  const reduce = useReducedMotion();
+  const ws = useWebSocket();
 
-  const { data: stats } = useStats(initialStats);
-  const { data: activity } = useActivity(
-    days,
-    days === 14 ? initialActivity : undefined,
+  const seedEvents = useMemo<FeedEvent[]>(() => {
+    if (!initialActivity) return [];
+    // Map daily buckets aren't per-message; derive a synthetic sequence from
+    // daily counts so the feed has something to render before WS kicks in.
+    const out: FeedEvent[] = [];
+    const ts = Date.now();
+    const days = [...initialActivity.daily].reverse();
+    for (const d of days) {
+      const total = d.messages;
+      const flagged = d.flagged ?? 0;
+      for (let i = 0; i < Math.min(6, total); i++) {
+        const flaggedRow = i < flagged;
+        out.push({
+          id: `seed-${d.day ?? ""}-${i}`,
+          ts: ts - i * 90_000,
+          severity: flaggedRow ? "vermilion" : "signal",
+          actor: flaggedRow ? "ai-moderator" : `seed-user-${i + 1}`,
+          action: flaggedRow ? "flagged" : "sent",
+          channel: `#general`,
+          excerpt: flaggedRow
+            ? `seed: synthetic flagged event (${d.day ?? ""})`
+            : `seed: synthetic clean message (${d.day ?? ""})`,
+          tag: flaggedRow ? "ai:flag" : null,
+        });
+      }
+    }
+    return out.slice(-48).reverse();
+  }, [initialActivity]);
+
+  const subscribe = useCallback(
+    (handler: (e: FeedEvent) => void) => {
+      const unsub = ws.on("message_created", (data) => {
+        const m = data as unknown as {
+          id: string;
+          created_at: number;
+          ai_status?: string | null;
+          ai_severity?: string | null;
+          username?: string;
+          content: string;
+          channel_id?: string;
+        };
+        handler({
+          id: m.id,
+          ts: m.created_at ?? Date.now(),
+          severity: severityFromAi(m.ai_status, m.ai_severity),
+          actor: m.username ?? "unknown",
+          action: "sent",
+          channel: m.channel_id ? `#${m.channel_id.slice(-4)}` : null,
+          excerpt: (m.content ?? "").slice(0, 140),
+          tag:
+            m.ai_status && m.ai_status !== "clean" ? `ai:${m.ai_status}` : null,
+        });
+      });
+      return unsub;
+    },
+    [ws],
   );
 
-  const clean = stats?.total_clean ?? 0;
+  return (
+    <div className="flex h-full min-h-0 w-full flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Hero stats={initialStats} />
+        <div className="flex min-h-0 flex-1 flex-col">
+          <EventFeed
+            initialEvents={seedEvents}
+            subscribe={subscribe}
+            className={cn("min-h-0 flex-1")}
+            emptyState={
+              <span>
+                waiting for the first signal …
+                <br />
+                events will stream in as the bot captures activity.
+              </span>
+            }
+          />
+          <DashCommandLine />
+        </div>
+      </div>
+      <DashRightRail />
+    </div>
+  );
+}
+
+function severityFromAi(
+  status?: string | null,
+  sev?: string | null,
+): FeedEvent["severity"] {
+  if (!status) return "neutral";
+  if (status === "flagged") return sev === "critical" ? "vermilion" : "amber";
+  if (status === "warn") return "amber";
+  if (status === "clean") return "signal";
+  return "neutral";
+}
+
+function Hero({ stats }: { stats?: DashboardStats }) {
+  const total = stats?.total_messages ?? 0;
   const flagged = stats?.total_flagged ?? 0;
   const warned = stats?.total_warned ?? 0;
-  const total = clean + flagged + warned || 1;
-  const health = clean / total;
-  const activityRatio = Math.min(
-    1,
-    (activity?.daily.at(-1)?.messages ?? 0) /
-      (Math.max(...(activity?.daily.map((d) => d.messages) ?? [1]), 1) || 1),
-  );
-
-  const daily = activity?.daily ?? [];
-  const spark = daily.map((d) => d.messages);
-  const flaggedSpark = daily.map((d) => d.flagged);
-  const usersSpark = daily.map((d) => d.active_users);
-
-  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    {
-      id: "stats",
-      label: "Stats",
-      icon: <MessagesSquare className="size-3.5" />,
-    },
-    { id: "users", label: "Users", icon: <Users className="size-3.5" /> },
-    {
-      id: "channels",
-      label: "Channels",
-      icon: <ActivityIcon className="size-3.5" />,
-    },
-    {
-      id: "reactions",
-      label: "Reactions",
-      icon: <Flag className="size-3.5" />,
-    },
-  ];
+  const clean = stats?.total_clean ?? 0;
+  const denom = clean + flagged + warned || 1;
+  const ratio = clean / denom;
 
   return (
-    <div className="flex flex-col gap-5">
-      <Hero stats={stats} activityRatio={activityRatio} health={health} />
-
-      {/* Tabs */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 rounded-[var(--radius-r)] bg-[var(--color-surface-2)] p-1">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-[var(--radius-r-control)] px-3 py-1.5 text-xs font-medium transition-colors",
-                tab === t.id
-                  ? "bg-[var(--color-signal)] text-[var(--color-signal-ink)]"
-                  : "text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]",
-              )}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          ))}
+    <div className="border-b border-[var(--color-hairline)] bg-[var(--color-surface)] px-5 py-4 font-mono">
+      <div className="flex items-baseline justify-between gap-6">
+        <div className="min-w-0">
+          <h1 className="display text-[28px] font-medium leading-tight text-[var(--color-ink)]">
+            GMW Console
+          </h1>
+          <p className="mt-1 text-[12px] text-[var(--color-ink-soft)]">
+            <span className="tabular-nums">{total.toLocaleString()}</span>{" "}
+            messages watched ·{" "}
+            <span className="tabular-nums">
+              {(stats?.total_users ?? 0).toLocaleString()}
+            </span>{" "}
+            users ·{" "}
+            <span className="tabular-nums">{stats?.active_users_24h ?? 0}</span>{" "}
+            active 24h
+          </p>
         </div>
-        <div className="ms-auto flex gap-1">
-          {DAYS.map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => setDays(d)}
-              className={cn(
-                "rounded-[var(--radius-r-control)] px-2.5 py-1 text-xs font-mono transition-colors",
-                days === d
-                  ? "bg-[var(--color-surface-2)] text-[var(--color-ink)]"
-                  : "text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]",
-              )}
-            >
-              {d}d
-            </button>
-          ))}
-        </div>
-      </div>
 
-      {/* Ticker row (stats tab) */}
-      {tab === "stats" && (
-        <StaggerGroup className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Ticker
-            icon={<MessagesSquare className="size-4" />}
-            label="Messages"
-            value={stats?.total_messages ?? 0}
-            data={spark}
+        <div className="grid grid-cols-4 gap-x-6 gap-y-1 text-[11px] uppercase tracking-[0.18em]">
+          <Stat label="clean" value={clean} tone="signal" />
+          <Stat label="warned" value={warned} tone="amber" />
+          <Stat label="flagged" value={flagged} tone="vermilion" />
+          <Stat
+            label="ratio"
+            value={`${(ratio * 100).toFixed(1)}%`}
+            tone="neutral"
           />
-          <Ticker
-            icon={<Flag className="size-4" />}
-            label="Flagged"
-            value={flagged}
-            data={flaggedSpark}
-            tone="vermilion"
-          />
-          <Ticker
-            icon={<Users className="size-4" />}
-            label="Active 24h"
-            value={stats?.active_users_24h ?? 0}
-            data={usersSpark}
-            tone="amber"
-          />
-          <Ticker
-            icon={<ShieldCheck className="size-4" />}
-            label="Recordings"
-            value={stats?.total_voice_recordings ?? 0}
-            data={spark}
-          />
-        </StaggerGroup>
-      )}
-
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="space-y-4 xl:col-span-2">
-          {tab === "stats" && (
-            <>
-              <ActivityChart data={daily} />
-              <HourlyActivityChart data={activity?.hourly ?? []} />
-              <TopChannelsChart channels={stats?.top_channels ?? []} />
-            </>
-          )}
-          {tab === "users" && <UsersSection />}
-          {tab === "channels" && <ChannelsSection />}
-          {tab === "reactions" && <ReactionsSection />}
-        </div>
-        <div className="xl:col-span-1">
-          <ModerationDonut stats={stats} />
         </div>
       </div>
     </div>
   );
 }
 
-function Hero({
-  stats,
-  activityRatio,
-  health,
-}: {
-  stats?: DashboardStats;
-  activityRatio: number;
-  health: number;
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-[var(--radius-r)] bg-[var(--color-surface)] p-5">
-      <div className="absolute inset-0 opacity-50">
-        <SignalField activity={activityRatio} className="size-full" />
-      </div>
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="display text-3xl">GMW Console</div>
-          <div className="mt-1 text-sm text-[var(--color-ink-soft)]">
-            {stats?.total_messages?.toLocaleString() ?? 0} messages watched ·{" "}
-            {stats?.total_users?.toLocaleString() ?? 0} users
-          </div>
-        </div>
-        <RadialGauge
-          value={health}
-          size={132}
-          label="Clean"
-          tone={health > 0.8 ? "signal" : health > 0.6 ? "amber" : "vermilion"}
-        />
-      </div>
-    </div>
-  );
-}
-
-function Ticker({
-  icon,
+function Stat({
   label,
   value,
-  data,
-  tone = "signal",
+  tone,
 }: {
-  icon: React.ReactNode;
   label: string;
-  value: number;
-  data: number[];
-  tone?: "signal" | "amber" | "vermilion";
+  value: number | string;
+  tone: "signal" | "amber" | "vermilion" | "neutral";
 }) {
-  const color = {
-    signal: "var(--color-signal)",
-    amber: "var(--color-amber)",
-    vermilion: "var(--color-vermilion)",
-  }[tone];
+  const color =
+    tone === "signal"
+      ? "var(--color-signal)"
+      : tone === "amber"
+        ? "var(--color-amber)"
+        : tone === "vermilion"
+          ? "var(--color-vermilion)"
+          : "var(--color-ink)";
   return (
-    <StaggerItem className="surface scan-tick flex flex-col gap-2 p-4">
-      <div className="flex items-center gap-2 text-[var(--color-ink-soft)]">
-        <span style={{ color }}>{icon}</span>
-        <span className="text-[11px] font-medium uppercase tracking-wide">
-          {label}
-        </span>
-      </div>
-      <div className="display text-2xl" style={{ color }}>
-        {value.toLocaleString()}
-      </div>
-      <Sparkline
-        data={data}
-        width={220}
-        height={32}
-        stroke={color}
-        className="w-full"
-      />
-    </StaggerItem>
+    <div className="flex flex-col">
+      <span className="text-[10px] text-[var(--color-ink-soft)]">{label}</span>
+      <span className="tabular-nums text-base" style={{ color }}>
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </span>
+    </div>
   );
 }
