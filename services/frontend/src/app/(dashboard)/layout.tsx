@@ -8,8 +8,6 @@ import {
   ChatbotProvider,
   useChatbot,
 } from "@/components/chatbot/chatbot-context";
-import { DashLeftRail } from "@/components/layout/dash-left-rail";
-import { DashTopBar } from "@/components/layout/dash-top-bar";
 import { Spine } from "@/components/layout/spine";
 import { StatusBar } from "@/components/layout/status-bar";
 import { MiniPlayer } from "@/components/media/mini-player";
@@ -45,20 +43,16 @@ function ChatbotExpressionSync() {
 }
 
 /**
- * New Event Horizon shell — used only on /dashboard.
+ * Ambient shell — used only on /dashboard.
  *
- * No `Spine`, no `StatusBar`, no padded `<main>`, no 1440px max-width.
- * Full-bleed single-screen layout. Other dashboard routes keep the
- * classic shell so the rest of the app is untouched.
+ * No TopBar, no LeftRail, no main padding. The view itself is full-bleed
+ * (AmbientField + floating overlays). This is the ground-up rombak — not a
+ * re-skin of the classic dashboard template.
  */
-function ConsoleShell({ children }: { children: React.ReactNode }) {
+function AmbientShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-svh w-full flex-col overflow-hidden bg-[var(--color-canvas)]">
-      <DashTopBar guildName="GMW Console" />
-      <div className="flex min-h-0 flex-1">
-        <DashLeftRail />
-        <main className="min-w-0 flex-1 overflow-hidden">{children}</main>
-      </div>
+    <div className="h-[calc(100svh-3rem)] w-full overflow-hidden">
+      {children}
     </div>
   );
 }
@@ -123,7 +117,7 @@ export default function DashboardLayout({
             <ChatbotGuildSync guildId={guildId} />
             <ChatbotExpressionSync />
             {isConsole ? (
-              <ConsoleShell>{children}</ConsoleShell>
+              <AmbientShell>{children}</AmbientShell>
             ) : (
               <ClassicShell guildId={guildId} setGuildId={setGuildId}>
                 {children}
