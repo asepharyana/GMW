@@ -144,13 +144,10 @@ export const configSchema = z
       .url()
       .default("https://9router.asepharyana.my.id/v1"),
     AI_LLM_MODEL: z.string().default("text"),
+    // Vision uses the SAME router/base URL as text moderation
+    // (AI_LLM_BASE_URL) but a different model alias. The dedicated NVIDIA
+    // multimodal endpoint was removed.
     AI_LLM_VISION_MODEL: z.string().default("multimodal"),
-    // Vision can be routed to a dedicated endpoint (e.g. NVIDIA direct) that is
-    // separate from the text/moderation router. When both are set, llmVision()
-    // calls the dedicated vision endpoint directly; otherwise it falls back to
-    // the shared AI_LLM_BASE_URL with AI_LLM_VISION_MODEL.
-    AI_LLM_VISION_BASE_URL: z.string().url().optional(),
-    AI_LLM_VISION_API_KEY: z.string().optional(),
     AI_LLM_DISABLE_THINKING: z
       .string()
       .default("true")
