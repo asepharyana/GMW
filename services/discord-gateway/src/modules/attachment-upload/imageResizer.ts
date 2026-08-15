@@ -43,7 +43,9 @@ export async function resizeImageForVision(
         originalSize: buf.length,
         originalFormat: inputFormat,
         resizedSize: resized.length,
-        reductionPct: Math.round(((buf.length - resized.length) / buf.length) * 100),
+        reductionPct: Math.round(
+          ((buf.length - resized.length) / buf.length) * 100,
+        ),
       },
       "Image resized for vision analysis (JPEG)",
     );
