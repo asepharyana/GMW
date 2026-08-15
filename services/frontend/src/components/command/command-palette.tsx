@@ -8,7 +8,6 @@ import {
   Search,
   Sun,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 import { GlassPanel } from "@/components/primitives";
@@ -19,11 +18,12 @@ interface Command {
   label: string;
   hint: string;
   icon: React.ReactNode;
-  run: () => void;
+  /** Render as a Link when present; otherwise run the action. */
+  href?: string;
+  run?: () => void;
 }
 
 export function CommandPalette() {
-  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -35,7 +35,7 @@ export function CommandPalette() {
       label: `Go to ${n.label}`,
       hint: n.href,
       icon: <n.icon className="size-4 text-signal" />,
-      run: () => router.push(n.href),
+      href: n.href,
     }));
     const actions: Command[] = [
       {
@@ -52,7 +52,7 @@ export function CommandPalette() {
       },
     ];
     return [...nav, ...actions];
-  }, [router, theme, setTheme]);
+  }, [theme, setTheme]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -96,8 +96,10 @@ export function CommandPalette() {
   const runAt = (i: number) => {
     const c = filtered[i];
     if (!c) return;
-    setOpen(false);
-    c.run();
+    if (c.run) {
+      setOpen(false);
+      c.run();
+    }
   };
 
   return (
@@ -126,7 +128,12 @@ export function CommandPalette() {
                 setActive((a) => Math.max(a - 1, 0));
               } else if (e.key === "Enter") {
                 e.preventDefault();
-                runAt(active);
+                const c = filtered[active];
+                if (c?.href) {
+                  setOpen(false);
+                } else {
+                  runAt(active);
+                }
               }
             }}
             placeholder="Type a command or search…"
@@ -143,30 +150,50 @@ export function CommandPalette() {
               No commands
             </div>
           ) : (
-            filtered.map((c, i) => (
-              <button
-                key={c.id}
-                type="button"
-                onMouseEnter={() => setActive(i)}
-                onClick={() => runAt(i)}
-                className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-sm transition-colors ${
-                  i === active
-                    ? "bg-signal/12 text-ink"
-                    : "text-ink-soft hover:bg-white/5"
-                }`}
-              >
-                <span className="flex size-7 items-center justify-center rounded-[8px] bg-white/5">
-                  {c.icon}
+            filtered.map((c, i) => {
+              const row = (
+                <span
+                  key={c.id}
+                  className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-sm transition-colors ${
+                    i === active
+                      ? "bg-signal/12 text-ink"
+                      : "text-ink-soft hover:bg-white/5"
+                  }`}
+                >
+                  <span className="flex size-7 items-center justify-center rounded-[8px] bg-white/5">
+                    {c.icon}
+                  </span>
+                  <span className="flex-1">{c.label}</span>
+                  <span className="mono text-[0.65rem] text-ink-faint">
+                    {c.hint}
+                  </span>
+                  {i === active && (
+                    <CornerDownLeft className="size-3.5 text-ink-faint" />
+                  )}
                 </span>
-                <span className="flex-1">{c.label}</span>
-                <span className="mono text-[0.65rem] text-ink-faint">
-                  {c.hint}
-                </span>
-                {i === active && (
-                  <CornerDownLeft className="size-3.5 text-ink-faint" />
-                )}
-              </button>
-            ))
+              );
+              return c.href ? (
+                <a
+                  key={c.id}
+                  href={c.href}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => setOpen(false)}
+                  className="block"
+                >
+                  {row}
+                </a>
+              ) : (
+                <button
+                  key={c.id}
+                  type="button"
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => runAt(i)}
+                  className="block w-full"
+                >
+                  {row}
+                </button>
+              );
+            })
           )}
         </div>
 

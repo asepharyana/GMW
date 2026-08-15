@@ -253,7 +253,10 @@ export function DashboardView({
               <div key={m.message_id} className="flex items-start gap-3">
                 <div className="flex flex-wrap gap-1 pt-0.5">
                   {m.top_emojis.slice(0, 3).map((e, i) => (
-                    <span key={`${m.message_id}-${i}`} className="text-lg leading-none">
+                    <span
+                      key={`${m.message_id}-${i}`}
+                      className="text-lg leading-none"
+                    >
                       {e.emoji}
                     </span>
                   ))}

@@ -1,7 +1,7 @@
 "use client";
 
 import { LayoutDashboard } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { isActivePath, navItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
@@ -16,13 +16,11 @@ function NavItem({
   active: boolean;
   Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 }) {
-  const router = useRouter();
   return (
-    <button
-      type="button"
+    <a
+      href={href}
       aria-label={label}
       aria-current={active ? "page" : undefined}
-      onClick={() => router.push(href)}
       className={cn(
         "group relative flex size-11 items-center justify-center rounded-[13px] transition-all",
         active
@@ -34,7 +32,7 @@ function NavItem({
         <span className="absolute -left-3 h-6 w-1 rounded-full bg-signal shadow-[0_0_12px_var(--color-signal-glow)]" />
       )}
       <Icon className="size-[18px]" strokeWidth={active ? 2.4 : 2} />
-    </button>
+    </a>
   );
 }
 
@@ -47,7 +45,7 @@ export function NavRail() {
       <NavItem
         href="/dashboard"
         label="Dashboard"
-        active={path === "/dashboard" || path === "/dashboard/"}
+        active={isActivePath(path, "/dashboard")}
         Icon={LayoutDashboard}
       />
       <div className="flex flex-1 flex-col gap-1">

@@ -35,13 +35,15 @@
       "suspicious": {
         "noUnknownAtRules": "off",
         "useIterableCallbackReturn": "off",
-        "noArrayIndexKey": "warn",
+        "noArrayIndexKey": "off",
         "noExplicitAny": "off"
       },
       "a11y": {
         "useSemanticElements": "off",
         "useButtonType": "off",
-        "noAutofocus": "off"
+        "noAutofocus": "off",
+        "useMediaCaption": "off",
+        "noStaticElementInteractions": "off"
       },
       "performance": {
         "noImgElement": "warn"

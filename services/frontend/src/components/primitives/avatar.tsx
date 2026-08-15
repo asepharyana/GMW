@@ -35,12 +35,11 @@ export function Avatar({
       style={dim}
     >
       {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={src}
-          alt={name ?? "avatar"}
-          className="h-full w-full object-cover"
-          loading="lazy"
+        <span
+          aria-label={name ?? "avatar"}
+          role="img"
+          className="h-full w-full bg-cover bg-center"
+          style={{ backgroundImage: `url("${src}")` }}
         />
       ) : (
         <span

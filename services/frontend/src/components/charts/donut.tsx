@@ -21,7 +21,13 @@ export function Donut({
       className="relative inline-flex items-center justify-center"
       style={{ width: size, height: size }}
     >
-      <svg width={size} height={size} className="-rotate-90" role="img" aria-label="Composition donut">
+      <svg
+        width={size}
+        height={size}
+        className="-rotate-90"
+        role="img"
+        aria-label="Composition donut"
+      >
         <circle
           cx={size / 2}
           cy={size / 2}
