@@ -151,6 +151,13 @@ export const configSchema = z
     // the shared AI_LLM_BASE_URL with AI_LLM_VISION_MODEL.
     AI_LLM_VISION_BASE_URL: z.string().url().optional(),
     AI_LLM_VISION_API_KEY: z.string().optional(),
+    AI_LLM_DISABLE_THINKING: z
+      .string()
+      .default("true")
+      .transform((v) => v === "true")
+      .describe(
+        "Disable LLM chain-of-thought (reasoning/thinking) to speed up AI analysis. Set false to restore thinking.",
+      ),
     AI_LLM_EMBEDDING_MODEL: z.string().optional(),
     AI_LLM_EMBEDDING_MIN_SIMILARITY: z.coerce
       .number()

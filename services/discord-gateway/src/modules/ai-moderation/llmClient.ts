@@ -147,12 +147,75 @@ export interface LlmCallOpts {
   top_p?: number;
   /** Force JSON output via response_format: { type: "json_object" }. */
   jsonResponse?: { type: "json_object" };
+  /**
+   * Disable LLM chain-of-thought (reasoning/thinking) for faster analysis.
+   * Defaults to config.AI_LLM_DISABLE_THINKING when omitted.
+   */
+  disableThinking?: boolean;
   /** Extra retries beyond DEFAULT_RETRIES (default 2). */
   retries?: number;
   /** Whether to use streaming (if true, will consume stream and return aggregated result) */
   stream?: boolean;
   /** Optional AbortSignal to cancel the API request */
   signal?: AbortSignal;
+}
+
+/**
+ * Build the request params for an LLM chat completion. Pulled out of `llmChat`
+ * so the thinking-disable injection can be unit-tested without network access.
+ *
+ * Optional params (temperature/top_p/max_tokens) are only attached when
+ * explicitly provided, to maximise compatibility with various providers/local
+ * APIs. When `disableThinking` is set, we inject the common provider params
+ * used to switch OFF chain-of-thought reasoning. OpenAI-compatible routers
+ * ignore the variants their backend does not understand, so sending the
+ * OpenAI (`reasoning_effort`), OpenRouter (`reasoning.enabled`) and
+ * vLLM/Qwen/litellm (`chat_template_kwargs.enable_thinking`) forms together
+ * covers the popular reasoning backends behind a proxy.
+ */
+export function buildLlmParams(
+  opts: LlmCallOpts,
+  disableThinking: boolean,
+): OpenAI.Chat.Completions.ChatCompletionCreateParams {
+  const {
+    messages,
+    model = config.AI_LLM_MODEL,
+    max_tokens,
+    temperature,
+    top_p,
+    jsonResponse,
+    stream,
+  } = opts;
+
+  const params = {
+    model,
+    messages,
+    ...(stream !== undefined ? { stream } : {}),
+  } as OpenAI.Chat.Completions.ChatCompletionCreateParams;
+
+  if (temperature !== undefined) params.temperature = temperature;
+  if (top_p !== undefined) params.top_p = top_p;
+  if (max_tokens !== undefined) params.max_tokens = max_tokens;
+  if (jsonResponse) params.response_format = jsonResponse;
+
+  if (disableThinking) {
+    Object.assign(
+      params,
+      {
+        // OpenAI o-series
+        reasoning_effort: "none",
+        // OpenRouter
+        reasoning: { enabled: false },
+        // vLLM / Qwen / litellm
+        chat_template_kwargs: { enable_thinking: false },
+        // Anthropic / Claude-format (9router exposes thinkingFormat
+        // "claude-adaptive" / "claude-budget" on its reasoning models)
+        thinking: { type: "disabled" },
+      } as Record<string, unknown>,
+    );
+  }
+
+  return params;
 }
 
 /**
@@ -167,33 +230,12 @@ export async function llmChat(
   const client = getClient();
   if (!client) return null;
 
-  const {
-    messages,
-    model = config.AI_LLM_MODEL,
-    max_tokens,
-    temperature,
-    top_p,
-    jsonResponse,
-    retries = DEFAULT_RETRIES,
-    stream,
-    signal,
-  } = opts;
+  const { retries = DEFAULT_RETRIES, signal } = opts;
+  const disableThinking =
+    opts.disableThinking ?? config.AI_LLM_DISABLE_THINKING;
 
-  const params = {
-    model,
-    messages,
-    ...(stream !== undefined ? { stream } : {}),
-  } as OpenAI.Chat.Completions.ChatCompletionCreateParams;
-
-  // Attach optional parameters only if explicitly provided to maintain
-  // maximum compatibility with various LLM providers and local APIs.
-  if (temperature !== undefined) params.temperature = temperature;
-  if (top_p !== undefined) params.top_p = top_p;
-  if (max_tokens !== undefined) params.max_tokens = max_tokens;
-
-  if (jsonResponse) {
-    params.response_format = jsonResponse;
-  }
+  const params = buildLlmParams(opts, disableThinking);
+  const model = params.model;
 
   return retryWithBackoff(
     async () => {
@@ -359,7 +401,7 @@ async function llmVisionDirect(
         ],
         model: visionModel,
         max_tokens: 65536,
-        reasoning_budget: 16384,
+        reasoning_budget: config.AI_LLM_DISABLE_THINKING ? 0 : 16384,
         stream: false,
         temperature: 0.6,
         top_p: 0.95,
