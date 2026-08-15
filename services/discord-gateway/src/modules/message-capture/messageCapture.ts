@@ -35,6 +35,13 @@ export interface MessageLocationInput {
 }
 
 const EXCLUDED_CHANNEL_IDS = new Set(config.EXCLUDED_CHANNEL_IDS);
+const BOT_EXCLUDED_CHANNEL_IDS = new Set(config.BOT_EXCLUDED_CHANNEL_IDS);
+
+function isBotExcludedChannel(message: Message): boolean {
+  if (!message.author?.bot) return false;
+  const id = getParentChannelId(message) ?? message.channelId;
+  return id != null && BOT_EXCLUDED_CHANNEL_IDS.has(id);
+}
 const EXCLUDED_THREAD_IDS = new Set(config.EXCLUDED_THREAD_IDS);
 
 function isExcludedThread(message: {
@@ -274,6 +281,7 @@ export function registerMessageCapture(client: Client): void {
 
   client.on("messageCreate", async (message) => {
     if (!shouldCaptureForAnyTarget(message, targets)) return;
+    if (isBotExcludedChannel(message)) return;
     if (isAgeRestrictedMessage(message)) return;
     if (isExcludedThread(message)) return;
 
@@ -292,6 +300,7 @@ export function registerMessageCapture(client: Client): void {
 
   client.on("messageUpdate", async (_oldMessage, newMessage) => {
     if (!shouldCaptureForAnyTarget(newMessage, targets)) return;
+    if (isBotExcludedChannel(newMessage as Message)) return;
     if (isAgeRestrictedMessage(newMessage as Message)) return;
     if (isExcludedThread(newMessage)) return;
 
