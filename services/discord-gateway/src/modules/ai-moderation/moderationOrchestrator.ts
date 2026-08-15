@@ -194,7 +194,7 @@ export async function runModerationAnalysis(
       if (embeddings && embeddings.length === texts.length) {
         // index-aligned with semanticCandidates
         for (let i = 0; i < semanticCandidates.length; i++) {
-          const { target, cacheKey } = semanticCandidates[i];
+          const { cacheKey } = semanticCandidates[i];
           embeddingsByKey.set(cacheKey, embeddings[i]);
         }
 

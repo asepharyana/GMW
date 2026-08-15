@@ -315,7 +315,7 @@ export async function initializeDiscordGateway() {
     gracefulShutdown("uncaughtException");
   });
 
-  process.on("unhandledRejection", (reason, promise) => {
+  process.on("unhandledRejection", (reason) => {
     const err =
       reason instanceof Error ? reason : new Error(String(reason ?? "unknown"));
     const code = (err as NodeJS.ErrnoException).code ?? "";

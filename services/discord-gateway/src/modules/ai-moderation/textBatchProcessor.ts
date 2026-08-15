@@ -249,7 +249,8 @@ export async function runTextOnlyBatch(
           if (pics.length === 0) return { id: msg.id, lines: [] as string[] };
           const lines = await Promise.all(
             pics.map(async (url) => {
-              const img = urlImages.get(url)!;
+              const img = urlImages.get(url);
+              if (!img) return null;
               try {
                 const { data: resizedBuffer, mimeType: resizedMime } =
                   await resizeImageForVision(img.data, maxDim);

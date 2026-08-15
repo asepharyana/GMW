@@ -1,4 +1,4 @@
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { createChildLogger, type Logger } from "@/shared/logger/index";
 import type * as schema from "../../shared/database/schema.js";

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "../../shared/database/schema.js";
 import { messageReviewsTable } from "../../shared/database/schema.js";

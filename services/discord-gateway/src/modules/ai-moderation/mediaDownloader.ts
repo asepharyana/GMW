@@ -450,7 +450,7 @@ export async function downloadMediaCandidate(
   if (candidate.customEmojiId || candidate.stickerName) {
     const vck = candidate.customEmojiId
       ? makeCustomEmojiCacheKey(candidate.customEmojiId)
-      : makeStickerCacheKey(candidate.stickerName!);
+      : makeStickerCacheKey(candidate.stickerName ?? "");
     const cached = await getCachedMediaAnalysis(vck);
     if (cached) {
       const existing = mediaAnalysisMap.get(targetId) ?? [];

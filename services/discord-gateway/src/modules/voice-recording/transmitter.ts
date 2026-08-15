@@ -27,8 +27,6 @@ export class VoiceTransmitter {
   private gate = Promise.resolve();
   /** Set true before sending SIGTERM so exit handler knows it's intentional */
   private _expectedExit = false;
-  /** True while the underlying stream is in a drain state (backpressure) */
-  private draining = false;
 
   /**
    * Start listening for PCM audio data from Redis and stream to Discord
@@ -179,15 +177,13 @@ export class VoiceTransmitter {
             const canContinue = stream.write(pcmBuffer);
             // Backpressure: queue until drain
             if (!canContinue) {
-              this.draining = true;
               stream.once("drain", () => {
-                this.draining = false;
-                // Re-acquire stream reference (could have been replaced by restart)
                 const currentStream = this.pcmStream;
                 if (!currentStream || !this.isActive) return;
                 // Flush queued chunks
                 while (this.backpressureQueue.length > 0) {
-                  const queued = this.backpressureQueue.shift()!;
+                  const queued = this.backpressureQueue.shift();
+                  if (!queued) break;
                   try {
                     if (!currentStream.write(queued)) break;
                   } catch (err) {
@@ -237,7 +233,6 @@ export class VoiceTransmitter {
       this.isActive = false;
 
       this.backpressureQueue = [];
-      this.draining = false;
 
       if (this.pcmStream) {
         this.pcmStream.removeAllListeners("drain");

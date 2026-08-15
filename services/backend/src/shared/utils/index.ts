@@ -108,5 +108,5 @@ export async function retryWithBackoff<T>(
       });
     }
   }
-  throw lastError!;
+  throw lastError ?? new Error("Request failed after all retries");
 }

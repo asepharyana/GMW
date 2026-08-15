@@ -3,7 +3,6 @@ import { createChildLogger } from "@/shared/logger/index";
 import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 import { findBestEmbeddingMatch } from "./embeddingClient.js";
 import {
-  deleteExpiredQdrantPoints,
   deleteQdrantPoint,
   deleteQdrantPointsByContentHash,
   isQdrantConfigured,

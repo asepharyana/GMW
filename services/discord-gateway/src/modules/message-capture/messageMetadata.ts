@@ -515,7 +515,7 @@ export function renderDiscordMentions(
   content: string,
   metadata: string | null | undefined,
 ): string {
-  if (!content || !content.includes("<")) return content;
+  if (!content?.includes("<")) return content;
   const parsed = parseRichMessageMetadata(metadata);
   const roleName = new Map(
     (parsed?.mentionedRoles ?? []).map((r) => [r.id, r.name] as const),
