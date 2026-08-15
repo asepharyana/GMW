@@ -4,10 +4,17 @@ import { createChildLogger } from "@/shared/logger/index";
 const log = createChildLogger("imageResizer");
 
 /**
- * Prepare an image buffer for optimal vision LLM analysis.
+ * Prepare an image buffer for vision LLM analysis.
  *
- * - Resizes to maxDim x maxDim maintaining aspect ratio (only if larger)
- * - Converts to PNG (lossless) to preserve full image detail
+ * - Resizes to maxDim x maxDim maintaining aspect ratio WITHOUT upscaling
+ *   (small images such as stickers/emojis are passed through at original size,
+ *   just re-encoded)
+ * - Encodes as JPEG (lossy, quality ~85). Photos compress VERY poorly in
+ *   lossless PNG — a 1024px Facebook photo balloons to multi-MB PNG base64 that
+ *   the vision model silently rejects (empty response → "Vision API null").
+ *   JPEG keeps the same photo at ~100–400KB, which the model processes fine and
+ *   stays well below request/token size limits.
+
  * - Falls back to original buffer if sharp fails
  *
  * @param buf - Raw image buffer
@@ -20,35 +27,28 @@ export async function resizeImageForVision(
 ): Promise<{ data: Buffer; mimeType: string }> {
   try {
     const metadata = await sharp(buf).metadata();
-    const inputFormat = metadata.format ?? "jpeg";
 
-    // Skip resize entirely if already within max dimension
-    if ((metadata.width ?? 0) <= maxDim && (metadata.height ?? 0) <= maxDim) {
-      return { data: buf, mimeType: `image/${inputFormat}` };
-    }
-
-    // Resize dimension only — convert to PNG lossless to preserve detail
+    // Always (re-)encode to JPEG and fit inside maxDim without upscaling.
+    // Skipping the encode for already-small images left raw originals in
+    // their native (often lossless PNG or full-quality) form, which could
+    // still bloat data URLs and trip the vision model's size limit.
     const resized = await sharp(buf)
-      .resize(maxDim, maxDim, {
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .png()
+      .resize(maxDim, maxDim, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 })
       .toBuffer();
 
+    const inputFormat = metadata.format ?? "jpeg";
     log.debug(
       {
         originalSize: buf.length,
         originalFormat: inputFormat,
         resizedSize: resized.length,
-        reductionPct: Math.round(
-          ((buf.length - resized.length) / buf.length) * 100,
-        ),
+        reductionPct: Math.round(((buf.length - resized.length) / buf.length) * 100),
       },
-      "Image resized for vision analysis (lossless PNG)",
+      "Image resized for vision analysis (JPEG)",
     );
 
-    return { data: resized, mimeType: "image/png" };
+    return { data: resized, mimeType: "image/jpeg" };
   } catch (error) {
     log.warn(
       { error: error instanceof Error ? error.message : String(error) },

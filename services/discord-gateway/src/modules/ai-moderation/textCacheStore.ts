@@ -77,14 +77,16 @@ export function makeCustomEmojiCacheKey(emojiId: string): string {
  * (different URLs) never collide.
  */
 export function makeImageCacheKey(imageUrl: string): string {
-  try {
-    const u = new URL(imageUrl);
-    u.search = "";
-    u.hash = "";
-    return `image:${u.toString()}`;
-  } catch {
-    return `image:${imageUrl}`;
-  }
+  // Hash the URL to a fixed-length key. The raw Discord CDN URL is short,
+  // but callers sometimes pass base64 data URLs (can be multi-MB) or very
+  // long signed/external URLs. text_analysis_cache.text is the PK and lives
+  // in a B-tree index with an 8191-byte per-row limit — inserting a long URL
+  // as the key aborts the whole INSERT ("index row requires N bytes, maximum
+  // size is 8191"), which fails acquireMediaAnalysisLock and silently skips
+  // every media analysis. A 32-char sha256 keeps the key well under the limit
+  // and is still deterministic (same attachment → same key).
+  const hash = createHash("sha256").update(imageUrl).digest("hex").slice(0, 32);
+  return `image:${hash}`;
 }
 
 /**
