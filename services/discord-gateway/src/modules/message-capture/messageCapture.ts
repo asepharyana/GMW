@@ -274,7 +274,6 @@ export function registerMessageCapture(client: Client): void {
 
   client.on("messageCreate", async (message) => {
     if (!shouldCaptureForAnyTarget(message, targets)) return;
-    if (message.author?.bot) return;
     if (isAgeRestrictedMessage(message)) return;
     if (isExcludedThread(message)) return;
 
@@ -293,7 +292,6 @@ export function registerMessageCapture(client: Client): void {
 
   client.on("messageUpdate", async (_oldMessage, newMessage) => {
     if (!shouldCaptureForAnyTarget(newMessage, targets)) return;
-    if (newMessage.author?.bot) return;
     if (isAgeRestrictedMessage(newMessage as Message)) return;
     if (isExcludedThread(newMessage)) return;
 
