@@ -174,7 +174,10 @@ export function MessagesView({
                       )}
                     </div>
                   </div>
-                  <AiBadge status={m.ai_status} />
+                  <AiBadge
+                    status={m.ai_status}
+                    durationMs={m.ai_analysis_duration_ms}
+                  />
                 </button>
               ))}
             </div>
@@ -207,7 +210,13 @@ export function MessagesView({
   );
 }
 
-function AiBadge({ status }: { status?: AiStatus | null }) {
+function AiBadge({
+  status,
+  durationMs,
+}: {
+  status?: AiStatus | null;
+  durationMs?: number | null;
+}) {
   if (!status) return null;
   const tone = aiTone(status);
   const icon =
@@ -222,12 +231,23 @@ function AiBadge({ status }: { status?: AiStatus | null }) {
     ) : (
       <AlertTriangle className="size-3" />
     );
+  const label =
+    durationMs && durationMs > 0
+      ? `${status} · ${formatDuration(durationMs)}`
+      : status;
+
   return (
     <Badge tone={tone} dot={status === "processing" || status === "pending"}>
       {icon}
-      {status}
+      {label}
     </Badge>
   );
+}
+
+/** Human-readable analysis duration, e.g. 850ms / 1.2s / 3.4s. */
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
 }
 
 function MessageDetail({
@@ -250,7 +270,10 @@ function MessageDetail({
           </div>
         </div>
         <div className="ml-auto">
-          <AiBadge status={m.ai_status} />
+          <AiBadge
+            status={m.ai_status}
+            durationMs={m.ai_analysis_duration_ms}
+          />
         </div>
       </div>
 

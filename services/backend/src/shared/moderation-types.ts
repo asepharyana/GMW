@@ -80,6 +80,7 @@ export interface MessageRecord {
   ai_confidence?: number | null;
   ai_recommended_action?: AIRecommendedAction | null;
   ai_analyzed_at?: number | null;
+  ai_analysis_duration_ms?: number | null;
   ai_error?: string | null;
 }
 

@@ -316,11 +316,13 @@ async function processBatch(job: {
   // The orchestrator handles text/media split + caching + parallel paths
   // internally, so a 20-message batch = 1 text LLM call (+1 media call
   // when media is present), not N per-message calls.
+  const analysisStart = Date.now();
   const moderationResult = await runModerationAnalysis({
     targets: readyMessages,
     contextBlock,
     attachments,
   });
+  const analysisDurationMs = Date.now() - analysisStart;
 
   const results = moderationResult.results.map((r) =>
     normalizeResult(
@@ -342,6 +344,7 @@ async function processBatch(job: {
       confidence: result.confidence,
       recommendedAction: result.recommendedAction,
       analyzedAt: Date.now(),
+      analysisDurationMs,
       error: result.status === "error" ? result.analysis : null,
     },
   }));

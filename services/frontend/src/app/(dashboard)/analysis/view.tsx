@@ -18,6 +18,12 @@ function aiTone(
   return "neutral";
 }
 
+/** Human-readable analysis duration, e.g. 850ms / 1.2s / 3.4s. */
+function formatAnalysisDuration(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
 export function AnalysisView() {
   const [query, setQuery] = useState("");
   const search = useMessageSearch(query, query.trim().length >= 2);
@@ -99,7 +105,10 @@ export function AnalysisView() {
                       </span>
                       {m.ai_status && (
                         <Badge tone={aiTone(m.ai_status)} className="ml-auto">
-                          {m.ai_status}
+                          {m.ai_analysis_duration_ms &&
+                          m.ai_analysis_duration_ms > 0
+                            ? `${m.ai_status} · ${formatAnalysisDuration(m.ai_analysis_duration_ms)}`
+                            : m.ai_status}
                         </Badge>
                       )}
                     </div>

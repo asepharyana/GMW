@@ -62,6 +62,9 @@ export const pgMessagesTable = pgTable(
       enum: ["none", "monitor", "warn", "review", "delete", "escalate"],
     }),
     ai_analyzed_at: pgBigint("ai_analyzed_at", { mode: "number" }),
+    ai_analysis_duration_ms: pgBigint("ai_analysis_duration_ms", {
+      mode: "number",
+    }),
     ai_error: pgText("ai_error"),
   },
   (table) => ({

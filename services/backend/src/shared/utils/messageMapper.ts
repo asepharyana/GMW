@@ -24,6 +24,7 @@ export interface MappedMessage {
   ai_confidence: number | null;
   ai_recommended_action: string | null;
   ai_analyzed_at: number | null;
+  ai_analysis_duration_ms: number | null;
   ai_error: string | null;
   is_reply: boolean | null;
   is_forward: boolean | null;
@@ -58,6 +59,8 @@ export function mapMessageRow(row: Record<string, unknown>): MappedMessage {
     ai_confidence: (row.ai_confidence as number | null) ?? null,
     ai_recommended_action: (row.ai_recommended_action as string | null) ?? null,
     ai_analyzed_at: (row.ai_analyzed_at as number | null) ?? null,
+    ai_analysis_duration_ms:
+      (row.ai_analysis_duration_ms as number | null) ?? null,
     ai_error: (row.ai_error as string | null) ?? null,
     is_reply: row.is_reply === null ? null : Boolean(row.is_reply),
     is_forward: row.is_forward === null ? null : Boolean(row.is_forward),

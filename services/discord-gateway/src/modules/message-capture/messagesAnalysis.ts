@@ -26,6 +26,8 @@ export interface AIAnalysisUpdate {
   confidence?: number | null;
   recommendedAction?: MessageRecord["ai_recommended_action"] | null;
   analyzedAt?: number | null;
+  /** Wall-clock time the AI analysis (LLM call) took, in milliseconds. */
+  analysisDurationMs?: number | null;
   error?: string | null;
 }
 
@@ -42,6 +44,7 @@ function buildAIAnalysisSet(result: AIAnalysisUpdate, now?: number) {
     ai_confidence: result.confidence ?? result.score ?? null,
     ai_recommended_action: result.recommendedAction ?? null,
     ai_analyzed_at: result.analyzedAt ?? now ?? Date.now(),
+    ai_analysis_duration_ms: result.analysisDurationMs ?? null,
     ai_error: result.error ?? null,
   };
 }
