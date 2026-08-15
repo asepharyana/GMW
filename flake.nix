@@ -48,8 +48,8 @@
           export GIT_SSL_CAINFO=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
           export NIX_SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
 
-          # pnpm uses node-gyp for native addons — provide build tools
-          export npm_config_build_from_source=true
+          # pnpm uses node-gyp for native addons — provide build tools (kept for
+          # the rare case a prebuilt is unavailable and it falls back to compile).
           export CPPFLAGS="-I${pkgs.lib.getDev pkgs.openssl}/include"
           export LDFLAGS="-L${pkgs.lib.getLib pkgs.openssl}/lib"
 
@@ -180,15 +180,15 @@ WRAPPER
             # pnpm rebuild aborts on the first failing package and runs scripts
             # from the wrong cwd — build each native dep explicitly with its own
             # install script. Each failure is tolerated (|| true); the packages
-            # that matter (opus) are verified at runtime.
-            for pkg in \
-              node_modules/.pnpm/@discordjs+opus@*/node_modules/@discordjs/opus
-            do
-              if [ -d "$pkg" ]; then
-                echo "--- native build: $pkg ---"
-                (cd "$pkg" && npm run install 2>&1 || true)
-              fi
-            done
+            # @discordjs/opus ships prebuilt binaries for Node 22 (ABI node-v127,
+            # linux-x64-glibc-2.35) — node-pre-gyp downloads the prebuilt .node
+            # instead of compiling C++ from source. With build_from_source unset
+            # (above), `pnpm rebuild` runs the package's own install script which
+            # fetches the matching prebuilt; it only falls back to a source build
+            # if the download fails. This keeps voice working without a per-build
+            # native compile.
+            echo "=== Rebuilding @discordjs/opus (prebuilt download) ==="
+            pnpm rebuild @discordjs/opus 2>&1 || true
             echo "=== Compiling TypeScript ===="
             npx tsc 2>&1
             echo "=== Fixing @/ path aliases to relative paths ==="
