@@ -175,6 +175,15 @@ WRAPPER
           # do NOT let stdenv run its own cmake configure phase on the source.
           dontUseCmakeConfigure = true;
 
+          # The gateway bundles native node_modules (.node addons, plus .o/.a
+          # object files left in prebuilt dirs). stdenv's fixupPhase runs
+          # `patchELF` over $out and chokes on the non-ET_DYN ELF files,
+          # emitting hundreds of harmless "patchelf: wrong ELF type" lines.
+          # The real binary is node (external, already RPATH-fixed) and the
+          # .node addons are self-contained prebuilts loaded via dlopen, so
+          # Nix's RPATH patching is neither needed nor wanted here.
+          dontPatchELF = true;
+
           buildPhase = pnpmInstall + ''
             echo "=== Building native voice deps ==="
             # pnpm rebuild aborts on the first failing package and runs scripts
