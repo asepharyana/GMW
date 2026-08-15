@@ -341,7 +341,9 @@ async function llmVisionDirect(
   promptText: string,
   imageUrl: { url: string },
 ): Promise<string | null> {
-  const visionModel = config.AI_LLM_VISION_MODEL || "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning";
+  const visionModel =
+    config.AI_LLM_VISION_MODEL ||
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning";
   try {
     const response = await axios.post(
       `${config.AI_LLM_VISION_BASE_URL}/chat/completions`,
