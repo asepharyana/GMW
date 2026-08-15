@@ -17,6 +17,18 @@ import { config } from "../../shared/config/config.js";
 
 const log = createChildLogger("qdrant");
 
+// ensureQdrantCollection performs a network round-trip (GET, possibly
+// DELETE+PUT). Running it on every upsert adds 1-3 HTTP calls per
+// moderation verdict, which under Qdrant load pushes the upsert past the
+// request timeout and aborts it ("This operation was aborted"). Memoise the
+// result so the collection is only verified once per process lifetime.
+let ensureCollectionPromise: Promise<boolean> | null = null;
+
+/** Reset the memoised ensure result (used by tests / config reload). */
+export function resetQdrantCollectionCache(): void {
+  ensureCollectionPromise = null;
+}
+
 export interface QdrantVerdictPayload {
   text: string;
   flags: string; // JSON string of the full moderation result
@@ -97,46 +109,53 @@ export function qdrantPointId(cacheKey: string): number {
 export async function ensureQdrantCollection(
   vectorSize: number,
 ): Promise<boolean> {
-  try {
-    // 404 = collection doesn't exist yet → create it.
-    let existing: {
-      result?: { config?: { params?: { vectors?: { size?: number } } } };
-    } | null = null;
+  if (ensureCollectionPromise) return ensureCollectionPromise;
+  ensureCollectionPromise = (async () => {
     try {
-      existing = (await request("GET", `/collections/${collectionName()}`)) as {
+      // 404 = collection doesn't exist yet → create it.
+      let existing: {
         result?: { config?: { params?: { vectors?: { size?: number } } } };
-      };
-    } catch (error) {
-      if (!(error instanceof Error) || !error.message.includes("-> 404")) {
-        throw error;
+      } | null = null;
+      try {
+        existing = (await request(
+          "GET",
+          `/collections/${collectionName()}`,
+        )) as {
+          result?: { config?: { params?: { vectors?: { size?: number } } } };
+        };
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("-> 404")) {
+          throw error;
+        }
       }
-    }
 
-    const size = existing?.result?.config?.params?.vectors?.size;
-    if (size === vectorSize) return true;
+      const size = existing?.result?.config?.params?.vectors?.size;
+      if (size === vectorSize) return true;
 
-    if (size !== undefined && size !== vectorSize) {
-      log.warn(
-        { collection: collectionName(), oldSize: size, newSize: vectorSize },
-        "Qdrant collection vector size changed — recreating collection",
+      if (size !== undefined && size !== vectorSize) {
+        log.warn(
+          { collection: collectionName(), oldSize: size, newSize: vectorSize },
+          "Qdrant collection vector size changed — recreating collection",
+        );
+        await request("DELETE", `/collections/${collectionName()}`);
+      }
+
+      await request("PUT", `/collections/${collectionName()}`, {
+        vectors: { size: vectorSize, distance: "Cosine" },
+      });
+      return true;
+    } catch (error) {
+      log.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          collection: collectionName(),
+        },
+        "Failed to ensure Qdrant collection",
       );
-      await request("DELETE", `/collections/${collectionName()}`);
+      return false;
     }
-
-    await request("PUT", `/collections/${collectionName()}`, {
-      vectors: { size: vectorSize, distance: "Cosine" },
-    });
-    return true;
-  } catch (error) {
-    log.error(
-      {
-        error: error instanceof Error ? error.message : String(error),
-        collection: collectionName(),
-      },
-      "Failed to ensure Qdrant collection",
-    );
-    return false;
-  }
+  })();
+  return ensureCollectionPromise;
 }
 
 /** Upsert one embedding + verdict payload point. Returns false on failure. */
@@ -147,10 +166,15 @@ export async function upsertQdrantPoint(
 ): Promise<boolean> {
   try {
     if (!(await ensureQdrantCollection(vector.length))) return false;
-    await request("PUT", `/collections/${collectionName()}/points`, {
-      points: [{ id: qdrantPointId(cacheKey), vector, payload }],
-      wait: true,
-    });
+    await request(
+      "PUT",
+      `/collections/${collectionName()}/points`,
+      {
+        points: [{ id: qdrantPointId(cacheKey), vector, payload }],
+        wait: true,
+      },
+      30_000,
+    );
     return true;
   } catch (error) {
     log.warn(
