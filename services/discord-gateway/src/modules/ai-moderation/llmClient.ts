@@ -199,20 +199,17 @@ export function buildLlmParams(
   if (jsonResponse) params.response_format = jsonResponse;
 
   if (disableThinking) {
-    Object.assign(
-      params,
-      {
-        // OpenAI o-series
-        reasoning_effort: "none",
-        // OpenRouter
-        reasoning: { enabled: false },
-        // vLLM / Qwen / litellm
-        chat_template_kwargs: { enable_thinking: false },
-        // Anthropic / Claude-format (9router exposes thinkingFormat
-        // "claude-adaptive" / "claude-budget" on its reasoning models)
-        thinking: { type: "disabled" },
-      } as Record<string, unknown>,
-    );
+    Object.assign(params, {
+      // OpenAI o-series
+      reasoning_effort: "none",
+      // OpenRouter
+      reasoning: { enabled: false },
+      // vLLM / Qwen / litellm
+      chat_template_kwargs: { enable_thinking: false },
+      // Anthropic / Claude-format (9router exposes thinkingFormat
+      // "claude-adaptive" / "claude-budget" on its reasoning models)
+      thinking: { type: "disabled" },
+    } as Record<string, unknown>);
   }
 
   return params;
