@@ -61,6 +61,25 @@ http {
       proxy_send_timeout 86400s;
     }
 
+    # ── Backend oRPC (structured data RPCs over WebSocket + HTTP POST)
+    #     Browser reaches this via partysocket (wss://…/trpc); SSR/RSC uses
+    #     the fetch RPCLink (POST /trpc). Same path, same backend handler:
+    #     oRPC's RPCHandler (HTTP) + ORPCWebSocketServer (WS) on :4001. ──
+    location ^~ /trpc {
+      proxy_pass http://gmw_backend$uri$is_args$args;
+      proxy_http_version 1.1;
+      # Upgrade headers required for the WebSocket transport; harmless for POST.
+      proxy_set_header Upgrade              $http_upgrade;
+      proxy_set_header Connection           $connection_upgrade;
+      proxy_set_header Host                 $host;
+      proxy_set_header X-Real-IP            $remote_addr;
+      proxy_set_header X-Forwarded-For      $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto    $scheme;
+      proxy_buffering off;
+      proxy_read_timeout 86400s;
+      proxy_send_timeout 86400s;
+    }
+
     # ── Next.js build assets — immutable, edge/shareable ───────────
     location ^~ /_next/static/ {
       proxy_pass http://gmw_next$uri$is_args$args;
