@@ -103,36 +103,21 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
   }
 
   parts.push(
-    `## Blok Data di Pesan USER\n` +
-      `Semua data dinamis per-batch dikirim di pesan USER — system prompt ini TIDAK memuat data batch:\n` +
-      `- <location_context .../> = metadata channel/thread (channel_id, channel_name, thread_name, topic, nsfw, age_restricted). topic = deskripsi resmi channel — pakai untuk menilai kesesuaian pesan dengan tujuan channel.\n` +
-      `- <conversation_context> = obrolan SEBELUM pesan target. Baris "[context]" di dalamnya BUKAN yang dinilai.\n` +
-      `- <user_profiles> = peta ringkasan kepribadian per user_id (attr as_of = kapan profil terakhir dibuat — profil lama mungkin tidak mencerminkan perilaku terkini); setiap <message> merujuk lewat <user_profile_ref user_id="..."/>.\n` +
-      `- <web_searches> / <web_content> = bukti web (lihat "Web Sebagai Bukti Utama").\n` +
-      `- <term_glossary> = kamus istilah: definisi kata/slang/jargon yang jarang dikenal (hasil pencarian Wikipedia via SearXNG). Gunakan untuk memahami arti kata yang tidak kamu kenal — JANGAN menebak atau mengarang arti.\n` +
-      `- <messages_to_analyze> = pesan-pesan TARGET yang WAJIB dinilai. Atribut <message>: id, user (nama server), time (ISO — kapan pesan dikirim), repetitions (N = teks pendek sama muncul N kali di batch — sinyal spam), bot (true jika dari bot), edited (true jika konten adalah hasil edit setelah posting).`,
+    `## Blok Data (di pesan USER)\n` +
+      `System prompt ini TIDAK berisi data batch — semua data per-batch ada di pesan USER:\n` +
+      `- <location_context .../>: metadata channel/thread (channel_name, thread_name, topic, nsfw, age_restricted). topic = tujuan resmi channel; gunakan menilai kesesuaian pesan.\n` +
+      `- <conversation_context>: obrolan SEBELUM target. Baris pertama "[conversation_flow] status=... context_msgs=... dropped=..." = metadata sistem (ongoing/sparse/cold_start), BUKAN pesan dinilai. Baris "[context] id=... time=... user=...: isi" = konteks, BUKAN target.\n` +
+      `- <user_profiles>/<user_profile_ref>: peta ringkasan kepribadian per user_id (as_of = kapan dibuat; profil lama mungkin usang). <user_reputation trust_score total_infractions clean_streak last_offense_days_ago repeat_offender>: histori moderasi (repeat_offender=true = pelanggaran ≤7 hari). <user_history>: kutipan pesan pernah di-flag — cari POLA berulang (spam link sama), BUKAN bukti pesan bersih.\n` +
+      `- <web_searches>/<web_content>: bukti web (prioritas tertinggi). <term_glossary>: definisi kata/slang/jargon (SearXNG) — pakai pahami kata asing, JANGAN tebak arti.\n` +
+      `- <messages_to_analyze>: pesan TARGET yang WAJIB dinilai. Atribut <message>: id, user, time (ISO), repetitions (N = teks sama muncul N× di batch → sinyal spam), bot (true = bot), edited (true = hasil edit setelah posting → evasi potensial).`,
   );
 
   parts.push(
-    `## Konteks Pengguna (Referensi, Bukan Bukti)\n` +
-      `Konteks per pengguna hanya indikator **referensi** untuk personalisasi analisis, BUKAN bukti pelanggaran:\n` +
-      `- <user_reputation trust_score="..." total_infractions="..." clean_streak="..." last_offense_days_ago="..." repeat_offender="..."> = histori moderasi pengguna. Skor rendah BUKAN alasan memflag pesan bersih; skor tinggi BUKAN alasan mengabaikan pelanggaran nyata. repeat_offender="true" = ada pelanggaran dalam 7 hari terakhir.\n` +
-      `- <user_history> (di dalam <user_reputation>) = kutipan pesan-pesan pengguna yang PERNAH di-flag. Gunakan untuk mengenali POLA berulang (spam link sama, provokasi), tapi JANGAN memflag pesan bersih hanya karena riwayat.\n` +
-      `- <user_profiles> (di pesan USER) = peta ringkasan kepribadian per user_id. <user_profile_ref user_id="..."/> dalam sebuah pesan menunjuk ke peta itu. Tanpa ref = tidak ada profil untuk pengguna tersebut.\n` +
-      `- Profil berguna untuk mengenali penyimpangan perilaku mencolok (mis. pengguna teknis tiba-tiba provokatif), tapi JANGAN memflag atau meloloskan hanya karena profil.\n` +
-      `**Setiap pesan dinilai berdasarkan isinya sendiri.**`,
-  );
-
-  parts.push(
-    `## Framing: Konteks vs Target\n` +
-      `- Baris dalam <conversation_context> berformat "[context] id=... time=<ISO> user=<nama>: isi", diurutkan paling lama → paling baru. Baris pertama biasanya "[conversation_flow] status=... context_msgs=... dropped=..." — metadata sistem tentang status percakapan (ongoing/sparse/cold_start), BUKAN pesan yang dinilai.\n` +
-      `- <messages_to_analyze> berisi pesan-pesan TARGET yang WAJIB dinilai. Hasilkan SATU hasil per message_id — jangan menggabungkan beberapa pesan, jangan melewati, jangan mengarang id.\n` +
-      `- Setiap target dinilai berdasarkan isinya sendiri; konteks percakapan memengaruhi interpretasi, bukan menggantikan isi pesan.\n` +
-      `- Marker "…[pesan dipotong: terlalu panjang]" = konten TARGET sengaja dipotong; marker "…[konteks dipotong: terlalu panjang]" = konten pesan KONTEKS dipotong. Nilai dari bagian yang terlihat; pemotongan BUKAN pelanggaran dan BUKAN teknik evasi.\n` +
-      `- Atribut time= pada <message> target = kapan pesan dikirim (ISO). Pakai untuk menilai kerelevanan waktu (mis. pesan lama di-bump, spam beruntun dalam menit yang sama).\n` +
-      `- repetitions="N" pada <message> = teks pendek yang sama muncul N kali dalam batch — pertimbangkan sebagai sinyal spam, tapi nilai tetap dari isi pesan.\n` +
-      `- bot="true" = pengirim adalah bot (otomatisasi), bukan pengguna manusia — jangan perlakukan sebagai pelanggaran personal, tapi kontennya tetap dinilai.\n` +
-      `- edited="true" = konten yang ditampilkan adalah hasil edit setelah posting (sinyal potensi evasi), nilai konten saat ini apa adanya.`,
+    `## Framing & Aturan Konteks\n` +
+      `- Hasilkan SATU hasil per message_id — jangan gabung, lewati, atau karang id.\n` +
+      `- Setiap target dinilai BERDASARKAN ISINYA SENDIRI. Konteks memengaruhi interpretasi, tapi TIDAK menggantikan isi pesan. Profil/riwayat = REFERENSI personalisasi, BUKAN bukti pelanggaran (lihat "PERSONALITY & MEMORI").\n` +
+      `- Marker "[pesan dipotong: terlalu panjang]" = TARGET dipotong; "[konteks dipotong: ...]" = konteks dipotong. Nilai dari bagian terlihat; pemotongan BUKAN pelanggaran/evasi.\n` +
+      `- time= = kapan dikirim (rekonsiliasi spam beruntun / bump pesan lama). bot=true = otomatisasi, bukan pelanggaran personal.`,
   );
 
   parts.push(OUTPUT_INSTRUCTIONS);

@@ -93,16 +93,6 @@ export const ALL_EXAMPLES: ExampleDef[] = [
       '{"results":[{"message_id":"17173","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.95,"recommended_action":"none","evidence":[],"analysis":"Diskusi tools programming biasa (Cursor, VSCode, Claude), tidak ada pelanggaran."}]}',
     modes: ["text", "mixed"],
   },
-  {
-    id: "19",
-    title: "Diskusi orientasi seksual LGBT (dilarang — zero tolerance)",
-    input:
-      "[target] id=17174 user=alex: btw gw gay, semoga ga masalah ya. Gw cmn mau jujur aja",
-    output:
-      '{"results":[{"message_id":"17174","status":"flagged","flags":["sexual_deviation"],"score":0.85,"severity":"high","confidence":0.95,"recommended_action":"delete","evidence":["btw gw gay, semoga ga masalah ya"],"analysis":"Pengakuan orientasi LGBT — server zero tolerance terhadap segala diskusi/coming out. Dihapus."}]}',
-    modes: ["text", "mixed"],
-  },
-
   // ── Mixed examples ──
   {
     id: "3",
@@ -346,15 +336,7 @@ export const ALL_EXAMPLES: ExampleDef[] = [
       '{"results":[{"message_id":"32323","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.95,"recommended_action":"none","evidence":[],"analysis":"Diskusi fisika teknis tentang kinetik dan gravitasi dalam konteks analisis statis – tidak ada ancaman atau konten melanggar. Penggunaan istilah fisika untuk perhitungan teknis adalah hal wajar."}]}',
     modes: ["text", "mixed"],
   },
-  {
-    id: "33",
-    title: "Diskusi drone/senjata dalam konteks teknis (AMAN, bukan ancaman)",
-    input:
-      "[target] id=33333 user=engineer: Pengirim menyiratkan penggunaan energi kinetik dari jatuh (tubuh manusia vs gravitasi) sebagai metode untuk 'menetralisir' target dalam konteks diskusi senjata drone sebelumnya.",
-    output:
-      '{"results":[{"message_id":"33333","status":"clean","flags":[],"score":0.0,"severity":"none","confidence":0.9,"recommended_action":"none","evidence":[],"analysis":"Diskusi teknis tentang drone dan aplikasi fisika dalam konteks engineering – tidak ada ajuan aksi atau ancaman nyata. Penggunaan istilah senjata dalam konteks diskusi teori adalah hal wajar."}]}',
-    modes: ["text", "mixed"],
-  },
+  // ── Invite link / promosi server ──
 ];
 
 // Derive per-mode strings from the single ALL_EXAMPLES array (zero duplication)
