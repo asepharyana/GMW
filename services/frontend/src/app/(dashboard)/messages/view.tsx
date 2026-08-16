@@ -27,9 +27,11 @@ import {
 } from "@/components/shared";
 import { GuildChannelPicker } from "@/components/shared/guild-picker";
 import {
+  useLoadMore,
   useMessageDetail,
   useMessageSearch,
   useMessages,
+  useMessagesHasMore,
   useMessagesWsSync,
 } from "@/hooks";
 import {
@@ -82,6 +84,11 @@ export function MessagesView({
     isLoading,
     error,
   } = useMessages(guildId ?? "", channelId ?? undefined);
+  // Cursor to the next (older) page + whether more history exists.
+  const { data: pageInfo } = useMessagesHasMore(guildId ?? "", channelId ?? undefined);
+  const nextCursor = pageInfo?.cursor ?? null;
+  const hasMore = pageInfo?.hasMore ?? false;
+  const loadMore = useLoadMore();
   useMessagesWsSync(ws, guildId ?? "");
   const search = useMessageSearch(query, query.trim().length >= 2);
   const detail = useMessageDetail(selected);
@@ -141,8 +148,49 @@ export function MessagesView({
               description="Pick a guild to begin, or run a search."
             />
           ) : (
-            <div className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1">
-              {list.map((m) => (
+            <div>
+              {!searching && (
+                <div className="mb-2 flex items-center justify-center gap-2">
+                  {hasMore ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        loadMore.mutate({
+                          guildId: guildId ?? "",
+                          channelId: channelId ?? undefined,
+                          cursor: nextCursor ?? "",
+                        })
+                      }
+                      disabled={loadMore.isPending}
+                      className="rounded-full border border-hairline bg-white/[0.03] px-3 py-1 text-xs text-ink-soft transition-colors hover:bg-white/[0.06] disabled:opacity-60"
+                    >
+                      {loadMore.isPending ? "Loading older…" : "↑ Load older messages"}
+                    </button>
+                  ) : (
+                    messages &&
+                    messages.length > 0 && (
+                      <span className="mono text-[0.65rem] text-ink-faint">
+                        beginning of history
+                      </span>
+                    )
+                  )}
+                </div>
+              )}
+              <div
+                className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1"
+                onScroll={(e) => {
+                  // Auto-load older messages when the user scrolls to the top.
+                  if (searching || !hasMore || loadMore.isPending) return;
+                  if (e.currentTarget.scrollTop <= 8) {
+                    loadMore.mutate({
+                      guildId: guildId ?? "",
+                      channelId: channelId ?? undefined,
+                      cursor: nextCursor ?? "",
+                    });
+                  }
+                }}
+              >
+                {list.map((m) => (
                 <button
                   key={m.id}
                   type="button"
@@ -181,6 +229,7 @@ export function MessagesView({
                 </button>
               ))}
             </div>
+          </div>
           )}
         </GlassPanel>
 
