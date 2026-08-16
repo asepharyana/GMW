@@ -1,11 +1,12 @@
+import { trpc } from "@/lib/trpc/client";
 import type { MediaState } from "@/lib/types";
-import { api } from "./client";
 
 export const mediaApi = {
-  getStatus: () => api.get<MediaState>("/api/media/status"),
+  getStatus: () => trpc.media.status.query() as unknown as Promise<MediaState>,
   queue: (source: string, mode: string) =>
-    api.post<MediaState>("/api/media/queue", { source, mode }),
-  skip: () => api.post<MediaState>("/api/media/skip", {}),
-  stop: () => api.post<MediaState>("/api/media/stop", {}),
-  loop: (loop: boolean) => api.post<MediaState>("/api/media/loop", { loop }),
+    trpc.media.queue.mutate({ source, mode }) as unknown as Promise<MediaState>,
+  skip: () => trpc.media.skip.mutate() as unknown as Promise<MediaState>,
+  stop: () => trpc.media.stop.mutate() as unknown as Promise<MediaState>,
+  loop: (loop: boolean) =>
+    trpc.media.loop.mutate({ loop }) as unknown as Promise<MediaState>,
 };

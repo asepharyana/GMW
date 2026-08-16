@@ -1,5 +1,5 @@
+import { trpc } from "@/lib/trpc/client";
 import type { AttachmentRecord, MessageRecord } from "@/lib/types";
-import { api } from "./client";
 
 export const messagesApi = {
   list: (
@@ -7,69 +7,59 @@ export const messagesApi = {
     limit?: number,
     channelId?: string,
     cursor?: string,
-  ) => {
-    // Backend messageQuerySchema expects camelCase guildId (see messages.schema.ts)
-    const params = new URLSearchParams({ guildId });
-    if (limit) params.set("limit", String(limit));
-    if (channelId) params.set("channelId", channelId);
-    if (cursor) params.set("cursor", cursor);
-    return api.get<{ data: MessageRecord[]; nextCursor: string | null }>(
-      `/api/messages?${params}`,
-    );
-  },
+  ) =>
+    trpc.messages.list.query({
+      guildId,
+      limit,
+      channelId,
+      cursor,
+    }) as unknown as Promise<{
+      data: MessageRecord[];
+      nextCursor: string | null;
+    }>,
 
-  getByChannel: (channelId: string, limit?: number, cursor?: string) => {
-    const params = new URLSearchParams();
-    if (limit) params.set("limit", String(limit));
-    if (cursor) params.set("cursor", cursor);
-    const qs = params.toString();
-    return api.get<{ data: MessageRecord[]; nextCursor: string | null }>(
-      `/api/messages/${channelId}${qs ? `?${qs}` : ""}`,
-    );
-  },
+  getByChannel: (channelId: string, limit?: number, cursor?: string) =>
+    trpc.messages.byChannel.query({
+      channelId,
+      query: { channelId, limit, cursor },
+    }) as unknown as Promise<{
+      data: MessageRecord[];
+      nextCursor: string | null;
+    }>,
 
   getDetail: (id: string) =>
-    api.get<MessageRecord>(`/api/messages/detail/${id}`),
+    trpc.messages.detail.query({ id }) as unknown as Promise<MessageRecord>,
 
-  getImages: (guildId: string, limit?: number) => {
-    // Backend reads req.query.guildId (camelCase) — see handleGetImageMessages in messages.controller.ts
-    const params = new URLSearchParams({ guildId });
-    if (limit) params.set("limit", String(limit));
-    return api.get<{ data: MessageRecord[]; nextCursor: string | null }>(
-      `/api/messages/images?${params}`,
-    );
-  },
+  getImages: (guildId: string, limit?: number) =>
+    trpc.messages.images.query({ guildId, limit }) as unknown as Promise<{
+      data: MessageRecord[];
+      nextCursor: string | null;
+    }>,
 
   getAttachments: (
     channelId: string,
     limit?: number,
     cursor?: string,
     messageId?: string,
-  ) => {
-    const params = new URLSearchParams();
-    if (limit) params.set("limit", String(limit));
-    if (cursor) params.set("cursor", cursor);
-    if (messageId) params.set("messageId", messageId);
-    const qs = params.toString();
-    return api.get<{ data: AttachmentRecord[]; nextCursor: string | null }>(
-      `/api/messages/${channelId}/attachments${qs ? `?${qs}` : ""}`,
-    );
-  },
+  ) =>
+    trpc.messages.attachmentsByChannel.query({
+      channelId,
+      query: { channelId, limit, cursor, messageId },
+    }) as unknown as Promise<{
+      data: AttachmentRecord[];
+      nextCursor: string | null;
+    }>,
 
-  getReview: (limit?: number, channelId?: string) => {
-    const params = new URLSearchParams();
-    if (limit) params.set("limit", String(limit));
-    if (channelId) params.set("channelId", channelId);
-    return api.get<{ results: MessageRecord[]; limit: number; cursor: null }>(
-      `/api/review?${params}`,
-    );
-  },
+  getReview: (limit?: number, channelId?: string) =>
+    trpc.messages.review.query({ limit, channelId }) as unknown as Promise<{
+      results: MessageRecord[];
+      limit: number;
+      cursor: null;
+    }>,
 
-  search: (query: string, limit?: number) => {
-    const params = new URLSearchParams({ q: query });
-    if (limit) params.set("limit", String(limit));
-    return api.get<{ results: MessageRecord[] }>(
-      `/api/analysis/search?${params}`,
-    );
-  },
+  // Analysis search (formerly /api/analysis/search → tRPC analysis.search)
+  search: (q: string, limit?: number) =>
+    trpc.analysis.search.query({ q, limit }) as unknown as Promise<{
+      results: MessageRecord[];
+    }>,
 };

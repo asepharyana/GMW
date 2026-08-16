@@ -1,29 +1,50 @@
 /**
- * Server-only data layer.
+ * Server-only data layer (React Server Components / route handlers).
  *
- * These fetchers run exclusively on the Next.js server (React Server
- * Components / route handlers). They call the backend over HTTP directly
- * (`GMW_BACKEND_URL`), so the browser never needs a client round-trip for the
- * initial page data — the first paint is server-rendered.
+ * The dashboard is fully tRPC-native: this module talks to the backend's
+ * tRPC HTTP endpoint (/trpc) via an httpLink client — the same appRouter the
+ * browser reaches over WebSocket. No legacy REST `/api/*` is used.
  *
- * Never import this module from a client component. Browser code should keep
- * using `@/lib/api/client` (same-origin via the reverse proxy) for live ops.
+ * The client is loosely typed (see ./types → TRPCClient); results are asserted
+ * to the frontend's local types at each call site.
+ *
+ * Never import this module from a client component. Browser code uses
+ * `@/lib/trpc/client` (wsLink) via the `@/lib/api/*` wrappers.
  */
 
+import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import type {
   AppConfig,
   DashboardActivity,
   DashboardStats,
   Guild,
   MediaState,
-  ModerationAction,
   ModerationStats,
+  PaginatedModerationActions,
   PaginatedRecordings,
   VoiceStatus,
 } from "@/lib/types";
+import type { TRPCClient } from "../trpc/types";
 
 const BACKEND_URL =
   process.env.GMW_BACKEND_URL?.replace(/\/+$/, "") || "http://127.0.0.1:4001";
+
+let _client: TRPCClient | null = null;
+function serverTrpc(): TRPCClient {
+  if (!_client) {
+    _client = createTRPCClient({
+      links: [
+        httpBatchLink({
+          url: `${BACKEND_URL}/trpc`,
+          fetch(url, init) {
+            return fetch(url, { ...init, cache: "no-store" });
+          },
+        }),
+      ],
+    }) as unknown as TRPCClient;
+  }
+  return _client;
+}
 
 export class ApiServerError extends Error {
   statusCode: number;
@@ -34,102 +55,48 @@ export class ApiServerError extends Error {
   }
 }
 
-async function serverFetch<T>(
-  path: string,
-  init?: { timeoutMs?: number },
-): Promise<T> {
-  const url = `${BACKEND_URL}${path}`;
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    init?.timeoutMs ?? 8_000,
-  );
-
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new ApiServerError(text || `HTTP ${res.status}`, res.status);
-  }
-  return res.json() as Promise<T>;
-}
-
 // ---- Dashboard ----
-
 export async function getDashboardStats(): Promise<DashboardStats> {
-  return serverFetch<DashboardStats>("/api/dashboard/stats");
+  return serverTrpc().dashboard.stats.query() as unknown as Promise<DashboardStats>;
 }
-
 export async function getActivity(days = 14): Promise<DashboardActivity> {
-  return serverFetch<DashboardActivity>(`/api/dashboard/activity?days=${days}`);
+  return serverTrpc().dashboard.activity.query({
+    days,
+  }) as unknown as Promise<DashboardActivity>;
 }
 
 // ---- Media ----
-
 export async function getMediaStatus(): Promise<MediaState> {
-  return serverFetch<MediaState>("/api/media/status");
+  return serverTrpc().media.status.query() as unknown as Promise<MediaState>;
 }
 
 // ---- Config ----
-
 export async function getConfig(): Promise<AppConfig> {
-  return serverFetch<AppConfig>("/api/config");
+  return serverTrpc().config.get.query() as unknown as Promise<AppConfig>;
 }
 
 // ---- Moderation ----
-
 export async function getModerationStats(): Promise<ModerationStats> {
-  return serverFetch<ModerationStats>("/api/moderation/stats");
+  return serverTrpc().moderation.stats.query() as unknown as Promise<ModerationStats>;
 }
-
-export async function getModerationActions(
-  limit = 100,
-): Promise<ModerationAction[]> {
-  const res = await serverFetch<{ data: ModerationAction[] }>(
-    `/api/moderation/actions?limit=${limit}`,
-  );
+export async function getModerationActions(limit = 100) {
+  const res = (await serverTrpc().moderation.actions.query({
+    limit,
+  })) as unknown as PaginatedModerationActions;
   return res.data;
 }
 
 // ---- Voice ----
-
 export async function getGuilds(): Promise<Guild[]> {
-  return serverFetch<Guild[]>("/api/guilds");
+  return serverTrpc().voice.guilds.query() as unknown as Promise<Guild[]>;
 }
-
 export async function getVoiceStatus(): Promise<VoiceStatus> {
-  return serverFetch<VoiceStatus>("/api/voice/status");
+  return serverTrpc().voice.status.query() as unknown as Promise<VoiceStatus>;
 }
 
 // ---- Recordings ----
-
 export async function getRecordings(limit = 50): Promise<PaginatedRecordings> {
-  return serverFetch<PaginatedRecordings>(`/api/recordings?limit=${limit}`);
-}
-
-// ---- Messages ----
-
-export interface MessagePageResult {
-  data: import("@/lib/types").MessageRecord[];
-  nextCursor: string | null;
-}
-
-export async function getMessages(
-  guildId: string,
-  channelId?: string,
-  cursor?: string,
-): Promise<MessagePageResult> {
-  const params = new URLSearchParams({ guildId });
-  if (channelId) params.set("channelId", channelId);
-  if (cursor) params.set("cursor", cursor);
-  return serverFetch<MessagePageResult>(`/api/messages?${params.toString()}`);
+  return serverTrpc().recordings.list.query({
+    limit,
+  }) as unknown as Promise<PaginatedRecordings>;
 }

@@ -1,21 +1,25 @@
+import { trpc } from "@/lib/trpc/client";
 import type { Channel, Guild, VoiceStatus } from "@/lib/types";
-import { api } from "./client";
 
 export const voiceApi = {
   // Guilds
-  getGuilds: () => api.get<Guild[]>("/api/guilds"),
+  getGuilds: () => trpc.voice.guilds.query() as unknown as Promise<Guild[]>,
   getTextChannels: (guildId: string) =>
-    api.get<Channel[]>(`/api/guilds/${guildId}/channels`),
+    trpc.voice.textChannels.query({ guildId }) as unknown as Promise<Channel[]>,
   getVoiceChannels: (guildId: string) =>
-    api.get<Channel[]>(`/api/guilds/${guildId}/voice-channels`),
+    trpc.voice.voiceChannels.query({
+      guildId,
+    }) as unknown as Promise<Channel[]>,
 
   // Voice connection
-  getStatus: () => api.get<VoiceStatus>("/api/voice/status"),
+  getStatus: () => trpc.voice.status.query() as unknown as Promise<VoiceStatus>,
   connect: (guildId: string, channelId: string) =>
-    api.post<VoiceStatus>("/api/voice/connect", { guildId, channelId }),
-  disconnect: () => api.post<VoiceStatus>("/api/voice/disconnect", {}),
+    trpc.voice.connect.mutate({
+      guildId,
+      channelId,
+    }) as unknown as Promise<VoiceStatus>,
+  disconnect: () =>
+    trpc.voice.disconnect.mutate() as unknown as Promise<VoiceStatus>,
   sendCommand: (command: string) =>
-    api.post<{ success: boolean; command: string }>("/api/voice/command", {
-      command,
-    }),
+    trpc.voice.command.mutate({ command }) as unknown as Promise<unknown>,
 };

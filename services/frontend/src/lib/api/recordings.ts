@@ -1,5 +1,5 @@
+import { trpc } from "@/lib/trpc/client";
 import type { PaginatedRecordings } from "@/lib/types";
-import { api } from "./client";
 
 export const recordingsApi = {
   list: (
@@ -7,15 +7,16 @@ export const recordingsApi = {
     channelId?: string,
     userId?: string,
     cursor?: string,
-  ) => {
-    const params = new URLSearchParams();
-    if (limit) params.set("limit", String(limit));
-    if (channelId) params.set("channelId", channelId);
-    if (userId) params.set("userId", userId);
-    if (cursor) params.set("cursor", cursor);
-    const qs = params.toString();
-    return api.get<PaginatedRecordings>(`/api/recordings${qs ? `?${qs}` : ""}`);
-  },
+  ) =>
+    trpc.recordings.list.query({
+      limit,
+      channelId,
+      userId,
+      cursor,
+    }) as unknown as Promise<PaginatedRecordings>,
 
-  delete: (id: string) => api.delete<{ ok: boolean }>(`/api/recordings/${id}`),
+  delete: (id: string) =>
+    trpc.recordings.delete.mutate({ id }) as unknown as Promise<{
+      ok: boolean;
+    }>,
 };

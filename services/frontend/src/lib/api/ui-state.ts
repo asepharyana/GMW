@@ -1,8 +1,9 @@
+import { trpc } from "@/lib/trpc/client";
 import type { UiState } from "@/lib/types";
-import { api } from "./client";
 
 export const uiStateApi = {
-  get: () => api.get<UiState>("/api/ui-state"),
+  get: () => trpc.uiState.get.query() as unknown as Promise<UiState>,
 
-  save: (state: UiState) => api.post<{ ok: boolean }>("/api/ui-state", state),
+  save: (state: UiState) =>
+    trpc.uiState.update.mutate(state) as unknown as Promise<{ ok: boolean }>,
 };

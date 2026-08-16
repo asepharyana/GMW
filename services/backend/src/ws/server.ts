@@ -1,4 +1,5 @@
-import type { Server } from "node:http";
+import type { IncomingMessage, Server } from "node:http";
+import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
 import { config } from "../shared/config/index.js";
 import { BACKEND_COMMAND, BACKEND_VOICE_TRANSMIT } from "../shared/index.js";
@@ -96,8 +97,19 @@ export function createWebSocketServer(server: Server): WebSocketServer {
   const frontendClients = new Set<WebSocket>();
   const gatewayClients = new Set<WebSocket>();
 
-  const wss = new WebSocketServer({ server, path: "/ws" });
+  const wss = new WebSocketServer({ noServer: true, perMessageDeflate: true });
   _wss = wss;
+
+  // Manual upgrade routing: without this, two `ws` servers bound to the same
+  // http.Server via the `server` option both register `upgrade` listeners and
+  // the path-guarded one destructively rejects the other's path (400). We own
+  // the upgrade event and dispatch by URL instead.
+  server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+    if (!req.url?.startsWith("/ws")) return;
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit("connection", ws, req);
+    });
+  });
 
   // Map-based dispatcher for JSON WebSocket message types
   const jsonHandlers = new Map<string, MessageHandler>();

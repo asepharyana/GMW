@@ -1,3 +1,4 @@
+import { nodeHTTPRequestHandler } from "@trpc/server/adapters/node-http";
 import express, {
   type Express,
   type NextFunction,
@@ -6,20 +7,17 @@ import express, {
 } from "express";
 import helmet from "helmet";
 import { createChildLogger } from "@/shared/logger/index";
-import { createAnalysisRouter } from "../modules/analysis/index.js";
-import { createChatbotRouter } from "../modules/chatbot/index.js";
-import { createConfigRouter } from "../modules/config/index.js";
-import { createDashboardRouter } from "../modules/dashboard/index.js";
 import { createHealthRouter } from "../modules/health/index.js";
-import { createMediaRouter } from "../modules/media/index.js";
-import { createMessagesRouter } from "../modules/messages/index.js";
-import { createModerationRouter } from "../modules/moderation/index.js";
-import { createRecordingsRouter } from "../modules/recordings/index.js";
-import { createUiStateRouter } from "../modules/ui-state/index.js";
-import { createVoiceRouter } from "../modules/voice/index.js";
 import { errorHandler } from "../shared/middlewares/index.js";
+import { appRouter } from "../trpc/routers";
 
-// Auth removed — dashboard is public
+// Auth removed — dashboard is public.
+// All data APIs (dashboard, messages, moderation, media, voice, recordings,
+// analysis, chatbot, config, ui-state) now flow over tRPC, served on TWO
+// transports sharing the /trpc path:
+//   - WebSocket (browser live RPCs)  — see trpc/ws.ts
+//   - HTTP POST   (server-side / RSC fetch) — handled below
+// Only infra endpoints (health, prometheus metrics) remain plain HTTP.
 
 const logger = createChildLogger("http.app");
 
@@ -33,7 +31,7 @@ export function createHttpApp(): Express {
     }),
   );
 
-  // Body parsing
+  // Body parsing (still needed for any JSON POST; tRPC is WS-based)
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
@@ -59,24 +57,40 @@ export function createHttpApp(): Express {
     next();
   });
 
-  // All routes are public
+  // Infra-only HTTP endpoints
   app.use("/api", createHealthRouter());
-  app.use("/api", createConfigRouter());
-  app.use("/api", createDashboardRouter());
-  app.use("/api", createMessagesRouter());
-  app.use("/api", createAnalysisRouter());
-  app.use("/api", createChatbotRouter());
-  app.use("/api", createRecordingsRouter());
-  app.use("/api", createUiStateRouter());
-  app.use("/api", createMediaRouter());
-  app.use("/api", createVoiceRouter());
-  app.use("/api", createModerationRouter());
+
+  // tRPC over HTTP (server-side / RSC fetch). The context has no WebSocket
+  // here (that's the WS transport's job); procedures don't read ctx.conn, so
+  // a null conn is safe.
+  // NOTE: Express 5 (path-to-regexp v8) rejects the `"/trpc/*"` wildcard route,
+  // and `nodeHTTPRequestHandler` uses `opts.path` as the literal procedure
+  // path (it does NOT derive it from `req.url`). So we mount a plain
+  // middleware and compute the procedure path from the URL ourselves.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (!req.path.startsWith("/trpc")) {
+      next();
+      return;
+    }
+    const procPath = req.url.replace(/^\/trpc\/?/, "").split("?")[0] || "/";
+    nodeHTTPRequestHandler({
+      router: appRouter,
+      createContext: () => ({ conn: null }),
+      req,
+      res,
+      path: procPath,
+    }).catch((err: unknown) => {
+      logger.error({ err }, "tRPC HTTP handler failed");
+      if (!res.headersSent) res.status(500).json({ error: "INTERNAL" });
+    });
+  });
 
   // 404 handler
   app.use((_req: Request, res: Response) => {
     res.status(404).json({
       error: "NOT_FOUND",
-      message: "Endpoint not found",
+      message:
+        "Endpoint not found — data APIs are served over /trpc (WebSocket/HTTP)",
     });
   });
 

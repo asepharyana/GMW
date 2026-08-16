@@ -1,3 +1,4 @@
+import { trpc } from "@/lib/trpc/client";
 import type {
   DashboardActivity,
   DashboardChannelDetail,
@@ -8,44 +9,47 @@ import type {
   TopReactedMessage,
   TopReactor,
 } from "@/lib/types";
-import { api } from "./client";
 
 export const dashboardApi = {
-  getStats: () => api.get<DashboardStats>("/api/dashboard/stats"),
+  getStats: () =>
+    trpc.dashboard.stats.query() as unknown as Promise<DashboardStats>,
 
   getActivity: (days = 14) =>
-    api.get<DashboardActivity>(`/api/dashboard/activity?days=${days}`),
+    trpc.dashboard.activity.query({
+      days,
+    }) as unknown as Promise<DashboardActivity>,
 
-  listUsers: (limit?: number, cursor?: string, search?: string) => {
-    const params = new URLSearchParams();
-    if (limit) params.set("limit", String(limit));
-    if (cursor) params.set("cursor", cursor);
-    if (search) params.set("search", search);
-    const qs = params.toString();
-    return api.get<PaginatedUsers>(`/api/dashboard/users${qs ? `?${qs}` : ""}`);
-  },
+  listUsers: (limit?: number, cursor?: string, search?: string) =>
+    trpc.dashboard.users.query({
+      limit,
+      cursor,
+      search,
+    }) as unknown as Promise<PaginatedUsers>,
 
   getUserDetail: (userId: string) =>
-    api.get<DashboardUserDetail>(`/api/dashboard/users/${userId}`),
+    trpc.dashboard.userDetail.query({
+      userId,
+    }) as unknown as Promise<DashboardUserDetail>,
 
-  listChannels: (limit?: number, search?: string, guildId?: string) => {
-    const params = new URLSearchParams();
-    if (limit) params.set("limit", String(limit));
-    if (search) params.set("search", search);
-    // Backend reads req.query.guild_id (snake_case) — see createDashboardRouter in dashboard.routes.ts
-    if (guildId) params.set("guild_id", guildId);
-    const qs = params.toString();
-    return api.get<PaginatedChannels>(
-      `/api/dashboard/channels${qs ? `?${qs}` : ""}`,
-    );
-  },
+  listChannels: (limit?: number, search?: string, guildId?: string) =>
+    trpc.dashboard.channels.query({
+      limit,
+      search,
+      guildId,
+    }) as unknown as Promise<PaginatedChannels>,
 
   getChannelDetail: (channelId: string) =>
-    api.get<DashboardChannelDetail>(`/api/dashboard/channels/${channelId}`),
+    trpc.dashboard.channelDetail.query({
+      channelId,
+    }) as unknown as Promise<DashboardChannelDetail>,
 
   getTopReactions: (limit = 20) =>
-    api.get<TopReactedMessage[]>(`/api/dashboard/reactions?limit=${limit}`),
+    trpc.dashboard.reactions.query({ limit }) as unknown as Promise<
+      TopReactedMessage[]
+    >,
 
   getTopReactors: (limit = 20) =>
-    api.get<TopReactor[]>(`/api/dashboard/reactors?limit=${limit}`),
+    trpc.dashboard.reactors.query({ limit }) as unknown as Promise<
+      TopReactor[]
+    >,
 };

@@ -1,23 +1,20 @@
+import { trpc } from "@/lib/trpc/client";
 import type { ModerationStats, PaginatedModerationActions } from "@/lib/types";
-import { api } from "./client";
 
 export const moderationApi = {
-  getStats: () => api.get<ModerationStats>("/api/moderation/stats"),
+  getStats: () =>
+    trpc.moderation.stats.query() as unknown as Promise<ModerationStats>,
 
   listActions: (
     limit?: number,
     status?: string,
     actionType?: string,
     cursor?: string,
-  ) => {
-    const params = new URLSearchParams();
-    if (limit) params.set("limit", String(limit));
-    if (status) params.set("status", status);
-    if (actionType) params.set("actionType", actionType);
-    if (cursor) params.set("cursor", cursor);
-    const qs = params.toString();
-    return api.get<PaginatedModerationActions>(
-      `/api/moderation/actions${qs ? `?${qs}` : ""}`,
-    );
-  },
+  ) =>
+    trpc.moderation.actions.query({
+      limit,
+      status,
+      actionType,
+      cursor,
+    }) as unknown as Promise<PaginatedModerationActions>,
 };
