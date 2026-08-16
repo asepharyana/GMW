@@ -31,13 +31,6 @@ export interface ChatbotHistoryRow {
   created_at: string;
 }
 
-export interface ServerInsights {
-  total_messages: number;
-  active_users: number;
-  flagged: number;
-  warned: number;
-}
-
 export class ChatbotRepository {
   async saveConversation(input: SaveConversationInput): Promise<void> {
     const db = getDatabase();
@@ -82,56 +75,6 @@ export class ChatbotRepository {
       { userId, deletedRows: deleted.length },
       "Chat history cleared",
     );
-  }
-
-  async getServerInsights(
-    guildId?: string,
-    channelId?: string,
-  ): Promise<ServerInsights> {
-    try {
-      const db = getDatabase();
-      const conditions: SQL[] = [];
-
-      if (guildId) {
-        conditions.push(eq(pgMessagesTable.guild_id, guildId));
-      }
-      if (channelId) {
-        conditions.push(eq(pgMessagesTable.channel_id, channelId));
-      }
-
-      const where = conditions.length > 0 ? and(...conditions) : undefined;
-
-      const [result] = await db
-        .select({
-          total_messages: sql<number>`COUNT(*)::int`,
-          active_users: sql<number>`COUNT(DISTINCT ${pgMessagesTable.user_id})::int`,
-          flagged: sql<number>`COUNT(*) FILTER (WHERE ${pgMessagesTable.ai_status} = 'flagged')::int`,
-          warned: sql<number>`COUNT(*) FILTER (WHERE ${pgMessagesTable.ai_status} = 'warn')::int`,
-        })
-        .from(pgMessagesTable)
-        .where(where);
-
-      const insights = result ?? {
-        total_messages: 0,
-        active_users: 0,
-        flagged: 0,
-        warned: 0,
-      };
-
-      logger.debug({ guildId, channelId, insights }, "Server insights fetched");
-      return insights;
-    } catch (error) {
-      logger.warn(
-        { error, guildId, channelId },
-        "Failed to load server insights",
-      );
-      return {
-        total_messages: 0,
-        active_users: 0,
-        flagged: 0,
-        warned: 0,
-      };
-    }
   }
 }
 

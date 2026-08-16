@@ -17,22 +17,26 @@ class ChatbotService {
     userId: string,
   ): Promise<string> {
     logger.info(
-      { userId, messageLength: message.length },
+      { userId, messageLength: message.length, context },
       "processMessage called",
     );
     const recentContext = await this.getRecentConversationContext(userId);
-    const serverInsights = await chatbotRepository.getServerInsights(
-      context?.guildId,
-      context?.channelId,
-    );
+    // Scope the agent to the server/channel the user is chatting in. We no
+    // longer bake server stats into the prompt — the model must pull current
+    // data via tools (see buildSystemPrompt), so it always answers from live
+    // numbers instead of a stale snapshot.
+    const scope = {
+      guildId: context?.guildId,
+      channelId: context?.channelId,
+    };
 
-    // Build LLM messages
-    const systemPrompt = this.buildSystemPrompt(serverInsights);
+    const systemPrompt = this.buildSystemPrompt(scope);
     const conversationHistory = this.buildHistoryMessages(recentContext);
     const llmResponse = await this.callLLM(
       systemPrompt,
       conversationHistory,
       message,
+      scope,
     );
 
     return llmResponse;
@@ -66,27 +70,29 @@ class ChatbotService {
     ]);
   }
 
-  private buildSystemPrompt(insights: {
-    total_messages: number;
-    active_users: number;
-    flagged: number;
-    warned: number;
+  private buildSystemPrompt(scope: {
+    guildId?: string;
+    channelId?: string;
   }): string {
-    return `Kamu lagi ngobrol sama chatbot Discord Watcher — temen ngobrol yang tau keadaan server.
+    const scopeLine = scope.guildId
+      ? `- Scope: kamu menjawab soal server/guild id="${scope.guildId}"${scope.channelId ? `, channel id="${scope.channelId}"` : ""}.`
+      : "- Scope: tidak ada guild spesifik — jawab umum soal server ini.";
+    return `Kamu adalah chatbot Discord Watcher — temen ngobrol yang tau keadaan server, dan kamu PUNYA AKSES ke data server lewat tools.
 
-Data server saat ini:
-- Pesan: ${insights.total_messages}
-- User aktif: ${insights.active_users}
-- Flagged: ${insights.flagged}
-- Warning: ${insights.warned}
+${scopeLine}
+
+ATURAN PENTING — JANGAN PAKAI KONTEKS STATIS:
+- Kamu TIDAK punya hafalan soal angka server (jumlah pesan, user aktif, flagged, dll). JANGAN tebak atau karang angka.
+- Untuk SEMUA pertanyaan soal data server (jumlah pesan, user aktif, channel ramai, aktivitas terbaru, pesan di-flag), WAJIB panggil tool yang sesuai (get_server_stats, get_top_channels, get_recent_activity, get_top_flagged). Jawab HANYA dari hasil tool.
+- Tool otomatis di-scope ke guild/channel di atas — kalau argumen guildId/channelId kosong, biarkan kosong (sudah otomatis ter-isi). Jangan isi ID yang kamu tebak.
+- Kalau tool balas error atau kosong, bilang aja data lagi ga ketemu, jangan karang.
 
 Gaya ngobrol:
 - Santai, hangat, kayak ngobrol sama temen
 - Pake Bahasa Indonesia sehari-hari, ga perlu kaku
 - Sesekali pake emoji wajar aja, ga berlebihan
-- Kalo ditanya sesuatu yang kamu tau dari data server, jawab pake data itu
-- Kalo ga tau atau ga nyambung, bilang aja terus tanya balik biar ngobrolnya jalan
-- Jangan sebut "rule", "instruksi", "prompt" atau apapun soal cara kamu berpikir
+- Kalo ditanya di luar data server dan kamu ga tau, bilang aja terus tanya balik biar ngobrolnya jalan
+- Jangan sebut "rule", "instruksi", "prompt", "tool", atau apapun soal cara kamu berpikir
 - Biasa aja, ga usaha lucu-lucu amat — natural`;
   }
 
@@ -106,6 +112,7 @@ Gaya ngobrol:
     systemPrompt: string,
     history: Array<{ role: "user" | "assistant"; content: string }>,
     userMessage: string,
+    scope: { guildId?: string; channelId?: string },
   ): Promise<string> {
     const apiKey = config.AI_LLM_API_KEY;
     const baseUrl = config.AI_LLM_BASE_URL;
@@ -190,9 +197,19 @@ Gaya ngobrol:
                 },
               ],
             });
+            // Auto-scope: if the model omitted guildId/channelId, fill them
+            // from the request scope so tools query the right server without
+            // the model having to guess IDs.
+            const scopedArgs = { ...tc.args };
+            if (scope.guildId && scopedArgs.guildId == null) {
+              scopedArgs.guildId = scope.guildId;
+            }
+            if (scope.channelId && scopedArgs.channelId == null) {
+              scopedArgs.channelId = scope.channelId;
+            }
             let result = "";
             try {
-              result = await executeTool(tc.name, tc.args);
+              result = await executeTool(tc.name, scopedArgs);
             } catch (e) {
               result = `Tool error: ${(e as Error).message}`;
             }
