@@ -57,7 +57,7 @@ export function Toaster({ position = "bottom-right" }: { position?: string }) {
 
   const pos =
     position === "bottom-right"
-      ? "bottom-4 right-4"
+      ? "bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))]"
       : position === "top-right"
         ? "top-4 right-4"
         : "bottom-4 left-1/2 -translate-x-1/2";

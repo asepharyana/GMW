@@ -262,12 +262,24 @@
 
 @media (prefers-reduced-motion: reduce) {
   .scan-line::after,
+  .scan-line,
   .animate-eq,
   .animate-spin-disc,
   .animate-pulse-ring,
   .animate-shimmer,
   .animate-breathe {
     animation: none !important;
+  }
+  .scan-line {
+    background: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
   html { scroll-behavior: auto; }
 }

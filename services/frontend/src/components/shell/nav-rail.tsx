@@ -40,7 +40,7 @@ export function NavRail() {
   const path = pathname ?? "/";
 
   return (
-    <nav className="glass m-3 mr-0 flex w-[68px] flex-col items-center gap-1 rounded-[18px] py-4">
+    <nav className="glass mb-[calc(0.75rem+env(safe-area-inset-bottom))] ml-[calc(0.75rem+env(safe-area-inset-left))] mt-[calc(0.75rem+env(safe-area-inset-top))] flex w-[68px] flex-col items-center gap-1 rounded-[18px] py-4">
       <div className="flex flex-1 flex-col gap-1">
         {navItems.map((item) => (
           <NavItem

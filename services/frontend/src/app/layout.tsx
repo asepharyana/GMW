@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Inter, JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/primitives/toast";
@@ -26,6 +26,13 @@ export const metadata: Metadata = {
   title: "GMW — Discord Moderation Console",
   description:
     "AI-powered Discord moderation, voice monitoring, and media control console",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0a0c",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
