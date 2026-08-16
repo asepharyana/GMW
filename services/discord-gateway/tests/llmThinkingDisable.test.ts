@@ -11,7 +11,9 @@ const baseOpts = {
 describe("buildLlmParams — disable-thinking injection", () => {
   it("injects no thinking-disabling params when disableThinking is false", () => {
     const params = buildLlmParams(baseOpts, false);
-    expect((params as Record<string, unknown>).reasoning_effort).toBeUndefined();
+    expect(
+      (params as Record<string, unknown>).reasoning_effort,
+    ).toBeUndefined();
     expect((params as Record<string, unknown>).reasoning).toBeUndefined();
     expect(
       (params as Record<string, unknown>).chat_template_kwargs,
@@ -40,9 +42,9 @@ describe("buildLlmParams — disable-thinking injection", () => {
     expect(params.stream).toBe(true);
     expect(params.response_format).toEqual({ type: "json_object" });
     // thinking-disabled params still present
-    expect(
-      (params as Record<string, unknown>).chat_template_kwargs,
-    ).toEqual({ enable_thinking: false });
+    expect((params as Record<string, unknown>).chat_template_kwargs).toEqual({
+      enable_thinking: false,
+    });
   });
 
   it("falls back to config default model when none supplied", () => {

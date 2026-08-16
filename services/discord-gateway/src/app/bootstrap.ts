@@ -3,7 +3,11 @@ import { inArray, lt } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { ConfigError, DatabaseError } from "@/shared/errors/index";
 import { createChildLogger } from "@/shared/logger/index";
-import { startPendingAIAnalysisWorker } from "../modules/ai-moderation/aiAnalyzer.js";
+import {
+  getAnalysisQueueStatus,
+  startPendingAIAnalysisWorker,
+} from "../modules/ai-moderation/aiAnalyzer.js";
+import { workerPool } from "../modules/ai-moderation/circuitBreaker.js";
 import { registerChannelTopicCapture } from "../modules/channel-topic/index.js";
 import { CommandHandler } from "../modules/command-handler/commandHandler.js";
 import {
@@ -11,6 +15,8 @@ import {
   RedisEventPublisher,
 } from "../modules/event-broadcaster/index.js";
 import {
+  registerCollector,
+  setGauge,
   startMetricsServer,
   stopMetricsServer,
 } from "../modules/gateway-metrics/index.js";
@@ -338,6 +344,42 @@ export async function initializeDiscordGateway() {
     }
     logger.error({ error: err, reason: String(reason) }, "Unhandled rejection");
     gracefulShutdown("unhandledRejection");
+  });
+
+  // ── Metrics: register live pipeline collectors before starting server ──
+  // These refresh on every scrape so Prometheus sees real AI-analysis
+  // queue depth, concurrency, and DB pool state instead of an empty stub.
+  registerCollector(() => {
+    if (!config.AI_ANALYSIS_ENABLED) return;
+    try {
+      const status = getAnalysisQueueStatus();
+      setGauge("ai_analysis_queued_conversations", status.queuedConversations);
+      setGauge("ai_analysis_active_batch_requests", status.activeRequests);
+      setGauge(
+        "ai_analysis_active_individual_requests",
+        status.activeIndividualRequests,
+      );
+      setGauge(
+        "ai_analysis_individual_in_flight",
+        status.individualInFlightCount,
+      );
+      setGauge(
+        "ai_analysis_individual_circuit_breaker_active",
+        status.individualCircuitBreakerActive ? 1 : 0,
+      );
+      if (typeof status.lastError === "string") {
+        setGauge("ai_analysis_last_error_present", status.lastError ? 1 : 0);
+      }
+      const pool = workerPool as unknown as {
+        _poolState?: { size: number; active: number };
+      };
+      if (pool._poolState) {
+        setGauge("ai_analysis_worker_threads", pool._poolState.size);
+        setGauge("ai_analysis_worker_threads_active", pool._poolState.active);
+      }
+    } catch (err) {
+      logger.warn({ error: String(err) }, "AI metrics collector failed");
+    }
   });
 
   // Start metrics server

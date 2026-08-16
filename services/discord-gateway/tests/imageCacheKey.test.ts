@@ -15,7 +15,7 @@ import { makeImageCacheKey } from "../src/modules/ai-moderation/textCacheStore.j
 
 function oldBuggyHash(dataUrl: string): string {
   const prefix = dataUrl.slice(0, 128);
-  return "image:" + createHash("sha256").update(prefix).digest("hex").slice(0, 16);
+  return `image:${createHash("sha256").update(prefix).digest("hex").slice(0, 16)}`;
 }
 
 describe("makeImageCacheKey — collision prevention", () => {
@@ -27,8 +27,8 @@ describe("makeImageCacheKey — collision prevention", () => {
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" +
       "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // pad to >128 chars
 
-    const imgA = sharedPrefix + "UNIQUE_TO_A";
-    const imgB = sharedPrefix + "UNIQUE_TO_B";
+    const imgA = `${sharedPrefix}UNIQUE_TO_A`;
+    const imgB = `${sharedPrefix}UNIQUE_TO_B`;
 
     // Under the OLD buggy scheme: same prefix → same hash → COLLISION
     expect(oldBuggyHash(imgA)).toBe(oldBuggyHash(imgB));

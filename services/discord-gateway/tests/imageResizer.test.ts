@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import sharp from "sharp";
+import { describe, expect, it } from "vitest";
 import { resizeImageForVision } from "../src/modules/attachment-upload/imageResizer.js";
 
 // Build a worst-case (poorly-compressing) 1024x1024 image, like a real photo.

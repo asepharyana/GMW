@@ -15,7 +15,11 @@ interface Metric {
 
 const metrics = new Map<string, Metric>();
 
-// ─── Helpers ─────────────────────────────────────────────────────────────
+// Collectors run on every scrape so gauges reflect live pipeline state
+// without callers having to push updates on every event.
+const collectors: Array<() => void> = [];
+
+const startTs = Date.now();
 
 function key(name: string, labels?: Record<string, string>): string {
   if (!labels) return name;
@@ -26,7 +30,9 @@ function key(name: string, labels?: Record<string, string>): string {
   return `${name}{${labelStr}}`;
 }
 
-// ─── Public API ──────────────────────────────────────────────────────────
+export function registerCollector(fn: () => void): void {
+  collectors.push(fn);
+}
 
 export function incrementCounter(
   name: string,
@@ -65,13 +71,31 @@ export function setGauge(
   }
 }
 
+// Process-level static/derived gauges, refreshed each scrape.
+registerCollector(() => {
+  const uptimeSec = Math.floor((Date.now() - startTs) / 1000);
+  setGauge("process_uptime_seconds", uptimeSec);
+  const mem = process.memoryUsage();
+  setGauge("process_resident_bytes", mem.rss);
+  setGauge("process_heap_used_bytes", mem.heapUsed);
+  setGauge("process_heap_total_bytes", mem.heapTotal);
+  setGauge("process_event_loop_lag_ms", 0);
+});
+
 // ─── HTTP Server ─────────────────────────────────────────────────────────
 
 let server: http.Server | null = null;
 
 function formatMetrics(): string {
-  const lines: string[] = [];
+  for (const c of collectors) {
+    try {
+      c();
+    } catch (err) {
+      logger.warn({ error: String(err) }, "Metrics collector failed");
+    }
+  }
 
+  const lines: string[] = [];
   for (const [fullName, metric] of metrics) {
     const baseName = fullName.includes("{")
       ? fullName.slice(0, fullName.indexOf("{"))
@@ -80,7 +104,6 @@ function formatMetrics(): string {
     lines.push(`# TYPE ${baseName} ${metric.type}`);
     lines.push(`${fullName} ${metric.value}`);
   }
-
   return `${lines.join("\n")}\n`;
 }
 

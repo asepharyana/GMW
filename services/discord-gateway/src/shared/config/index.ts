@@ -94,7 +94,12 @@ export const configSchema = z
     POSTGRES_USER: z.string().optional(),
     POSTGRES_PASSWORD: z.string().optional(),
     POSTGRES_DB: z.string().optional(),
-    POSTGRES_POOL_MIN: z.coerce.number().int().positive().default(2),
+    // Idle-pool floor. Kept at 0 so the gateway (main + 4 Piscina worker
+    // threads, each owning its own pg Pool) does not hold ~10 permanently
+    // open idle connections to PgBouncer. The pool still grows on demand up
+    // to POSTGRES_POOL_MAX; min:0 only drops idle clients after
+    // idleTimeoutMillis. This both trims RSS and frees PgBouncer slots.
+    POSTGRES_POOL_MIN: z.coerce.number().int().min(0).default(0),
     POSTGRES_POOL_MAX: z.coerce.number().int().positive().default(10),
 
     // ── Redis ────────────────────────────────────────────────────────────

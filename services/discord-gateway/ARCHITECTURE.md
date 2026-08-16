@@ -1,172 +1,143 @@
+# Discord Gateway — Architecture
+
+Pure event-driven microservice (no HTTP server). Captures Discord
+messages/voice/attachments/reactions/threads/presence, runs LLM-based AI
+moderation, and publishes everything to Redis pub/sub for the backend to
+consume. The backend serves the HTTP/WS API to the frontend.
+
+> NOTE: this doc is the source of truth for the module layout. The older
+> `MODULE_STRUCTURE.md` was stale (referenced `winston`, `mock-crc.ts`,
+> `indonesianTextNormalizer.ts`, and `aiAnalysisWorker.ts`/`llmModerationClient.ts`
+> which were renamed/merged). If they disagree, this file wins.
+
+## Top-level layout
+
+```
 services/discord-gateway/
 ├── src/
+│   ├── index.ts                     # Entry point → initializeDiscordGateway()
 │   ├── app/
-│   │   ├── bootstrap.ts          # Discord Gateway initialization (no HTTP server)
-│   │   └── shutdown.ts           # Graceful shutdown handler
+│   │   ├── bootstrap.ts             # Wires client, DB, Redis, workers, schedulers
+│   │   ├── shutdown.ts              # Graceful shutdown (SIGINT/SIGTERM + transient errors)
+│   │   └── retention.ts             # Expired-record cleanup scheduler
 │   ├── shared/
-│   │   ├── config/
-│   │   │   └── config.ts         # Environment configuration (Zod validated)
-│   │   ├── database/
-│   │   │   ├── schema.ts         # Drizzle ORM schema
-│   │   │   ├── drizzle.ts        # Database connection
-│   │   │   ├── migrate.ts        # Migration runner
-│   │   │   └── voiceRecordingRepo.ts
-│   │   ├── errors/
-│   │   │   └── errors.ts         # Custom error classes
-│   │   ├── logger/
-│   │   │   ├── logger.ts         # Winston logger wrapper
-│   │   │   └── serialization.ts  # Log value serialization
-│   │   ├── utils/
-│   │   │   └── retry.ts          # Retry with backoff utility
-│   │   └── discord/
-│   │       └── clientOptions.ts  # Discord.js client configuration
-│   ├── modules/
-│   │   ├── message-capture/      # Modular MVC: Message capture & storage
-│   │   │   ├── messageCapture.ts # Controller: Discord event listeners
-│   │   │   ├── messageStore.ts   # Repository: Database operations
-│   │   │   ├── messageMetadata.ts # Service: Message metadata extraction
-│   │   │   ├── types.ts          # Domain types
-│   │   │   └── index.ts          # Module exports
-│   │   ├── ai-moderation/        # Modular MVC: AI analysis & moderation
-│   │   │   ├── aiAnalyzer.ts     # Controller: Analysis orchestration
-│   │   │   ├── llmModerationClient.ts # Service: LLM API client
-│   │   │   ├── aiAnalysisWorker.ts # Service: Worker pool management
-│   │   │   ├── indonesianTextNormalizer.ts # Service: Text normalization
-│   │   │   ├── moderationPrompt.ts # Service: Prompt generation
-│   │   │   └── index.ts          # Module exports
-│   │   ├── voice-recording/      # Modular MVC: Voice recording & streaming
-│   │   │   ├── voiceController.ts # Controller: Voice connection management
-│   │   │   ├── recorder.ts       # Service: Recording orchestration
-│   │   │   ├── recorder/
-│   │   │   │   ├── audioStream.ts # Service: Audio stream subscription
-│   │   │   │   ├── decoder.ts    # Service: Opus decoding
-│   │   │   │   ├── segment.ts    # Service: OGG segment rotation
-│   │   │   │   ├── metadata.ts   # Service: Segment metadata
-│   │   │   │   ├── sessionRecording.ts # Service: Session management
-│   │   │   │   └── uploader.ts   # Service: Segment upload
-│   │   │   └── index.ts          # Module exports
-│   │   ├── attachment-upload/    # Modular MVC: Attachment handling
-│   │   │   ├── attachmentUploader.ts # Service: Upload orchestration
-│   │   │   ├── imageResizer.ts   # Service: Image resizing
-│   │   │   └── index.ts          # Module exports
-│   │   └── event-broadcaster/    # Event-driven: Redis pub/sub
-│   │       ├── eventBroadcaster.ts # Service: Event publishing
-│   │       ├── eventTypes.ts     # Domain: Event type definitions
-│   │       └── index.ts          # Module exports
-│   ├── mock-crc.ts               # CRC polyfill for discord.js
-│   └── index.ts                  # Service entry point
-├── package.json                  # Service dependencies
-└── tsconfig.json                 # TypeScript configuration
+│   │   ├── config/                  # Zod-validated env (index.ts = schema+loader)
+│   │   ├── database/                # Drizzle ORM + pg Pool + migrations
+│   │   │   ├── init.ts drizzle.ts pool.ts migrate.ts migrateCli.ts
+│   │   │   └── schema/              # messages, cache, voice, analytics, meta
+│   │   ├── logger/                  # pino wrapper + createChildLogger()
+│   │   ├── errors/                  # AppError / ConfigError / AudioError ...
+│   │   ├── utils/                   # retry, pagination
+│   │   ├── discord/clientOptions.ts # discord.js-selfbot-v13 client options
+│   │   ├── uploader.ts              # Shared attachment upload helper
+│   │   ├── redis-channels.ts        # Redis channel-name constants
+│   │   └── moderation-types.ts      # Shared AI analysis domain types
+│   └── modules/
+│       ├── message-capture/         # Discord event listeners + DB store
+│       ├── ai-moderation/           # LLM moderation pipeline (see below)
+│       ├── voice-recording/         # Voice connect + Opus→OGG recording
+│       │   └── recorder/            # decoder, segment, session, uploader, oggCrc
+│       ├── voice-pcm-ws/            # Real-time PCM → backend WebSocket (bypasses Redis)
+│       ├── attachment-upload/       # Download + (sharp) resize + upload
+│       ├── event-broadcaster/        # RedisEventPublisher + EventBroadcaster
+│       ├── command-handler/         # Redis-subscribed backend→gateway commands
+│       ├── reaction-tracking/ thread-tracking/ user-presence/
+│       ├── channel-topic/ guild-member-events/
+│       └── gateway-metrics/         # Prometheus /metrics endpoint (port 4016)
+```
 
-## Architecture Patterns
+## AI moderation pipeline (`ai-moderation/`)
 
-### Modular MVC Structure
-Each module follows Controller-Service-Repository pattern:
-- **Controller**: Discord event listeners (messageCapture, aiAnalyzer, voiceController)
-- **Service**: Business logic (messageStore, llmModerationClient, recorder)
-- **Repository**: Data access (messageStore, voiceRecordingRepo)
+LLM-only judge — no regex/heuristic classification. One orchestrator call
+handles a whole batch (text + media split internally, parallel paths).
 
-### Event-Driven Design
-- **Redis Pub/Sub**: All events published to Redis channels
-- **Event Channels**:
-  - `discord:message:created` — New message captured
-  - `discord:message:updated` — Message edited
-  - `discord:message:deleted` — Message deleted
-  - `discord:message:analyzed` — AI analysis complete
-  - `discord:attachment:created` — Attachment detected
-  - `discord:attachment:uploaded` — Attachment uploaded to storage
-  - `discord:voice:started` — Voice recording started
-  - `discord:voice:stopped` — Voice recording stopped
-  - `discord:voice:uploaded` — Voice segment uploaded
-  - `discord:analysis:queue_status` — Analysis queue status update
+- `aiAnalyzer.ts` — public API: `queueMessageAnalysis`, `getAnalysisQueueStatus`,
+  `startPendingAIAnalysisWorker` (recovery worker + cache-prune).
+- `batchScheduler.ts` — per-conversation debounce → `processBatch`.
+- `batchProcessor.ts` — batch lock/circuit-breaker, fans failed targets to
+  individual fallback.
+- `individualFallbackProcessor.ts` — one-message-at-a-time retry path, own CB.
+- `conversationState.ts` / `circuitBreaker.ts` — per-conversation state,
+  Piscina `workerPool`, `getConversationKey`.
+- `ai-analysis-worker.ts` — Piscina entry point (`batch` / `individual` jobs).
+  Runs `runModerationAnalysis` off the main thread.
+- `moderationOrchestrator.ts` — exact-hash cache → batched semantic (Qdrant)
+  cache → LLM. Text and media paths run in parallel.
+- `textBatchProcessor.ts` / `mediaBatchProcessor.ts` — actual LLM calls
+  (one call per sub-batch, not per message).
+- `llmClient.ts` — central OpenAI-compatible chat client (streaming, retries,
+  thinking-disable injection). `visionAnalyzer.ts` / `mediaAnalysisClient.ts`
+  share the same router/base URL (different model alias for vision).
+- `embeddingClient.ts` + `qdrantClient.ts` — semantic cache (one embed call +
+  one batched Qdrant search for all uncached targets).
+- `textCacheStore.ts` / `channelCultureStore.ts` / `userProfileStore.ts` /
+  `userReputationStore.ts` — caches & learned per-channel/user state.
 
-### Shared Infrastructure
-- **Config**: Zod-validated environment variables
-- **Logger**: Winston logger with context support
-- **Database**: Drizzle ORM with PostgreSQL
-- **Errors**: Custom error classes with codes and status codes
-- **Utils**: Retry logic with exponential backoff
+### Concurrency model
 
-### No HTTP Server
-- Discord Gateway service is **event-driven only**
-- No Express, WebSocket, or HTTP routes
-- All communication via Redis pub/sub
-- Backend service consumes events and serves HTTP API
+- Main thread owns the LLM semaphore (`AI_LLM_MAX_CONCURRENT`, default 5) via
+  `llmClient.withLlmConcurrency`.
+- Piscina pool (`PISCINA_MAX_THREADS`, default 4) runs the heavy LLM work off
+  the event loop; **each worker thread initializes its own pg Pool** (min 0,
+  grows to `POSTGRES_POOL_MAX`). See "Memory & connections" below.
 
-## Initialization Flow
+## Memory & DB connections
 
-1. Load environment config (Zod validation)
-2. Initialize database connection
-3. Run pending migrations
-4. Create Discord client with optimized cache settings
-5. Initialize Redis event broadcaster
-6. Register Discord event listeners (messageCapture, aiAnalyzer)
-7. Login to Discord
-8. Listen for graceful shutdown signals (SIGINT, SIGTERM)
+`MemoryMax=1G` (raised from 512M — live RSS sits at ~500 MiB, peak 508 MiB,
+so 512M left ~2% headroom and risked an OOM-kill restart). Host has 8 GB free.
 
-## Graceful Shutdown
+`POSTGRES_POOL_MIN=0` (default). The gateway = main process + up to 4 Piscina
+worker threads, each with its own pg Pool. With min:0 the pools stay empty
+until a query runs and drop idle clients afterward, instead of holding
+`(1 main + 4 workers) × 2 = 10` permanently-open idle connections against
+PgBouncer. The pool still grows on demand up to `POSTGRES_POOL_MAX`.
 
-On shutdown signal:
-1. Close database connection
-2. Disconnect from voice channels
-3. Close Redis connection
-4. Destroy Discord client
-5. Exit process
+## Event channels (Redis pub/sub)
 
-## Dependencies
+`discord:message:{created,updated,deleted,analyzed}`,
+`discord:attachment:{created,uploaded}`,
+`discord:voice:{started,stopped,uploaded,active_user,pcm,analyzed}`,
+`discord:analysis:queue_status`,
+`discord:reaction:{added,removed}`,
+`discord:thread:{created,deleted,updated}`,
+`discord:channel_topic:updated`,
+`discord:presence:updated`,
+`discord:guild_member:{added,removed}`.
+See `src/shared/redis-channels.ts` for the canonical names.
 
-**Core Discord**:
-- discord.js-selfbot-v13
-- @discordjs/voice
-- @discordjs/opus
+## Initialization flow
 
-**Audio Processing**:
-- prism-media (Opus encoding/decoding)
-- opusscript (Opus fallback)
-- sharp (Image resizing)
+1. Validate env (Zod). Refuse to start if `AI_ANALYSIS_ENABLED` but no key.
+2. `AUTO_MIGRATE_ON_STARTUP` → run pending Drizzle migrations.
+3. `initializeDatabase()` (pg Pool, min 0).
+4. Create discord.js-selfbot-v13 client; register listeners on `ready`.
+5. Start `gmw-discord-gateway` metrics server (port `METRICS_PORT`, default 4016).
+6. `client.login(token)`.
 
-**Data & Config**:
-- drizzle-orm (ORM)
-- pg (PostgreSQL driver)
-- zod (Config validation)
-- ioredis (Redis client)
+## Graceful shutdown
 
-**Logging & Utilities**:
-- winston (Structured logging)
-- p-retry (Retry logic)
-- p-limit (Concurrency limiting)
-- piscina (Worker pool)
+`SIGINT`/`SIGTERM` (and uncaught transient stream errors: EPIPE / ECONNRESET /
+ERR_STREAM_DESTROYED / ERR_STREAM_WRITE_AFTER_END are treated as non-fatal):
+stop metrics → stop muxer → disconnect voice → close PCM WS → close Redis →
+close command handler → close DB → destroy client → exit.
 
-## Event Flow Example
+## Observability
 
-### Message Capture Flow
-1. Discord emits `messageCreate` event
-2. `messageCapture.ts` listener receives event
-3. Extract metadata (user, channel, content, timestamp)
-4. `messageStore.ts` inserts into database
-5. `eventBroadcaster.messageCreated()` publishes to Redis
-6. Backend service subscribes to `discord:message:created` channel
-7. Backend processes and stores in its own database
+Prometheus scrapes `127.0.0.1:4016/metrics` (`bete_*` prefix). Collectors run
+per-scrape and expose: process memory/uptime, and (when AI analysis is on) live
+pipeline gauges — `ai_analysis_queued_conversations`,
+`ai_analysis_active_batch_requests`, `ai_analysis_active_individual_requests`,
+`ai_analysis_individual_in_flight`, `ai_analysis_individual_circuit_breaker_active`,
+`ai_analysis_worker_threads`, `ai_analysis_worker_threads_active`.
 
-### Voice Recording Flow
-1. `voiceController.connect()` joins voice channel
-2. `recorder.ts` subscribes to user audio streams
-3. For each speaking user:
-   - Create audio stream subscription
-   - Decode Opus packets to PCM
-   - Rotate OGG segments (5s default)
-   - Collect user metadata
-4. On silence (3s):
-   - Finalize segment
-   - Create metadata JSON
-   - Upload segment to storage
-   - Publish `discord:voice:uploaded` event
-5. Backend service receives event and indexes recording
+## Key invariants (do not break)
 
-## No Breaking Changes
-
-- Original `src/` remains untouched for now
-- Discord Gateway is a **new service** in `services/discord-gateway/`
-- Can run alongside existing monolith during transition
-- Backend service will consume Redis events
-- Frontend continues to use Backend HTTP API
+- **LLM is the only judge.** Failed LLM → `status:"error"` + recovery retry.
+  Never reintroduce regex/heuristic content classification.
+- **Discord tokens are sanitized** (`discordTokens.ts`: `<:emoji:id>` →
+  `[emoji:name]`, `<@id>` → `@user`, etc.) before content reaches the LLM, so
+  numeric snowflake IDs never trigger false positives.
+- **Semantic cache is batched** (one embed call + one Qdrant batch search),
+  not N sequential round-trips. `ensureQdrantCollection` is memoized.
+- **Streaming is mandatory** against the 9router base URL (non-stream waits for
+  the full body and times out). `llmClient` aggregates SSE chunks.
