@@ -30,7 +30,7 @@ describe("chatbot tool definitions", () => {
     ] as const) {
       const tool = byName.get(name);
       expect(tool, `missing tool ${name}`).toBeDefined();
-      expect(tool!.function.parameters.required).toContain(required);
+      expect(tool?.function.parameters.required).toContain(required);
     }
   });
 

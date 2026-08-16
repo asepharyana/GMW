@@ -9,7 +9,6 @@ import {
   pgUserReputationsTable,
   pgVoiceRecordingsTable,
 } from "../../shared/index.js";
-import { tools } from "./chatbot.toolDefs.js";
 
 /**
  * Executor for the chatbot's server-watcher tools. The tool *definitions*
@@ -430,7 +429,7 @@ async function moderationTimeline(
   return JSON.stringify(rows);
 }
 
-async function corrections(guildId?: string, limit = 10): Promise<string> {
+async function corrections(_guildId?: string, limit = 10): Promise<string> {
   const db = getDatabase();
   const rows = await db
     .select({

@@ -1,5 +1,5 @@
-import { RPCHandler } from "@orpc/server/node";
 import { onError } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/node";
 import express, {
   type Express,
   type NextFunction,
@@ -9,8 +9,8 @@ import express, {
 import helmet from "helmet";
 import { createChildLogger } from "@/shared/logger/index";
 import { createHealthRouter } from "../modules/health/index.js";
-import { errorHandler } from "../shared/middlewares/index.js";
 import { appRouter } from "../orpc/router";
+import { errorHandler } from "../shared/middlewares/index.js";
 
 // Auth removed — dashboard is public.
 // All data APIs (dashboard, messages, moderation, media, voice, recordings,

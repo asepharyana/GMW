@@ -1,7 +1,7 @@
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
-import { RPCHandler } from "@orpc/server/ws";
 import { onError } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/ws";
 import { WebSocketServer } from "ws";
 import { createChildLogger } from "@/shared/logger/index";
 import { appRouter } from "./router";
@@ -24,7 +24,9 @@ const logger = createChildLogger("orpc.ws");
  */
 export function createORPCWebSocketServer(server: Server): WebSocketServer {
   const handler = new RPCHandler(appRouter, {
-    interceptors: [onError((error) => logger.error({ error }, "oRPC WS error"))],
+    interceptors: [
+      onError((error) => logger.error({ error }, "oRPC WS error")),
+    ],
   });
 
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });

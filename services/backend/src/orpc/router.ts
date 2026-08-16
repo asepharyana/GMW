@@ -5,8 +5,17 @@ import { chatRequestSchema } from "../modules/chatbot/chatbot.schema";
 import { chatbotService } from "../modules/chatbot/chatbot.service";
 // ── Service imports ──────────────────────────────────────────────
 import { dashboardService } from "../modules/dashboard/dashboard.service";
-import { mediaLoopSchema, mediaQueueSchema } from "../modules/media/media.schema";
-import { getStatus, queue, setLoop, skip, stop } from "../modules/media/media.service";
+import {
+  mediaLoopSchema,
+  mediaQueueSchema,
+} from "../modules/media/media.schema";
+import {
+  getStatus,
+  queue,
+  setLoop,
+  skip,
+  stop,
+} from "../modules/media/media.service";
 import { messageQuerySchema } from "../modules/messages/messages.schema";
 import { messagesService } from "../modules/messages/messages.service";
 import { moderationService } from "../modules/moderation/moderation.service";
@@ -27,7 +36,9 @@ import { publishCommandNoReply } from "../shared/redis/index";
 const dashboardRouter = {
   stats: os.handler(() => dashboardService.getStats()),
   activity: os
-    .input(z.object({ days: z.coerce.number().int().min(1).max(90).default(14) }))
+    .input(
+      z.object({ days: z.coerce.number().int().min(1).max(90).default(14) }),
+    )
     .handler(({ input }) => dashboardService.getActivity(input.days)),
   users: os
     .input(
@@ -152,12 +163,10 @@ const moderationRouter = {
 // ── Media ────────────────────────────────────────────────────────
 const mediaRouter = {
   status: os.handler(() => getStatus()),
-  queue: os
-    .input(mediaQueueSchema)
-    .handler(async ({ input }) => {
-      await queue(input.source, input.mode);
-      return getStatus();
-    }),
+  queue: os.input(mediaQueueSchema).handler(async ({ input }) => {
+    await queue(input.source, input.mode);
+    return getStatus();
+  }),
   skip: os.handler(async () => {
     await skip();
     return getStatus();
@@ -166,12 +175,10 @@ const mediaRouter = {
     await stop();
     return getStatus();
   }),
-  loop: os
-    .input(mediaLoopSchema)
-    .handler(async ({ input }) => {
-      await setLoop(input.loop);
-      return getStatus();
-    }),
+  loop: os.input(mediaLoopSchema).handler(async ({ input }) => {
+    await setLoop(input.loop);
+    return getStatus();
+  }),
 };
 
 // ── Voice ─────────────────────────────────────────────────────────
@@ -220,12 +227,10 @@ const recordingsRouter = {
         cursor: input.cursor,
       }),
     ),
-  delete: os
-    .input(z.object({ id: z.string() }))
-    .handler(async ({ input }) => {
-      await recordingsService.deleteById(input.id);
-      return { ok: true };
-    }),
+  delete: os.input(z.object({ id: z.string() })).handler(async ({ input }) => {
+    await recordingsService.deleteById(input.id);
+    return { ok: true };
+  }),
 };
 
 // ── Analysis (search) ──────────────────────────────────────────────

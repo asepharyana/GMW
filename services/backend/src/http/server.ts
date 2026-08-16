@@ -1,8 +1,8 @@
 import { createServer, type Server } from "node:http";
 import { createChildLogger } from "@/shared/logger/index";
+import { createORPCWebSocketServer } from "../orpc/ws.js";
 import { config } from "../shared/config/index.js";
 import { initializeDatabase } from "../shared/database/index.js";
-import { createORPCWebSocketServer } from "../orpc/ws.js";
 import { startRedisBridge } from "../ws/redis-bridge.js";
 import { createWebSocketServer } from "../ws/server.js";
 import { createHttpApp } from "./app.js";
