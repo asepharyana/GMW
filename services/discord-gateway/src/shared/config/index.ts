@@ -189,6 +189,15 @@ export const configSchema = z
       .int()
       .positive()
       .default(60000),
+    // Standalone image/sticker/emoji vision analysis (analyzeSingleMediaImage
+    // → llmVision → llmChat). Decoupled from the media *batch* timeout above so
+    // a single vision call can be tuned independently. 1 minute by default —
+    // vision models (especially behind a router) need headroom for large images.
+    AI_LLM_VISION_ANALYSIS_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(60000),
     // Text-only moderation batches are cheaper than media (no downloads /
     // vision pre-pass), so they get their own (shorter) timeout instead of
     // being tied to the media budget.

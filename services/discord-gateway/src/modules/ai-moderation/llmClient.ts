@@ -158,6 +158,12 @@ export interface LlmCallOpts {
   stream?: boolean;
   /** Optional AbortSignal to cancel the API request */
   signal?: AbortSignal;
+  /**
+   * Per-request timeout in ms. Falls back to the client-level default
+   * (60s) when omitted. Vision/image analysis passes a longer budget here
+   * so a single large-image call isn't killed early by the shared default.
+   */
+  timeout?: number;
 }
 
 /**
@@ -242,6 +248,7 @@ export async function llmChat(
         ) => {
           const response = await client.chat.completions.create(currentParams, {
             signal,
+            ...(opts.timeout ? { timeout: opts.timeout } : {}),
           });
           if (currentParams.stream) {
             let content = "";
@@ -352,6 +359,7 @@ export async function llmVision(
     top_p: 0.9,
     retries: 0,
     stream: true, // router always streams SSE; non-stream waits for full body and times out
+    timeout: config.AI_LLM_VISION_ANALYSIS_TIMEOUT_MS ?? 60_000,
   });
 
   if (!completion) return null;
