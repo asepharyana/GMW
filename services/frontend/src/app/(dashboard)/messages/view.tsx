@@ -10,7 +10,7 @@ import {
   Search,
   ShieldAlert,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import {
   Avatar,
@@ -89,7 +89,10 @@ export function MessagesView({
     error,
   } = useMessages(guildId ?? "", channelId ?? undefined);
   // Cursor to the next (older) page + whether more history exists.
-  const { data: pageInfo } = useMessagesHasMore(guildId ?? "", channelId ?? undefined);
+  const { data: pageInfo } = useMessagesHasMore(
+    guildId ?? "",
+    channelId ?? undefined,
+  );
   const nextCursor = pageInfo?.cursor ?? null;
   const hasMore = pageInfo?.hasMore ?? false;
   const loadMore = useLoadMore();
@@ -99,14 +102,23 @@ export function MessagesView({
   const ambient = useAmbient();
 
   // Fetch the next (older) page via cursor and bump the loaded-page counter.
+  // Older messages prepend at the top, so preserve the viewport by offsetting
+  // scrollTop by the height added above (Discord keeps your place while loading).
   const loadOlder = useCallback(async () => {
     if (!guildId || !hasMore || loadedPages >= MAX_OLDER_PAGES) return;
+    const el = scrollRef.current;
+    const prevHeight = el ? el.scrollHeight : 0;
     await loadMore.mutateAsync({
       guildId,
       channelId: channelId ?? undefined,
       cursor: nextCursor ?? "",
     });
     setLoadedPages((n) => n + 1);
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollTop + (el.scrollHeight - prevHeight);
+      });
+    }
   }, [guildId, channelId, hasMore, loadedPages, nextCursor, loadMore]);
 
   useEffect(() => {
@@ -115,6 +127,40 @@ export function MessagesView({
 
   const searching = query.trim().length >= 2;
   const list = searching ? (search.data ?? []) : (messages ?? []);
+  // Discord-style order: oldest at the top, newest at the bottom. The backend
+  // returns DESC (newest first); reverse so the feed reads top→bottom like DC.
+  const display = useMemo(() => [...list].reverse(), [list]);
+
+  // Ref to the scroll container so we can manage scroll position like Discord:
+  // open at the bottom (newest), keep the viewport stable when prepending older
+  // messages at the top, and follow new live messages only when already near
+  // the bottom.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const nearBottomRef = useRef(true);
+
+  // Scroll to the bottom on the first load / when switching guild-channel, so
+  // the newest messages are visible (Discord behaviour).
+  const firstLoadRef = useRef(true);
+  useEffect(() => {
+    if (firstLoadRef.current && display.length > 0) {
+      firstLoadRef.current = false;
+      const el = scrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    }
+  }, [display.length]);
+
+  // When a new live message lands (list grows, still searching off), follow it
+  // to the bottom only if the user was already near the bottom.
+  const prevLen = useRef(list.length);
+  useEffect(() => {
+    if (searching) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    if (list.length > prevLen.current && nearBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+    prevLen.current = list.length;
+  }, [list.length, searching]);
 
   return (
     <div className="space-y-4">
@@ -129,6 +175,7 @@ export function MessagesView({
             setChannelId(c);
             setSelected(null);
             setLoadedPages(0);
+            firstLoadRef.current = true;
           }}
         />
         <div className="relative ml-auto w-full sm:w-64">
@@ -182,7 +229,8 @@ export function MessagesView({
                     </button>
                   ) : loadedPages >= MAX_OLDER_PAGES ? (
                     <span className="mono text-[0.65rem] text-ink-faint">
-                      capped at {MAX_OLDER_PAGES} older pages · use search for more
+                      capped at {MAX_OLDER_PAGES} older pages · use search for
+                      more
                     </span>
                   ) : (
                     messages &&
@@ -195,56 +243,61 @@ export function MessagesView({
                 </div>
               )}
               <div
+                ref={scrollRef}
                 className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1"
                 onScroll={(e) => {
-                  // Auto-load older messages when the user scrolls to the top.
+                  const el = e.currentTarget;
+                  // Track whether the user is near the bottom (to follow live
+                  // messages) and auto-load older messages when scrolled to top.
+                  nearBottomRef.current =
+                    el.scrollHeight - el.scrollTop - el.clientHeight < 120;
                   if (searching || !hasMore || loadMore.isPending) return;
                   if (loadedPages >= MAX_OLDER_PAGES) return;
-                  if (e.currentTarget.scrollTop <= 8) {
+                  if (el.scrollTop <= 8) {
                     loadOlder();
                   }
                 }}
               >
-                {list.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setSelected(m.id)}
-                  className={`flex w-full items-start gap-3 rounded-[12px] border p-3 text-left transition-colors ${
-                    selected === m.id
-                      ? "border-signal/40 bg-signal/8"
-                      : "border-hairline bg-white/[0.03] hover:bg-white/[0.06]"
-                  }`}
-                >
-                  <Avatar src={m.avatar_url} name={m.username} size={34} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-semibold text-ink">
-                        {m.username}
-                      </span>
-                      <span className="mono text-[0.65rem] text-ink-faint">
-                        {getMessageChannelLabel(m)}
-                      </span>
-                      <span className="mono ml-auto text-[0.6rem] text-ink-faint">
-                        {relTime(m.created_at)}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 line-clamp-2 text-sm text-ink-soft">
-                      {renderMessageContent(m.content, m.metadata) || (
-                        <span className="italic text-ink-faint">
-                          (empty / embed)
+                {display.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setSelected(m.id)}
+                    className={`flex w-full items-start gap-3 rounded-[12px] border p-3 text-left transition-colors ${
+                      selected === m.id
+                        ? "border-signal/40 bg-signal/8"
+                        : "border-hairline bg-white/[0.03] hover:bg-white/[0.06]"
+                    }`}
+                  >
+                    <Avatar src={m.avatar_url} name={m.username} size={34} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-ink">
+                          {m.username}
                         </span>
-                      )}
+                        <span className="mono text-[0.65rem] text-ink-faint">
+                          {getMessageChannelLabel(m)}
+                        </span>
+                        <span className="mono ml-auto text-[0.6rem] text-ink-faint">
+                          {relTime(m.created_at)}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 line-clamp-2 text-sm text-ink-soft">
+                        {renderMessageContent(m.content, m.metadata) || (
+                          <span className="italic text-ink-faint">
+                            (empty / embed)
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <AiBadge
-                    status={m.ai_status}
-                    durationMs={m.ai_analysis_duration_ms}
-                  />
-                </button>
-              ))}
+                    <AiBadge
+                      status={m.ai_status}
+                      durationMs={m.ai_analysis_duration_ms}
+                    />
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
           )}
         </GlassPanel>
 
