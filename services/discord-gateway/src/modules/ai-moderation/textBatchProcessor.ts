@@ -195,6 +195,10 @@ export async function runTextOnlyBatch(
     ? await getChannelCulture(channelId)
     : null;
   const channelCulture = channelCultureObj?.culture_summary;
+  // Corrected false-positive examples are static per batch — fetch ONCE
+  // here instead of inside the per-sub-batch retry closure (which would
+  // re-query the DB on every sub-batch and every parse-error retry).
+  const correctedExamples = await buildCorrectedFewShotExamples();
 
   for (let i = 0; i < subBatches.length; i++) {
     const batch = subBatches[i];
@@ -296,7 +300,6 @@ export async function runTextOnlyBatch(
             preview: state.lastInvalidContent?.slice(0, 800) ?? "<empty>",
           }
         : undefined;
-      const correctedExamples = await buildCorrectedFewShotExamples();
       const systemText = buildSystemPromptModular({
         mode: batchHasImageEvidence ? "mixed" : "text",
         correction,
