@@ -177,7 +177,7 @@ export const configSchema = z
     QDRANT_URL: z.string().optional(),
     QDRANT_COLLECTION: z.string().default("gmw_text_moderation"),
     QDRANT_API_KEY: z.string().optional(),
-    AI_LLM_MAX_CONCURRENT: z.coerce.number().int().positive().default(5),
+    AI_LLM_MAX_CONCURRENT: z.coerce.number().int().positive().default(8),
     AI_LLM_IMAGE_MAX_DIMENSION: z.coerce
       .number()
       .int()
@@ -226,11 +226,11 @@ export const configSchema = z
       .default(5),
 
     // ── AI Analysis Timing ──────────────────────────────────────────────
-    AI_ANALYSIS_DEBOUNCE_MS: z.coerce.number().positive().default(500),
+    AI_ANALYSIS_DEBOUNCE_MS: z.coerce.number().positive().default(250),
     AI_ANALYSIS_RECOVERY_INTERVAL_MS: z.coerce
       .number()
       .positive()
-      .default(15000),
+      .default(10000),
     AI_ANALYSIS_ERROR_COOLDOWN_MS: z.coerce.number().positive().default(30000),
 
     // ── AI Analysis Batch ───────────────────────────────────────────────

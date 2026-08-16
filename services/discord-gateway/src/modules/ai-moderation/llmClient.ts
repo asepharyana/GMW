@@ -18,7 +18,20 @@ const log = createChildLogger("llm-client");
 // Concurrency limiter for LLM API calls (inlined from concurrencyLimiter.ts)
 // ---------------------------------------------------------------------------
 
-const llmSemaphore = pLimit(config.AI_LLM_MAX_CONCURRENT ?? 5);
+// The limiter is cached per configured concurrency value so it can be tuned
+// (env / BWS) without a code change and always reflects the current config —
+// a module-level `pLimit(config.X)` would freeze the cap at import time.
+let llmSemaphore = pLimit(config.AI_LLM_MAX_CONCURRENT ?? 5);
+let llmSemaphoreLimit = config.AI_LLM_MAX_CONCURRENT ?? 5;
+
+function getLlmSemaphore() {
+  const wanted = config.AI_LLM_MAX_CONCURRENT ?? 5;
+  if (wanted !== llmSemaphoreLimit) {
+    llmSemaphore = pLimit(wanted);
+    llmSemaphoreLimit = wanted;
+  }
+  return llmSemaphore;
+}
 
 let activeCount = 0;
 let pendingCount = 0;
@@ -30,7 +43,7 @@ export async function withLlmConcurrency<T>(fn: () => Promise<T>): Promise<T> {
     "Queuing LLM request",
   );
 
-  return llmSemaphore(async () => {
+  return getLlmSemaphore()(async () => {
     pendingCount--;
     activeCount++;
 

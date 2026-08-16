@@ -214,20 +214,28 @@ export async function runTextOnlyBatch(
         asOf?: number | null;
       }
     >();
-    for (const msg of batch) {
-      if (!userContexts.has(msg.user_id)) {
-        const rep = await initializeUserReputation(msg.user_id, msg.guild_id);
-        const repAttrs = formatReputationAttrs(rep);
-        const repXml = `<user_reputation ${repAttrs}/>`;
-        userContexts.set(msg.user_id, repXml);
-      }
-      if (!userProfiles.has(msg.user_id)) {
-        const profile = await getUserProfile(msg.user_id);
-        userProfiles.set(msg.user_id, {
-          text: profile?.profile_summary ?? "",
-          asOf: profile?.last_analyzed_at ?? null,
-        });
-      }
+    // ── Per-user reputation + profile context (fetched ONCE per unique user,
+    //    in parallel — was a serial per-message loop that cost ~2N sequential
+    //    DB/Redis round-trips per sub-batch and dominated latency on small
+    //    batches). ─────────────────────────────────────────────────────────
+    const uniqueUserIds = [...new Set(batch.map((m) => m.user_id))];
+    const batchGuildId = batch[0]?.guild_id ?? "";
+    const userFetches = await Promise.all(
+      uniqueUserIds.map(async (uid) => {
+        const [rep, profile] = await Promise.all([
+          initializeUserReputation(uid, batchGuildId),
+          getUserProfile(uid),
+        ]);
+        return { uid, rep, profile };
+      }),
+    );
+    for (const { uid, rep, profile } of userFetches) {
+      const repAttrs = formatReputationAttrs(rep);
+      userContexts.set(uid, `<user_reputation ${repAttrs}/>`);
+      userProfiles.set(uid, {
+        text: profile?.profile_summary ?? "",
+        asOf: profile?.last_analyzed_at ?? null,
+      });
     }
     const userProfilesBlock = buildUserProfilesBlock(userProfiles);
 
