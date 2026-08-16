@@ -6,7 +6,8 @@ import type {
   SaveConversationInput,
 } from "./chatbot.repository.js";
 import { chatbotRepository } from "./chatbot.repository.js";
-import { executeTool, tools } from "./chatbot.tools.js";
+import { tools } from "./chatbot.toolDefs.js";
+import { executeTool } from "./chatbot.tools.js";
 
 const logger = createChildLogger("chatbot.service");
 

@@ -1,116 +1,26 @@
-import { sql } from "drizzle-orm";
+import { and, desc, eq, like, sql } from "drizzle-orm";
 import { getDatabase } from "../../shared/database/index.js";
+import {
+  pgChannelCulturesTable,
+  pgCorrectedModerationsTable,
+  pgMessageReviewsTable,
+  pgMessagesTable,
+  pgUserProfilesTable,
+  pgUserReputationsTable,
+  pgVoiceRecordingsTable,
+} from "../../shared/index.js";
+import { tools } from "./chatbot.toolDefs.js";
 
 /**
- * Tools the chatbot LLM can call. Definitions describe the schema to the
- * model; the executor implements each one against the real database.
- * This turns the chatbot from "blind stats guesser" into an agent that
- * pulls real, current server data on demand.
+ * Executor for the chatbot's server-watcher tools. The tool *definitions*
+ * live in chatbot.toolDefs.ts (no DB import); this file implements each one
+ * against the real database.
+ *
+ * All queries use parameterized drizzle operators (eq/like/and) — never string
+ * interpolation into raw SQL — so model-supplied arguments cannot inject SQL.
  */
 
 export type ToolResult = string;
-
-/** JSON schema for a tool definition (OpenAI function-calling format). */
-export interface ToolDef {
-  type: "function";
-  function: {
-    name: string;
-    description: string;
-    parameters: {
-      type: "object";
-      properties: Record<string, unknown>;
-      required?: string[];
-    };
-  };
-}
-
-export const tools: ToolDef[] = [
-  {
-    type: "function",
-    function: {
-      name: "get_server_stats",
-      description:
-        "Ambil statistik ringkas server/guild saat ini: total pesan, user aktif, jumlah pesan flagged, dan jumlah warning. Panggil ini untuk menjawab pertanyaan umum tentang kondisi server. Opsional fill guild_id untuk scope ke guild tertentu, channel_id untuk scope ke channel.",
-      parameters: {
-        type: "object",
-        properties: {
-          guildId: {
-            type: "string",
-            description: "ID guild/server (opsional). Kosongkan = semua data.",
-          },
-          channelId: {
-            type: "string",
-            description: "ID channel (opsional).",
-          },
-        },
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_top_channels",
-      description:
-        "Ambil daftar channel paling aktif (jumlah pesan terbanyak) di server. Panggil buat jawab 'channel mana paling ramai' atau aktivitas per-channel.",
-      parameters: {
-        type: "object",
-        properties: {
-          guildId: {
-            type: "string",
-            description: "ID server (opsional).",
-          },
-          limit: {
-            type: "number",
-            description: "Jumlah channel teratas (default 5, max 10).",
-          },
-        },
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_recent_activity",
-      description:
-        "Ambil aktivitas/pesan terbaru di server: siapa yang baru ngomong, di channel mana, jam berapa. Panggil buat jawaban soal 'lagi ngapain' / aktivitas terbaru di server.",
-      parameters: {
-        type: "object",
-        properties: {
-          guildId: {
-            type: "string",
-            description: "ID server (opsional).",
-          },
-          limit: {
-            type: "number",
-            description: "Jumlah pesan terakhir (default 5).",
-          },
-        },
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_top_flagged",
-      description:
-        "Ambil pesan yang paling sering di-flag atau kena warning. Panggil buat jawab soal pesan bermasalah / moderator.",
-      parameters: {
-        type: "object",
-        properties: {
-          guildId: {
-            type: "string",
-            description: "ID server (opsional).",
-          },
-          limit: {
-            type: "number",
-            description: "Jumlah pesan (default 5).",
-          },
-        },
-      },
-    },
-  },
-];
-
 /** Executes a tool call against the real DB and returns a readable result. */
 export async function executeTool(
   name: string,
@@ -122,9 +32,11 @@ export async function executeTool(
     typeof args.channelId === "string" && args.channelId
       ? args.channelId
       : undefined;
+  const userId =
+    typeof args.userId === "string" && args.userId ? args.userId : undefined;
   const limitRaw =
     typeof args.limit === "number" ? args.limit : Number(args.limit) || 5;
-  const limit = Math.min(Math.max(1, Math.round(limitRaw)), 10);
+  const limit = Math.min(Math.max(1, Math.round(limitRaw)), 20);
 
   try {
     switch (name) {
@@ -133,9 +45,48 @@ export async function executeTool(
       case "get_top_channels":
         return await topChannels(guildId, limit);
       case "get_recent_activity":
-        return await recentActivity(guildId, limit);
+        return await recentActivity(guildId, channelId, limit);
       case "get_top_flagged":
-        return await topFlagged(guildId, limit);
+        return await topFlagged(guildId, channelId, limit);
+      case "search_messages":
+        return await searchMessages(
+          String(args.query ?? ""),
+          guildId,
+          channelId,
+          limit,
+        );
+      case "get_user_messages":
+        return await userMessages(userId, guildId, channelId, limit);
+      case "get_user_profile":
+        return await userProfile(userId, guildId);
+      case "get_user_reputation":
+        return await userReputation(userId, guildId);
+      case "get_channel_culture":
+        return await channelCulture(
+          typeof args.channelId === "string" ? args.channelId : undefined,
+        );
+      case "get_message_detail":
+        return await messageDetail(
+          typeof args.messageId === "string" ? args.messageId : undefined,
+        );
+      case "get_message_reviews":
+        return await messageReviews(
+          guildId,
+          typeof args.status === "string" ? args.status : undefined,
+          limit,
+        );
+      case "get_voice_recordings":
+        return await voiceRecordings(userId, channelId, guildId, limit);
+      case "get_moderation_timeline":
+        return await moderationTimeline(
+          guildId,
+          channelId,
+          typeof args.days === "number"
+            ? Math.min(Math.max(1, args.days), 60)
+            : 14,
+        );
+      case "get_corrections":
+        return await corrections(guildId, limit);
       default:
         return `Unknown tool: ${name}`;
     }
@@ -145,6 +96,23 @@ export async function executeTool(
   }
 }
 
+// ── Query helpers ──────────────────────────────────────────
+
+function scopeMessages(
+  guildId?: string,
+  channelId?: string,
+): ReturnType<typeof and> | undefined {
+  const conds = [];
+  if (guildId) conds.push(eq(pgMessagesTable.guild_id, guildId));
+  if (channelId) conds.push(eq(pgMessagesTable.channel_id, channelId));
+  return conds.length ? and(...conds) : undefined;
+}
+
+/** Escape LIKE wildcards so user input can't break the pattern. */
+function likePattern(q: string): string {
+  return q.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 // ── Tool executors ──────────────────────────────────────────
 
 async function serverStats(
@@ -152,81 +120,330 @@ async function serverStats(
   channelId?: string,
 ): Promise<string> {
   const db = getDatabase();
-  const conditions: string[] = [];
-  if (guildId) conditions.push(`guild_id = '${guildId}'`);
-  if (channelId) conditions.push(`channel_id = '${channelId}'`);
-  const cond = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const [result] = await db
+    .select({
+      total_messages: sql<number>`COUNT(*)::int`,
+      active_users: sql<number>`COUNT(DISTINCT ${pgMessagesTable.user_id})::int`,
+      flagged: sql<number>`COUNT(*) FILTER (WHERE ${pgMessagesTable.ai_status} = 'flagged')::int`,
+      warned: sql<number>`COUNT(*) FILTER (WHERE ${pgMessagesTable.ai_status} = 'warn')::int`,
+      clean: sql<number>`COUNT(*) FILTER (WHERE ${pgMessagesTable.ai_status} = 'clean')::int`,
+    })
+    .from(pgMessagesTable)
+    .where(scopeMessages(guildId, channelId));
 
-  const result = await db.execute(
-    sql.raw(
-      `SELECT COUNT(*)::int AS total_messages,
-              COUNT(DISTINCT user_id)::int AS active_users,
-              COUNT(*) FILTER (WHERE ai_status = 'flagged')::int AS flagged,
-              COUNT(*) FILTER (WHERE ai_status = 'warn')::int AS warned
-       FROM messages ${cond}`,
-    ),
-  );
-  const rows =
-    (result as unknown as { rows: Record<string, unknown>[] }).rows ?? [];
-  const r = rows[0] ?? {};
-  return JSON.stringify({
-    total_messages: r.total_messages ?? 0,
-    active_users: r.active_users ?? 0,
-    flagged: r.flagged ?? 0,
-    warned: r.warned ?? 0,
-  });
+  const r = result ?? {
+    total_messages: 0,
+    active_users: 0,
+    flagged: 0,
+    warned: 0,
+    clean: 0,
+  };
+  return JSON.stringify(r);
 }
 
 async function topChannels(guildId?: string, limit = 5): Promise<string> {
   const db = getDatabase();
-  const conditions: string[] = [];
-  if (guildId) conditions.push(`guild_id = '${guildId}'`);
-  const cond = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-
-  const result = await db.execute(
-    sql.raw(
-      `SELECT channel_id,
-              COUNT(*)::int AS count
-       FROM messages ${cond}
-       GROUP BY channel_id
-       ORDER BY count DESC
-       LIMIT ${limit}`,
-    ),
-  );
-  const rows = (result as unknown as { rows: unknown[] }).rows ?? [];
-  return JSON.stringify(rows.slice(0, limit));
+  const rows = await db
+    .select({
+      channel_id: pgMessagesTable.channel_id,
+      count: sql<number>`COUNT(*)::int`,
+    })
+    .from(pgMessagesTable)
+    .where(scopeMessages(guildId))
+    .groupBy(pgMessagesTable.channel_id)
+    .orderBy(desc(sql`COUNT(*)`))
+    .limit(limit);
+  return JSON.stringify(rows);
 }
 
-async function recentActivity(guildId?: string, limit = 5): Promise<string> {
+async function recentActivity(
+  guildId?: string,
+  channelId?: string,
+  limit = 5,
+): Promise<string> {
   const db = getDatabase();
-  const conditions: string[] = [];
-  if (guildId) conditions.push(`guild_id = '${guildId}'`);
-  const cond = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-
-  const result = await db.execute(
-    sql.raw(
-      `SELECT username, content, channel_id, created_at
-       FROM messages ${cond}
-       ORDER BY created_at DESC
-       LIMIT ${limit}`,
-    ),
-  );
-  return JSON.stringify((result as unknown as { rows: unknown[] }).rows ?? []);
+  const rows = await db
+    .select({
+      id: pgMessagesTable.id,
+      username: pgMessagesTable.username,
+      user_id: pgMessagesTable.user_id,
+      channel_id: pgMessagesTable.channel_id,
+      content: pgMessagesTable.content,
+      created_at: pgMessagesTable.created_at,
+      ai_status: pgMessagesTable.ai_status,
+    })
+    .from(pgMessagesTable)
+    .where(scopeMessages(guildId, channelId))
+    .orderBy(desc(pgMessagesTable.created_at))
+    .limit(limit);
+  return JSON.stringify(rows);
 }
 
-async function topFlagged(guildId?: string, limit = 5): Promise<string> {
+async function topFlagged(
+  guildId?: string,
+  channelId?: string,
+  limit = 5,
+): Promise<string> {
   const db = getDatabase();
-  const conditions = ["ai_status IN ('flagged', 'warn')"];
-  if (guildId) conditions.push(`guild_id = '${guildId}'`);
-  const cond = `WHERE ${conditions.join(" AND ")}`;
+  const rows = await db
+    .select({
+      id: pgMessagesTable.id,
+      username: pgMessagesTable.username,
+      channel_id: pgMessagesTable.channel_id,
+      content: pgMessagesTable.content,
+      ai_status: pgMessagesTable.ai_status,
+      ai_severity: pgMessagesTable.ai_severity,
+      ai_moderation_flags: pgMessagesTable.ai_moderation_flags,
+      ai_analysis: pgMessagesTable.ai_analysis,
+      created_at: pgMessagesTable.created_at,
+    })
+    .from(pgMessagesTable)
+    .where(
+      and(
+        scopeMessages(guildId, channelId),
+        eq(pgMessagesTable.ai_status, "flagged"),
+      ),
+    )
+    .orderBy(desc(pgMessagesTable.created_at))
+    .limit(limit);
+  return JSON.stringify(rows);
+}
 
-  const result = await db.execute(
-    sql.raw(
-      `SELECT username, content, channel_id, ai_status, created_at
-       FROM messages ${cond}
-       ORDER BY created_at DESC
-       LIMIT ${limit}`,
-    ),
-  );
-  return JSON.stringify((result as unknown as { rows: unknown[] }).rows ?? []);
+async function searchMessages(
+  query: string,
+  guildId?: string,
+  channelId?: string,
+  limit = 5,
+): Promise<string> {
+  const db = getDatabase();
+  if (!query.trim()) return JSON.stringify({ error: "query kosong" });
+  const rows = await db
+    .select({
+      id: pgMessagesTable.id,
+      username: pgMessagesTable.username,
+      channel_id: pgMessagesTable.channel_id,
+      content: pgMessagesTable.content,
+      created_at: pgMessagesTable.created_at,
+      ai_status: pgMessagesTable.ai_status,
+    })
+    .from(pgMessagesTable)
+    .where(
+      and(
+        scopeMessages(guildId, channelId),
+        like(pgMessagesTable.content, `%${likePattern(query)}%`),
+      ),
+    )
+    .orderBy(desc(pgMessagesTable.created_at))
+    .limit(limit);
+  return JSON.stringify(rows);
+}
+
+async function userMessages(
+  userId?: string,
+  guildId?: string,
+  channelId?: string,
+  limit = 10,
+): Promise<string> {
+  const db = getDatabase();
+  if (!userId) return JSON.stringify({ error: "userId wajib" });
+  const conds = [eq(pgMessagesTable.user_id, userId)];
+  if (guildId) conds.push(eq(pgMessagesTable.guild_id, guildId));
+  if (channelId) conds.push(eq(pgMessagesTable.channel_id, channelId));
+  const rows = await db
+    .select({
+      id: pgMessagesTable.id,
+      channel_id: pgMessagesTable.channel_id,
+      content: pgMessagesTable.content,
+      created_at: pgMessagesTable.created_at,
+      ai_status: pgMessagesTable.ai_status,
+    })
+    .from(pgMessagesTable)
+    .where(and(...conds))
+    .orderBy(desc(pgMessagesTable.created_at))
+    .limit(limit);
+  return JSON.stringify(rows);
+}
+
+async function userProfile(userId?: string, guildId?: string): Promise<string> {
+  const db = getDatabase();
+  if (!userId) return JSON.stringify({ error: "userId wajib" });
+  const conds = [eq(pgUserProfilesTable.user_id, userId)];
+  if (guildId) conds.push(eq(pgUserProfilesTable.guild_id, guildId));
+  const rows = await db
+    .select({
+      user_id: pgUserProfilesTable.user_id,
+      guild_id: pgUserProfilesTable.guild_id,
+      profile_summary: pgUserProfilesTable.profile_summary,
+      last_analyzed_at: pgUserProfilesTable.last_analyzed_at,
+    })
+    .from(pgUserProfilesTable)
+    .where(and(...conds))
+    .limit(1);
+  return JSON.stringify(rows[0] ?? { error: "profil tidak ditemukan" });
+}
+
+async function userReputation(
+  userId?: string,
+  guildId?: string,
+): Promise<string> {
+  const db = getDatabase();
+  if (!userId) return JSON.stringify({ error: "userId wajib" });
+  const conds = [eq(pgUserReputationsTable.user_id, userId)];
+  if (guildId) conds.push(eq(pgUserReputationsTable.guild_id, guildId));
+  const rows = await db
+    .select({
+      user_id: pgUserReputationsTable.user_id,
+      guild_id: pgUserReputationsTable.guild_id,
+      trust_score: pgUserReputationsTable.trust_score,
+      clean_message_streak: pgUserReputationsTable.clean_message_streak,
+      total_infractions: pgUserReputationsTable.total_infractions,
+      last_infraction_at: pgUserReputationsTable.last_infraction_at,
+    })
+    .from(pgUserReputationsTable)
+    .where(and(...conds))
+    .limit(1);
+  return JSON.stringify(rows[0] ?? { error: "reputasi tidak ditemukan" });
+}
+
+async function channelCulture(channelId?: string): Promise<string> {
+  const db = getDatabase();
+  if (!channelId) return JSON.stringify({ error: "channelId wajib" });
+  const rows = await db
+    .select({
+      channel_id: pgChannelCulturesTable.channel_id,
+      culture_summary: pgChannelCulturesTable.culture_summary,
+      last_analyzed_at: pgChannelCulturesTable.last_analyzed_at,
+    })
+    .from(pgChannelCulturesTable)
+    .where(eq(pgChannelCulturesTable.channel_id, channelId))
+    .limit(1);
+  return JSON.stringify(rows[0] ?? { error: "culture tidak ditemukan" });
+}
+
+async function messageDetail(messageId?: string): Promise<string> {
+  const db = getDatabase();
+  if (!messageId) return JSON.stringify({ error: "messageId wajib" });
+  const rows = await db
+    .select({
+      id: pgMessagesTable.id,
+      guild_id: pgMessagesTable.guild_id,
+      channel_id: pgMessagesTable.channel_id,
+      user_id: pgMessagesTable.user_id,
+      username: pgMessagesTable.username,
+      content: pgMessagesTable.content,
+      created_at: pgMessagesTable.created_at,
+      ai_status: pgMessagesTable.ai_status,
+      ai_moderation_flags: pgMessagesTable.ai_moderation_flags,
+      ai_moderation_score: pgMessagesTable.ai_moderation_score,
+      ai_severity: pgMessagesTable.ai_severity,
+      ai_categories: pgMessagesTable.ai_categories,
+      ai_analysis: pgMessagesTable.ai_analysis,
+      ai_recommended_action: pgMessagesTable.ai_recommended_action,
+      ai_confidence: pgMessagesTable.ai_confidence,
+    })
+    .from(pgMessagesTable)
+    .where(eq(pgMessagesTable.id, messageId))
+    .limit(1);
+  return JSON.stringify(rows[0] ?? { error: "pesan tidak ditemukan" });
+}
+
+async function messageReviews(
+  guildId?: string,
+  status?: string,
+  limit = 10,
+): Promise<string> {
+  const db = getDatabase();
+  const conds = [];
+  if (guildId) conds.push(eq(pgMessageReviewsTable.guild_id, guildId));
+  if (status) conds.push(eq(pgMessageReviewsTable.status, status as never));
+  const rows = await db
+    .select({
+      id: pgMessageReviewsTable.id,
+      message_id: pgMessageReviewsTable.message_id,
+      reviewer_id: pgMessageReviewsTable.reviewer_id,
+      status: pgMessageReviewsTable.status,
+      notes: pgMessageReviewsTable.notes,
+      created_at: pgMessageReviewsTable.created_at,
+      reviewed_at: pgMessageReviewsTable.reviewed_at,
+    })
+    .from(pgMessageReviewsTable)
+    .where(conds.length ? and(...conds) : undefined)
+    .orderBy(desc(pgMessageReviewsTable.created_at))
+    .limit(limit);
+  return JSON.stringify(rows);
+}
+
+async function voiceRecordings(
+  userId?: string,
+  channelId?: string,
+  guildId?: string,
+  limit = 10,
+): Promise<string> {
+  const db = getDatabase();
+  const conds = [];
+  if (userId) conds.push(eq(pgVoiceRecordingsTable.user_id, userId));
+  if (channelId) conds.push(eq(pgVoiceRecordingsTable.channel_id, channelId));
+  if (guildId) conds.push(eq(pgVoiceRecordingsTable.guild_id, guildId));
+  const rows = await db
+    .select({
+      id: pgVoiceRecordingsTable.id,
+      username: pgVoiceRecordingsTable.username,
+      channel_name: pgVoiceRecordingsTable.channel_name,
+      filename: pgVoiceRecordingsTable.filename,
+      size_bytes: pgVoiceRecordingsTable.size_bytes,
+      upload_status: pgVoiceRecordingsTable.upload_status,
+      transcription: pgVoiceRecordingsTable.transcription,
+      created_at: pgVoiceRecordingsTable.created_at,
+    })
+    .from(pgVoiceRecordingsTable)
+    .where(conds.length ? and(...conds) : undefined)
+    .orderBy(desc(pgVoiceRecordingsTable.created_at))
+    .limit(limit);
+  return JSON.stringify(rows);
+}
+
+async function moderationTimeline(
+  guildId?: string,
+  channelId?: string,
+  days = 14,
+): Promise<string> {
+  const db = getDatabase();
+  const day = sql<string>`to_char(to_timestamp(${pgMessagesTable.created_at} / 1000), 'YYYY-MM-DD')`;
+  const rows = await db
+    .select({
+      day,
+      total: sql<number>`COUNT(*)::int`,
+      flagged: sql<number>`COUNT(*) FILTER (WHERE ${pgMessagesTable.ai_status} = 'flagged')::int`,
+      warned: sql<number>`COUNT(*) FILTER (WHERE ${pgMessagesTable.ai_status} = 'warn')::int`,
+      clean: sql<number>`COUNT(*) FILTER (WHERE ${pgMessagesTable.ai_status} = 'clean')::int`,
+    })
+    .from(pgMessagesTable)
+    .where(
+      and(
+        scopeMessages(guildId, channelId),
+        // only the last N days
+        sql`${pgMessagesTable.created_at} >= extract(epoch FROM now() - (${days} || ' days')::interval) * 1000`,
+      ),
+    )
+    .groupBy(day)
+    .orderBy(day);
+  return JSON.stringify(rows);
+}
+
+async function corrections(guildId?: string, limit = 10): Promise<string> {
+  const db = getDatabase();
+  const rows = await db
+    .select({
+      id: pgCorrectedModerationsTable.id,
+      message_id: pgCorrectedModerationsTable.message_id,
+      original_flags: pgCorrectedModerationsTable.original_flags,
+      corrected_flags: pgCorrectedModerationsTable.corrected_flags,
+      correction_notes: pgCorrectedModerationsTable.correction_notes,
+      content_snippet: pgCorrectedModerationsTable.content_snippet,
+      created_at: pgCorrectedModerationsTable.created_at,
+    })
+    .from(pgCorrectedModerationsTable)
+    .orderBy(desc(pgCorrectedModerationsTable.created_at))
+    .limit(limit);
+  return JSON.stringify(rows);
 }
