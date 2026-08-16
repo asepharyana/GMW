@@ -1,4 +1,4 @@
-import { trpc } from "@/lib/trpc/client";
+import { orpc } from "@/lib/orpc/client";
 import type {
   DashboardActivity,
   DashboardChannelDetail,
@@ -11,45 +11,40 @@ import type {
 } from "@/lib/types";
 
 export const dashboardApi = {
-  getStats: () =>
-    trpc.dashboard.stats.query() as unknown as Promise<DashboardStats>,
+  getStats: () => orpc.dashboard.stats() as unknown as Promise<DashboardStats>,
 
   getActivity: (days = 14) =>
-    trpc.dashboard.activity.query({
-      days,
-    }) as unknown as Promise<DashboardActivity>,
+    orpc.dashboard.activity({ days }) as unknown as Promise<DashboardActivity>,
 
   listUsers: (limit?: number, cursor?: string, search?: string) =>
-    trpc.dashboard.users.query({
+    orpc.dashboard.users({
       limit,
       cursor,
       search,
     }) as unknown as Promise<PaginatedUsers>,
 
   getUserDetail: (userId: string) =>
-    trpc.dashboard.userDetail.query({
+    orpc.dashboard.userDetail({
       userId,
     }) as unknown as Promise<DashboardUserDetail>,
 
   listChannels: (limit?: number, search?: string, guildId?: string) =>
-    trpc.dashboard.channels.query({
+    orpc.dashboard.channels({
       limit,
       search,
       guildId,
     }) as unknown as Promise<PaginatedChannels>,
 
   getChannelDetail: (channelId: string) =>
-    trpc.dashboard.channelDetail.query({
+    orpc.dashboard.channelDetail({
       channelId,
     }) as unknown as Promise<DashboardChannelDetail>,
 
   getTopReactions: (limit = 20) =>
-    trpc.dashboard.reactions.query({ limit }) as unknown as Promise<
+    orpc.dashboard.reactions({ limit }) as unknown as Promise<
       TopReactedMessage[]
     >,
 
   getTopReactors: (limit = 20) =>
-    trpc.dashboard.reactors.query({ limit }) as unknown as Promise<
-      TopReactor[]
-    >,
+    orpc.dashboard.reactors({ limit }) as unknown as Promise<TopReactor[]>,
 };

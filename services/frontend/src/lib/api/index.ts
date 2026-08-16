@@ -1,7 +1,8 @@
-// tRPC client is browser-only (wsLink). Re-export it for convenience / for any
-// code that wants to call tRPC directly instead of going through the api/*
-// wrappers. Server-side RSC data lives in ./server (httpLink).
-export { trpc } from "../trpc/client";
+// oRPC client is browser-only (websocket RPCLink + partysocket). Re-export it
+// for convenience / for any code that wants to call oRPC directly instead of
+// going through the api/* wrappers. Server-side RSC data lives in ./server
+// (fetch RPCLink).
+export { orpc } from "../orpc/client";
 export { chatbotApi } from "./chatbot";
 export { configApi } from "./config";
 export { dashboardApi } from "./dashboard";

@@ -1,18 +1,19 @@
 /**
  * Server-only data layer (React Server Components / route handlers).
  *
- * The dashboard is fully tRPC-native: this module talks to the backend's
- * tRPC HTTP endpoint (/trpc) via an httpLink client — the same appRouter the
- * browser reaches over WebSocket. No legacy REST `/api/*` is used.
+ * The dashboard is fully oRPC-native: this module talks to the backend's
+ * oRPC HTTP endpoint (/trpc) via a fetch RPCLink client — the same appRouter
+ * the browser reaches over WebSocket. No legacy REST `/api/*` is used.
  *
- * The client is loosely typed (see ./types → TRPCClient); results are asserted
+ * The client is loosely typed (see ./types → ORPCClient); results are asserted
  * to the frontend's local types at each call site.
  *
  * Never import this module from a client component. Browser code uses
- * `@/lib/trpc/client` (wsLink) via the `@/lib/api/*` wrappers.
+ * `@/lib/orpc/client` (websocket RPCLink) via the `@/lib/api/*` wrappers.
  */
 
-import { createTRPCClient, httpBatchLink } from "@trpc/client";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
 import type {
   AppConfig,
   DashboardActivity,
@@ -24,24 +25,22 @@ import type {
   PaginatedRecordings,
   VoiceStatus,
 } from "@/lib/types";
-import type { TRPCClient } from "../trpc/types";
+import type { ORPCClient } from "../orpc/types";
 
 const BACKEND_URL =
   process.env.GMW_BACKEND_URL?.replace(/\/+$/, "") || "http://127.0.0.1:4001";
 
-let _client: TRPCClient | null = null;
-function serverTrpc(): TRPCClient {
+let _client: ORPCClient | null = null;
+function serverOrpc(): ORPCClient {
   if (!_client) {
-    _client = createTRPCClient({
-      links: [
-        httpBatchLink({
-          url: `${BACKEND_URL}/trpc`,
-          fetch(url, init) {
-            return fetch(url, { ...init, cache: "no-store" });
-          },
-        }),
-      ],
-    }) as unknown as TRPCClient;
+    const link = new RPCLink({
+      url: `${BACKEND_URL}/trpc`,
+      // Always bypass Next.js fetch cache for live dashboard data.
+      fetch(url, init) {
+        return fetch(url, { ...init, cache: "no-store" });
+      },
+    });
+    _client = createORPCClient(link) as unknown as ORPCClient;
   }
   return _client;
 }
@@ -57,30 +56,30 @@ export class ApiServerError extends Error {
 
 // ---- Dashboard ----
 export async function getDashboardStats(): Promise<DashboardStats> {
-  return serverTrpc().dashboard.stats.query() as unknown as Promise<DashboardStats>;
+  return serverOrpc().dashboard.stats() as unknown as Promise<DashboardStats>;
 }
 export async function getActivity(days = 14): Promise<DashboardActivity> {
-  return serverTrpc().dashboard.activity.query({
+  return serverOrpc().dashboard.activity({
     days,
   }) as unknown as Promise<DashboardActivity>;
 }
 
 // ---- Media ----
 export async function getMediaStatus(): Promise<MediaState> {
-  return serverTrpc().media.status.query() as unknown as Promise<MediaState>;
+  return serverOrpc().media.status() as unknown as Promise<MediaState>;
 }
 
 // ---- Config ----
 export async function getConfig(): Promise<AppConfig> {
-  return serverTrpc().config.get.query() as unknown as Promise<AppConfig>;
+  return serverOrpc().config.get() as unknown as Promise<AppConfig>;
 }
 
 // ---- Moderation ----
 export async function getModerationStats(): Promise<ModerationStats> {
-  return serverTrpc().moderation.stats.query() as unknown as Promise<ModerationStats>;
+  return serverOrpc().moderation.stats() as unknown as Promise<ModerationStats>;
 }
 export async function getModerationActions(limit = 100) {
-  const res = (await serverTrpc().moderation.actions.query({
+  const res = (await serverOrpc().moderation.actions({
     limit,
   })) as unknown as PaginatedModerationActions;
   return res.data;
@@ -88,15 +87,15 @@ export async function getModerationActions(limit = 100) {
 
 // ---- Voice ----
 export async function getGuilds(): Promise<Guild[]> {
-  return serverTrpc().voice.guilds.query() as unknown as Promise<Guild[]>;
+  return serverOrpc().voice.guilds() as unknown as Promise<Guild[]>;
 }
 export async function getVoiceStatus(): Promise<VoiceStatus> {
-  return serverTrpc().voice.status.query() as unknown as Promise<VoiceStatus>;
+  return serverOrpc().voice.status() as unknown as Promise<VoiceStatus>;
 }
 
 // ---- Recordings ----
 export async function getRecordings(limit = 50): Promise<PaginatedRecordings> {
-  return serverTrpc().recordings.list.query({
+  return serverOrpc().recordings.list({
     limit,
   }) as unknown as Promise<PaginatedRecordings>;
 }

@@ -1,4 +1,4 @@
-import { trpc } from "@/lib/trpc/client";
+import { orpc } from "@/lib/orpc/client";
 import type { PaginatedRecordings } from "@/lib/types";
 
 export const recordingsApi = {
@@ -8,7 +8,7 @@ export const recordingsApi = {
     userId?: string,
     cursor?: string,
   ) =>
-    trpc.recordings.list.query({
+    orpc.recordings.list({
       limit,
       channelId,
       userId,
@@ -16,7 +16,5 @@ export const recordingsApi = {
     }) as unknown as Promise<PaginatedRecordings>,
 
   delete: (id: string) =>
-    trpc.recordings.delete.mutate({ id }) as unknown as Promise<{
-      ok: boolean;
-    }>,
+    orpc.recordings.delete({ id }) as unknown as Promise<{ ok: boolean }>,
 };

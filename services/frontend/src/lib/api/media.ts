@@ -1,12 +1,12 @@
-import { trpc } from "@/lib/trpc/client";
+import { orpc } from "@/lib/orpc/client";
 import type { MediaState } from "@/lib/types";
 
 export const mediaApi = {
-  getStatus: () => trpc.media.status.query() as unknown as Promise<MediaState>,
+  getStatus: () => orpc.media.status() as unknown as Promise<MediaState>,
   queue: (source: string, mode: string) =>
-    trpc.media.queue.mutate({ source, mode }) as unknown as Promise<MediaState>,
-  skip: () => trpc.media.skip.mutate() as unknown as Promise<MediaState>,
-  stop: () => trpc.media.stop.mutate() as unknown as Promise<MediaState>,
+    orpc.media.queue({ source, mode }) as unknown as Promise<MediaState>,
+  skip: () => orpc.media.skip() as unknown as Promise<MediaState>,
+  stop: () => orpc.media.stop() as unknown as Promise<MediaState>,
   loop: (loop: boolean) =>
-    trpc.media.loop.mutate({ loop }) as unknown as Promise<MediaState>,
+    orpc.media.loop({ loop }) as unknown as Promise<MediaState>,
 };

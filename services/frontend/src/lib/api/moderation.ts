@@ -1,9 +1,9 @@
-import { trpc } from "@/lib/trpc/client";
+import { orpc } from "@/lib/orpc/client";
 import type { ModerationStats, PaginatedModerationActions } from "@/lib/types";
 
 export const moderationApi = {
   getStats: () =>
-    trpc.moderation.stats.query() as unknown as Promise<ModerationStats>,
+    orpc.moderation.stats() as unknown as Promise<ModerationStats>,
 
   listActions: (
     limit?: number,
@@ -11,7 +11,7 @@ export const moderationApi = {
     actionType?: string,
     cursor?: string,
   ) =>
-    trpc.moderation.actions.query({
+    orpc.moderation.actions({
       limit,
       status,
       actionType,

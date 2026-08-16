@@ -1,4 +1,4 @@
-import { trpc } from "@/lib/trpc/client";
+import { orpc } from "@/lib/orpc/client";
 import type { AttachmentRecord, MessageRecord } from "@/lib/types";
 
 export const messagesApi = {
@@ -8,7 +8,7 @@ export const messagesApi = {
     channelId?: string,
     cursor?: string,
   ) =>
-    trpc.messages.list.query({
+    orpc.messages.list({
       guildId,
       limit,
       channelId,
@@ -19,7 +19,7 @@ export const messagesApi = {
     }>,
 
   getByChannel: (channelId: string, limit?: number, cursor?: string) =>
-    trpc.messages.byChannel.query({
+    orpc.messages.byChannel({
       channelId,
       query: { channelId, limit, cursor },
     }) as unknown as Promise<{
@@ -28,10 +28,10 @@ export const messagesApi = {
     }>,
 
   getDetail: (id: string) =>
-    trpc.messages.detail.query({ id }) as unknown as Promise<MessageRecord>,
+    orpc.messages.detail({ id }) as unknown as Promise<MessageRecord>,
 
   getImages: (guildId: string, limit?: number) =>
-    trpc.messages.images.query({ guildId, limit }) as unknown as Promise<{
+    orpc.messages.images({ guildId, limit }) as unknown as Promise<{
       data: MessageRecord[];
       nextCursor: string | null;
     }>,
@@ -42,7 +42,7 @@ export const messagesApi = {
     cursor?: string,
     messageId?: string,
   ) =>
-    trpc.messages.attachmentsByChannel.query({
+    orpc.messages.attachmentsByChannel({
       channelId,
       query: { channelId, limit, cursor, messageId },
     }) as unknown as Promise<{
@@ -51,15 +51,15 @@ export const messagesApi = {
     }>,
 
   getReview: (limit?: number, channelId?: string) =>
-    trpc.messages.review.query({ limit, channelId }) as unknown as Promise<{
+    orpc.messages.review({ limit, channelId }) as unknown as Promise<{
       results: MessageRecord[];
       limit: number;
       cursor: null;
     }>,
 
-  // Analysis search (formerly /api/analysis/search → tRPC analysis.search)
+  // Analysis search (formerly /api/analysis/search → oRPC analysis.search)
   search: (q: string, limit?: number) =>
-    trpc.analysis.search.query({ q, limit }) as unknown as Promise<{
+    orpc.analysis.search({ q, limit }) as unknown as Promise<{
       results: MessageRecord[];
     }>,
 };

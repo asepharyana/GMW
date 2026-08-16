@@ -1,4 +1,5 @@
-import { nodeHTTPRequestHandler } from "@trpc/server/adapters/node-http";
+import { RPCHandler } from "@orpc/server/node";
+import { onError } from "@orpc/server";
 import express, {
   type Express,
   type NextFunction,
@@ -9,13 +10,13 @@ import helmet from "helmet";
 import { createChildLogger } from "@/shared/logger/index";
 import { createHealthRouter } from "../modules/health/index.js";
 import { errorHandler } from "../shared/middlewares/index.js";
-import { appRouter } from "../trpc/routers";
+import { appRouter } from "../orpc/router";
 
 // Auth removed — dashboard is public.
 // All data APIs (dashboard, messages, moderation, media, voice, recordings,
-// analysis, chatbot, config, ui-state) now flow over tRPC, served on TWO
+// analysis, chatbot, config, ui-state) now flow over oRPC, served on TWO
 // transports sharing the /trpc path:
-//   - WebSocket (browser live RPCs)  — see trpc/ws.ts
+//   - WebSocket (browser live RPCs)  — see orpc/ws.ts
 //   - HTTP POST   (server-side / RSC fetch) — handled below
 // Only infra endpoints (health, prometheus metrics) remain plain HTTP.
 
@@ -31,7 +32,7 @@ export function createHttpApp(): Express {
     }),
   );
 
-  // Body parsing (still needed for any JSON POST; tRPC is WS-based)
+  // Body parsing (still needed for any JSON POST; oRPC is WS/HTTP-based)
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
@@ -60,29 +61,27 @@ export function createHttpApp(): Express {
   // Infra-only HTTP endpoints
   app.use("/api", createHealthRouter());
 
-  // tRPC over HTTP (server-side / RSC fetch). The context has no WebSocket
-  // here (that's the WS transport's job); procedures don't read ctx.conn, so
-  // a null conn is safe.
-  // NOTE: Express 5 (path-to-regexp v8) rejects the `"/trpc/*"` wildcard route,
-  // and `nodeHTTPRequestHandler` uses `opts.path` as the literal procedure
-  // path (it does NOT derive it from `req.url`). So we mount a plain
-  // middleware and compute the procedure path from the URL ourselves.
+  // oRPC over HTTP (server-side / RSC fetch). The same appRouter the browser
+  // reaches over the /trpc WebSocket. oRPC's node RPCHandler writes the full
+  // response itself; if no procedure matched we fall through to the 404 below.
+  const orpcHandler = new RPCHandler(appRouter, {
+    interceptors: [onError((error) => logger.error({ error }, "oRPC error"))],
+  });
+
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (!req.path.startsWith("/trpc")) {
       next();
       return;
     }
-    const procPath = req.url.replace(/^\/trpc\/?/, "").split("?")[0] || "/";
-    nodeHTTPRequestHandler({
-      router: appRouter,
-      createContext: () => ({ conn: null }),
-      req,
-      res,
-      path: procPath,
-    }).catch((err: unknown) => {
-      logger.error({ err }, "tRPC HTTP handler failed");
-      if (!res.headersSent) res.status(500).json({ error: "INTERNAL" });
-    });
+    orpcHandler
+      .handle(req, res, { prefix: "/trpc", context: {} })
+      .then(({ matched }) => {
+        if (!matched) next();
+      })
+      .catch((err: unknown) => {
+        logger.error({ err }, "oRPC HTTP handler failed");
+        if (!res.headersSent) res.status(500).json({ error: "INTERNAL" });
+      });
   });
 
   // 404 handler

@@ -1,14 +1,15 @@
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
-import { applyWSSHandler } from "@trpc/server/adapters/ws";
+import { RPCHandler } from "@orpc/server/ws";
+import { onError } from "@orpc/server";
 import { WebSocketServer } from "ws";
 import { createChildLogger } from "@/shared/logger/index";
-import { appRouter } from "./routers";
+import { appRouter } from "./router";
 
-const logger = createChildLogger("trpc.ws");
+const logger = createChildLogger("orpc.ws");
 
 /**
- * Attach the tRPC WebSocket handler to the shared HTTP server, on a path
+ * Attach the oRPC WebSocket handler to the shared HTTP server, on a path
  * SEPARATE from the voice/binary WebSocket (`/ws`). All structured data RPCs
  * (dashboard, messages, moderation, media, voice control, recordings,
  * analysis, chatbot, config, ui-state) flow over this `/trpc` socket; the
@@ -21,27 +22,20 @@ const logger = createChildLogger("trpc.ws");
  * other server's path. Routing the upgrade ourselves by URL keeps `/trpc`
  * and `/ws` fully isolated.
  */
-export function createTRPCWebSocketServer(server: Server): WebSocketServer {
-  const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-
-  applyWSSHandler({
-    wss,
-    prefix: "/trpc",
-    router: appRouter,
-    createContext: (opts) => ({ conn: opts.res }),
-    keepAlive: { enabled: true, pingMs: 30_000, pongWaitMs: 10_000 },
-    onError: (err) => {
-      logger.error({ err }, "tRPC WS error");
-    },
+export function createORPCWebSocketServer(server: Server): WebSocketServer {
+  const handler = new RPCHandler(appRouter, {
+    interceptors: [onError((error) => logger.error({ error }, "oRPC WS error"))],
   });
+
+  const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 
   server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     if (!req.url?.startsWith("/trpc")) return; // let the /ws server handle it
     wss.handleUpgrade(req, socket, head, (ws) => {
-      wss.emit("connection", ws, req);
+      handler.upgrade(ws, { context: {} });
     });
   });
 
-  logger.info({ path: "/trpc" }, "tRPC WebSocket server attached");
+  logger.info({ path: "/trpc" }, "oRPC WebSocket server attached");
   return wss;
 }

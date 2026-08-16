@@ -1,20 +1,12 @@
+import { os } from "@orpc/server";
 import { z } from "zod";
 import { analysisService } from "../modules/analysis/analysis.service";
 import { chatRequestSchema } from "../modules/chatbot/chatbot.schema";
 import { chatbotService } from "../modules/chatbot/chatbot.service";
 // ── Service imports ──────────────────────────────────────────────
 import { dashboardService } from "../modules/dashboard/dashboard.service";
-import {
-  mediaLoopSchema,
-  mediaQueueSchema,
-} from "../modules/media/media.schema";
-import {
-  getStatus,
-  queue,
-  setLoop,
-  skip,
-  stop,
-} from "../modules/media/media.service";
+import { mediaLoopSchema, mediaQueueSchema } from "../modules/media/media.schema";
+import { getStatus, queue, setLoop, skip, stop } from "../modules/media/media.service";
 import { messageQuerySchema } from "../modules/messages/messages.schema";
 import { messagesService } from "../modules/messages/messages.service";
 import { moderationService } from "../modules/moderation/moderation.service";
@@ -30,17 +22,14 @@ import {
 } from "../modules/voice/voice.service";
 import { config } from "../shared/config/index";
 import { publishCommandNoReply } from "../shared/redis/index";
-import { logger, publicProcedure, router } from "./trpc";
 
 // ── Dashboard ────────────────────────────────────────────────────
-const dashboardRouter = router({
-  stats: publicProcedure.query(() => dashboardService.getStats()),
-  activity: publicProcedure
-    .input(
-      z.object({ days: z.coerce.number().int().min(1).max(90).default(14) }),
-    )
-    .query(({ input }) => dashboardService.getActivity(input.days)),
-  users: publicProcedure
+const dashboardRouter = {
+  stats: os.handler(() => dashboardService.getStats()),
+  activity: os
+    .input(z.object({ days: z.coerce.number().int().min(1).max(90).default(14) }))
+    .handler(({ input }) => dashboardService.getActivity(input.days)),
+  users: os
     .input(
       z.object({
         limit: z.coerce.number().int().positive().default(20),
@@ -48,17 +37,17 @@ const dashboardRouter = router({
         search: z.string().optional(),
       }),
     )
-    .query(({ input }) =>
+    .handler(({ input }) =>
       dashboardService.listUsers({
         limit: input.limit,
         cursor: input.cursor,
         search: input.search,
       }),
     ),
-  userDetail: publicProcedure
+  userDetail: os
     .input(z.object({ userId: z.string() }))
-    .query(({ input }) => dashboardService.getUserDetail(input.userId)),
-  channels: publicProcedure
+    .handler(({ input }) => dashboardService.getUserDetail(input.userId)),
+  channels: os
     .input(
       z.object({
         limit: z.coerce.number().int().positive().default(20),
@@ -66,82 +55,82 @@ const dashboardRouter = router({
         guildId: z.string().optional(),
       }),
     )
-    .query(({ input }) =>
+    .handler(({ input }) =>
       dashboardService.listChannels({
         limit: input.limit,
         search: input.search,
         guildId: input.guildId,
       }),
     ),
-  channelDetail: publicProcedure
+  channelDetail: os
     .input(z.object({ channelId: z.string() }))
-    .query(({ input }) => dashboardService.getChannelDetail(input.channelId)),
-  reactions: publicProcedure
+    .handler(({ input }) => dashboardService.getChannelDetail(input.channelId)),
+  reactions: os
     .input(z.object({ limit: z.coerce.number().int().positive().default(20) }))
-    .query(({ input }) => dashboardService.getTopReactions(input.limit)),
-  reactors: publicProcedure
+    .handler(({ input }) => dashboardService.getTopReactions(input.limit)),
+  reactors: os
     .input(z.object({ limit: z.coerce.number().int().positive().default(20) }))
-    .query(({ input }) => dashboardService.getTopReactors(input.limit)),
-});
+    .handler(({ input }) => dashboardService.getTopReactors(input.limit)),
+};
 
 // ── Messages ─────────────────────────────────────────────────────
-const messagesRouter = router({
-  list: publicProcedure
+const messagesRouter = {
+  list: os
     .input(messageQuerySchema)
-    .query(({ input }) => messagesService.listMessages(input)),
-  byChannel: publicProcedure
+    .handler(({ input }) => messagesService.listMessages(input)),
+  byChannel: os
     .input(
       z.object({
         channelId: z.string(),
         query: messageQuerySchema,
       }),
     )
-    .query(({ input }) =>
+    .handler(({ input }) =>
       messagesService.getMessagesByChannel(input.channelId, input.query),
     ),
-  detail: publicProcedure
+  detail: os
     .input(z.object({ id: z.string() }))
-    .query(({ input }) => messagesService.getMessageById(input.id)),
-  images: publicProcedure
+    .handler(({ input }) => messagesService.getMessageById(input.id)),
+  images: os
     .input(
       z.object({
         guildId: z.string(),
         limit: z.coerce.number().int().positive().default(50),
       }),
     )
-    .query(({ input }) =>
+    .handler(({ input }) =>
       messagesService.getImageMessages(input.guildId, input.limit),
     ),
-  attachmentsByChannel: publicProcedure
+  attachmentsByChannel: os
     .input(
       z.object({
         channelId: z.string(),
         query: messageQuerySchema,
       }),
     )
-    .query(({ input }) =>
+    .handler(({ input }) =>
       messagesService.getAttachmentsByChannel(input.channelId, input.query),
     ),
-  review: publicProcedure
+  review: os
     .input(
       z.object({
         limit: z.coerce.number().int().positive().default(20),
         channelId: z.string().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .handler(async ({ input }) => {
       const rows = await messagesService.getReviewMessages(
         input.channelId,
         input.limit,
       );
       return { results: rows, limit: input.limit, cursor: null };
     }),
-});
+};
 
 // ── Moderation ───────────────────────────────────────────────────
-const moderationRouter = router({
-  stats: publicProcedure.query(() => moderationService.getStats()),
-  actions: publicProcedure
+const moderationRouter = {
+  stats: os.handler(() => moderationService.getStats()),
+  actions: os
     .input(
       z.object({
         limit: z.coerce.number().int().positive().default(50),
@@ -150,7 +139,7 @@ const moderationRouter = router({
         cursor: z.coerce.number().int().optional(),
       }),
     )
-    .query(({ input }) =>
+    .handler(({ input }) =>
       moderationService.listActions({
         limit: input.limit,
         status: input.status,
@@ -158,60 +147,64 @@ const moderationRouter = router({
         cursor: input.cursor,
       }),
     ),
-});
+};
 
 // ── Media ────────────────────────────────────────────────────────
-const mediaRouter = router({
-  status: publicProcedure.query(() => getStatus()),
-  queue: publicProcedure.input(mediaQueueSchema).mutation(async ({ input }) => {
-    await queue(input.source, input.mode);
-    return getStatus();
-  }),
-  skip: publicProcedure.mutation(async () => {
+const mediaRouter = {
+  status: os.handler(() => getStatus()),
+  queue: os
+    .input(mediaQueueSchema)
+    .handler(async ({ input }) => {
+      await queue(input.source, input.mode);
+      return getStatus();
+    }),
+  skip: os.handler(async () => {
     await skip();
     return getStatus();
   }),
-  stop: publicProcedure.mutation(async () => {
+  stop: os.handler(async () => {
     await stop();
     return getStatus();
   }),
-  loop: publicProcedure.input(mediaLoopSchema).mutation(async ({ input }) => {
-    await setLoop(input.loop);
-    return getStatus();
-  }),
-});
+  loop: os
+    .input(mediaLoopSchema)
+    .handler(async ({ input }) => {
+      await setLoop(input.loop);
+      return getStatus();
+    }),
+};
 
 // ── Voice ─────────────────────────────────────────────────────────
-const voiceRouter = router({
-  guilds: publicProcedure.query(() => getGuilds()),
-  textChannels: publicProcedure
+const voiceRouter = {
+  guilds: os.handler(() => getGuilds()),
+  textChannels: os
     .input(z.object({ guildId: z.string() }))
-    .query(({ input }) => getTextChannels(input.guildId)),
-  voiceChannels: publicProcedure
+    .handler(({ input }) => getTextChannels(input.guildId)),
+  voiceChannels: os
     .input(z.object({ guildId: z.string() }))
-    .query(({ input }) => getVoiceChannels(input.guildId)),
-  status: publicProcedure.query(() => getVoiceStatus()),
-  connect: publicProcedure
+    .handler(({ input }) => getVoiceChannels(input.guildId)),
+  status: os.handler(() => getVoiceStatus()),
+  connect: os
     .input(z.object({ guildId: z.string(), channelId: z.string() }))
-    .mutation(async ({ input }) => {
+    .handler(async ({ input }) => {
       await connectVoice(input.guildId, input.channelId);
       return getVoiceStatus();
     }),
-  disconnect: publicProcedure.mutation(async () => {
+  disconnect: os.handler(async () => {
     await disconnectVoice();
     return getVoiceStatus();
   }),
-  command: publicProcedure
+  command: os
     .input(z.object({ command: z.string().min(1) }))
-    .mutation(async ({ input }) => {
+    .handler(async ({ input }) => {
       await publishCommandNoReply(input.command);
       return { success: true, command: input.command };
     }),
-});
+};
 
 // ── Recordings ───────────────────────────────────────────────────
-const recordingsRouter = router({
-  list: publicProcedure
+const recordingsRouter = {
+  list: os
     .input(
       z.object({
         limit: z.coerce.number().int().positive().default(50),
@@ -220,24 +213,24 @@ const recordingsRouter = router({
         cursor: z.string().optional(),
       }),
     )
-    .query(({ input }) =>
+    .handler(({ input }) =>
       recordingsService.getRecent(input.limit, {
         channelId: input.channelId,
         userId: input.userId,
         cursor: input.cursor,
       }),
     ),
-  delete: publicProcedure
+  delete: os
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => {
+    .handler(async ({ input }) => {
       await recordingsService.deleteById(input.id);
       return { ok: true };
     }),
-});
+};
 
 // ── Analysis (search) ──────────────────────────────────────────────
-const analysisRouter = router({
-  search: publicProcedure
+const analysisRouter = {
+  search: os
     .input(
       z.object({
         q: z.string().default(""),
@@ -245,18 +238,18 @@ const analysisRouter = router({
         limit: z.coerce.number().int().positive().default(20),
       }),
     )
-    .query(({ input }) =>
+    .handler(({ input }) =>
       analysisService.search({
         q: input.q,
         channelId: input.channelId,
         limit: input.limit,
       }),
     ),
-});
+};
 
 // ── Chatbot ───────────────────────────────────────────────────────
-const chatbotRouter = router({
-  chat: publicProcedure
+const chatbotRouter = {
+  chat: os
     .input(
       chatRequestSchema.extend({
         // Per-device actor id; the old REST layer used an X-User-Id header.
@@ -264,7 +257,7 @@ const chatbotRouter = router({
         userId: z.string().optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .handler(async ({ input }) => {
       const userId = input.userId ?? "anonymous";
       const response = await chatbotService.processMessage(
         input.message,
@@ -280,30 +273,30 @@ const chatbotRouter = router({
       });
       return { response, timestamp: new Date().toISOString() };
     }),
-  history: publicProcedure
+  history: os
     .input(
       z.object({
         limit: z.coerce.number().int().positive().max(100).default(50),
         userId: z.string().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .handler(async ({ input }) => {
       const userId = input.userId ?? "anonymous";
       const history = await chatbotService.getChatHistory(userId, input.limit);
       return { history, total: history.length };
     }),
-  clearHistory: publicProcedure
+  clearHistory: os
     .input(z.object({ userId: z.string().optional() }))
-    .mutation(async ({ input }) => {
+    .handler(async ({ input }) => {
       const userId = input.userId ?? "anonymous";
       await chatbotService.clearChatHistory(userId);
       return { ok: true };
     }),
-});
+};
 
 // ── Config (public dashboard config snapshot) ──────────────────────
-const configRouter = router({
-  get: publicProcedure.query(() => ({
+const configRouter = {
+  get: os.handler(() => ({
     monitorGuildId: config.MONITOR_GUILD_ID || null,
     webserverPort: config.WEBSERVER_PORT,
     nodeEnv: config.NODE_ENV,
@@ -318,18 +311,18 @@ const configRouter = router({
     voiceChannelId: config.VOICE_CHANNEL_ID || null,
     logLevel: config.LOG_LEVEL,
   })),
-});
+};
 
 // ── UI State ──────────────────────────────────────────────────────
-const uiStateRouter = router({
-  get: publicProcedure.query(() => uiStateService.getState()),
-  update: publicProcedure
+const uiStateRouter = {
+  get: os.handler(() => uiStateService.getState()),
+  update: os
     .input(z.record(z.string(), z.unknown()))
-    .mutation(({ input }) => uiStateService.updateState(input)),
-});
+    .handler(({ input }) => uiStateService.updateState(input)),
+};
 
 // ── Root router ───────────────────────────────────────────────────
-export const appRouter = router({
+export const appRouter = {
   dashboard: dashboardRouter,
   messages: messagesRouter,
   moderation: moderationRouter,
@@ -340,8 +333,6 @@ export const appRouter = router({
   chatbot: chatbotRouter,
   config: configRouter,
   uiState: uiStateRouter,
-});
+};
 
 export type AppRouter = typeof appRouter;
-
-logger.info("tRPC appRouter constructed");

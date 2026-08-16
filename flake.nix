@@ -101,31 +101,8 @@
           buildPhase = pnpmInstall + ''
             echo "=== Compiling TypeScript ==="
             npx tsc 2>&1
-            echo "=== Fixing @/ path aliases to relative paths ==="
-            node -e "
-              const fs = require('fs');
-              const path = require('path');
-              let count = 0;
-              function walk(dir) {
-                if (!fs.existsSync(dir)) return;
-                for (const e of fs.readdirSync(dir, {withFileTypes: true})) {
-                  const p = path.join(dir, e.name);
-                  if (e.isDirectory()) walk(p);
-                  else if (e.name.endsWith('.js')) {
-                    const c = fs.readFileSync(p, 'utf8');
-                    const pat = /from\s+['\"]@\/([^'\"]+)['\"]/g;
-                    const n = c.replace(pat, (m, p1) => {
-                      const target = path.join('dist', p1) + '.js';
-                      const rel = path.relative(path.dirname(p), target);
-                      return 'from \"' + (rel.startsWith('.') ? rel : './' + rel) + '\"';
-                    });
-                    if (n !== c) { fs.writeFileSync(p, n); count++; }
-                  }
-                }
-              }
-              walk('dist');
-              console.log('Fixed ' + count + ' files');
-            "
+            echo "=== Fixing @/ path aliases + extensionless relative imports for node ESM ==="
+            node scripts/fix-imports.mjs
             echo "=== Build complete ==="
           '' + pruneProd;
 
@@ -202,31 +179,8 @@ WRAPPER
             pnpm rebuild @discordjs/opus 2>&1 || true
             echo "=== Compiling TypeScript ===="
             npx tsc 2>&1
-            echo "=== Fixing @/ path aliases to relative paths ==="
-            node -e "
-              const fs = require('fs');
-              const path = require('path');
-              let count = 0;
-              function walk(dir) {
-                if (!fs.existsSync(dir)) return;
-                for (const e of fs.readdirSync(dir, {withFileTypes: true})) {
-                  const p = path.join(dir, e.name);
-                  if (e.isDirectory()) walk(p);
-                  else if (e.name.endsWith('.js')) {
-                    const c = fs.readFileSync(p, 'utf8');
-                    const pat = /from\s+['\"]@\/([^'\"]+)['\"]/g;
-                    const n = c.replace(pat, (m, p1) => {
-                      const target = path.join('dist', p1) + '.js';
-                      const rel = path.relative(path.dirname(p), target);
-                      return 'from \"' + (rel.startsWith('.') ? rel : './' + rel) + '\"';
-                    });
-                    if (n !== c) { fs.writeFileSync(p, n); count++; }
-                  }
-                }
-              }
-              walk('dist');
-              console.log('Fixed ' + count + ' files');
-            "
+            echo "=== Fixing @/ path aliases + extensionless relative imports for node ESM ==="
+            node scripts/fix-imports.mjs
             echo "=== Build complete ==="
           '' + pruneProd;
 

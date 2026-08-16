@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../shared/config/index.js";
 import { initializeDatabase } from "../shared/database/index.js";
-import { createTRPCWebSocketServer } from "../trpc/ws.js";
+import { createORPCWebSocketServer } from "../orpc/ws.js";
 import { startRedisBridge } from "../ws/redis-bridge.js";
 import { createWebSocketServer } from "../ws/server.js";
 import { createHttpApp } from "./app.js";
@@ -19,7 +19,7 @@ export async function startHttpServer(): Promise<Server> {
 
   // Attach WebSocket servers to the same HTTP server
   createWebSocketServer(server); // /ws — voice PCM + gateway events
-  createTRPCWebSocketServer(server); // /trpc — structured data RPCs
+  createORPCWebSocketServer(server); // /trpc — structured data RPCs
 
   // Start Redis pub/sub bridge to forward discord-gateway events to WS clients
   await startRedisBridge();

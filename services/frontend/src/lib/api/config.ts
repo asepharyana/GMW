@@ -1,6 +1,6 @@
-import { trpc } from "@/lib/trpc/client";
+import { orpc } from "@/lib/orpc/client";
 import type { AppConfig } from "@/lib/types";
 
 export const configApi = {
-  get: () => trpc.config.get.query() as unknown as Promise<AppConfig>,
+  get: () => orpc.config.get() as unknown as Promise<AppConfig>,
 };

@@ -1,9 +1,9 @@
-import { trpc } from "@/lib/trpc/client";
+import { orpc } from "@/lib/orpc/client";
 import type { UiState } from "@/lib/types";
 
 export const uiStateApi = {
-  get: () => trpc.uiState.get.query() as unknown as Promise<UiState>,
+  get: () => orpc.uiState.get() as unknown as Promise<UiState>,
 
   save: (state: UiState) =>
-    trpc.uiState.update.mutate(state) as unknown as Promise<{ ok: boolean }>,
+    orpc.uiState.update(state) as unknown as Promise<{ ok: boolean }>,
 };
