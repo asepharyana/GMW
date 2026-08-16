@@ -183,7 +183,7 @@ export const configSchema = z
       .int()
       .positive()
       .default(1024),
-    AI_LLM_TEXT_BATCH_SIZE: z.coerce.number().int().positive().default(20),
+    AI_LLM_TEXT_BATCH_SIZE: z.coerce.number().int().positive().default(60),
     AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS: z.coerce
       .number()
       .int()
@@ -205,7 +205,7 @@ export const configSchema = z
       .number()
       .int()
       .positive()
-      .default(30000),
+      .default(45000),
     // Term glossary — per-word Wikipedia lookups (via SearXNG) for words the
     // LLM may not know (slang, jargon, regional language, foreign terms).
     // Definitions are cached (in-memory + Redis) so repeat lookups are fast.
@@ -236,7 +236,7 @@ export const configSchema = z
     // ── AI Analysis Batch ───────────────────────────────────────────────
     AI_ANALYSIS_MAX_BATCH_SIZE: z.coerce.number().int().positive().default(200),
     AI_ANALYSIS_MAX_CONTEXT_TOKENS: z.coerce.number().positive().default(8000),
-    AI_ANALYSIS_MAX_TARGET_TOKENS: z.coerce.number().positive().default(4000),
+    AI_ANALYSIS_MAX_TARGET_TOKENS: z.coerce.number().positive().default(14000),
     AI_ANALYSIS_CONTEXT_MESSAGE_LIMIT: z.coerce
       .number()
       .int()
