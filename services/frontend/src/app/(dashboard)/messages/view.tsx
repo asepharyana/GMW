@@ -131,7 +131,7 @@ export function MessagesView({
             setLoadedPages(0);
           }}
         />
-        <div className="relative ml-auto w-64">
+        <div className="relative ml-auto w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
           <Input
             className="pl-9"

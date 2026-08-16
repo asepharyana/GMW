@@ -155,7 +155,7 @@ export function DashboardView({
                 100;
               return (
                 <div key={c.channel_id} className="flex items-center gap-3">
-                  <span className="w-40 truncate text-sm text-ink-soft">
+                  <span className="w-28 shrink-0 truncate text-sm text-ink-soft sm:w-40">
                     {c.channel_name ?? c.channel_id.slice(0, 8)}
                   </span>
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/8">

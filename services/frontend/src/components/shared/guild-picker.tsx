@@ -41,7 +41,7 @@ export function GuildChannelPicker({
   }));
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
       <Select
         value={g}
         onChange={(v) => {
@@ -52,7 +52,7 @@ export function GuildChannelPicker({
         options={guildOpts}
         placeholder="Guild"
         size="sm"
-        className="w-44"
+        className="w-full sm:w-44"
       />
       <Select
         value={c}
@@ -63,7 +63,7 @@ export function GuildChannelPicker({
         options={channelOpts}
         placeholder={mode === "voice" ? "Voice channel" : "Text channel"}
         size="sm"
-        className="w-52"
+        className="w-full sm:w-52"
       />
     </div>
   );
