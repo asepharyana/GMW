@@ -20,7 +20,6 @@ import { analyzeSingleMediaImage } from "./mediaAnalysisClient.js";
 import {
   buildReferenceXml,
   escapeXml,
-  formatReputationAttrs,
   getAnalysisContent,
   resolveDisplayName,
   resolveIsBot,
@@ -37,7 +36,6 @@ import {
 import { buildTermGlossaryBlock } from "./termGlossary.js";
 import { getRecentCorrectedModerations } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
-import { initializeUserReputation } from "./userReputationStore.js";
 import type { MessageImagePart } from "./visionAnalyzer.js";
 
 const log = createChildLogger("textBatchProcessor");
@@ -201,24 +199,10 @@ export async function runTextOnlyBatch(
     const batch = subBatches[i];
     const targetIds = batch.map((t) => t.id);
 
-    // ── Per-user reputation context (fetched ONCE per unique user, in
-    //    parallel). Personal profile descriptions are intentionally NOT
-    //    injected — they bloat the prompt (less room per request) and add a
-    //    per-user DB/Redis round-trip for little moderation signal. Only the
-    //    behavioural <user_reputation> history is sent. ─────────────────────
-    const uniqueUserIds = [...new Set(batch.map((m) => m.user_id))];
-    const batchGuildId = batch[0]?.guild_id ?? "";
-    const userFetches = await Promise.all(
-      uniqueUserIds.map(async (uid) => {
-        const rep = await initializeUserReputation(uid, batchGuildId);
-        return { uid, rep };
-      }),
-    );
-    const userContexts = new Map<string, string>();
-    for (const { uid, rep } of userFetches) {
-      const repAttrs = formatReputationAttrs(rep);
-      userContexts.set(uid, `<user_reputation ${repAttrs}/>`);
-    }
+    // No per-user reputation/profile context is injected into the prompt —
+    // the user asked to keep the AI analysis context minimal (raw messages
+    // only). Trust/infraction state is still tracked in the DB for
+    // enforcement, just not shown to the LLM.
 
     // ── URL images → multimodal vision evidence ─────────────────────────
     // The text batch fetches inline URLs; whenever one resolved to an image
@@ -315,12 +299,11 @@ export async function runTextOnlyBatch(
             const mediaEvidenceCtx = (batchImageEvidence.get(msg.id) ?? [])
               .map((line) => `\n${line}`)
               .join("");
-            const userCtx = userContexts.get(msg.user_id) ?? "";
             const refXml = await buildReferenceXml(msg);
             const repetitionCount = groupMapping.get(msg.id)?.length ?? 1;
             const isBot = resolveIsBot(msg);
             const isEdited = resolveIsEdited(msg);
-            return `<message id="${escapeXml(msg.id)}" user="${escapeXml(resolveDisplayName(msg))}" time="${new Date(msg.created_at).toISOString()}"${repetitionCount > 1 ? ` repetitions="${repetitionCount}"` : ""}${isBot ? ` bot="true"` : ""}${isEdited ? ` edited="true"` : ""}>\n  ${userCtx}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${webContext}${mediaEvidenceCtx}\n</message>`;
+            return `<message id="${escapeXml(msg.id)}" user="${escapeXml(resolveDisplayName(msg))}" time="${new Date(msg.created_at).toISOString()}"${repetitionCount > 1 ? ` repetitions="${repetitionCount}"` : ""}${isBot ? ` bot="true"` : ""}${isEdited ? ` edited="true"` : ""}>\n  ${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(content)}</content>${webContext}${mediaEvidenceCtx}\n</message>`;
           }),
         )
       ).join("\n");

@@ -35,10 +35,10 @@ Instruksi per field:
 - "message_id": WAJIB sama persis dengan id di input. Setiap <message> di <messages_to_analyze> menghasilkan SATU hasil. Jangan gabungkan beberapa pesan, jangan lewati, jangan karang id.
 - "evidence": kutipan PERSIS frasa yang melanggar (maks 1 baris). Pelanggaran di gambar/sticker → kutip deskripsi Media analysis. Pelanggaran lewat balasan/referensi → sebut konteks pesan yang dibalas. Boleh tambah label sumber, mis. [media analysis] / [web_search] / [reply]. Kosong jika clean.
 
-## PERSONALITY & MEMORI — Reputasi Pengguna dan Kultur Channel
-Data konteks tersedia: <user_reputation> (skor trust + histori infraction + repeat_offender), dan <channel_culture> (topik/vibe channel).
+## KONTEKS — Kultur Channel
+Data konteks tersedia: <channel_culture> (topik/vibe channel). Tidak ada data profil/reputasi per-user — nilai tiap pesan murni dari isinya.
 Gunakan untuk personalisasi analysis, tapi:
-- Profil/history adalah KONTEKS, bukan bukti. Profil mencurigakan ≠ flag; profil bersih ≠ loloskan pelanggaran. <user_history> (kutipan pesan pernah di-flag) = cari POLA berulang (spam link SAMA, provokasi berulang konten SAMA); JANGAN gunakan untuk "menginterpretasi ulang" pesan bersih yang terpisah. Pesan baru tanpa pola pengulangan jelas → CLEAN.
+- Konteks adalah KONTEKS, bukan bukti. Riwayat di <conversation_context> membantu pahami alur, tapi pesan bersih tanpa pelanggaran → CLEAN. JANGAN gunakan konteks untuk "menginterpretasi ulang" pesan bersih yang terpisah.
 - Perubahan perilaku mencolok (mis. teknis tiba-tiba provokatif) layak dicatat. JANGAN paksa referensi profil jika tidak relevan — analysis natural lebih baik.
 - Channel culture coding/teknis → pesan teknis lebih wajar; channel santai → slang lebih wajar. Jangan dipakai mengabaikan pelanggaran nyata.
 
@@ -70,8 +70,7 @@ CRITICAL:
 - Jika pesan adalah BALASAN (reply) ke pesan lain, jelaskan konteks balasannya: apa yang sedang dibicarakan, siapa yang dibalas (tanpa nama, cukup peran/isi pesan yang dibalas), dan bagaimana tanggapan pengirim terhadapnya.
 - Gunakan informasi dari Media analysis untuk mendeskripsikan gambar.
 - Analisis harus MEMBERI KONTEKS, bukan hanya menyatakan status.
-- Gunakan <user_reputation> (repeat_offender, last_offense_days_ago) untuk memberi konteks histori — analisis terasa seperti sistem "mengenal" histori pengguna tanpa deskripsi profil pribadi.
-- Jika perilaku pesan menyimpang dari pola histori yang diketahui, CATAT dalam analysis sebagai informasi kontekstual yang relevan.
+- Nilai tiap pesan murni dari isinya sendiri + <conversation_context> + <web_searches> + <location_context>. Tidak ada reputasi/profil per-user di context.
 - JANGAN paksa referensi profil jika tidak relevan — analysis natural lebih baik dari yang dipaksakan.`;
 
 // ---------------------------------------------------------------------------

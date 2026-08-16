@@ -63,10 +63,9 @@ export async function runMediaBatch(
     channelCulture,
   });
 
-  // Per-message blocks (from prepareMediaMessage) carry their own
-  // <user_reputation> history; personal profile descriptions are omitted
-  // (they bloat the prompt and add a per-user DB round-trip for little
-  // moderation signal — see textBatchProcessor).
+  // Per-message blocks (from prepareMediaMessage) contain the message
+  // content + reference/reply context only — no per-user reputation or
+  // profile context is injected (kept minimal per user request).
   const messagesBlock = prepared.map((p) => p.messageBlock).join("\n");
   // Data/instruction separation: the system prompt is stable per mode — all
   // per-batch context (conversation) lives in the USER payload, ordered

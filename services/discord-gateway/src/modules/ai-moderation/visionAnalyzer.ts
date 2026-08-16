@@ -64,7 +64,6 @@ import {
 import {
   buildReferenceXml,
   escapeXml,
-  formatReputationAttrs,
   getAnalysisContent,
   resolveDisplayName,
   resolveIsBot,
@@ -84,7 +83,6 @@ import {
 } from "./searxngSearch.js";
 import { buildTermGlossaryBlock } from "./termGlossary.js";
 import { extractUrlsFromText } from "./urlFetcher.js";
-import { initializeUserReputation } from "./userReputationStore.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -398,15 +396,13 @@ export async function prepareMediaMessage(
     .filter(Boolean)
     .join(" ");
 
-  const rep = await initializeUserReputation(target.user_id, target.guild_id);
   const refXml = await buildReferenceXml(target);
 
-  // Only the behavioural <user_reputation> history is injected; personal profile descriptions are omitted (see textBatchProcessor).
-  const repAttrs = formatReputationAttrs(rep);
-  const repXml = `<user_reputation ${repAttrs}/>`;
-
+  // No per-user reputation/profile context is injected into the prompt —
+  // keep the AI analysis context minimal (raw messages only). Trust state is
+  // still tracked in the DB for enforcement, just not shown to the LLM.
   const isBot = resolveIsBot(target);
   const isEdited = resolveIsEdited(target);
-  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(resolveDisplayName(target))}" time="${new Date(target.created_at).toISOString()}"${isBot ? ` bot="true"` : ""}${isEdited ? ` edited="true"` : ""}>\n  ${repXml}${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(truncateForAi(content))}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${searxngXml}${glossaryCtx}\n</message>`;
+  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(resolveDisplayName(target))}" time="${new Date(target.created_at).toISOString()}"${isBot ? ` bot="true"` : ""}${isEdited ? ` edited="true"` : ""}>\n  ${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(truncateForAi(content))}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${searxngXml}${glossaryCtx}\n</message>`;
   return { targetId, messageBlock };
 }

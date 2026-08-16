@@ -107,7 +107,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
       `System prompt ini TIDAK berisi data batch — semua data per-batch ada di pesan USER:\n` +
       `- <location_context .../>: metadata channel/thread (channel_name, thread_name, topic, nsfw, age_restricted). topic = tujuan resmi channel; gunakan menilai kesesuaian pesan.\n` +
       `- <conversation_context>: obrolan SEBELUM target. Baris pertama "[conversation_flow] status=... context_msgs=... dropped=..." = metadata sistem (ongoing/sparse/cold_start), BUKAN pesan dinilai. Baris "[context] id=... time=... user=...: isi" = konteks, BUKAN target.\n` +
-      `- <user_reputation trust_score total_infractions clean_streak last_offense_days_ago repeat_offender>: histori moderasi (repeat_offender=true = pelanggaran ≤7 hari). <user_history>: kutipan pesan pernah di-flag — cari POLA berulang (spam link sama), BUKAN bukti pesan bersih.\n` +
+      `- Tidak ada data profil/reputasi per-user di context — nilai tiap pesan murni dari isinya + <conversation_context> + <web_searches> + <location_context>.\n` +
       `- <web_searches>/<web_content>: bukti web (prioritas tertinggi). <term_glossary>: definisi kata/slang/jargon (SearXNG) — pakai pahami kata asing, JANGAN tebak arti.\n` +
       `- <messages_to_analyze>: pesan TARGET yang WAJIB dinilai. Atribut <message>: id, user, time (ISO), repetitions (N = teks sama muncul N× di batch → sinyal spam), bot (true = bot), edited (true = hasil edit setelah posting → evasi potensial).`,
   );
