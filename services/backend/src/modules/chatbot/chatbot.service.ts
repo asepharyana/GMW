@@ -158,7 +158,13 @@ Gaya ngobrol:
             tool_choice: "auto",
             max_tokens: 600,
             temperature: 0.4,
-            stream: true,
+            // Non-streaming: request a single complete response. 9router may
+            // still emit SSE even with stream:false, so the parser below
+            // handle both raw-JSON and SSE bodies.
+            stream: false,
+            // Disable extended thinking / reasoning tokens so the bot answers
+            // directly (ignored by non-reasoning models).
+            reasoning_effort: "none",
           },
           {
             headers: {
@@ -166,14 +172,14 @@ Gaya ngobrol:
               "Content-Type": "application/json",
             },
             timeout: 45_000,
-            // 9router returns SSE even without stream:true; force stream:true
-            // in the body and read the raw SSE text.
             responseType: "text",
           },
         );
 
-        // Parse SSE `data:` lines → content + tool_calls.
-        const { content, toolCalls } = this.parseSse(response.data as string);
+        // Parse the body into content + tool_calls. 9router may return either
+        // a single JSON object (stream:false honored) or SSE text (stream
+        // implied) — parseResponse handles both.
+        const { content, toolCalls } = this.parseResponse(response.data as string);
 
         logger.debug(
           {
@@ -240,6 +246,60 @@ Gaya ngobrol:
       logger.warn({ error }, "LLM call failed, using fallback response");
       return this.fallbackResponse(userMessage);
     }
+  }
+
+  /**
+   * Parse an LLM HTTP body into content + tool_calls. Handles both shapes
+   * 9router can return: a single JSON object (stream:false honored) or SSE
+   * text (stream implied). For SSE we delegate to parseSse.
+   */
+  private parseResponse(body: string): {
+    content: string;
+    toolCalls: Array<{
+      id: string;
+      name: string;
+      arguments: string;
+      args: Record<string, unknown>;
+    }>;
+  } {
+    const trimmed = body.trim();
+    // Non-streaming response: a single JSON object.
+    if (trimmed.startsWith("{")) {
+      try {
+        const json = JSON.parse(trimmed) as {
+          choices?: Array<{
+            message?: {
+              content?: string | null;
+              tool_calls?: Array<{
+                id?: string;
+                type?: string;
+                function?: { name?: string; arguments?: string };
+              }>;
+            };
+            delta?: unknown;
+          }>;
+        };
+        const msg = json.choices?.[0]?.message;
+        // If the router returned SSE-style shape under `choices[].delta`
+        // (rare), fall through to the SSE parser.
+        if (msg) {
+          const content = msg.content ?? "";
+          const toolCalls = (msg.tool_calls ?? []).map((tc, i) => {
+            const id = tc.id || `tool_${i}_${Date.now()}`;
+            return {
+              id,
+              name: tc.function?.name ?? "",
+              arguments: tc.function?.arguments ?? "",
+              args: this.safeJsonParse(tc.function?.arguments ?? ""),
+            };
+          });
+          return { content: content.trim(), toolCalls };
+        }
+      } catch {
+        // Not valid JSON after all — treat as SSE below.
+      }
+    }
+    return this.parseSse(body);
   }
 
   /**
