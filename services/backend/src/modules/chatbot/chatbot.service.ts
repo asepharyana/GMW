@@ -179,7 +179,9 @@ Gaya ngobrol:
         // Parse the body into content + tool_calls. 9router may return either
         // a single JSON object (stream:false honored) or SSE text (stream
         // implied) — parseResponse handles both.
-        const { content, toolCalls } = this.parseResponse(response.data as string);
+        const { content, toolCalls } = this.parseResponse(
+          response.data as string,
+        );
 
         logger.debug(
           {
