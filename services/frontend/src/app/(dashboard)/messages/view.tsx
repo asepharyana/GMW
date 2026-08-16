@@ -10,7 +10,7 @@ import {
   Search,
   ShieldAlert,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import {
   Avatar,
@@ -78,6 +78,10 @@ export function MessagesView({
   const [channelId, setChannelId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // Guard against loading the entire history on a long scroll: cap how many
+  // older pages we append. Each page is 50 messages (backend limit default).
+  const MAX_OLDER_PAGES = 10;
+  const [loadedPages, setLoadedPages] = useState(0);
 
   const {
     data: messages,
@@ -93,6 +97,17 @@ export function MessagesView({
   const search = useMessageSearch(query, query.trim().length >= 2);
   const detail = useMessageDetail(selected);
   const ambient = useAmbient();
+
+  // Fetch the next (older) page via cursor and bump the loaded-page counter.
+  const loadOlder = useCallback(async () => {
+    if (!guildId || !hasMore || loadedPages >= MAX_OLDER_PAGES) return;
+    await loadMore.mutateAsync({
+      guildId,
+      channelId: channelId ?? undefined,
+      cursor: nextCursor ?? "",
+    });
+    setLoadedPages((n) => n + 1);
+  }, [guildId, channelId, hasMore, loadedPages, nextCursor, loadMore]);
 
   useEffect(() => {
     ambient.set(query ? "amber" : "signal", 0.3, query ? "search" : "messages");
@@ -113,6 +128,7 @@ export function MessagesView({
             setGuildId(g);
             setChannelId(c);
             setSelected(null);
+            setLoadedPages(0);
           }}
         />
         <div className="relative ml-auto w-64">
@@ -151,21 +167,23 @@ export function MessagesView({
             <div>
               {!searching && (
                 <div className="mb-2 flex items-center justify-center gap-2">
-                  {hasMore ? (
+                  {loadMore.isPending ? (
+                    <span className="flex items-center gap-1.5 text-xs text-ink-soft">
+                      <Loader2 className="size-3.5 animate-spin" />
+                      Loading older…
+                    </span>
+                  ) : hasMore && loadedPages < MAX_OLDER_PAGES ? (
                     <button
                       type="button"
-                      onClick={() =>
-                        loadMore.mutate({
-                          guildId: guildId ?? "",
-                          channelId: channelId ?? undefined,
-                          cursor: nextCursor ?? "",
-                        })
-                      }
-                      disabled={loadMore.isPending}
-                      className="rounded-full border border-hairline bg-white/[0.03] px-3 py-1 text-xs text-ink-soft transition-colors hover:bg-white/[0.06] disabled:opacity-60"
+                      onClick={loadOlder}
+                      className="rounded-full border border-hairline bg-white/[0.03] px-3 py-1 text-xs text-ink-soft transition-colors hover:bg-white/[0.06]"
                     >
-                      {loadMore.isPending ? "Loading older…" : "↑ Load older messages"}
+                      ↑ Load older messages
                     </button>
+                  ) : loadedPages >= MAX_OLDER_PAGES ? (
+                    <span className="mono text-[0.65rem] text-ink-faint">
+                      capped at {MAX_OLDER_PAGES} older pages · use search for more
+                    </span>
                   ) : (
                     messages &&
                     messages.length > 0 && (
@@ -181,12 +199,9 @@ export function MessagesView({
                 onScroll={(e) => {
                   // Auto-load older messages when the user scrolls to the top.
                   if (searching || !hasMore || loadMore.isPending) return;
+                  if (loadedPages >= MAX_OLDER_PAGES) return;
                   if (e.currentTarget.scrollTop <= 8) {
-                    loadMore.mutate({
-                      guildId: guildId ?? "",
-                      channelId: channelId ?? undefined,
-                      cursor: nextCursor ?? "",
-                    });
+                    loadOlder();
                   }
                 }}
               >
