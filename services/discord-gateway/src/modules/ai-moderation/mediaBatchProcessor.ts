@@ -16,10 +16,8 @@ import { getChannelCulture } from "./channelCultureStore.js";
 import type { RetryState } from "./llmCaller.js";
 import { callModerationLLM } from "./llmCaller.js";
 import { prepareMediaMessage } from "./mediaAnalysisClient.js";
-import { buildUserProfilesBlock } from "./moderationBuilders.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
 import { buildCorrectedFewShotExamples } from "./textBatchProcessor.js";
-import { getUserProfile } from "./userProfileStore.js";
 
 const log = createChildLogger("mediaBatchProcessor");
 
@@ -65,32 +63,15 @@ export async function runMediaBatch(
     channelCulture,
   });
 
-  // Gather user profiles ONCE for the whole batch and emit a deduplicated
-  // <user_profiles> map (with last-generated timestamp); per-message blocks
-  // (from prepareMediaMessage) reference it via <user_profile_ref>.
-  const profileByUser = new Map<
-    string,
-    {
-      text: string;
-      asOf?: number | null;
-    }
-  >();
-  for (const t of targets) {
-    if (profileByUser.has(t.user_id)) continue;
-    const profile = await getUserProfile(t.user_id);
-    profileByUser.set(t.user_id, {
-      text: profile?.profile_summary ?? "",
-      asOf: profile?.last_analyzed_at ?? null,
-    });
-  }
-  const userProfilesBlock = buildUserProfilesBlock(profileByUser);
-
+  // Per-message blocks (from prepareMediaMessage) carry their own
+  // <user_reputation> history; personal profile descriptions are omitted
+  // (they bloat the prompt and add a per-user DB round-trip for little
+  // moderation signal — see textBatchProcessor).
   const messagesBlock = prepared.map((p) => p.messageBlock).join("\n");
   // Data/instruction separation: the system prompt is stable per mode — all
-  // per-batch context (profiles, conversation) lives in the USER payload,
-  // ordered oldest-first so targets come last.
+  // per-batch context (conversation) lives in the USER payload, ordered
+  // oldest-first so targets come last.
   const userBlocks = [
-    userProfilesBlock?.trimEnd() ?? "",
     contextBlock?.trimEnd() ?? "",
     `<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`,
   ].filter((b) => b.trim().length > 0);

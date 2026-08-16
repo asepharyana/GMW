@@ -136,9 +136,11 @@ export function startPendingAIAnalysisWorker(
   import("./cultureLearner.js")
     .then((m) => m.startCultureLearnerWorker())
     .catch(console.error);
-  import("./userProfileLearner.js")
-    .then((m) => m.startUserProfileLearnerWorker())
-    .catch(console.error);
+  if (config.AI_USER_PROFILE_LEARNING_ENABLED) {
+    import("./userProfileLearner.js")
+      .then((m) => m.startUserProfileLearnerWorker())
+      .catch(console.error);
+  }
 
   setInterval(() => {
     // [D] Periodic cache hygiene: purge expired moderation verdicts from

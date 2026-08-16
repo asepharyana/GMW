@@ -217,6 +217,14 @@ export const configSchema = z
       .default(true),
     // Max glossary terms looked up per analysis batch (keeps latency bounded).
     AI_GLOSSARY_MAX_TERMS: z.coerce.number().int().min(1).max(20).default(6),
+    // Per-user personal profile summaries (userProfileLearner). Disabled by
+    // default: profiles bloat the analysis context and add LLM/DB cost for
+    // little moderation signal — only <user_reputation> history is injected.
+    AI_USER_PROFILE_LEARNING_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === "true")
+      .default(false),
     // Min word length for a term to be considered glossary-worthy.
     AI_GLOSSARY_MIN_WORD_LENGTH: z.coerce
       .number()

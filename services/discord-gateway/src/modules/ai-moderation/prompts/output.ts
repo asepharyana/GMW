@@ -35,8 +35,8 @@ Instruksi per field:
 - "message_id": WAJIB sama persis dengan id di input. Setiap <message> di <messages_to_analyze> menghasilkan SATU hasil. Jangan gabungkan beberapa pesan, jangan lewati, jangan karang id.
 - "evidence": kutipan PERSIS frasa yang melanggar (maks 1 baris). Pelanggaran di gambar/sticker → kutip deskripsi Media analysis. Pelanggaran lewat balasan/referensi → sebut konteks pesan yang dibalas. Boleh tambah label sumber, mis. [media analysis] / [web_search] / [reply]. Kosong jika clean.
 
-## PERSONALITY & MEMORI — Profil Pengguna dan Kultur Channel
-Data konteks tersedia: <user_profiles> (peta ringkasan kepribadian, di pesan USER), <user_reputation> (skor trust), dan <channel_culture> (topik/vibe channel). Setiap <message> dapat memuat <user_profile_ref user_id=".../> yang menunjuk ke entri di peta <user_profiles>.
+## PERSONALITY & MEMORI — Reputasi Pengguna dan Kultur Channel
+Data konteks tersedia: <user_reputation> (skor trust + histori infraction + repeat_offender), dan <channel_culture> (topik/vibe channel).
 Gunakan untuk personalisasi analysis, tapi:
 - Profil/history adalah KONTEKS, bukan bukti. Profil mencurigakan ≠ flag; profil bersih ≠ loloskan pelanggaran. <user_history> (kutipan pesan pernah di-flag) = cari POLA berulang (spam link SAMA, provokasi berulang konten SAMA); JANGAN gunakan untuk "menginterpretasi ulang" pesan bersih yang terpisah. Pesan baru tanpa pola pengulangan jelas → CLEAN.
 - Perubahan perilaku mencolok (mis. teknis tiba-tiba provokatif) layak dicatat. JANGAN paksa referensi profil jika tidak relevan — analysis natural lebih baik.
@@ -70,8 +70,8 @@ CRITICAL:
 - Jika pesan adalah BALASAN (reply) ke pesan lain, jelaskan konteks balasannya: apa yang sedang dibicarakan, siapa yang dibalas (tanpa nama, cukup peran/isi pesan yang dibalas), dan bagaimana tanggapan pengirim terhadapnya.
 - Gunakan informasi dari Media analysis untuk mendeskripsikan gambar.
 - Analisis harus MEMBERI KONTEKS, bukan hanya menyatakan status.
-- GUNAKAN <user_profile_ref>/<user_profiles> untuk personalisasi analysis — jadikan analysis terasa seperti sistem "mengenal" pengguna.
-- Jika perilaku pesan menyimpang dari profil yang diketahui, CATAT dalam analysis sebagai informasi kontekstual yang relevan.
+- Gunakan <user_reputation> (repeat_offender, last_offense_days_ago) untuk memberi konteks histori — analisis terasa seperti sistem "mengenal" histori pengguna tanpa deskripsi profil pribadi.
+- Jika perilaku pesan menyimpang dari pola histori yang diketahui, CATAT dalam analysis sebagai informasi kontekstual yang relevan.
 - JANGAN paksa referensi profil jika tidak relevan — analysis natural lebih baik dari yang dipaksakan.`;
 
 // ---------------------------------------------------------------------------
