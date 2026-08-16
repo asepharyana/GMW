@@ -1,6 +1,5 @@
 "use client";
 
-import { LayoutDashboard } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { isActivePath, navItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -42,12 +41,6 @@ export function NavRail() {
 
   return (
     <nav className="glass m-3 mr-0 flex w-[68px] flex-col items-center gap-1 rounded-[18px] py-4">
-      <NavItem
-        href="/dashboard"
-        label="Dashboard"
-        active={isActivePath(path, "/dashboard")}
-        Icon={LayoutDashboard}
-      />
       <div className="flex flex-1 flex-col gap-1">
         {navItems.map((item) => (
           <NavItem
