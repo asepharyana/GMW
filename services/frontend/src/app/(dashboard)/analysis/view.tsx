@@ -47,7 +47,9 @@ export function AnalysisView() {
           <Sparkles className="size-5 text-signal" />
           <div>
             <div className="eyebrow">Semantic search</div>
-            <h2 className="display text-2xl text-ink">Search the archive</h2>
+            <h2 className="display text-balance text-2xl text-ink">
+              Search the archive
+            </h2>
           </div>
         </div>
         <div className="relative mt-4">

@@ -85,7 +85,7 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
 
           <div className="min-w-0 flex-1">
             <div className="eyebrow mb-1">Now playing</div>
-            <h2 className="display truncate text-2xl text-ink">
+            <h2 className="display text-balance text-2xl text-ink">
               {current?.title ?? "Nothing queued"}
             </h2>
             {current?.source && (

@@ -12,12 +12,19 @@ export function SectionHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("mb-3 flex flex-wrap items-start justify-between gap-2 sm:gap-3", className)}>
+    <div
+      className={cn(
+        "mb-3 flex flex-wrap items-start justify-between gap-2 sm:gap-3",
+        className,
+      )}
+    >
       <div className="min-w-0">
         {eyebrow && <div className="eyebrow mb-1">{eyebrow}</div>}
-        <h2 className="display text-xl text-ink">{title}</h2>
+        <h2 className="display text-balance text-xl text-ink">{title}</h2>
       </div>
-      {action && <div className="flex flex-wrap items-center gap-2">{action}</div>}
+      {action && (
+        <div className="flex flex-wrap items-center gap-2">{action}</div>
+      )}
     </div>
   );
 }

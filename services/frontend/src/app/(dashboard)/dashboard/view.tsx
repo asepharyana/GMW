@@ -74,10 +74,10 @@ export function DashboardView({
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="eyebrow mb-2">GMW · Operations Grid</div>
-            <h2 className="display text-[2.6rem] leading-none text-ink glow-signal">
+            <h2 className="display hero-clamp leading-none text-ink glow-signal">
               Ambient Field
             </h2>
-            <p className="mt-2 max-w-md text-sm text-ink-soft">
+            <p className="mt-2 max-w-md text-pretty text-sm text-ink-soft">
               Real-time moderation, voice & media presence across the monitored
               guild. {formatNumber(s.total_messages)} messages captured.
             </p>

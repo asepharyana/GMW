@@ -171,6 +171,9 @@
   .text-ink-soft { color: var(--color-ink-soft); }
   .text-ink-faint { color: var(--color-ink-faint); }
 
+  /* Fluid hero title — never overflows on small screens. */
+  .hero-clamp { font-size: clamp(1.9rem, 1.2rem + 4vw, 2.6rem); }
+
   .glow-signal {
     text-shadow: 0 0 22px var(--color-signal-glow);
   }

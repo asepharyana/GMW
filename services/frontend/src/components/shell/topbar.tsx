@@ -35,7 +35,9 @@ export function TopBar() {
     <header className="sticky top-0 z-40 flex items-center gap-3 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:gap-4 sm:px-5 sm:py-3.5">
       <div className="flex min-w-0 items-baseline gap-2 sm:gap-3">
         <span className="eyebrow hidden sm:inline">GMW</span>
-        <h1 className="display truncate text-[1.25rem] text-ink sm:text-[1.5rem]">{label}</h1>
+        <h1 className="display truncate text-[1.25rem] text-ink sm:text-[1.5rem]">
+          {label}
+        </h1>
       </div>
 
       <div className="ml-auto flex items-center gap-2 sm:gap-3">

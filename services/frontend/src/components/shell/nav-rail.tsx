@@ -31,6 +31,10 @@ function NavItem({
         <span className="absolute -left-3 h-6 w-1 rounded-full bg-signal shadow-[0_0_12px_var(--color-signal-glow)]" />
       )}
       <Icon className="size-[18px]" strokeWidth={active ? 2.4 : 2} />
+      {/* hover tooltip — labels are hidden in the rail, so surface on hover */}
+      <span className="pointer-events-none absolute left-full z-50 ml-3 hidden whitespace-nowrap rounded-[9px] border border-hairline bg-canvas-2 px-2.5 py-1.5 text-xs font-medium text-ink-soft opacity-0 shadow-lg transition-opacity group-hover:opacity-100 md:block">
+        {label}
+      </span>
     </a>
   );
 }
@@ -40,7 +44,7 @@ export function NavRail() {
   const path = pathname ?? "/";
 
   return (
-    <nav className="glass mb-[calc(0.75rem+env(safe-area-inset-bottom))] ml-[calc(0.75rem+env(safe-area-inset-left))] mt-[calc(0.75rem+env(safe-area-inset-top))] flex w-[68px] flex-col items-center gap-1 rounded-[18px] py-4">
+    <nav className="glass mb-[calc(0.75rem+env(safe-area-inset-bottom))] ml-[calc(0.75rem+env(safe-area-inset-left))] mt-[calc(0.75rem+env(safe-area-inset-top))] hidden w-[68px] flex-col items-center gap-1 rounded-[18px] py-4 md:flex">
       <div className="flex flex-1 flex-col gap-1">
         {navItems.map((item) => (
           <NavItem
