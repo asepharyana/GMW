@@ -119,6 +119,7 @@ export async function callModerationLLM(
               {
                 error: state.lastParseError,
                 contentLength: rawContent.length,
+                contentPreview: rawContent.slice(0, 200),
                 targetIds,
                 model: config.AI_LLM_MODEL,
               },

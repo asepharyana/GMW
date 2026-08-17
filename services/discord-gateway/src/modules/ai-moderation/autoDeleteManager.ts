@@ -74,6 +74,23 @@ export async function resetOffensiveNickname(
       return false;
     }
     const member = await guild.members.fetch(userId);
+    // Discord rejects setNickname with "Missing Permissions" (code 50013)
+    // whenever the target's top role sits above the bot in the role
+    // hierarchy — even when the bot has MANAGE_NICKNAMES. Guard on
+    // `manageable` (hierarchy-aware) so we skip with a clear reason
+    // instead of hammering a doomed PATCH on every message.
+    if (!member.manageable) {
+      logger.debug(
+        {
+          messageId,
+          guildId,
+          userId,
+          reason: "target role above bot in hierarchy (Discord 50013)",
+        },
+        "Nick reset skipped: member not manageable by bot",
+      );
+      return false;
+    }
     // setNickname(null) = remove nickname → Discord shows global username
     await member.setNickname(null, "[auto] nickname melanggar aturan server");
     recentNicknameResets.set(cooldownKey, Date.now());
@@ -83,12 +100,17 @@ export async function resetOffensiveNickname(
     );
     return true;
   } catch (error) {
+    const errCode =
+      error instanceof Error && "code" in error
+        ? (error as { code?: number | string }).code
+        : undefined;
     logger.warn(
       {
         messageId,
         guildId,
         userId,
         error: error instanceof Error ? error.message : String(error),
+        code: errCode,
       },
       "Nick reset failed",
     );
