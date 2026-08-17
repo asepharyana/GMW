@@ -76,13 +76,13 @@ import {
   buildStickerTextOnlyWarning,
   buildStickerVisionPrompt,
 } from "./moderationPrompt.js";
+import { buildTermGlossaryBlock } from "./termGlossary.js";
+import { extractUrlsFromText } from "./urlFetcher.js";
 import {
   extractSearchQueries,
   formatSearchResults,
-  searchSearxng,
-} from "./searxngSearch.js";
-import { buildTermGlossaryBlock } from "./termGlossary.js";
-import { extractUrlsFromText } from "./urlFetcher.js";
+  wikipediaSearch,
+} from "./wikipediaClient.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -354,12 +354,12 @@ export async function prepareMediaMessage(
     ),
   );
 
-  // SearXNG
-  let searxngXml = "";
+  // Wikipedia web search (context enrichment)
+  let webSearchXml = "";
   const queries = extractSearchQueries(content);
   if (queries.length > 0) {
     const results = await Promise.allSettled(
-      queries.map((q) => searchSearxng(q)),
+      queries.map((q) => wikipediaSearch(q)),
     );
     const parts: string[] = [];
     for (let i = 0; i < results.length; i++) {
@@ -368,7 +368,7 @@ export async function prepareMediaMessage(
         parts.push(formatSearchResults(r.value));
     }
     if (parts.length > 0)
-      searxngXml = `\n<web_searches>\n${parts.join("\n")}\n</web_searches>`;
+      webSearchXml = `\n<web_searches>\n${parts.join("\n")}\n</web_searches>`;
   }
 
   // Term glossary — cached per-word Wikipedia definitions for words the LLM
@@ -403,6 +403,6 @@ export async function prepareMediaMessage(
   // still tracked in the DB for enforcement, just not shown to the LLM.
   const isBot = resolveIsBot(target);
   const isEdited = resolveIsEdited(target);
-  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(resolveDisplayName(target))}" time="${new Date(target.created_at).toISOString()}"${isBot ? ` bot="true"` : ""}${isEdited ? ` edited="true"` : ""}>\n  ${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(truncateForAi(content))}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${searxngXml}${glossaryCtx}\n</message>`;
+  const messageBlock = `<message id="${escapeXml(target.id)}" user="${escapeXml(resolveDisplayName(target))}" time="${new Date(target.created_at).toISOString()}"${isBot ? ` bot="true"` : ""}${isEdited ? ` edited="true"` : ""}>\n  ${refXml ? `\n  ${refXml}` : ""}\n  <content>${escapeXml(truncateForAi(content))}</content>${mediaContext ? ` ${escapeXml(mediaContext)}` : ""}${webContext}${mediaAnalysisContext}${webSearchXml}${glossaryCtx}\n</message>`;
   return { targetId, messageBlock };
 }

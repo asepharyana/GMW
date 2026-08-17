@@ -104,10 +104,12 @@ export const configSchema = z
 
     // ── Redis ────────────────────────────────────────────────────────────
     REDIS_URL: z.string().default("redis://localhost:6379"),
-    // ── SearXNG ───────────────────────────────────────────────────────────
-    // Instance for web search + term glossary lookups. Override when the
-    // default instance is down/rate-limited.
-    SEARXNG_BASE_URL: z.string().url().default("https://searxng.imrnes.team"),
+    // ── Wikipedia (web-search / glossary source) ─────────────────────────
+    // Native fetch to Wikipedia REST + Action APIs — no SearXNG dependency.
+    // Language for summaries/search (e.g. "id", "en").
+    WIKIPEDIA_LANG: z.string().min(1).default("id"),
+    // Per-request timeout (ms) for Wikipedia API calls.
+    WIKIPEDIA_TIMEOUT_MS: z.coerce.number().positive().default(8000),
     // ── Voice PCM WebSocket (direct gateway→backend, bypasses Redis) ────
     VOICE_PCM_WS_ENABLED: z
       .string()

@@ -1,7 +1,7 @@
 /**
  * textBatchProcessor.ts
  *
- * Processes text-only moderation batches — fetches URL content, runs SearXNG
+ * Processes text-only moderation batches — fetches URL content, runs Wikipedia
  * searches, deduplicates short messages, splits into sub-batches, and calls
  * the LLM for analysis. Extracted from moderationOrchestrator.ts.
  */
@@ -28,15 +28,15 @@ import {
 } from "./moderationBuilders.js";
 import { buildSystemPrompt as buildSystemPromptModular } from "./moderationPrompt.js";
 import { logModerationAnalysis } from "./responseLogger.js";
-import {
-  extractSearchQueries,
-  formatSearchResults,
-  searchSearxng,
-} from "./searxngSearch.js";
 import { buildTermGlossaryBlock } from "./termGlossary.js";
 import { getRecentCorrectedModerations } from "./textCacheStore.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 import type { MessageImagePart } from "./visionAnalyzer.js";
+import {
+  extractSearchQueries,
+  formatSearchResults,
+  wikipediaSearch,
+} from "./wikipediaClient.js";
 
 const log = createChildLogger("textBatchProcessor");
 
@@ -117,7 +117,7 @@ export async function runTextOnlyBatch(
     return { text: textMap, image: imageMap, title: titleMap };
   })();
 
-  const searxngPromise = (async () => {
+  const webSearchPromise = (async () => {
     const queries = new Set<string>();
     for (const msg of targets) {
       for (const q of extractSearchQueries(msg.edited_content ?? msg.content))
@@ -126,7 +126,7 @@ export async function runTextOnlyBatch(
     if (queries.size === 0) return new Map<string, string>();
     const queryArr = Array.from(queries).slice(0, 3);
     const results = await Promise.allSettled(
-      queryArr.map((q) => searchSearxng(q)),
+      queryArr.map((q) => wikipediaSearch(q)),
     );
     const map = new Map<string, string>();
     for (let i = 0; i < queryArr.length; i++) {
@@ -138,15 +138,13 @@ export async function runTextOnlyBatch(
   })();
 
   // Term glossary — per-word Wikipedia lookups for words the LLM may not
-  // know (slang, jargon, regional language). Cached in Redis + in-memory, so
-  // repeat terms resolve instantly and only genuinely new words hit SearXNG.
   const glossaryPromise = buildTermGlossaryBlock(
     targets.map((msg) => getAnalysisContent(msg)),
   ).catch(() => "");
 
-  const [urlFetchMaps, searxngResults, glossaryBlock] = await Promise.all([
+  const [urlFetchMaps, webSearchResults, glossaryBlock] = await Promise.all([
     urlFetchPromise,
-    searxngPromise,
+    webSearchPromise,
     glossaryPromise,
   ]);
   const urlFetchMap = urlFetchMaps.text;
@@ -308,9 +306,9 @@ export async function runTextOnlyBatch(
         )
       ).join("\n");
 
-      const searxngBlock =
-        searxngResults.size > 0
-          ? `<web_searches>\n${Array.from(searxngResults.entries())
+      const webSearchBlock =
+        webSearchResults.size > 0
+          ? `<web_searches>\n${Array.from(webSearchResults.entries())
               .map(
                 ([q, xml]) =>
                   `  <search_query query="${escapeXml(q)}">\n${xml}  </search_query>`,
@@ -323,7 +321,7 @@ export async function runTextOnlyBatch(
       // profile descriptions are intentionally omitted (see above).
       const userBlocks = [
         contextBlock?.trimEnd() ?? "",
-        searxngBlock,
+        webSearchBlock,
         glossaryBlock,
         `<messages_to_analyze>\n${messagesBlock}\n</messages_to_analyze>`,
       ].filter((b) => b.trim().length > 0);

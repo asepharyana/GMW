@@ -67,9 +67,9 @@ export const moderationErrors = new Counter({
   labelNames: ["type"] as const,
 });
 
-export const searxngCalls = new Counter({
-  name: "moderation_searxng_calls_total",
-  help: "SearXNG search calls",
+export const webSearchCalls = new Counter({
+  name: "moderation_websearch_calls_total",
+  help: "Wikipedia web-search calls",
   labelNames: ["status"] as const,
 });
 

@@ -12,12 +12,12 @@ import type {
   AttachmentRecord,
   MessageRecord,
 } from "../message-capture/types.js";
+import { initCacheStore } from "./cacheStore.js";
 import { embedTexts, isEmbeddingEnabled } from "./embeddingClient.js";
 import { hasMediaContent } from "./mediaAnalysisClient.js";
 import { runMediaBatch } from "./mediaBatchProcessor.js";
 import { isQdrantConfigured, searchQdrantBatch } from "./qdrantClient.js";
 import { logCacheEvent } from "./responseLogger.js";
-import { initSearxngCache } from "./searxngSearch.js";
 import { runTextOnlyBatch } from "./textBatchProcessor.js";
 import {
   findSimilarTextModeration,
@@ -70,7 +70,7 @@ export async function runModerationAnalysis(
 ): Promise<ModerationOutput> {
   const { targets, contextBlock, attachments } = input;
 
-  initSearxngCache(config.REDIS_URL);
+  initCacheStore(config.REDIS_URL);
   if (!targets.length) throw new Error("No targets provided for analysis");
 
   // ── Phase 1: exact-hash cache (per conversation context) ────────────────

@@ -10,18 +10,18 @@
  * wording (false negative on an unknown vulgar/slang term).
  *
  * Solution: extract candidate "unknown-looking" words from message content,
- * look each one up on Wikipedia via SearXNG, and inject the definitions into
- * the LLM prompt as a `<term_glossary>` block so verdicts are based on facts
- * instead of guesses.
+ * look each one up on Wikipedia via the Wikipedia REST/Action APIs, and inject
+ * the definitions into the LLM prompt as a `<term_glossary>` block so verdicts
+ * are based on facts instead of guesses.
  *
  * Cost control & persistence:
  *  - successfully resolved definitions are PERSISTED PERMANENTLY in Postgres
  *    (`term_glossary_cache`) — definitions rarely change, so a resolved term
  *    is never searched again; only misses stay ephemeral (Redis/LRU, 1h);
- *  - in-memory LRU + Redis (shared with the SearXNG cache) sit in front of
+ *  - in-memory LRU + Redis (shared cache store) sit in front of
  *    the DB as fast read caches, so repeat lookups are effectively free;
  *  - lookups per batch are bounded (AI_GLOSSARY_MAX_TERMS);
- *  - live SearXNG calls are rate-limit aware: concurrency 2 + stagger, retry
+ *  - live Wikipedia calls are rate-limit aware: concurrency 2 + stagger, retry
  *    once on empty results, and misses cached for only 1h so a limiter/
  *    network blip is not treated as a permanent miss;
  *  - only results that read like actual definitions are accepted (Wikipedia
@@ -35,17 +35,13 @@ import pLimit from "p-limit";
 import { createChildLogger } from "@/shared/logger/index";
 import { delay } from "@/shared/utils/index";
 import { config } from "../../shared/config/config.js";
+import { cacheGet, cacheSet, makeCacheKey } from "./cacheStore.js";
 import { escapeXml } from "./moderationBuilders.js";
-import {
-  makeSearxngCacheKey,
-  searchSearxng,
-  searxngCacheGet,
-  searxngCacheSet,
-} from "./searxngSearch.js";
 import {
   getTermDefinitionFromDb,
   setTermDefinitionInDb,
 } from "./termGlossaryStore.js";
+import { wikipediaSummary } from "./wikipediaClient.js";
 
 const log = createChildLogger("term-glossary");
 
@@ -65,16 +61,13 @@ const MISS_TTL_SECONDS = 60 * 60;
 const MISS_TTL_MS = MISS_TTL_SECONDS * 1000;
 /** Sentinel stored in caches for "term has no resolvable definition". */
 const EMPTY_SENTINEL = "__not_found__";
-/** Per-search timeout — keep glossary lookups snappy even on a slow SearXNG. */
-const GLOSSARY_SEARCH_TIMEOUT_MS = 5000;
 /** Delay before retrying a search that returned zero results. */
 const RETRY_DELAY_MS = 350;
 /** Max definition snippet length kept in the prompt. */
 const MAX_DEFINITION_CHARS = 300;
 /**
- * SearXNG rate-limits aggressive parallel bursts (returns 200 with empty
- * results). Never fire all terms at once — cap live searches at 2 concurrent
- * and stagger the start times slightly.
+ * Wikipedia can be flaky under aggressive parallel bursts. Never fire all
+ * terms at once — cap live lookups at 2 concurrent and stagger the start times.
  */
 const LIVE_SEARCH_CONCURRENCY = 2;
 const LIVE_SEARCH_STAGGER_MS = 250;
@@ -90,7 +83,7 @@ const termLru = new LRUCache<string, TermDefinition>({
   ttl: 24 * 60 * 60 * 1000,
 });
 
-/** Serializes live SearXNG lookups (rate-limit aware) with a small stagger. */
+/** Serializes live Wikipedia lookups (rate-limit aware) with a small stagger. */
 const liveSearchLimit = pLimit(LIVE_SEARCH_CONCURRENCY);
 let lastLiveSearchAt = 0;
 async function acquireLiveSlot(): Promise<void> {
@@ -274,58 +267,8 @@ export interface TermDefinition {
   sourceUrl: string;
 }
 
-/** Definition-like markers for accepting a non-Wikipedia search result. */
-const DEF_MARKERS =
-  /adalah|merupakan|istilah (?:untuk|yang|yg)|artinya|sebutan|berarti|refers? to|known as|also called|short for|a term (?:for|used)|istilah dalam|kata (?:asing|serapan)? ?untuk/i;
-
-/** True when the term appears in the result text (or a 4+ char word in the
- *  result is part of the term). Lenient — "kafircel" matches a "Kafir"
- *  article via substring, while a Google-Translate homepage snippet does not. */
-function hasTermOverlap(term: string, title: string, snippet: string): boolean {
-  const termLower = term.toLowerCase();
-  const text = `${title} ${snippet}`.toLowerCase();
-  if (text.includes(termLower)) return true;
-  const words = text.match(/[a-z0-9]{4,}/gi) ?? [];
-  return words.some((w) => termLower.includes(w));
-}
-
-/** Quality gate: is this result good enough to quote as a definition? */
-function isUsableDefinition(
-  r: { title: string; url: string; snippet: string },
-  term: string,
-  isWiki: boolean,
-): boolean {
-  const text = `${r.title} ${r.snippet}`;
-  // Wikipedia disambiguation pages are not definitions
-  if (/disambiguasi|disambiguation/i.test(text)) return false;
-  if ((r.snippet ?? "").trim().length < 25) return false;
-  if (!hasTermOverlap(term, r.title, r.snippet)) return false;
-  // Wikipedia articles are accepted with just the overlap+length gate;
-  // everything else must read like an actual definition, not an ad,
-  // a translate homepage, or a navigation blurb.
-  if (isWiki) return true;
-  return DEF_MARKERS.test(r.snippet);
-}
-
-/** Picks the best definition from search results, preferring a genuine
- *  Wikipedia article; otherwise the first result that reads like a
- *  definition. Returns null when nothing qualifies. */
-function pickDefinition(
-  results: Array<{ title: string; url: string; snippet: string }>,
-  term: string,
-): TermDefinition | null {
-  const wiki = results.find((r) => /wikipedia\.org/i.test(r.url));
-  const best = wiki && isUsableDefinition(wiki, term, true) ? wiki : null;
-  if (!best) {
-    for (const r of results) {
-      if (isUsableDefinition(r, term, false)) {
-        return buildDefinition(r, term);
-      }
-    }
-    return null;
-  }
-  return buildDefinition(best, term);
-}
+/** Per-search timeout — keep glossary lookups snappy even on a slow Wikipedia. */
+const GLOSSARY_SEARCH_TIMEOUT_MS = 5000;
 
 function buildDefinition(
   best: { title: string; url: string; snippet: string },
@@ -339,7 +282,7 @@ function buildDefinition(
   return { term, definition, sourceUrl: best.url };
 }
 
-/** Live (network) lookup — runs under the shared SearXNG rate-limit gate. */
+/** Live (network) lookup — runs under the shared Wikipedia rate-limit gate. */
 async function fetchDefinitionLive(
   term: string,
   key: string,
@@ -348,31 +291,21 @@ async function fetchDefinitionLive(
   return liveSearchLimit(async () => {
     await acquireLiveSlot();
     try {
-      let results = await searchSearxng(
-        key,
-        "general",
-        undefined,
-        GLOSSARY_SEARCH_TIMEOUT_MS,
-      );
-      let def = pickDefinition(results, term);
-      // Zero results is usually the limiter kicking in, not a real miss —
-      // retry once. Results-but-unusable = genuine miss, no retry.
-      if (!def && results.length === 0) {
+      let result = await wikipediaSummary(key, GLOSSARY_SEARCH_TIMEOUT_MS);
+      let def = result ? buildDefinition(result, term) : null;
+      // Zero result is usually the limiter/network blip, not a real miss —
+      // retry once. Result-but-unusable = genuine miss, no retry.
+      if (!def) {
         await delay(RETRY_DELAY_MS);
-        results = await searchSearxng(
-          key,
-          "general",
-          undefined,
-          GLOSSARY_SEARCH_TIMEOUT_MS,
-        );
-        def = pickDefinition(results, term);
+        result = await wikipediaSummary(key, GLOSSARY_SEARCH_TIMEOUT_MS);
+        def = result ? buildDefinition(result, term) : null;
       }
 
       if (def) {
         // Persist permanently (definitions rarely change) — best-effort,
         // then warm the fast caches.
         void setTermDefinitionInDb(key, def.definition, def.sourceUrl);
-        searxngCacheSet(
+        cacheSet(
           cacheKey,
           JSON.stringify({
             definition: def.definition,
@@ -393,13 +326,13 @@ async function fetchDefinitionLive(
 
     // No definition — cache the miss with a SHORT TTL so a transient
     // limiter/network failure is retried on a later batch.
-    searxngCacheSet(cacheKey, EMPTY_SENTINEL, MISS_TTL_SECONDS);
+    cacheSet(cacheKey, EMPTY_SENTINEL, MISS_TTL_SECONDS);
     termLru.set(key, NOT_FOUND, { ttl: MISS_TTL_MS });
     return null;
   });
 }
 
-/** Resolve one term: LRU → Redis → Postgres (permanent) → live SearXNG
+/** Resolve one term: LRU → Redis → Postgres (permanent) → live Wikipedia
  *  (rate-limited). The fast caches sit in front of the DB; the DB is the
  *  source of truth for successfully resolved definitions. */
 async function resolveTerm(term: string): Promise<TermDefinition | null> {
@@ -412,8 +345,8 @@ async function resolveTerm(term: string): Promise<TermDefinition | null> {
   // 2. Redis — shared across processes/workers. A miss sentinel here is NOT
   //    a definitive answer: it may predate a permanent DB entry written by
   //    another process, so we keep going and let the DB decide.
-  const cacheKey = makeSearxngCacheKey("def", key);
-  const cached = await searxngCacheGet(cacheKey);
+  const cacheKey = makeCacheKey("def", key);
+  const cached = await cacheGet(cacheKey);
   let redisMiss = false;
   if (cached !== null) {
     if (cached === EMPTY_SENTINEL) {
@@ -449,7 +382,7 @@ async function resolveTerm(term: string): Promise<TermDefinition | null> {
       sourceUrl: dbDef.sourceUrl,
     };
     termLru.set(key, def);
-    searxngCacheSet(
+    cacheSet(
       cacheKey,
       JSON.stringify({ definition: def.definition, sourceUrl: def.sourceUrl }),
       DEF_TTL_SECONDS,
