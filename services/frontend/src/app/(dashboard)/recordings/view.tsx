@@ -9,14 +9,10 @@ import {
   Button,
   GlassCard,
   GlassPanel,
+  Skeleton,
   toast,
 } from "@/components/primitives";
-import {
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  SectionHeader,
-} from "@/components/shared";
+import { EmptyState, ErrorState, SectionHeader } from "@/components/shared";
 import {
   useDeleteRecording,
   useRecordings,
@@ -55,7 +51,29 @@ export function RecordingsView({
   };
 
   if (error && !items) return <ErrorState error={error} />;
-  if (!items && isLoading) return <LoadingState label="Loading clips" />;
+  if (!items && isLoading)
+    return (
+      <GlassPanel>
+        <div className="mb-3 flex items-center justify-between">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-3 w-12" />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <GlassCard key={i} className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <Skeleton className="size-9 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-2.5 w-32" />
+                </div>
+              </div>
+              <Skeleton className="h-9 w-full" />
+            </GlassCard>
+          ))}
+        </div>
+      </GlassPanel>
+    );
 
   return (
     <GlassPanel>

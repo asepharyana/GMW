@@ -53,6 +53,7 @@
 
 /* ── Light theme overrides ── */
 .light {
+  color-scheme: light;
   --color-canvas: oklch(0.96 0.012 80);
   --color-canvas-2: oklch(0.92 0.014 80);
   --color-surface: oklch(1 0 0 / 0.7);
@@ -63,6 +64,18 @@
   --color-ink-faint: oklch(0.6 0.02 70);
 
   --color-hairline: oklch(0.22 0.02 70 / 0.12);
+}
+
+/* Light-theme scrollbar + selection tuned for pale canvas */
+.light ::-webkit-scrollbar-thumb {
+  background: oklch(0.22 0.02 70 / 0.2);
+}
+.light ::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.22 0.02 70 / 0.34);
+}
+.light ::selection {
+  background: var(--color-signal-glow);
+  color: var(--color-ink);
 }
 
 @layer base {

@@ -4,7 +4,7 @@ import { Hash, Search, Sparkles, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import { Avatar, Badge, GlassPanel, Input } from "@/components/primitives";
-import { EmptyState, LoadingState, SectionHeader } from "@/components/shared";
+import { EmptyState, SectionHeader, SkeletonRows } from "@/components/shared";
 import { useChannels, useMessageSearch, useTopReactors } from "@/hooks";
 import { aiTone } from "@/lib/ai-status";
 import {
@@ -70,7 +70,7 @@ export function AnalysisView() {
             }
           />
           {query.trim().length >= 2 && search.isLoading && (
-            <LoadingState label="Scanning" />
+            <SkeletonRows rows={6} />
           )}
           {(search.data ?? []).length === 0 ? (
             <EmptyState

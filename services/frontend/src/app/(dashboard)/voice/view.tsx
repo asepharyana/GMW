@@ -16,8 +16,8 @@ import { Button, GlassPanel, toast } from "@/components/primitives";
 import {
   EmptyState,
   ErrorState,
-  LoadingState,
   SectionHeader,
+  SkeletonPanel,
 } from "@/components/shared";
 import { GuildChannelPicker } from "@/components/shared/guild-picker";
 import { VoiceStage } from "@/components/voice/voice-stage";
@@ -67,7 +67,16 @@ export function VoiceView({
   }, [status?.connected, ambient]);
 
   if (error && !status) return <ErrorState error={error} />;
-  if (!status && isLoading) return <LoadingState label="Linking voice" />;
+  if (!status && isLoading)
+    return (
+      <div className="space-y-5">
+        <SkeletonPanel rows={2} />
+        <div className="grid gap-5 lg:grid-cols-3">
+          <SkeletonPanel className="lg:col-span-2" rows={4} />
+          <SkeletonPanel rows={4} />
+        </div>
+      </div>
+    );
 
   const connected = status?.connected ?? false;
   const listenBars = Array.from(listen.levels.values()).slice(0, 32);

@@ -24,9 +24,11 @@ import {
 } from "@/components/primitives";
 import {
   ErrorState,
-  LoadingState,
   MetricTile,
   SectionHeader,
+  SkeletonMetricRow,
+  SkeletonPanel,
+  SkeletonRows,
 } from "@/components/shared";
 import { useModerationActions, useModerationStats } from "@/hooks";
 import { formatNumber, formatRelativeTime } from "@/lib/format";
@@ -92,7 +94,14 @@ export function ModerationView({
   }, [failedRate, ambient]);
 
   if (error && !stats) return <ErrorState error={error} />;
-  if (!stats && isLoading) return <LoadingState label="Reading log" />;
+  if (!stats && isLoading)
+    return (
+      <div className="space-y-5">
+        <SkeletonMetricRow cols={4} />
+        <SkeletonPanel rows={5} />
+        <SkeletonRows rows={6} />
+      </div>
+    );
   if (!stats) return <ErrorState error={error ?? new Error("No data")} />;
 
   const statusOpts: SelectOption[] = [

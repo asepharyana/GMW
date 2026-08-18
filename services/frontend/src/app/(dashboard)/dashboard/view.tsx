@@ -13,7 +13,13 @@ import { useEffect } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import { AreaActivity, RadialGauge } from "@/components/charts";
 import { GlassPanel } from "@/components/primitives";
-import { ErrorState, LoadingState } from "@/components/shared";
+import {
+  ErrorState,
+  LoadingState,
+  SkeletonHero,
+  SkeletonMetricRow,
+  SkeletonPanel,
+} from "@/components/shared";
 import { MetricTile, SectionHeader } from "@/components/shared/section";
 import {
   useActivity,
@@ -59,7 +65,18 @@ export function DashboardView({
   }, [stats, ambient]);
 
   if (error && !stats) return <ErrorState error={error} />;
-  if (!stats && isLoading) return <LoadingState label="Reading grid" />;
+  if (!stats && isLoading)
+    return (
+      <div className="space-y-5">
+        <SkeletonHero />
+        <SkeletonMetricRow cols={4} />
+        <SkeletonPanel rows={5} />
+        <div className="grid gap-5 lg:grid-cols-5">
+          <SkeletonPanel className="lg:col-span-3" rows={4} />
+          <SkeletonPanel className="lg:col-span-2" rows={4} />
+        </div>
+      </div>
+    );
   if (!stats) return <ErrorState error={error ?? new Error("No data")} />;
 
   const s = stats;

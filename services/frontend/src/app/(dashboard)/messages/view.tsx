@@ -22,8 +22,8 @@ import {
 import {
   EmptyState,
   ErrorState,
-  LoadingState,
   SectionHeader,
+  SkeletonRows,
 } from "@/components/shared";
 import { GuildChannelPicker } from "@/components/shared/guild-picker";
 import {
@@ -185,7 +185,7 @@ export function MessagesView({
           {error && !messages ? (
             <ErrorState error={error} />
           ) : isLoading && !messages ? (
-            <LoadingState label="Capturing" />
+            <SkeletonRows rows={8} />
           ) : list.length === 0 ? (
             <EmptyState
               icon={<MessageSquare className="size-7" />}

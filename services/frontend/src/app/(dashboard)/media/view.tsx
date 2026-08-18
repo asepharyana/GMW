@@ -12,7 +12,12 @@ import {
 import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import { Button, GlassPanel, Input, toast } from "@/components/primitives";
-import { ErrorState, LoadingState, SectionHeader } from "@/components/shared";
+import {
+  ErrorState,
+  SectionHeader,
+  SkeletonHero,
+  SkeletonPanel,
+} from "@/components/shared";
 import {
   useMediaLoop,
   useMediaQueue,
@@ -74,7 +79,13 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
   };
 
   if (error && !media) return <ErrorState error={error} />;
-  if (!media && isLoading) return <LoadingState label="Reading deck" />;
+  if (!media && isLoading)
+    return (
+      <div className="space-y-5">
+        <SkeletonHero />
+        <SkeletonPanel rows={4} />
+      </div>
+    );
 
   return (
     <div className="space-y-5">
