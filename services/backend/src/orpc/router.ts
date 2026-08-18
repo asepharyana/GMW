@@ -16,7 +16,10 @@ import {
   skip,
   stop,
 } from "../modules/media/media.service";
-import { messageQuerySchema } from "../modules/messages/messages.schema";
+import {
+  messageQuerySchema,
+  semanticSearchSchema,
+} from "../modules/messages/messages.schema";
 import { messagesService } from "../modules/messages/messages.service";
 import { moderationService } from "../modules/moderation/moderation.service";
 import { recordingsService } from "../modules/recordings/recordings.service";
@@ -136,6 +139,10 @@ const messagesRouter = {
       );
       return { results: rows, limit: input.limit, cursor: null };
     }),
+  // Public, read-only semantic search over the message archive.
+  semanticSearch: os
+    .input(semanticSearchSchema)
+    .handler(({ input }) => messagesService.semanticSearch(input)),
 };
 
 // ── Moderation ───────────────────────────────────────────────────

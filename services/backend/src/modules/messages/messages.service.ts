@@ -1,7 +1,9 @@
 import { NotFoundError, ValidationError } from "@/shared/errors/index";
 import { createChildLogger } from "@/shared/logger/index";
+import { embedQuery } from "./embed.js";
 import { messagesRepository } from "./messages.repository.js";
-import type { MessageQuery } from "./messages.schema.js";
+import type { MessageQuery, SemanticSearchQuery } from "./messages.schema.js";
+import { searchArchive } from "./qdrant.js";
 
 const logger = createChildLogger("messages.service");
 
@@ -78,6 +80,40 @@ export class MessagesService {
     logger.debug({ channelId, limit }, "Getting review messages");
     return messagesRepository.getReviewMessages(channelId, limit);
   }
+
+  /**
+   * Public, read-only semantic search over the persistent message archive.
+   * Embeds the query, searches Qdrant, returns text + metadata. Best-effort:
+   * if embeddings/Qdrant are unavailable, returns an empty result set.
+   */
+  async semanticSearch(
+    input: SemanticSearchQuery,
+  ): Promise<{ results: ReturnType<typeof mapSearchHit>[]; nextCursor: null }> {
+    const vector = await embedQuery(input.query);
+    if (!vector) {
+      logger.debug(
+        { query: input.query },
+        "semantic search skipped: no embedder",
+      );
+      return { results: [], nextCursor: null };
+    }
+    const hits = await searchArchive(vector, input.limit, 0.6);
+    const results = hits.map((h) => mapSearchHit(h));
+    return { results, nextCursor: null };
+  }
+}
+
+/** Shape returned to the frontend (text + metadata from the archive payload). */
+function mapSearchHit(hit: {
+  score: number;
+  payload: { text: string; content_hash?: string; analyzed_at: number };
+}) {
+  return {
+    message_id: hit.payload.content_hash ?? null,
+    content: hit.payload.text,
+    score: hit.score,
+    created_at: hit.payload.analyzed_at,
+  };
 }
 
 export const messagesService = new MessagesService();

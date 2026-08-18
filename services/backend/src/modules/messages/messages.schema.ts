@@ -41,3 +41,11 @@ export const messageUpdateSchema = z.object({
 export type MessageQuery = z.infer<typeof messageQuerySchema>;
 export type MessageCreate = z.infer<typeof messageCreateSchema>;
 export type MessageUpdate = z.infer<typeof messageUpdateSchema>;
+
+export const semanticSearchSchema = z.object({
+  query: z.string().min(1).max(500),
+  limit: z.coerce.number().int().positive().max(50).default(10),
+  guildId: z.string().optional(),
+});
+
+export type SemanticSearchQuery = z.infer<typeof semanticSearchSchema>;

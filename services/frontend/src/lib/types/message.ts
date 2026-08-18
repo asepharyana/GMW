@@ -163,3 +163,17 @@ export interface AttachmentRecord {
   created_at: number;
   uploaded_at?: number | null;
 }
+
+// ── Semantic Search (read-only public archive search) ──────────
+
+export interface SemanticSearchResult {
+  message_id: string | null;
+  content: string;
+  score: number;
+  created_at: number;
+}
+
+export interface SemanticSearchResponse {
+  results: SemanticSearchResult[];
+  nextCursor: null;
+}

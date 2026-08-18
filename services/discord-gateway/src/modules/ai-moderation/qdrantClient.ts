@@ -50,6 +50,10 @@ function collectionName(): string {
   return config.QDRANT_COLLECTION ?? "gmw_text_moderation";
 }
 
+/** Persistent archive collection for semantic message search (no TTL). */
+export const ARCHIVE_COLLECTION =
+  config.QDRANT_ARCHIVE_COLLECTION ?? "gmw_message_archive";
+
 function headers(): Record<string, string> {
   const h: Record<string, string> = {
     "Content-Type": "application/json",
@@ -389,4 +393,132 @@ export async function deleteQdrantPointsByContentHash(
 /** True when Qdrant is configured (non-empty URL). */
 export function isQdrantConfigured(): boolean {
   return Boolean(config.QDRANT_URL);
+}
+
+// ─── Archive variants (collection-aware, for persistent message search) ───
+// These mirror the cache functions but take an explicit collection name so the
+// semantic-search archive (gmw_message_archive) can live alongside the
+// TTL-bounded automod cache without disturbing it.
+
+/** Ensure an arbitrary collection exists with the right vector size. */
+export async function ensureQdrantCollectionV2(
+  name: string,
+  vectorSize: number,
+): Promise<boolean> {
+  try {
+    let existing: {
+      result?: { config?: { params?: { vectors?: { size?: number } } } };
+    } | null = null;
+    try {
+      existing = (await request("GET", `/collections/${name}`)) as {
+        result?: { config?: { params?: { vectors?: { size?: number } } } };
+      } | null;
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("-> 404")) {
+        throw error;
+      }
+    }
+
+    const size = existing?.result?.config?.params?.vectors?.size;
+    if (size === vectorSize) return true;
+
+    if (size !== undefined && size !== vectorSize) {
+      log.warn(
+        { collection: name, oldSize: size, newSize: vectorSize },
+        "Qdrant archive collection vector size changed — recreating collection",
+      );
+      await request("DELETE", `/collections/${name}`);
+    }
+
+    await request("PUT", `/collections/${name}`, {
+      vectors: { size: vectorSize, distance: "Cosine" },
+    });
+    return true;
+  } catch (error) {
+    log.error(
+      {
+        error: error instanceof Error ? error.message : String(error),
+        collection: name,
+      },
+      "Failed to ensure Qdrant archive collection",
+    );
+    return false;
+  }
+}
+
+/** Upsert one embedding + payload point into a named collection. */
+export async function upsertQdrantPointV2(
+  name: string,
+  pointId: number,
+  vector: number[],
+  payload: QdrantVerdictPayload,
+): Promise<boolean> {
+  try {
+    if (!(await ensureQdrantCollectionV2(name, vector.length))) return false;
+    await request(
+      "PUT",
+      `/collections/${name}/points`,
+      {
+        points: [{ id: pointId, vector, payload }],
+        wait: true,
+      },
+      30_000,
+    );
+    return true;
+  } catch (error) {
+    log.warn(
+      {
+        error: error instanceof Error ? error.message : String(error),
+        collection: name,
+      } as Record<string, unknown>,
+      "Qdrant archive upsert failed — entry skipped",
+    );
+    return false;
+  }
+}
+
+export interface QdrantArchiveHit {
+  pointId: number;
+  score: number;
+  payload: QdrantVerdictPayload;
+}
+
+/** Search a named collection for the nearest stored vector. */
+export async function searchQdrantV2(
+  name: string,
+  vector: number[],
+  limit: number,
+  scoreThreshold: number,
+): Promise<QdrantArchiveHit[]> {
+  try {
+    const json = (await request("POST", `/collections/${name}/points/search`, {
+      vector,
+      limit,
+      score_threshold: scoreThreshold,
+      with_payload: true,
+    })) as {
+      result?: Array<{
+        id?: number;
+        score?: number;
+        payload?: QdrantVerdictPayload;
+      }>;
+    };
+
+    return (json.result ?? [])
+      .filter((hit) => hit.payload?.text)
+      .map((hit) => ({
+        pointId: hit.id ?? 0,
+        score: hit.score ?? 0,
+        payload: hit.payload as QdrantVerdictPayload,
+      }));
+  } catch (error) {
+    log.warn(
+      {
+        error: error instanceof Error ? error.message : String(error),
+        collection: name,
+      } as Record<string, unknown>,
+      "Qdrant archive search failed — semantic search skipped",
+    );
+    return [];
+  }
 }

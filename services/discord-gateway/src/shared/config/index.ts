@@ -178,6 +178,7 @@ export const configSchema = z
     // embedding column remains as a legacy fallback).
     QDRANT_URL: z.string().optional(),
     QDRANT_COLLECTION: z.string().default("gmw_text_moderation"),
+    QDRANT_ARCHIVE_COLLECTION: z.string().default("gmw_message_archive"),
     QDRANT_API_KEY: z.string().optional(),
     AI_LLM_MAX_CONCURRENT: z.coerce.number().int().positive().default(8),
     AI_LLM_IMAGE_MAX_DIMENSION: z.coerce

@@ -2,6 +2,7 @@ import {
   bigint as pgBigint,
   boolean as pgBoolean,
   index as pgIndex,
+  real as pgReal,
   pgTable,
   text as pgText,
   uuid as pgUuid,
@@ -48,6 +49,16 @@ export const pgModerationActionsTable = pgTable(
     error: pgText("error"),
     created_at: pgBigint("created_at", { mode: "number" }).notNull(),
     executed_at: pgBigint("executed_at", { mode: "number" }),
+    // ── Explainability (structured verdict; surfaced read-only to public web) ──
+    flags: pgText("flags"), // JSON array of string flags, e.g. ["sara_agama","vulgar"]
+    categories: pgText("categories"), // JSON array of category strings
+    severity: pgText("severity", {
+      enum: ["none", "low", "medium", "high", "critical"],
+    }),
+    confidence: pgReal("confidence"), // 0..1
+    score: pgReal("score"), // 0..1 raw model score
+    evidence: pgText("evidence"), // JSON array of short quoted snippets
+    policy_version: pgText("policy_version"), // rules.ts policy version string
   },
   (table) => ({
     messageIdIdx: pgIndex("idx_moderation_actions_message_id").on(

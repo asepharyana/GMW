@@ -1,5 +1,9 @@
 import { orpc } from "@/lib/orpc/client";
-import type { AttachmentRecord, MessageRecord } from "@/lib/types";
+import type {
+  AttachmentRecord,
+  MessageRecord,
+  SemanticSearchResult,
+} from "@/lib/types";
 
 export const messagesApi = {
   list: (
@@ -61,5 +65,12 @@ export const messagesApi = {
   search: (q: string, limit?: number) =>
     orpc.analysis.search({ q, limit }) as unknown as Promise<{
       results: MessageRecord[];
+    }>,
+
+  // Public semantic search over the persistent message archive (Qdrant).
+  semanticSearch: (query: string, limit?: number) =>
+    orpc.messages.semanticSearch({ query, limit }) as unknown as Promise<{
+      results: SemanticSearchResult[];
+      nextCursor: null;
     }>,
 };

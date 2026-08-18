@@ -34,6 +34,7 @@ import {
   useMessagesHasMore,
   useMessagesStream,
   useMessagesWsSync,
+  useSemanticSearch,
 } from "@/hooks";
 import { aiTone } from "@/lib/ai-status";
 import {
@@ -67,6 +68,9 @@ export function MessagesView({
   const [channelId, setChannelId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // Search mode: "exact" (substring match over captured messages) or
+  // "semantic" (vector similarity over the persistent Qdrant archive).
+  const [semanticMode, setSemanticMode] = useState(false);
   // Guard against loading the entire history on a long scroll: cap how many
   // older pages we append. Each page is 50 messages (backend limit default).
   const MAX_OLDER_PAGES = 10;
@@ -94,7 +98,14 @@ export function MessagesView({
   const hasMore = pageInfo?.hasMore ?? false;
   const loadMore = useLoadMore();
   useMessagesWsSync(ws, guildId ?? "");
-  const search = useMessageSearch(query, query.trim().length >= 2);
+  const search = useMessageSearch(
+    query,
+    query.trim().length >= 2 && !semanticMode,
+  );
+  const semantic = useSemanticSearch(
+    query,
+    query.trim().length >= 2 && semanticMode,
+  );
   const detail = useMessageDetail(selected);
   const ambient = useAmbient();
 
@@ -122,7 +133,8 @@ export function MessagesView({
     ambient.set(query ? "amber" : "signal", 0.3, query ? "search" : "messages");
   }, [query, ambient]);
 
-  const searching = query.trim().length >= 2;
+  const searching = query.trim().length >= 2 && !semanticMode;
+  const semanticSearching = query.trim().length >= 2 && semanticMode;
   const list = searching ? (search.data ?? []) : (messages ?? []);
   // Discord-style order: oldest at the top, newest at the bottom. The backend
   // returns DESC (newest first); reverse so the feed reads top→bottom like DC.
@@ -184,9 +196,68 @@ export function MessagesView({
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
+        <button
+          type="button"
+          onClick={() => setSemanticMode((v) => !v)}
+          className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+            semanticMode
+              ? "border-signal/40 bg-signal/10 text-signal"
+              : "border-hairline bg-white/[0.03] text-ink-soft hover:bg-white/[0.06]"
+          }`}
+          title="Toggle semantic (vector) search over the message archive"
+        >
+          {semanticMode ? "Semantic" : "Exact"}
+        </button>
       </GlassPanel>
 
       <div className="grid gap-4 lg:grid-cols-5">
+        {semanticSearching && (
+          <GlassPanel className="lg:col-span-5">
+            <SectionHeader
+              eyebrow="semantic"
+              title={`“${query}”`}
+              action={
+                <span className="mono text-xs text-ink-faint">
+                  {semantic.data?.length ?? 0} matches
+                </span>
+              }
+            />
+            {semantic.isLoading ? (
+              <SkeletonRows rows={4} />
+            ) : semantic.data && semantic.data.length > 0 ? (
+              <div className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1">
+                {semantic.data.map((r, i) => (
+                  <div
+                    key={r.message_id ?? i}
+                    className="animate-stagger flex items-start gap-3 rounded-[10px] border border-hairline bg-white/[0.03] p-3"
+                    style={staggerDelay(i)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="mono text-[0.6rem] text-signal">
+                          {(r.score * 100).toFixed(0)}%
+                        </span>
+                        <span className="mono ml-auto text-[0.6rem] text-ink-faint">
+                          {formatRelativeTime(r.created_at)}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 line-clamp-3 text-sm text-ink-soft">
+                        {r.content}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={<Search className="size-7" />}
+                title="No semantic matches"
+                description="Try different wording — semantic search finds meaning, not exact text."
+              />
+            )}
+          </GlassPanel>
+        )}
+
         <GlassPanel className="lg:col-span-3">
           <SectionHeader
             eyebrow={searching ? "results" : "live feed"}

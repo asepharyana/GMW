@@ -28,6 +28,7 @@ export {
   useMessagesStream,
   useMessagesWsSync,
   useReview,
+  useSemanticSearch,
   useTextChannels,
 } from "./use-messages";
 export {

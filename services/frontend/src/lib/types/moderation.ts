@@ -21,6 +21,14 @@ export interface ModerationAction {
   executed_at: number | null;
   username: string | null;
   content: string | null;
+  // ── Explainability (structured verdict, surfaced read-only to public web) ──
+  flags: string[] | null;
+  categories: string[] | null;
+  severity: "none" | "low" | "medium" | "high" | "critical" | null;
+  confidence: number | null;
+  score: number | null;
+  evidence: string[] | null;
+  policy_version: string | null;
 }
 
 export interface ModerationStats {

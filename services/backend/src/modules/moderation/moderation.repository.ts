@@ -17,6 +17,20 @@ const ACTION_TYPES = [
 ] as const;
 const STATUSES = ["pending", "executed", "failed"] as const;
 
+/** Parse a JSON-stringified array column (e.g. flags/categories/evidence).
+ *  Returns null on empty/malformed input so the FE can treat it as "no data". */
+function parseJsonArray(value: unknown): string[] | null {
+  if (value == null) return null;
+  const str = typeof value === "string" ? value : String(value);
+  if (str.length === 0) return null;
+  try {
+    const parsed = JSON.parse(str);
+    return Array.isArray(parsed) ? (parsed as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+
 export class ModerationRepository {
   async getStats() {
     const db = getDatabase();
@@ -103,6 +117,13 @@ export class ModerationRepository {
         a.error,
         a.created_at,
         a.executed_at,
+        a.flags,
+        a.categories,
+        a.severity,
+        a.confidence,
+        a.score,
+        a.evidence,
+        a.policy_version,
         m.username,
         LEFT(m.content, 300) AS content
       FROM moderation_actions a
@@ -126,6 +147,13 @@ export class ModerationRepository {
       error: r.error ? String(r.error) : null,
       created_at: r.created_at ? Number(r.created_at) : null,
       executed_at: r.executed_at ? Number(r.executed_at) : null,
+      flags: parseJsonArray(r.flags),
+      categories: parseJsonArray(r.categories),
+      severity: r.severity ? String(r.severity) : null,
+      confidence: r.confidence != null ? Number(r.confidence) : null,
+      score: r.score != null ? Number(r.score) : null,
+      evidence: parseJsonArray(r.evidence),
+      policy_version: r.policy_version ? String(r.policy_version) : null,
       username: r.username ? String(r.username) : null,
       content: r.content ? String(r.content) : null,
     }));

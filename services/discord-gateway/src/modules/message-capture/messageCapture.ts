@@ -4,6 +4,7 @@ import { config } from "../../shared/config/config.js";
 import { queueMessageAnalysis } from "../ai-moderation/aiAnalyzer.js";
 import { processAttachmentUpload } from "../attachment-upload/attachmentUploader.js";
 import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";
+import { archiveMessageEmbedded } from "../message-capture/archiveEmbedder.js";
 import {
   getDisplayContent,
   getMessageLocation,
@@ -203,6 +204,7 @@ export async function captureMessage(
   type: "text" | "edited" | "deleted",
   options: { source?: "live" | "backlog" } = {},
 ): Promise<void> {
+  const isBacklog = options.source === "backlog";
   const location = getMessageLocation(message);
   const messageRecord = buildMessageRecord(message, type);
 
@@ -211,7 +213,11 @@ export async function captureMessage(
     return;
   }
 
-  const isBacklog = options.source === "backlog";
+  // Fire-and-forget: make the captured message searchable in the persistent
+  // archive (public semantic search). Never blocks capture/moderation.
+  if (!isBacklog && messageRecord.content) {
+    archiveMessageEmbedded(messageRecord);
+  }
 
   if (_eventBroadcaster && !isBacklog) {
     _eventBroadcaster.messageCreated(messageRecord);

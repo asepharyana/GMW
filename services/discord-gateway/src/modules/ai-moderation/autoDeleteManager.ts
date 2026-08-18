@@ -10,6 +10,7 @@ import {
 } from "./autoDeleteEligibility.js";
 import { logDeletionToChannel } from "./autoDeleteLogger.js";
 import { sendDeletionNotification } from "./autoDeleteNotify.js";
+import { verdictToActionFields } from "./verdictToActionFields.js";
 
 const logger = createChildLogger("auto-delete-manager");
 
@@ -174,6 +175,7 @@ async function logAutoDeleteAttempt(
       guild_id: message.guild_id,
       action_type: "delete_message",
       reason: result.reason,
+      ...verdictToActionFields(message),
       executed_by: "auto-delete-manager",
       status: result.deleted
         ? "executed"
@@ -238,6 +240,7 @@ export async function attemptAutoDeleteFlaggedMessage(
             action_type: "reset_nickname",
             reason:
               "nickname melanggar aturan server (offensive_username); pesan dibiarkan",
+            ...verdictToActionFields(message),
             executed_by: "auto-delete-manager",
             status: resetOk ? "executed" : "failed",
             error: resetOk ? null : "nickname_reset_failed",

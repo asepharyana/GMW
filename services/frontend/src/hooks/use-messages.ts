@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useAction } from "@/hooks/use-action";
 import { messagesApi, voiceApi } from "@/lib/api";
-import type { AttachmentRecord, Channel, MessageRecord } from "@/lib/types";
+import type {
+  AttachmentRecord,
+  Channel,
+  MessageRecord,
+  SemanticSearchResult,
+} from "@/lib/types";
 import type { WsHook } from "@/lib/ws-hook";
 
 // ── Query keys factory ───────────────────────────
@@ -174,6 +179,21 @@ export function useMessageSearch(query: string, enabled: boolean) {
       const res = await messagesApi.search(query, 50);
       return res.results;
     },
+  );
+}
+
+// ── Semantic Search (public archive, Qdrant) ──────
+
+export function useSemanticSearch(query: string, enabled: boolean) {
+  return useSWR<SemanticSearchResult[]>(
+    enabled && query.trim().length >= 2
+      ? ["semantic-search", query.trim()]
+      : null,
+    async () => {
+      const res = await messagesApi.semanticSearch(query.trim(), 10);
+      return res.results;
+    },
+    { keepPreviousData: true },
   );
 }
 

@@ -31,6 +31,7 @@ import {
   SkeletonRows,
 } from "@/components/shared";
 import { useModerationActions, useModerationStats } from "@/hooks";
+import { aiTone } from "@/lib/ai-status";
 import { formatNumber, formatRelativeTime } from "@/lib/format";
 import type {
   ModerationAction,
@@ -243,6 +244,18 @@ function ActionRow({ a, index = 0 }: { a: ModerationAction; index?: number }) {
   const icon = ACTION_ICON[a.action_type] ?? (
     <AlertTriangle className="size-3.5" />
   );
+  // Map moderation severity → design-system tone (reuse aiTone with a
+  // severity→status projection so "none" reads as clean/signal).
+  const severityTone =
+    a.severity == null
+      ? null
+      : aiTone(
+          a.severity === "none"
+            ? "clean"
+            : a.severity === "low" || a.severity === "medium"
+              ? "warn"
+              : "flagged",
+        );
   return (
     <div
       className="animate-stagger flex items-start gap-3 rounded-[10px] border border-hairline bg-white/[0.03] p-3"
@@ -266,6 +279,30 @@ function ActionRow({ a, index = 0 }: { a: ModerationAction; index?: number }) {
         {a.reason && (
           <div className="mt-0.5 text-xs text-ink-soft">“{a.reason}”</div>
         )}
+        {severityTone && a.severity && (
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <Badge tone={severityTone}>{a.severity}</Badge>
+            {a.confidence != null && (
+              <span className="mono text-[0.6rem] text-ink-faint">
+                conf {(a.confidence * 100).toFixed(0)}%
+              </span>
+            )}
+          </div>
+        )}
+        {a.flags?.length ? (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {a.flags.slice(0, 6).map((f) => (
+              <Badge key={f} tone="amber">
+                {f}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+        {a.evidence?.length ? (
+          <div className="mt-1 border-l-2 border-hairline pl-2 text-xs text-ink-faint">
+            &ldquo;{a.evidence[0]}&rdquo;
+          </div>
+        ) : null}
         {a.executed_by && (
           <div className="mono mt-0.5 text-[0.6rem] text-ink-faint">
             by {a.executed_by}
