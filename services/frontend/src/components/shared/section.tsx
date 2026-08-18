@@ -55,7 +55,12 @@ export function MetricTile({
           ? "var(--color-signal)"
           : "var(--color-ink)";
   return (
-    <div className={cn("glass p-4", className)}>
+    <div
+      className={cn(
+        "glass p-4 ring-focus transition-transform duration-200 hover:-translate-y-0.5",
+        className,
+      )}
+    >
       <div className="flex items-center justify-between">
         <div className="eyebrow">{label}</div>
         {icon && <span className="text-ink-faint">{icon}</span>}

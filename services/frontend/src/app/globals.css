@@ -276,6 +276,11 @@
 }
 .animate-breathe { animation: breathe 3.5s ease-in-out infinite; }
 
+/* Page-enter: subtle rise+settle. Respect reduced-motion (handled globally). */
+.animate-fade-up {
+  animation: fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .scan-line::after,
   .scan-line,
@@ -283,7 +288,8 @@
   .animate-spin-disc,
   .animate-pulse-ring,
   .animate-shimmer,
-  .animate-breathe {
+  .animate-breathe,
+  .animate-fade-up {
     animation: none !important;
   }
   .scan-line {

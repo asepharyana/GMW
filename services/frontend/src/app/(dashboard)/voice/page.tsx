@@ -1,3 +1,4 @@
+import { PageTransition } from "@/components/shared";
 import { getGuilds, getVoiceStatus } from "@/lib/api/server";
 import { VoiceView } from "./view";
 
@@ -11,5 +12,9 @@ export default async function VoicePage() {
   } catch {
     /* client hooks surface errors */
   }
-  return <VoiceView initialStatus={status} initialGuilds={guilds} />;
+  return (
+    <PageTransition>
+      <VoiceView initialStatus={status} initialGuilds={guilds} />
+    </PageTransition>
+  );
 }

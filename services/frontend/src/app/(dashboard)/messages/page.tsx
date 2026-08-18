@@ -1,3 +1,4 @@
+import { PageTransition } from "@/components/shared";
 import { getConfig, getGuilds } from "@/lib/api/server";
 import { MessagesView } from "./view";
 
@@ -12,9 +13,11 @@ export default async function MessagesPage() {
     /* client hooks surface errors */
   }
   return (
-    <MessagesView
-      initialGuilds={guilds}
-      initialGuildId={config?.monitorGuildId ?? null}
-    />
+    <PageTransition>
+      <MessagesView
+        initialGuilds={guilds}
+        initialGuildId={config?.monitorGuildId ?? null}
+      />
+    </PageTransition>
   );
 }

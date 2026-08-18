@@ -1,3 +1,4 @@
+import { PageTransition } from "@/components/shared";
 import { getActivity, getDashboardStats } from "@/lib/api/server";
 import { DashboardView } from "./view";
 
@@ -14,5 +15,9 @@ export default async function DashboardPage() {
   } catch {
     // Backend unavailable — client hooks will surface the error state.
   }
-  return <DashboardView initialStats={stats} initialActivity={activity} />;
+  return (
+    <PageTransition>
+      <DashboardView initialStats={stats} initialActivity={activity} />
+    </PageTransition>
+  );
 }
