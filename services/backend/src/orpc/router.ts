@@ -143,6 +143,14 @@ const messagesRouter = {
   semanticSearch: os
     .input(semanticSearchSchema)
     .handler(({ input }) => messagesService.semanticSearch(input)),
+  // Public, read-only activity heatmap data (per-hour volume by channel).
+  activity: os
+    .input(
+      z.object({
+        days: z.coerce.number().int().positive().max(365).default(30),
+      }),
+    )
+    .handler(({ input }) => messagesService.getActivity(input.days)),
 };
 
 // ── Moderation ───────────────────────────────────────────────────
@@ -165,6 +173,13 @@ const moderationRouter = {
         cursor: input.cursor,
       }),
     ),
+  trends: os
+    .input(
+      z.object({
+        days: z.coerce.number().int().positive().max(365).default(30),
+      }),
+    )
+    .handler(({ input }) => moderationService.getTrends(input.days)),
 };
 
 // ── Media ────────────────────────────────────────────────────────

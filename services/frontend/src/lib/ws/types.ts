@@ -2,6 +2,7 @@ import type {
   ActiveSpeaker,
   MediaState,
   MessageRecord,
+  ModerationAction,
   VoiceRecording,
 } from "@/lib/types";
 
@@ -68,6 +69,8 @@ export interface WsEventMap {
   presence_updated: unknown;
   guild_member_added: unknown;
   guild_member_removed: unknown;
+  /** Live moderation action broadcast (gateway → Redis → backend → WS). */
+  moderation_action: ModerationAction;
   media_state: MediaState;
   user_state: unknown;
   ui_state: unknown;

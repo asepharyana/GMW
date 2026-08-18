@@ -30,6 +30,7 @@ export const DISCORD_CHANNEL_TOPIC_UPDATED = "discord:channel:topic_updated";
 export const DISCORD_PRESENCE_UPDATED = "discord:presence:updated";
 export const DISCORD_GUILD_MEMBER_ADDED = "discord:guild_member:added";
 export const DISCORD_GUILD_MEMBER_REMOVED = "discord:guild_member:removed";
+export const DISCORD_MODERATION_ACTION = "discord:moderation:action";
 
 // ---------------------------------------------------------------------------
 // Command channels (backend -> discord-gateway)
@@ -126,4 +127,5 @@ export const DISCORD_CHANNEL_TO_WS_EVENT: Record<string, string> = {
   [DISCORD_PRESENCE_UPDATED]: "presence_updated",
   [DISCORD_GUILD_MEMBER_ADDED]: "guild_member_added",
   [DISCORD_GUILD_MEMBER_REMOVED]: "guild_member_removed",
+  [DISCORD_MODERATION_ACTION]: "moderation_action",
 };

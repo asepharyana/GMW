@@ -4,7 +4,15 @@ import type * as schema from "../../shared/database/schema.js";
 import { moderationActionsTable } from "../../shared/database/schema.js";
 import { buildCursorCondition, pageResult } from "../../shared/index.js";
 import { createChildLogger, type Logger } from "../../shared/logger/index.js";
+import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";
 import type { ModerationAction, PageResult } from "../message-capture/types.js";
+
+let _eventBroadcaster: EventBroadcaster | null = null;
+
+/** Inject the gateway's event broadcaster so actions can be published live. */
+export function setModerationEventBroadcaster(eb: EventBroadcaster): void {
+  _eventBroadcaster = eb;
+}
 
 // ─── ModerationActionsDb Class ──────────────────────────────────────────────
 
@@ -38,7 +46,16 @@ export class ModerationActionsDb {
         })
         .returning();
 
-      return rows[0] as ModerationAction;
+      const created = rows[0] as ModerationAction;
+
+      // Fire-and-forget live broadcast (backend WS → frontend feed).
+      if (_eventBroadcaster) {
+        _eventBroadcaster
+          .moderationAction(created as unknown as Record<string, unknown>)
+          .catch(() => {});
+      }
+
+      return created;
     } catch (error) {
       this.logger.error(
         {

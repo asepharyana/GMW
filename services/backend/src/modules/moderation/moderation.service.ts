@@ -8,8 +8,11 @@ const logger = createChildLogger("moderation.service");
 
 export class ModerationService {
   async getStats() {
-    logger.debug("Fetching moderation stats");
     return moderationRepository.getStats();
+  }
+
+  async getTrends(days = 30) {
+    return moderationRepository.getTrends(days);
   }
 
   async listActions(query: ListModerationQuery) {

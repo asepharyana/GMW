@@ -25,6 +25,7 @@ import {
   registerMessageCapture,
   setEventBroadcaster as setMessageCaptureEventBroadcaster,
 } from "../modules/message-capture/messageCapture.js";
+import { setModerationEventBroadcaster } from "../modules/message-capture/moderationActionsDb.js";
 import { registerReactionCapture } from "../modules/reaction-tracking/index.js";
 import { registerThreadCapture } from "../modules/thread-tracking/index.js";
 import { registerPresenceCapture } from "../modules/user-presence/index.js";
@@ -254,6 +255,7 @@ export async function initializeDiscordGateway() {
     logger.info({ user: client.user?.tag }, "Bot logged in");
     setMessageCaptureEventBroadcaster(eventBroadcaster);
     setRecorderEventBroadcaster(eventBroadcaster);
+    setModerationEventBroadcaster(eventBroadcaster);
     registerMessageCapture(client);
     startPendingAIAnalysisWorker(client, eventBroadcaster);
 

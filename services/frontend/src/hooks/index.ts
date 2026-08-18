@@ -30,10 +30,13 @@ export {
   useReview,
   useSemanticSearch,
   useTextChannels,
+  useMessageActivity,
 } from "./use-messages";
 export {
+  useLiveModeration,
   useModerationActions,
   useModerationStats,
+  useModerationTrends,
 } from "./use-moderation";
 export {
   useDeleteRecording,

@@ -293,6 +293,16 @@ export class EventBroadcaster {
     });
   }
 
+  async moderationAction(data: Record<string, unknown>): Promise<void> {
+    this.logger.debug({ data }, "Publishing moderation_action");
+    await this.publisher.publish(EventChannels.MODERATION_ACTION, {
+      type: "moderation_action",
+      data,
+      timestamp: Date.now(),
+      source: "discord-gateway",
+    });
+  }
+
   async analysisQueueStatus(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing analysis_queue_status");
     await this.publisher.publish(EventChannels.ANALYSIS_QUEUE_STATUS, {

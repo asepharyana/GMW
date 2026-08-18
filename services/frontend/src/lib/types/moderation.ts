@@ -44,3 +44,9 @@ export interface PaginatedModerationActions {
   data: ModerationAction[];
   nextCursor: string | null;
 }
+
+export interface ModerationTrends {
+  categories: { name: string; count: number }[];
+  severities: { level: string; count: number }[];
+  actions: { type: string; count: number }[];
+}

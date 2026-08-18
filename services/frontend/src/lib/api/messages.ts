@@ -1,6 +1,7 @@
 import { orpc } from "@/lib/orpc/client";
 import type {
   AttachmentRecord,
+  MessageActivityBucket,
   MessageRecord,
   SemanticSearchResult,
 } from "@/lib/types";
@@ -73,4 +74,10 @@ export const messagesApi = {
       results: SemanticSearchResult[];
       nextCursor: null;
     }>,
+
+  // Public, read-only activity heatmap data (per-hour volume by channel).
+  getActivity: (days = 30) =>
+    orpc.messages.activity({ days }) as unknown as Promise<
+      MessageActivityBucket[]
+    >,
 };

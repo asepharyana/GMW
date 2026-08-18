@@ -173,6 +173,12 @@ export interface SemanticSearchResult {
   created_at: number;
 }
 
+export interface MessageActivityBucket {
+  channelId: string;
+  hour: number;
+  count: number;
+}
+
 export interface SemanticSearchResponse {
   results: SemanticSearchResult[];
   nextCursor: null;

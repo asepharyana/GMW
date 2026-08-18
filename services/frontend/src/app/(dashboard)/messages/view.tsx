@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  Calendar,
   CheckCircle2,
   Image as ImageIcon,
   Loader2,
@@ -11,6 +12,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityHeatmap } from "@/components/ActivityHeatmap";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import {
   Avatar,
@@ -28,6 +30,7 @@ import {
 import { GuildChannelPicker } from "@/components/shared/guild-picker";
 import {
   useLoadMore,
+  useMessageActivity,
   useMessageDetail,
   useMessageSearch,
   useMessages,
@@ -71,6 +74,8 @@ export function MessagesView({
   // Search mode: "exact" (substring match over captured messages) or
   // "semantic" (vector similarity over the persistent Qdrant archive).
   const [semanticMode, setSemanticMode] = useState(false);
+  // feed | timeline: "timeline" groups messages into date-grouped cards.
+  const [viewMode, setViewMode] = useState<"feed" | "timeline">("feed");
   // Guard against loading the entire history on a long scroll: cap how many
   // older pages we append. Each page is 50 messages (backend limit default).
   const MAX_OLDER_PAGES = 10;
@@ -106,6 +111,7 @@ export function MessagesView({
     query,
     query.trim().length >= 2 && semanticMode,
   );
+  const activity = useMessageActivity(30);
   const detail = useMessageDetail(selected);
   const ambient = useAmbient();
 
@@ -139,6 +145,33 @@ export function MessagesView({
   // Discord-style order: oldest at the top, newest at the bottom. The backend
   // returns DESC (newest first); reverse so the feed reads top→bottom like DC.
   const display = useMemo(() => [...list].reverse(), [list]);
+
+  // Timeline mode: inject date-separator headers above the first message of
+  // each day. Messages are sorted oldest→newest (display is reversed), so a
+  // date change means a new group. Produces an array of either "date" or "msg"
+  // nodes so the render loop can switch easily.
+  const timelineNodes = useMemo(() => {
+    if (viewMode !== "timeline") return null;
+    const out: Array<
+      | { type: "date"; label: string; iso: string }
+      | { type: "msg"; m: (typeof display)[number] }
+    > = [];
+    let prev = "";
+    for (const m of display) {
+      const d = new Date(m.created_at).toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+      const iso = new Date(m.created_at).toISOString().slice(0, 10);
+      if (d !== prev) {
+        out.push({ type: "date", label: d, iso });
+        prev = d;
+      }
+      out.push({ type: "msg", m });
+    }
+    return out;
+  }, [display, viewMode]);
 
   // Ref to the scroll container so we can manage scroll position like Discord:
   // open at the bottom (newest), keep the viewport stable when prepending older
@@ -207,6 +240,20 @@ export function MessagesView({
           title="Toggle semantic (vector) search over the message archive"
         >
           {semanticMode ? "Semantic" : "Exact"}
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setViewMode((v) => (v === "feed" ? "timeline" : "feed"))
+          }
+          className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+            viewMode === "timeline"
+              ? "border-signal/40 bg-signal/10 text-signal"
+              : "border-hairline bg-white/[0.03] text-ink-soft hover:bg-white/[0.06]"
+          }`}
+          title="Toggle timeline (date-grouped) view"
+        >
+          {viewMode === "timeline" ? "Timeline" : "Feed"}
         </button>
       </GlassPanel>
 
@@ -326,45 +373,33 @@ export function MessagesView({
                   }
                 }}
               >
-                {display.map((m, i) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setSelected(m.id)}
-                    className={`animate-stagger flex w-full items-start gap-3 rounded-[12px] border p-3 text-left transition-colors ${
-                      selected === m.id
-                        ? "border-signal/40 bg-signal/8"
-                        : "border-hairline bg-white/[0.03] hover:bg-white/[0.06]"
-                    }`}
-                    style={staggerDelay(i)}
-                  >
-                    <Avatar src={m.avatar_url} name={m.username} size={34} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-ink">
-                          {m.username}
-                        </span>
-                        <span className="mono text-[0.65rem] text-ink-faint">
-                          {getMessageChannelLabel(m)}
-                        </span>
-                        <span className="mono ml-auto text-[0.6rem] text-ink-faint">
-                          {formatRelativeTime(m.created_at)}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 line-clamp-2 text-sm text-ink-soft">
-                        {renderMessageContent(m.content, m.metadata) || (
-                          <span className="italic text-ink-faint">
-                            (empty / embed)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <AiBadge
-                      status={m.ai_status}
-                      durationMs={m.ai_analysis_duration_ms}
-                    />
-                  </button>
-                ))}
+                {viewMode === "timeline" && timelineNodes
+                  ? timelineNodes.map((node, _i) =>
+                      node.type === "date" ? (
+                        <div
+                          key={`date-${node.iso}`}
+                          className="flex items-center gap-2 px-1 text-[0.65rem] text-ink-faint"
+                        >
+                          <Calendar className="size-3" />
+                          {node.label}
+                        </div>
+                      ) : (
+                        <MessageRow
+                          key={node.m.id}
+                          m={node.m}
+                          selected={selected}
+                          onSelect={setSelected}
+                        />
+                      ),
+                    )
+                  : display.map((m, _i) => (
+                      <MessageRow
+                        key={m.id}
+                        m={m}
+                        selected={selected}
+                        onSelect={setSelected}
+                      />
+                    ))}
               </div>
             </div>
           )}
@@ -392,6 +427,10 @@ export function MessagesView({
           )}
         </GlassPanel>
       </div>
+
+      {activity.data && activity.data.length > 0 && (
+        <ActivityHeatmap buckets={activity.data} />
+      )}
     </div>
   );
 }
@@ -511,5 +550,50 @@ function MessageDetail({
         </div>
       )}
     </div>
+  );
+}
+
+/** Single message card used by both the live feed and the date-grouped timeline. */
+function MessageRow({
+  m,
+  selected,
+  onSelect,
+}: {
+  m: MessageRecord;
+  selected: string | null;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <button
+      key={m.id}
+      type="button"
+      onClick={() => onSelect(m.id)}
+      className={`animate-stagger flex w-full items-start gap-3 rounded-[12px] border p-3 text-left transition-colors ${
+        selected === m.id
+          ? "border-signal/40 bg-signal/8"
+          : "border-hairline bg-white/[0.03] hover:bg-white/[0.06]"
+      }`}
+    >
+      <Avatar src={m.avatar_url} name={m.username} size={34} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-semibold text-ink">
+            {m.username}
+          </span>
+          <span className="mono text-[0.65rem] text-ink-faint">
+            {getMessageChannelLabel(m)}
+          </span>
+          <span className="mono ml-auto text-[0.6rem] text-ink-faint">
+            {formatRelativeTime(m.created_at)}
+          </span>
+        </div>
+        <div className="mt-0.5 line-clamp-2 text-sm text-ink-soft">
+          {renderMessageContent(m.content, m.metadata) || (
+            <span className="italic text-ink-faint">(empty / embed)</span>
+          )}
+        </div>
+      </div>
+      <AiBadge status={m.ai_status} durationMs={m.ai_analysis_duration_ms} />
+    </button>
   );
 }

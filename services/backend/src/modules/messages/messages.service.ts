@@ -101,6 +101,10 @@ export class MessagesService {
     const results = hits.map((h) => mapSearchHit(h));
     return { results, nextCursor: null };
   }
+
+  async getActivity(days = 30) {
+    return messagesRepository.getActivity(days);
+  }
 }
 
 /** Shape returned to the frontend (text + metadata from the archive payload). */

@@ -30,6 +30,7 @@ export const DISCORD_CHANNEL_TOPIC_UPDATED = "discord:channel:topic_updated";
 export const DISCORD_PRESENCE_UPDATED = "discord:presence:updated";
 export const DISCORD_GUILD_MEMBER_ADDED = "discord:guild_member:added";
 export const DISCORD_GUILD_MEMBER_REMOVED = "discord:guild_member:removed";
+export const DISCORD_MODERATION_ACTION = "discord:moderation:action";
 
 // ---------------------------------------------------------------------------
 // Command channels (backend -> discord-gateway)

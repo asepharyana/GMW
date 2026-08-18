@@ -1,5 +1,9 @@
 import { orpc } from "@/lib/orpc/client";
-import type { ModerationStats, PaginatedModerationActions } from "@/lib/types";
+import type {
+  ModerationStats,
+  ModerationTrends,
+  PaginatedModerationActions,
+} from "@/lib/types";
 
 export const moderationApi = {
   getStats: () =>
@@ -17,4 +21,7 @@ export const moderationApi = {
       actionType,
       cursor,
     }) as unknown as Promise<PaginatedModerationActions>,
+
+  getTrends: (days = 30) =>
+    orpc.moderation.trends({ days }) as unknown as Promise<ModerationTrends>,
 };

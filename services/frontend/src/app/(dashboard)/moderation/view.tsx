@@ -16,6 +16,7 @@ import {
 import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import { Donut } from "@/components/charts";
+import { LiveModerationFeed } from "@/components/LiveModerationFeed";
 import {
   Badge,
   GlassPanel,
@@ -30,8 +31,15 @@ import {
   SkeletonPanel,
   SkeletonRows,
 } from "@/components/shared";
-import { useModerationActions, useModerationStats } from "@/hooks";
+import { TopicTrends } from "@/components/TopicTrends";
+import {
+  useLiveModeration,
+  useModerationActions,
+  useModerationStats,
+  useModerationTrends,
+} from "@/hooks";
 import { aiTone } from "@/lib/ai-status";
+import { downloadCsv } from "@/lib/csv";
 import { formatNumber, formatRelativeTime } from "@/lib/format";
 import type {
   ModerationAction,
@@ -71,6 +79,8 @@ export function ModerationView({
     typeFilter || undefined,
     !statusFilter && !typeFilter ? initialActions : undefined,
   );
+  const liveActions = useLiveModeration(initialActions ?? [], 50);
+  const { data: trends } = useModerationTrends(30);
 
   const failedRate = stats ? stats.failed_rate * 100 : 0;
 
@@ -150,6 +160,18 @@ export function ModerationView({
       </div>
 
       <div className="grid gap-5 lg:grid-cols-5">
+        <div className="lg:col-span-2">
+          {trends ? (
+            <TopicTrends trends={trends} />
+          ) : (
+            <SkeletonPanel rows={6} />
+          )}
+        </div>
+
+        <div className="lg:col-span-5">
+          <LiveModerationFeed actions={liveActions} />
+        </div>
+
         <GlassPanel className="lg:col-span-2">
           <SectionHeader eyebrow="health" title="Breakdown" />
           <div className="flex items-center gap-5">
@@ -215,6 +237,30 @@ export function ModerationView({
                   size="sm"
                   className="w-32"
                 />
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadCsv(
+                      "moderation-actions.csv",
+                      (actions ?? []).map((a) => ({
+                        id: a.id,
+                        user: a.username ?? a.user_id,
+                        action_type: a.action_type,
+                        status: a.status,
+                        severity: a.severity ?? "",
+                        categories: (a.categories ?? []).join("|"),
+                        reason: a.reason ?? "",
+                        created_at: a.created_at
+                          ? new Date(a.created_at).toISOString()
+                          : "",
+                      })),
+                    )
+                  }
+                  className="rounded-full border border-hairline bg-white/[0.03] px-3 py-1 text-xs text-ink-soft transition-colors hover:bg-white/[0.06]"
+                  title="Download moderation actions as CSV"
+                >
+                  CSV
+                </button>
               </div>
             }
           />

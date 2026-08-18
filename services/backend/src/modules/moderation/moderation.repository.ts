@@ -164,6 +164,60 @@ export class ModerationRepository {
 
     return { data, nextCursor };
   }
+
+  /**
+   * Aggregate moderation trends over the last `days` days.
+   * - category counts (from the jsonb/text[] `categories` column, unnested)
+   * - severity distribution
+   * - action_type distribution
+   * Read-only; powers the public Toxic Topic Trends panel.
+   */
+  async getTrends(days: number) {
+    const db = getDatabase();
+    const since = Date.now() - days * 24 * 60 * 60 * 1000;
+
+    const cats = await db.execute(sql`
+      SELECT jsonb_array_elements_text(a.categories::jsonb) AS cat, COUNT(*)::int AS c
+      FROM moderation_actions a
+      WHERE a.created_at >= ${since} AND a.categories IS NOT NULL AND a.categories != '[]' AND a.categories != ''
+      GROUP BY cat
+      ORDER BY c DESC
+      LIMIT 15
+    `);
+    const catRows = (cats.rows as Record<string, unknown>[]) || [];
+
+    const sev = await db.execute(sql`
+      SELECT severity, COUNT(*)::int AS c
+      FROM moderation_actions
+      WHERE created_at >= ${since} AND severity IS NOT NULL
+      GROUP BY severity
+    `);
+    const sevRows = (sev.rows as Record<string, unknown>[]) || [];
+
+    const act = await db.execute(sql`
+      SELECT action_type, COUNT(*)::int AS c
+      FROM moderation_actions
+      WHERE created_at >= ${since}
+      GROUP BY action_type
+      ORDER BY c DESC
+    `);
+    const actRows = (act.rows as Record<string, unknown>[]) || [];
+
+    return {
+      categories: catRows.map((r) => ({
+        name: String(r.cat),
+        count: Number(r.c ?? 0),
+      })),
+      severities: sevRows.map((r) => ({
+        level: String(r.severity),
+        count: Number(r.c ?? 0),
+      })),
+      actions: actRows.map((r) => ({
+        type: String(r.action_type),
+        count: Number(r.c ?? 0),
+      })),
+    };
+  }
 }
 
 export const moderationRepository = new ModerationRepository();

@@ -5,6 +5,7 @@ import { messagesApi, voiceApi } from "@/lib/api";
 import type {
   AttachmentRecord,
   Channel,
+  MessageActivityBucket,
   MessageRecord,
   SemanticSearchResult,
 } from "@/lib/types";
@@ -373,4 +374,10 @@ export function useMessagesStream(
   }, [ws, guildId, channelId, mutate]);
 
   return { streaming, error };
+}
+
+export function useMessageActivity(days = 30) {
+  return useSWR<MessageActivityBucket[]>(["activity", days], () =>
+    messagesApi.getActivity(days),
+  );
 }

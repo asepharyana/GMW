@@ -459,6 +459,31 @@ export class MessagesRepository {
 
     return { data: trimmed, nextCursor };
   }
+
+  /**
+   * Per-hour message volume for the last `days` days, grouped by channel.
+   * Powers the public Activity Heatmap (read-only, no write scope).
+   * Returns a flat list of { channel_id, hour (0-23), count } buckets.
+   */
+  async getActivity(days = 30) {
+    const db = getDatabase();
+    const since = Date.now() - days * 24 * 60 * 60 * 1000;
+    const result = await db.execute(sql`
+      SELECT channel_id,
+             EXTRACT(HOUR FROM to_timestamp(created_at / 1000))::int AS hour,
+             COUNT(*)::int AS c
+      FROM messages
+      WHERE created_at >= ${since}
+      GROUP BY channel_id, hour
+      ORDER BY channel_id, hour
+    `);
+    const rows = (result.rows as Record<string, unknown>[]) || [];
+    return rows.map((r) => ({
+      channelId: String(r.channel_id ?? "unknown"),
+      hour: Number(r.hour ?? 0),
+      count: Number(r.c ?? 0),
+    }));
+  }
 }
 
 export const messagesRepository = new MessagesRepository();
