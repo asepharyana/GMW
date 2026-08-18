@@ -1,6 +1,7 @@
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
+import { messagesService } from "../modules/messages/messages.service.js";
 import { config } from "../shared/config/index.js";
 import { BACKEND_COMMAND, BACKEND_VOICE_TRANSMIT } from "../shared/index.js";
 import { createChildLogger } from "../shared/logger/index.js";
@@ -138,6 +139,73 @@ export function createWebSocketServer(server: Server): WebSocketServer {
         replyChannel: `reply:${commandId}`,
       }),
     );
+  });
+
+  // Stream historical messages one-by-one over WS (no 50-row batch).
+  // The frontend requests it once per channel switch; the backend emits one
+  // `message_snapshot` frame per message so the UI renders progressively.
+  jsonHandlers.set("stream_messages", async (ws, message) => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    const payload = (message.payload ?? {}) as {
+      guildId?: string;
+      channelId?: string;
+      cursor?: string;
+      limit?: number;
+    };
+    const guildId = payload.guildId;
+    const channelId = payload.channelId;
+    if (!guildId && !channelId) {
+      logger.warn({ payload }, "stream_messages requires guildId or channelId");
+      return;
+    }
+
+    const pageSize = 50; // internal DB page size; still emitted one frame at a time
+    const maxFrames = Math.min(payload.limit ?? 200, 500);
+
+    let sent = 0;
+    let nextCursor: string | null = null;
+    try {
+      for await (const msg of messagesService.streamMessages(
+        {
+          guildId,
+          channelId,
+          cursor: payload.cursor,
+        } as never,
+        pageSize,
+      )) {
+        if (ws.readyState !== WebSocket.OPEN) break;
+        // Streamed DESC (newest first); the oldest emitted carries the smallest
+        // created_at, which is exactly the next-page cursor for "load older".
+        const createdAt = (msg as { created_at?: number }).created_at;
+        if (createdAt !== undefined) nextCursor = String(createdAt);
+        ws.send(
+          JSON.stringify({
+            type: "message_snapshot",
+            data: msg,
+          }),
+        );
+        sent++;
+        if (sent >= maxFrames) break;
+      }
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
+            type: "message_snapshot_end",
+            data: { sent, nextCursor },
+          }),
+        );
+      }
+    } catch (err) {
+      logger.error({ err }, "stream_messages failed");
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
+            type: "message_snapshot_end",
+            data: { sent, nextCursor, error: true },
+          }),
+        );
+      }
+    }
   });
 
   wss.on("connection", (ws: WebSocket, req) => {

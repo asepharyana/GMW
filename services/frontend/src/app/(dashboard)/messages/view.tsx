@@ -32,6 +32,7 @@ import {
   useMessageSearch,
   useMessages,
   useMessagesHasMore,
+  useMessagesStream,
   useMessagesWsSync,
 } from "@/hooks";
 import { aiTone } from "@/lib/ai-status";
@@ -49,9 +50,14 @@ import { useWebSocket } from "@/lib/ws/context";
 export function MessagesView({
   initialGuilds,
   initialGuildId,
+  initialMessages,
 }: {
   initialGuilds?: Guild[];
   initialGuildId?: string | null;
+  initialMessages?: {
+    data: MessageRecord[];
+    nextCursor: string | null;
+  } | null;
 }) {
   const ws = useWebSocket();
   const [guildId, setGuildId] = useState<string | null>(
@@ -69,7 +75,15 @@ export function MessagesView({
     data: messages,
     isLoading,
     error,
-  } = useMessages(guildId ?? "", channelId ?? undefined);
+  } = useMessages(
+    guildId ?? "",
+    channelId ?? undefined,
+    initialMessages ?? undefined,
+  );
+  // Stream history one message per WS frame (replaces the 50-row batched fetch).
+  // Drives snapshots into the SWR list above as they arrive; falls back to the
+  // SSR `initialMessages` seed if WS is unavailable.
+  useMessagesStream(ws, guildId ?? "", channelId ?? undefined);
   // Cursor to the next (older) page + whether more history exists.
   const { data: pageInfo } = useMessagesHasMore(
     guildId ?? "",

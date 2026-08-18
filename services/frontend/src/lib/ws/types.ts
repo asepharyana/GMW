@@ -36,6 +36,13 @@ export interface WsEventMap {
   /** Gateway emits { id, deleted_at } — NOT a bare string */
   message_deleted: { id: string; deleted_at?: number };
   message_analyzed: MessageRecord;
+  /**
+   * Streamed history frame — one MessageRecord per WS message (replaces the old
+   * 50-row batched `messages.list` fetch on the client). The view accumulates
+   * these into the SWR list as they arrive. `message_snapshot_end` signals done.
+   */
+  message_snapshot: MessageRecord;
+  message_snapshot_end: { sent: number; error?: boolean };
   attachment_created: unknown;
   attachment_uploaded: unknown;
   voice_recording_started: unknown;

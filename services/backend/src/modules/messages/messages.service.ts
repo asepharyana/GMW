@@ -15,6 +15,14 @@ export class MessagesService {
     return messagesRepository.findMany(query);
   }
 
+  /**
+   * Stream messages one at a time (no 50-row batch). The WS handler iterates
+   * this generator and emits one `message_snapshot` frame per message.
+   */
+  streamMessages(query: MessageQuery, pageSize = 50) {
+    return messagesRepository.streamMany(query, pageSize);
+  }
+
   async getMessagesByChannel(channelId: string, query: MessageQuery) {
     if (!channelId) {
       throw new ValidationError("channelId is required");

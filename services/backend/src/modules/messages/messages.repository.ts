@@ -172,6 +172,71 @@ export class MessagesRepository {
     return { data, nextCursor };
   }
 
+  /**
+   * Async generator that yields messages ONE AT A TIME for WS streaming.
+   * Each `.next()` runs its own bounded DB query (limit+1) advancing on the
+   * `created_at` cursor, so memory stays flat and the caller can emit one WS
+   * frame per message (no 50-row batch). Stops when a page returns < limit.
+   */
+  async *streamMany(
+    query: MessageQuery,
+    pageSize = 50,
+  ): AsyncGenerator<ReturnType<typeof mapMessageRow>, void, unknown> {
+    const conditions: SQL[] = [];
+
+    if (query.guildId) {
+      conditions.push(eq(pgMessagesTable.guild_id, query.guildId));
+    }
+    if (query.channelId) {
+      conditions.push(eq(pgMessagesTable.channel_id, query.channelId));
+    }
+    if (query.userId) {
+      conditions.push(eq(pgMessagesTable.user_id, query.userId));
+    }
+    if (query.status) {
+      conditions.push(eq(pgMessagesTable.ai_status, query.status));
+    }
+    if (EXCLUDED_THREAD_IDS.length > 0) {
+      const excludeThreads = or(
+        isNull(pgMessagesTable.thread_id),
+        notInArray(pgMessagesTable.thread_id, EXCLUDED_THREAD_IDS),
+      );
+      if (excludeThreads) conditions.push(excludeThreads);
+    }
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    let cursor: string | undefined = query.cursor;
+
+    while (true) {
+      const pageConditions = where ? [where] : [];
+      if (cursor) {
+        pageConditions.push(lt(pgMessagesTable.created_at, Number(cursor)));
+      }
+      const pageWhere =
+        pageConditions.length > 0 ? and(...pageConditions) : undefined;
+
+      const db = getDatabase();
+      const rows = await db
+        .select()
+        .from(pgMessagesTable)
+        .where(pageWhere)
+        .orderBy(desc(pgMessagesTable.created_at))
+        .limit(pageSize + 1);
+
+      if (rows.length === 0) return;
+
+      const hasMore = rows.length > pageSize;
+      const pageRows = hasMore ? rows.slice(0, pageSize) : rows;
+
+      for (const r of pageRows) {
+        yield mapMessageRow(r as Record<string, unknown>);
+      }
+
+      if (!hasMore) return;
+      cursor = String(rows[pageSize - 1].created_at);
+    }
+  }
+
   async create(data: MessageCreate) {
     const db = getDatabase();
     const id = crypto.randomUUID();

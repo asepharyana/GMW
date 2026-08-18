@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useAction } from "@/hooks/use-action";
 import { messagesApi, voiceApi } from "@/lib/api";
@@ -274,4 +274,83 @@ export function useMessagesWsSync(ws: WsHook, guildId: string) {
       unsub4();
     };
   }, [ws, guildId, mutate]);
+}
+
+/**
+ * Stream a channel/guild history ONE message per WS frame (no 50-row batch).
+ * Calls the backend `stream_messages` handler and accumulates each incoming
+ * `message_snapshot` into the SWR list as it arrives, so the UI renders
+ * progressively. Falls back to the batched `messagesApi.list` if WS is down.
+ *
+ * Returns: { streaming, streamed, error }.
+ */
+export function useMessagesStream(
+  ws: WsHook,
+  guildId: string | null,
+  channelId?: string | null,
+) {
+  const { mutate } = useSWRConfig();
+  const [streaming, setStreaming] = useState(false);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!guildId) return;
+    let cancelled = false;
+
+    const key = msgKeys.list(guildId, channelId ?? undefined);
+    const unsubSnap = ws.on("message_snapshot", (data) => {
+      if (cancelled) return;
+      const msg = data as MessageRecord;
+      if (channelId && msg.channel_id !== channelId) return;
+      if (!channelId && msg.guild_id && msg.guild_id !== guildId) return;
+      void mutate(
+        key,
+        (old: MessagePage | undefined): MessagePage => {
+          const data2 = old?.data ?? [];
+          if (data2.some((m) => m.id === msg.id))
+            return old ?? { data: [], nextCursor: null };
+          return { data: [msg, ...data2], nextCursor: old?.nextCursor ?? null };
+        },
+        { revalidate: false },
+      );
+    });
+    const unsubEnd = ws.on("message_snapshot_end", (data) => {
+      if (cancelled) return;
+      const end = data as {
+        sent: number;
+        nextCursor: string | null;
+        error?: boolean;
+      };
+      setStreaming(false);
+      setError(Boolean(end.error));
+      // Persist the next-page cursor so "load older" still works after streaming.
+      if (end.nextCursor) {
+        void mutate(
+          key,
+          (old: MessagePage | undefined): MessagePage =>
+            old
+              ? { ...old, nextCursor: end.nextCursor }
+              : { data: [], nextCursor: end.nextCursor },
+          { revalidate: false },
+        );
+      }
+    });
+
+    setStreaming(true);
+    setError(false);
+    ws.sendText(
+      JSON.stringify({
+        type: "stream_messages",
+        payload: { guildId, channelId: channelId ?? undefined, limit: 200 },
+      }),
+    );
+
+    return () => {
+      cancelled = true;
+      unsubSnap();
+      unsubEnd();
+    };
+  }, [ws, guildId, channelId, mutate]);
+
+  return { streaming, error };
 }

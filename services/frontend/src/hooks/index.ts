@@ -25,6 +25,7 @@ export {
   useMessageSearch,
   useMessages,
   useMessagesHasMore,
+  useMessagesStream,
   useMessagesWsSync,
   useReview,
   useTextChannels,

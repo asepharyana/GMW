@@ -99,3 +99,26 @@ export async function getRecordings(limit = 50): Promise<PaginatedRecordings> {
     limit,
   }) as unknown as Promise<PaginatedRecordings>;
 }
+
+// ---- Messages (SSR seed for the streaming view) ----
+// Used to seed the first paint so the feed isn't blank before the WS stream
+// arrives. The client then takes over and streams the rest one frame at a time.
+export async function getMessages(
+  guildId: string,
+  channelId?: string,
+  limit = 50,
+  cursor?: string,
+): Promise<{
+  data: import("@/lib/types").MessageRecord[];
+  nextCursor: string | null;
+}> {
+  return serverOrpc().messages.list({
+    guildId,
+    channelId,
+    limit,
+    cursor,
+  }) as unknown as Promise<{
+    data: import("@/lib/types").MessageRecord[];
+    nextCursor: string | null;
+  }>;
+}

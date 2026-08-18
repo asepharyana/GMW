@@ -5,4 +5,5 @@ export type WsHook = {
     eventType: E,
     handler: (data: unknown) => void,
   ) => () => void;
+  sendText: (text: string) => void;
 };
