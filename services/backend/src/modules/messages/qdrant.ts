@@ -1,5 +1,5 @@
-import { config } from "@/shared/config/index.js";
-import { createChildLogger } from "@/shared/logger/index.js";
+import { config } from "@/shared/config/index";
+import { createChildLogger } from "@/shared/logger/index";
 
 const logger = createChildLogger("messages-qdrant");
 
