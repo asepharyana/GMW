@@ -37,6 +37,7 @@ import type {
   ModerationActionType,
   ModerationStats,
 } from "@/lib/types";
+import { staggerDelay } from "@/lib/utils";
 
 const ACTION_ICON: Record<ModerationActionType, React.ReactNode> = {
   delete_message: <Trash2 className="size-3.5" />,
@@ -217,8 +218,8 @@ export function ModerationView({
             }
           />
           <div className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1">
-            {(actions ?? []).map((a) => (
-              <ActionRow key={a.id} a={a} />
+            {(actions ?? []).map((a, i) => (
+              <ActionRow key={a.id} a={a} index={i} />
             ))}
             {(actions ?? []).length === 0 && (
               <div className="py-10 text-center text-xs text-ink-faint">
@@ -232,7 +233,7 @@ export function ModerationView({
   );
 }
 
-function ActionRow({ a }: { a: ModerationAction }) {
+function ActionRow({ a, index = 0 }: { a: ModerationAction; index?: number }) {
   const tone =
     a.status === "executed"
       ? "signal"
@@ -243,7 +244,10 @@ function ActionRow({ a }: { a: ModerationAction }) {
     <AlertTriangle className="size-3.5" />
   );
   return (
-    <div className="flex items-start gap-3 rounded-[10px] border border-hairline bg-white/[0.03] p-3">
+    <div
+      className="animate-stagger flex items-start gap-3 rounded-[10px] border border-hairline bg-white/[0.03] p-3"
+      style={staggerDelay(index)}
+    >
       <span
         className={`mt-0.5 ${tone === "vermilion" ? "text-vermilion" : tone === "amber" ? "text-amber" : "text-signal"}`}
       >

@@ -29,6 +29,7 @@ import {
 } from "@/hooks";
 import { formatNumber } from "@/lib/format";
 import type { DashboardStats } from "@/lib/types";
+import { staggerDelay } from "@/lib/utils";
 
 function deriveSignal(stats?: DashboardStats) {
   if (!stats) return { tone: "signal" as const, label: "nominal" };
@@ -113,23 +114,31 @@ export function DashboardView({
             value={formatNumber(s.total_messages)}
             tone="signal"
             icon={<MessageSquare className="size-3.5" />}
+            className="animate-stagger"
+            style={staggerDelay(0)}
           />
           <MetricTile
             label="Flagged"
             value={formatNumber(s.total_flagged)}
             tone={s.total_flagged > 0 ? "vermilion" : "neutral"}
             hint={`${s.today_flagged} today`}
+            className="animate-stagger"
+            style={staggerDelay(1)}
           />
           <MetricTile
             label="Active 24h"
             value={formatNumber(s.active_users_24h)}
             tone="signal"
             icon={<Users className="size-3.5" />}
+            className="animate-stagger"
+            style={staggerDelay(2)}
           />
           <MetricTile
             label="Voice clips"
             value={formatNumber(s.total_voice_recordings)}
             icon={<Mic className="size-3.5" />}
+            className="animate-stagger"
+            style={staggerDelay(3)}
           />
         </div>
       </GlassPanel>

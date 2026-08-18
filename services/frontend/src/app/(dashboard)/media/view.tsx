@@ -28,6 +28,7 @@ import {
 } from "@/hooks";
 import { formatDuration } from "@/lib/format";
 import type { MediaState } from "@/lib/types";
+import { staggerDelay } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
 export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
@@ -205,7 +206,8 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
             {queueList.map((item, i) => (
               <div
                 key={`${item.source}-${i}`}
-                className="flex items-center gap-3 rounded-[10px] border border-hairline bg-white/5 px-3 py-2.5"
+                className="animate-stagger flex items-center gap-3 rounded-[10px] border border-hairline bg-white/5 px-3 py-2.5"
+                style={staggerDelay(i)}
               >
                 <span className="mono w-5 text-ink-faint">{i + 1}</span>
                 <div className="min-w-0 flex-1">

@@ -45,6 +45,7 @@ import {
   safeParseJsonArray,
 } from "@/lib/format";
 import type { AiStatus, Guild, MessageRecord } from "@/lib/types";
+import { staggerDelay } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
 export function MessagesView({
@@ -254,16 +255,17 @@ export function MessagesView({
                   }
                 }}
               >
-                {display.map((m) => (
+                {display.map((m, i) => (
                   <button
                     key={m.id}
                     type="button"
                     onClick={() => setSelected(m.id)}
-                    className={`flex w-full items-start gap-3 rounded-[12px] border p-3 text-left transition-colors ${
+                    className={`animate-stagger flex w-full items-start gap-3 rounded-[12px] border p-3 text-left transition-colors ${
                       selected === m.id
                         ? "border-signal/40 bg-signal/8"
                         : "border-hairline bg-white/[0.03] hover:bg-white/[0.06]"
                     }`}
+                    style={staggerDelay(i)}
                   >
                     <Avatar src={m.avatar_url} name={m.username} size={34} />
                     <div className="min-w-0 flex-1">

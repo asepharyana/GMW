@@ -20,6 +20,7 @@ import {
 } from "@/hooks";
 import { formatBytes, formatRelativeTime } from "@/lib/format";
 import type { VoiceRecording } from "@/lib/types";
+import { staggerDelay } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
 export function RecordingsView({
@@ -94,12 +95,13 @@ export function RecordingsView({
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {(items ?? []).map((r) => {
+          {(items ?? []).map((r, i) => {
             const up = uploadStatus(r);
             return (
               <GlassCard
                 key={r.id}
-                className="flex flex-col gap-3 transition-colors hover:bg-white/[0.06]"
+                className="animate-stagger flex flex-col gap-3 transition-colors hover:bg-white/[0.06]"
+                style={staggerDelay(i)}
               >
                 <div className="flex items-center gap-3">
                   <Avatar src={r.avatar_url} name={r.username} size={38} />

@@ -40,7 +40,7 @@ export const Button = ({
   return (
     <Comp
       className={cn(
-        "inline-flex items-center justify-center whitespace-nowrap transition-all duration-150 select-none",
+        "inline-flex items-center justify-center whitespace-nowrap transition-all duration-150 select-none active:scale-[0.97]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/60 disabled:opacity-40 disabled:pointer-events-none",
         variants[variant],
         sizes[size],

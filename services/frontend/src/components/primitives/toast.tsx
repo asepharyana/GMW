@@ -74,8 +74,11 @@ export function Toaster({ position = "bottom-right" }: { position?: string }) {
         return (
           <div
             key={t.id}
-            className="glass pointer-events-auto flex items-start gap-3 p-3.5"
-            style={{ animation: "fade-up 0.18s ease" }}
+            className={cn(
+              "glass animate-toast-in pointer-events-auto flex items-start gap-3 p-3.5 transition-colors",
+              t.tone === "signal" && "border-signal/30",
+              t.tone === "vermilion" && "border-vermilion/30",
+            )}
           >
             <Icon
               className={cn(
@@ -95,11 +98,12 @@ export function Toaster({ position = "bottom-right" }: { position?: string }) {
             </div>
             <button
               type="button"
+              aria-label="Dismiss"
               onClick={() => {
                 store = store.filter((x) => x.id !== t.id);
                 emit();
               }}
-              className="text-ink-faint hover:text-ink"
+              className="rounded-md p-1 text-ink-faint transition-colors hover:bg-white/8 hover:text-ink"
             >
               <X className="size-3.5" />
             </button>

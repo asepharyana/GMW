@@ -37,6 +37,7 @@ export function MetricTile({
   spark,
   icon,
   className,
+  style,
 }: {
   label: string;
   value: React.ReactNode;
@@ -45,6 +46,7 @@ export function MetricTile({
   spark?: number[];
   icon?: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const toneColor =
     tone === "vermilion"
@@ -60,6 +62,7 @@ export function MetricTile({
         "glass p-4 ring-focus transition-transform duration-200 hover:-translate-y-0.5",
         className,
       )}
+      style={style}
     >
       <div className="flex items-center justify-between">
         <div className="eyebrow">{label}</div>

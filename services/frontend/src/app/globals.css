@@ -280,6 +280,25 @@
 .animate-fade-up {
   animation: fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+/* List stagger: each child rises in sequence. Pair with inline
+   style={{ animationDelay }} set via staggerDelay(). */
+.animate-stagger {
+  animation: fade-up 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* Toast: slide up + settle from the dock edge. */
+.animate-toast-in {
+  animation: toast-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .scan-line::after,
@@ -289,7 +308,9 @@
   .animate-pulse-ring,
   .animate-shimmer,
   .animate-breathe,
-  .animate-fade-up {
+  .animate-fade-up,
+  .animate-stagger,
+  .animate-toast-in {
     animation: none !important;
   }
   .scan-line {
