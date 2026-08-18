@@ -49,7 +49,7 @@ Orchestration/caching: `moderationOrchestrator.ts` (exact hash → batched
 semantic Qdrant → LLM), `textBatchProcessor.ts` / `mediaBatchProcessor.ts`
 (one LLM call per sub-batch), `llmClient.ts` (central streaming client),
 `embeddingClient.ts` + `qdrantClient.ts` (semantic cache), plus
-`channelCultureStore.ts` / `userProfileStore.ts` / `userReputationStore.ts`.
+`channelCultureStore.ts` / `userProfileStore.ts`.
 
 ### voice-recording
 `voiceController.ts` (connect/disconnect/list) + `recorder.ts` (orchestration)

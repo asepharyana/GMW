@@ -222,7 +222,8 @@ export const configSchema = z
     AI_GLOSSARY_MAX_TERMS: z.coerce.number().int().min(1).max(20).default(6),
     // Per-user personal profile summaries (userProfileLearner). Disabled by
     // default: profiles bloat the analysis context and add LLM/DB cost for
-    // little moderation signal — only <user_reputation> history is injected.
+    // little moderation signal — user history context (last flagged messages)
+    // is injected via <user_history> instead of a numeric trust score.
     AI_USER_PROFILE_LEARNING_ENABLED: z
       .string()
       .optional()

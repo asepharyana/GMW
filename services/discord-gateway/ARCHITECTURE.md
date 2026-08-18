@@ -71,7 +71,7 @@ handles a whole batch (text + media split internally, parallel paths).
 - `embeddingClient.ts` + `qdrantClient.ts` — semantic cache (one embed call +
   one batched Qdrant search for all uncached targets).
 - `textCacheStore.ts` / `channelCultureStore.ts` / `userProfileStore.ts` /
-  `userReputationStore.ts` — caches & learned per-channel/user state.
+  `userProfileStore.ts` — caches learned user profile summaries (optional).
 
 ### Concurrency model
 

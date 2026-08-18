@@ -338,32 +338,6 @@ export const pgUserProfilesTable = pgTable(
 export const userProfilesTable = pgUserProfilesTable;
 
 /**
- * User Reputations Table (PostgreSQL)
- * Tracks user trust score and infractions to provide context to AI.
- */
-export const pgUserReputationsTable = pgTable(
-  "user_reputations",
-  {
-    user_id: pgText("user_id").primaryKey(),
-    guild_id: pgText("guild_id").notNull(),
-    trust_score: pgInteger("trust_score").notNull().default(50),
-    clean_message_streak: pgInteger("clean_message_streak")
-      .notNull()
-      .default(0),
-    total_infractions: pgInteger("total_infractions").notNull().default(0),
-    last_infraction_at: pgBigint("last_infraction_at", { mode: "number" }),
-    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
-    updated_at: pgBigint("updated_at", { mode: "number" }).notNull(),
-  },
-  (table) => ({
-    guildIdx: pgIndex("idx_user_reputations_guild_id").on(table.guild_id),
-    scoreIdx: pgIndex("idx_user_reputations_trust_score").on(table.trust_score),
-  }),
-);
-
-export const userReputationsTable = pgUserReputationsTable;
-
-/**
  * Channel Cultures Table (PostgreSQL)
  * Stores AI-generated summaries of channel norms and slang to inject as context.
  */
@@ -591,10 +565,6 @@ export type AIAnalysisRunInsert = typeof aiAnalysisRunsTable.$inferInsert;
 // User Profiles
 export type UserProfile = typeof userProfilesTable.$inferSelect;
 export type UserProfileInsert = typeof userProfilesTable.$inferInsert;
-
-// User Reputations
-export type UserReputation = typeof userReputationsTable.$inferSelect;
-export type UserReputationInsert = typeof userReputationsTable.$inferInsert;
 
 // Channel Cultures
 export type ChannelCulture = typeof channelCulturesTable.$inferSelect;

@@ -128,30 +128,6 @@ export async function skipAgeRestrictedMessages(
 // Batch pipeline
 // ---------------------------------------------------------------------------
 
-async function postBatchReputationUpdate(rows: MessageRecord[]): Promise<void> {
-  for (const row of rows) {
-    if (row.ai_status === "clean") {
-      import("./userReputationStore.js")
-        .then((store) => store.recordCleanMessage(row.user_id, row.guild_id))
-        .catch((e) =>
-          logger.error({ error: e }, "Failed to record clean message streak"),
-        );
-    } else if (row.ai_status === "flagged" && row.ai_severity !== "none") {
-      import("./userReputationStore.js")
-        .then((store) =>
-          store.recordInfraction(
-            row.user_id,
-            row.guild_id,
-            row.ai_severity as "low" | "medium" | "high" | "critical",
-          ),
-        )
-        .catch((e) =>
-          logger.error({ error: e }, "Failed to record infraction penalty"),
-        );
-    }
-  }
-}
-
 export async function processBatch(
   conversationKey: string,
   messages: MessageRecord[],
@@ -195,21 +171,6 @@ export async function processBatch(
         scheduleAutoDelete(row);
       }
     }
-
-    // Post-batch reputation updates (fire-and-forget)
-    postBatchReputationUpdate(
-      result.rows.filter((r) => {
-        if (r.ai_status === "error") {
-          try {
-            const flags = JSON.parse(r.ai_moderation_flags ?? "[]") as string[];
-            return !flags.includes("analysis_api_failed");
-          } catch {
-            return false;
-          }
-        }
-        return true;
-      }),
-    );
 
     if (!result.ok) {
       recordConversationBatchFailure(conversationKey);

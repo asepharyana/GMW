@@ -123,33 +123,6 @@ async function processIndividualFallback(
     for (const row of rows) {
       broadcastAnalysisCompleted(row);
       scheduleAutoDelete(row);
-
-      // Update reputation autonomously
-      if (row.ai_status === "clean") {
-        import("./userReputationStore.js")
-          .then((store) => store.recordCleanMessage(row.user_id, row.guild_id))
-          .catch((e) =>
-            logger.error(
-              { error: e },
-              "Failed to record clean message streak in fallback",
-            ),
-          );
-      } else if (row.ai_status === "flagged" && row.ai_severity !== "none") {
-        import("./userReputationStore.js")
-          .then((store) =>
-            store.recordInfraction(
-              row.user_id,
-              row.guild_id,
-              row.ai_severity as "low" | "medium" | "high" | "critical",
-            ),
-          )
-          .catch((e) =>
-            logger.error(
-              { error: e },
-              "Failed to record infraction penalty in fallback",
-            ),
-          );
-      }
     }
 
     const resultSummary = analysisResult.results[0];

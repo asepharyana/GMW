@@ -1,12 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Context enrichment builders — rich <user_reputation> attrs, <user_history>,
-// <user_profiles> as_of, bot/edited detection (pure, no DB)
+// Context enrichment builders — <user_history>, <user_profiles> as_of,
+// bot/edited detection (pure, no DB)
 // ═══════════════════════════════════════════════════════════════════════════
 import { describe, expect, it } from "vitest";
 import {
   buildUserHistoryXml,
   buildUserProfilesBlock,
-  formatReputationAttrs,
   resolveIsBot,
   resolveIsEdited,
 } from "../src/modules/ai-moderation/moderationBuilders.js";
@@ -41,72 +40,6 @@ function msg(overrides: Partial<MessageRecord> = {}): MessageRecord {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-describe("formatReputationAttrs — rich reputation signal", () => {
-  it("emits trust, infraction count and clean streak", () => {
-    const attrs = formatReputationAttrs({
-      trust_score: 62,
-      total_infractions: 3,
-      clean_message_streak: 45,
-      last_infraction_at: null,
-    });
-    expect(attrs).toContain('trust_score="62"');
-    expect(attrs).toContain('total_infractions="3"');
-    expect(attrs).toContain('clean_streak="45"');
-  });
-
-  it("derives last_offense_days_ago and marks repeat offenders (7-day window)", () => {
-    const attrs = formatReputationAttrs(
-      {
-        trust_score: 50,
-        total_infractions: 2,
-        clean_message_streak: 0,
-        last_infraction_at: NOW - 2 * DAY_MS,
-      },
-      NOW,
-    );
-    expect(attrs).toContain('last_offense_days_ago="2"');
-    expect(attrs).toContain('repeat_offender="true"');
-  });
-
-  it("does NOT mark repeat offender when the last offense is older than 7 days", () => {
-    const attrs = formatReputationAttrs(
-      {
-        trust_score: 50,
-        total_infractions: 2,
-        clean_message_streak: 10,
-        last_infraction_at: NOW - 30 * DAY_MS,
-      },
-      NOW,
-    );
-    expect(attrs).toContain('last_offense_days_ago="30"');
-    expect(attrs).not.toContain("repeat_offender");
-  });
-
-  it("omits offense-derived attrs when the user has no recorded infraction date", () => {
-    const attrs = formatReputationAttrs({
-      trust_score: 85,
-      total_infractions: 0,
-      clean_message_streak: 120,
-      last_infraction_at: null,
-    });
-    expect(attrs).not.toContain("last_offense_days_ago");
-    expect(attrs).not.toContain("repeat_offender");
-  });
-
-  it("clamps a future/skewed timestamp to days_ago=0", () => {
-    const attrs = formatReputationAttrs(
-      {
-        trust_score: 50,
-        total_infractions: 1,
-        clean_message_streak: 0,
-        last_infraction_at: NOW + 5 * DAY_MS,
-      },
-      NOW,
-    );
-    expect(attrs).toContain('last_offense_days_ago="0"');
-  });
-});
 
 describe("buildUserHistoryXml — last flagged messages for repeat offenders", () => {
   it("returns empty when there is no real history", () => {

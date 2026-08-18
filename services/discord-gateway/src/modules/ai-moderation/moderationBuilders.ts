@@ -127,56 +127,10 @@ export function buildUserProfileRef(userId: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// User reputation — richer than a bare trust score.
-//
-// The trust model tracks total_infractions, a clean-message streak and the
-// last infraction timestamp. Feeding all of it to the LLM lets it tell a
-// first-timer (same score, 1 infraction) from a repeat offender (score 50,
-// 3 infractions, last one yesterday) — the same score means very different
-// things in those two contexts.
+// Per-user history context (last flagged messages only — no trust model).
+// context to AI moderation.
 // ---------------------------------------------------------------------------
-
-export interface ReputationAttrsSource {
-  trust_score: number;
-  total_infractions: number;
-  clean_message_streak: number;
-  last_infraction_at: number | null;
-}
-
 const DAY_MS = 24 * 60 * 60 * 1000;
-const REPEAT_OFFENSE_WINDOW_MS = 7 * DAY_MS;
-
-/**
- * Formats reputation fields into XML attributes for `<user_reputation .../>`.
- * Derived signals: last_offense_days_ago (0 = today) and repeat_offender
- * (infraction within the last 7 days) are computed here so both the text and
- * media paths emit the exact same shape.
- */
-export function formatReputationAttrs(
-  rep: ReputationAttrsSource,
-  now: number = Date.now(),
-): string {
-  const attrs = [
-    `trust_score="${rep.trust_score}"`,
-    `total_infractions="${rep.total_infractions}"`,
-    `clean_streak="${rep.clean_message_streak}"`,
-  ];
-  if (
-    typeof rep.last_infraction_at === "number" &&
-    rep.last_infraction_at > 0
-  ) {
-    const daysAgo = Math.max(
-      0,
-      Math.floor((now - rep.last_infraction_at) / DAY_MS),
-    );
-    attrs.push(`last_offense_days_ago="${daysAgo}"`);
-    const isRepeat =
-      rep.total_infractions > 0 &&
-      now - rep.last_infraction_at <= REPEAT_OFFENSE_WINDOW_MS;
-    if (isRepeat) attrs.push(`repeat_offender="true"`);
-  }
-  return attrs.join(" ");
-}
 
 /**
  * Builds an optional `<user_history>` block (last flagged messages) from
