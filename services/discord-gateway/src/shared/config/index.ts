@@ -149,7 +149,7 @@ export const configSchema = z
     AI_LLM_BASE_URL: z
       .string()
       .url()
-      .default("https://9router.asepharyana.my.id/v1"),
+      .default("https://omniroute.imrnes.team/v1"),
     AI_LLM_MODEL: z.string().default("text"),
     // Vision uses the SAME router/base URL as text moderation
     // (AI_LLM_BASE_URL) but a different model alias. The dedicated NVIDIA

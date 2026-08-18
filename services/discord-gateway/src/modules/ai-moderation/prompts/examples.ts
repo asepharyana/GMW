@@ -76,15 +76,6 @@ export const ALL_EXAMPLES: ExampleDef[] = [
     modes: ["text", "mixed"],
   },
   {
-    id: "17",
-    title: "Error log programming (AMAN)",
-    input:
-      "[target] id=17172 user=dev: TypeError: Cannot read properties of undefined (reading 'map'). Kalo ada yang tau solusinya tolong bantu",
-    output:
-      '{"results":[{"message_id":"17172","status":"clean","flags":[],"severity":"none","evidence":[],"analysis":"Diskusi teknis normal tentang error programming, bukan pelanggaran."}]}',
-    modes: ["text", "mixed"],
-  },
-  {
     id: "18",
     title: "Nama proyek/tools (AMAN, false positive prevention)",
     input:

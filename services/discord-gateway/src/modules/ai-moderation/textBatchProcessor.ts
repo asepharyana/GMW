@@ -193,6 +193,70 @@ export async function runTextOnlyBatch(
   // re-query the DB on every sub-batch and every parse-error retry).
   const correctedExamples = await buildCorrectedFewShotExamples();
 
+  // ── URL images → multimodal vision evidence (hoisted out of the sub-batch
+  //     loop) ───────────────────────────────────────────────────────────
+  // The text batch fetches inline URLs; whenever one resolved to an image
+  // (direct image link, or og:image followed from an HTML page), run the
+  // vision model and append its description as media evidence. It depends
+  // ONLY on the fetched URL images + the full target set — not on how the
+  // targets are later split into sub-batches — so compute it ONCE for the
+  // whole batch instead of re-running the vision pass per sub-batch. If any
+  // message produced image evidence, the prompt switches to "mixed" mode so
+  // media-analysis instructions/examples are injected — a link to media is
+  // analyzed as media, not as bare text.
+  const batchImageEvidence = new Map<string, string[]>();
+  let batchHasImageEvidence = false;
+  const urlImages = urlFetchMaps.image;
+  const urlTitles = urlFetchMaps.title;
+  if (urlImages.size > 0) {
+    const maxDim = config.AI_LLM_IMAGE_MAX_DIMENSION ?? 1024;
+    const evidenceSets = await Promise.all(
+      targets.map(async (msg) => {
+        const content = getAnalysisContent(msg);
+        const pics = extractUrlsFromText(content)
+          .slice(0, 3)
+          .filter((url) => urlImages.has(url));
+        if (pics.length === 0) return { id: msg.id, lines: [] as string[] };
+        const lines = await Promise.all(
+          pics.map(async (url) => {
+            const img = urlImages.get(url);
+            if (!img) return null;
+            try {
+              const { data: resizedBuffer, mimeType: resizedMime } =
+                await resizeImageForVision(img.data, maxDim);
+              const part: MessageImagePart = {
+                type: "image_url",
+                image_url: {
+                  url: `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`,
+                },
+                sourceLabel: `[gambar dari URL ${url} (inline), pesan id=${msg.id}]`,
+              };
+              // Bound vision time so a dead vision model can't stall the
+              // whole text batch — a timeout just skips the evidence.
+              const timedOut = delay(15000).then(() => null as string | null);
+              return await Promise.race([
+                analyzeSingleMediaImage(msg.id, part),
+                timedOut,
+              ]);
+            } catch {
+              return null;
+            }
+          }),
+        );
+        return {
+          id: msg.id,
+          lines: lines.filter((l): l is string => Boolean(l)),
+        };
+      }),
+    );
+    for (const set of evidenceSets) {
+      if (set.lines.length > 0) {
+        batchImageEvidence.set(set.id, set.lines);
+        batchHasImageEvidence = true;
+      }
+    }
+  }
+
   for (let i = 0; i < subBatches.length; i++) {
     const batch = subBatches[i];
     const targetIds = batch.map((t) => t.id);
@@ -201,66 +265,6 @@ export async function runTextOnlyBatch(
     // the user asked to keep the AI analysis context minimal (raw messages
     // only). Trust/infraction state is still tracked in the DB for
     // enforcement, just not shown to the LLM.
-
-    // ── URL images → multimodal vision evidence ─────────────────────────
-    // The text batch fetches inline URLs; whenever one resolved to an image
-    // (direct image link, or og:image followed from an HTML page), run the
-    // vision model and append its description as media evidence. If any
-    // message in the sub-batch produced image evidence, the prompt switches
-    // to "mixed" mode so media-analysis instructions/examples are injected
-    // — a link to media is analyzed as media, not as bare text.
-    const batchImageEvidence = new Map<string, string[]>();
-    let batchHasImageEvidence = false;
-    const urlImages = urlFetchMaps.image;
-    const urlTitles = urlFetchMaps.title;
-    if (urlImages.size > 0) {
-      const maxDim = config.AI_LLM_IMAGE_MAX_DIMENSION ?? 1024;
-      const evidenceSets = await Promise.all(
-        batch.map(async (msg) => {
-          const content = getAnalysisContent(msg);
-          const pics = extractUrlsFromText(content)
-            .slice(0, 3)
-            .filter((url) => urlImages.has(url));
-          if (pics.length === 0) return { id: msg.id, lines: [] as string[] };
-          const lines = await Promise.all(
-            pics.map(async (url) => {
-              const img = urlImages.get(url);
-              if (!img) return null;
-              try {
-                const { data: resizedBuffer, mimeType: resizedMime } =
-                  await resizeImageForVision(img.data, maxDim);
-                const part: MessageImagePart = {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:${resizedMime};base64,${resizedBuffer.toString("base64")}`,
-                  },
-                  sourceLabel: `[gambar dari URL ${url} (inline), pesan id=${msg.id}]`,
-                };
-                // Bound vision time so a dead vision model can't stall the
-                // whole text batch — a timeout just skips the evidence.
-                const timedOut = delay(15000).then(() => null as string | null);
-                return await Promise.race([
-                  analyzeSingleMediaImage(msg.id, part),
-                  timedOut,
-                ]);
-              } catch {
-                return null;
-              }
-            }),
-          );
-          return {
-            id: msg.id,
-            lines: lines.filter((l): l is string => Boolean(l)),
-          };
-        }),
-      );
-      for (const set of evidenceSets) {
-        if (set.lines.length > 0) {
-          batchImageEvidence.set(set.id, set.lines);
-          batchHasImageEvidence = true;
-        }
-      }
-    }
 
     const buildContent = async (
       state: RetryState,

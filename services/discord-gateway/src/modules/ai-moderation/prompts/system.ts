@@ -56,19 +56,36 @@ export interface BuildSystemPromptOptions {
   channelCulture?: string;
 }
 
-export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
-  const {
-    mode,
-    includeMediaInstructions,
-    correction,
-    correctedExamples,
-    channelCulture,
-  } = options;
+// ---------------------------------------------------------------------------
+// Build-once memoization
+// ---------------------------------------------------------------------------
+// The full system prompt (~5k tokens of rules + examples + output schema) is
+// rebuilt on EVERY call. In textBatchProcessor it sits inside the sub-batch
+// loop, so a 200-message batch re-sends the identical system text ~4×. Build
+// it once per unique signature and reuse. A `correction` (parse-error retry
+// tail) is per-attempt, so it is excluded from the cache key — the base is
+// cached, the tail is cheap.
+type BuiltCore = {
+  base: string;
+  correctedExamples?: string;
+  channelCulture?: string;
+};
+const promptCache = new Map<string, BuiltCore>();
 
-  // Backward compatibility: if mode is not set but includeMediaInstructions is,
-  // derive mode from the legacy flag.
-  const effectiveMode: PromptMode =
-    mode ?? (includeMediaInstructions ? "mixed" : "text");
+function buildSystemPromptCore(
+  effectiveMode: PromptMode,
+  correctedExamples: string | undefined,
+  channelCulture: string | undefined,
+): string {
+  const cacheKey = `${effectiveMode}|${channelCulture ?? ""}`;
+  const cached = promptCache.get(cacheKey);
+  if (
+    cached &&
+    cached.correctedExamples === correctedExamples &&
+    cached.channelCulture === channelCulture
+  ) {
+    return cached.base;
+  }
 
   const parts: string[] = [SYSTEM_RULES];
 
@@ -122,7 +139,38 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
 
   parts.push(OUTPUT_INSTRUCTIONS);
 
-  let base = parts.join("\n\n");
+  const base = parts.join("\n\n");
+
+  // Cache the core (no correction tail) — identical signatures reuse it.
+  promptCache.set(cacheKey, { base, correctedExamples, channelCulture });
+  return base;
+}
+
+/**
+ * Public entry point. Builds the (memoized) system prompt and appends the
+ * per-attempt `correction` tail. The core is cached across calls; the
+ * correction tail is intentionally uncached because it is unique to a parse
+ * retry and cheap to append.
+ */
+export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
+  const {
+    mode,
+    includeMediaInstructions,
+    correction,
+    correctedExamples,
+    channelCulture,
+  } = options;
+
+  // Backward compatibility: if mode is not set but includeMediaInstructions is,
+  // derive mode from the legacy flag.
+  const effectiveMode: PromptMode =
+    mode ?? (includeMediaInstructions ? "mixed" : "text");
+
+  let base = buildSystemPromptCore(
+    effectiveMode,
+    correctedExamples,
+    channelCulture,
+  );
 
   if (correction) {
     base += `\n\nRESPON SEBELUMNYA GAGAL VALIDASI.\nError: ${correction.error}\nPreview respons tidak valid:\n${correction.preview}\n\nCoba lagi dengan output JSON yang benar sesuai skema di atas.`;
