@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 /**
  * Lock the contract that the WS `stream_messages` handler + frontend
