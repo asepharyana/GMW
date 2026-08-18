@@ -7,6 +7,7 @@ import {
   Repeat,
   SkipForward,
   Square,
+  Volume2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
@@ -20,6 +21,7 @@ import {
   useMediaStop,
   useMediaWsSync,
 } from "@/hooks";
+import { formatDuration } from "@/lib/format";
 import type { MediaState } from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
 
@@ -38,6 +40,10 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
   const playing = media?.playing ?? false;
   const current = media?.current ?? null;
   const queueList = media?.queue ?? [];
+  const queueTotal = queueList.reduce(
+    (acc, it) => acc + (it.durationMs ?? 0),
+    0,
+  );
 
   const tone = playing ? "signal" : queueList.length ? "amber" : "signal";
   useEffect(() => {
@@ -88,11 +94,19 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
             <h2 className="display text-balance text-2xl text-ink">
               {current?.title ?? "Nothing queued"}
             </h2>
-            {current?.source && (
-              <div className="mono mt-1 truncate text-xs text-ink-faint">
-                {current.source}
-              </div>
-            )}
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-faint">
+              {current?.source && (
+                <span className="mono truncate">{current.source}</span>
+              )}
+              {current?.mode && (
+                <span className="pill capitalize">{current.mode}</span>
+              )}
+              {formatDuration(current?.durationMs) && (
+                <span className="mono">
+                  {formatDuration(current?.durationMs)}
+                </span>
+              )}
+            </div>
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <Button
                 variant="primary"
@@ -130,13 +144,29 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
           </div>
         </div>
 
-        <div className="mt-5 flex items-center gap-2">
-          <Input
-            placeholder="Paste a YouTube / music URL…"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onPlay()}
-          />
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div className="relative min-w-0 flex-1">
+            <Input
+              placeholder="Paste a YouTube / music URL…"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && onPlay()}
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-2 rounded-[10px] border border-hairline bg-white/5 px-3 py-2.5">
+            <Volume2 className="size-4 text-ink-faint" />
+            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-signal/70"
+                style={{
+                  width: `${Math.round((media?.musicVolume ?? 0) * 100)}%`,
+                }}
+              />
+            </div>
+            <span className="mono w-9 text-right text-[0.65rem] text-ink-faint">
+              {Math.round((media?.musicVolume ?? 0) * 100)}%
+            </span>
+          </div>
         </div>
       </GlassPanel>
 
@@ -146,7 +176,8 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
           title="Queue"
           action={
             <span className="mono text-xs text-ink-faint">
-              {queueList.length} tracks
+              {queueList.length} track{queueList.length === 1 ? "" : "s"}
+              {queueTotal && ` · ${formatDuration(queueTotal)}`}
             </span>
           }
         />
@@ -172,7 +203,12 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
                     {item.source}
                   </div>
                 </div>
-                <span className="pill">{item.mode ?? "music"}</span>
+                <span className="pill capitalize">{item.mode ?? "music"}</span>
+                {formatDuration(item.durationMs) && (
+                  <span className="mono w-10 text-right text-[0.65rem] text-ink-faint">
+                    {formatDuration(item.durationMs)}
+                  </span>
+                )}
               </div>
             ))}
           </div>

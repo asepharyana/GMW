@@ -17,7 +17,41 @@ export function formatBytes(bytes: number): string {
 }
 
 /**
- * Safely parse a JSON string into an array.
+ * Human-readable duration, e.g. 850ms / 1.2s / 3m 12s.
+ */
+export function formatDuration(ms: number | null | undefined): string {
+  if (!ms || ms <= 0) return "";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const totalS = Math.floor(ms / 1000);
+  if (totalS < 60) return `${(ms / 1000).toFixed(1)}s`;
+  const m = Math.floor(totalS / 60);
+  const s = totalS % 60;
+  return s ? `${m}m ${s}s` : `${m}m`;
+}
+
+/**
+ * Compact relative time from an epoch-ms timestamp.
+ * e.g. "just now" / "5m" / "3h" / "2d" / "Apr 3".
+ */
+export function formatRelativeTime(ts?: number | null): string {
+  if (!ts) return "";
+  const diff = Date.now() - ts;
+  if (diff < 0) return new Date(ts).toLocaleDateString();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d`;
+  return new Date(ts).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/**
+ * Parse JSON string into array — safe.
  */
 export function safeParseJsonArray(value: string | null | undefined): string[] {
   if (!value) return [];

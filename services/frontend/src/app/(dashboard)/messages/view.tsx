@@ -34,35 +34,17 @@ import {
   useMessagesHasMore,
   useMessagesWsSync,
 } from "@/hooks";
+import { aiTone } from "@/lib/ai-status";
 import {
   formatBytes,
+  formatDuration,
+  formatRelativeTime,
   getMessageChannelLabel,
   renderMessageContent,
   safeParseJsonArray,
 } from "@/lib/format";
 import type { AiStatus, Guild, MessageRecord } from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
-
-function relTime(ts?: number | null) {
-  if (!ts) return "";
-  const d = Date.now() - ts;
-  const m = Math.floor(d / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
-}
-
-function aiTone(
-  s?: AiStatus | null,
-): "signal" | "amber" | "vermilion" | "neutral" {
-  if (s === "clean") return "signal";
-  if (s === "warn") return "amber";
-  if (s === "flagged" || s === "error") return "vermilion";
-  if (s === "processing" || s === "pending") return "neutral";
-  return "neutral";
-}
 
 export function MessagesView({
   initialGuilds,
@@ -279,7 +261,7 @@ export function MessagesView({
                           {getMessageChannelLabel(m)}
                         </span>
                         <span className="mono ml-auto text-[0.6rem] text-ink-faint">
-                          {relTime(m.created_at)}
+                          {formatRelativeTime(m.created_at)}
                         </span>
                       </div>
                       <div className="mt-0.5 line-clamp-2 text-sm text-ink-soft">
@@ -361,12 +343,6 @@ function AiBadge({
   );
 }
 
-/** Human-readable analysis duration, e.g. 850ms / 1.2s / 3.4s. */
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
 function MessageDetail({
   m,
   attachments,
@@ -383,7 +359,7 @@ function MessageDetail({
         <div>
           <div className="font-semibold text-ink">{m.username}</div>
           <div className="mono text-[0.65rem] text-ink-faint">
-            {getMessageChannelLabel(m)} · {relTime(m.created_at)}
+            {getMessageChannelLabel(m)} · {formatRelativeTime(m.created_at)}
           </div>
         </div>
         <div className="ml-auto">

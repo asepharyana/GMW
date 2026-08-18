@@ -1,10 +1,11 @@
 "use client";
 
-import { Download, Headphones, Trash2 } from "lucide-react";
+import { Download, Hash, Headphones, Loader2, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import {
   Avatar,
+  Badge,
   Button,
   GlassCard,
   GlassPanel,
@@ -21,7 +22,7 @@ import {
   useRecordings,
   useRecordingsWsSync,
 } from "@/hooks";
-import { formatBytes } from "@/lib/format";
+import { formatBytes, formatRelativeTime } from "@/lib/format";
 import type { VoiceRecording } from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
 
@@ -75,64 +76,92 @@ export function RecordingsView({
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {(items ?? []).map((r) => (
-            <GlassCard key={r.id} className="flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <Avatar src={r.avatar_url} name={r.username} size={38} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-ink">
-                    {r.username}
+          {(items ?? []).map((r) => {
+            const up = uploadStatus(r);
+            return (
+              <GlassCard
+                key={r.id}
+                className="flex flex-col gap-3 transition-colors hover:bg-white/[0.06]"
+              >
+                <div className="flex items-center gap-3">
+                  <Avatar src={r.avatar_url} name={r.username} size={38} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-ink">
+                      {r.username}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[0.65rem] text-ink-faint">
+                      <Hash className="size-3" />
+                      <span className="truncate">
+                        {r.channel_name ?? "voice"}
+                      </span>
+                      <span className="text-ink-faint/60">·</span>
+                      <span className="mono">
+                        {formatRelativeTime(r.created_at)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="mono text-[0.65rem] text-ink-faint">
-                    {r.channel_name ?? "voice"} ·{" "}
-                    {new Date(r.created_at).toLocaleString()}
+                  {up && <Badge tone={up.tone}>{up.label}</Badge>}
+                  <span className="mono text-[0.65rem] text-ink-faint">
+                    {formatBytes(r.size_bytes)}
+                  </span>
+                </div>
+
+                {r.download_url ? (
+                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                  <audio
+                    controls
+                    src={r.download_url}
+                    className="h-9 w-full"
+                    preload="none"
+                    aria-label={`Voice recording ${r.id}`}
+                  />
+                ) : (
+                  <div className="flex items-center gap-1.5 rounded-[10px] border border-hairline bg-white/5 px-3 py-2 text-xs text-ink-faint">
+                    <Loader2 className="size-3.5 animate-spin" />
+                    {r.upload_status === "pending"
+                      ? "Upload pending…"
+                      : r.upload_error
+                        ? r.upload_error
+                        : "Processing…"}
                   </div>
-                </div>
-                <span className="mono text-[0.65rem] text-ink-faint">
-                  {formatBytes(r.size_bytes)}
-                </span>
-              </div>
-
-              {r.download_url ? (
-                // eslint-disable-next-line jsx-a11y/media-has-caption
-                <audio
-                  controls
-                  src={r.download_url}
-                  className="h-9 w-full"
-                  preload="none"
-                  aria-label={`Voice recording ${r.id}`}
-                />
-              ) : (
-                <div className="rounded-[10px] border border-hairline bg-white/5 px-3 py-2 text-xs text-ink-faint">
-                  Upload pending…
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                {r.download_url && (
-                  <a
-                    href={r.download_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-[9px] border border-hairline px-2.5 py-1.5 text-xs text-ink-soft hover:text-ink hover:border-signal/40"
-                  >
-                    <Download className="size-3.5" /> Download
-                  </a>
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="ml-auto"
-                  onClick={() => onDelete(r.id)}
-                  disabled={del.isPending}
-                >
-                  <Trash2 className="size-3.5" /> Delete
-                </Button>
-              </div>
-            </GlassCard>
-          ))}
+
+                <div className="flex items-center gap-2">
+                  {r.download_url && (
+                    <a
+                      href={r.download_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-[9px] border border-hairline px-2.5 py-1.5 text-xs text-ink-soft hover:text-ink hover:border-signal/40"
+                    >
+                      <Download className="size-3.5" /> Download
+                    </a>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto"
+                    onClick={() => onDelete(r.id)}
+                    disabled={del.isPending}
+                  >
+                    <Trash2 className="size-3.5" /> Delete
+                  </Button>
+                </div>
+              </GlassCard>
+            );
+          })}
         </div>
       )}
     </GlassPanel>
   );
+}
+
+function uploadStatus(
+  r: VoiceRecording,
+): { tone: "neutral" | "amber" | "vermilion"; label: string } | null {
+  if (r.download_url) return null;
+  if (r.upload_status === "error" || r.upload_error)
+    return { tone: "vermilion", label: "failed" };
+  if (r.upload_status === "pending") return { tone: "amber", label: "pending" };
+  return { tone: "amber", label: "processing" };
 }

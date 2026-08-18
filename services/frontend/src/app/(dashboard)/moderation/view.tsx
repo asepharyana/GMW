@@ -29,7 +29,7 @@ import {
   SectionHeader,
 } from "@/components/shared";
 import { useModerationActions, useModerationStats } from "@/hooks";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatRelativeTime } from "@/lib/format";
 import type {
   ModerationAction,
   ModerationActionType,
@@ -247,11 +247,17 @@ function ActionRow({ a }: { a: ModerationAction }) {
           </span>
           <Badge tone={tone}>{a.status}</Badge>
           <span className="mono ml-auto text-[0.6rem] text-ink-faint">
-            {a.created_at ? new Date(a.created_at).toLocaleString() : "—"}
+            {formatRelativeTime(a.created_at)}
           </span>
         </div>
         {a.reason && (
           <div className="mt-0.5 text-xs text-ink-soft">“{a.reason}”</div>
+        )}
+        {a.executed_by && (
+          <div className="mono mt-0.5 text-[0.6rem] text-ink-faint">
+            by {a.executed_by}
+            {a.executed_at ? ` · ${formatRelativeTime(a.executed_at)}` : ""}
+          </div>
         )}
         {a.content && (
           <div className="mt-1 line-clamp-2 rounded-[8px] bg-white/[0.03] px-2 py-1 text-xs text-ink-faint">

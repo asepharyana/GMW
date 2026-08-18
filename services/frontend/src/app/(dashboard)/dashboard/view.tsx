@@ -231,17 +231,27 @@ export function DashboardView({
         <GlassPanel>
           <SectionHeader eyebrow="engagement" title="Top reactors" />
           <div className="space-y-2">
-            {(reactors ?? []).slice(0, 6).map((r, i) => (
-              <div key={r.user_id} className="flex items-center gap-3">
-                <span className="mono w-5 text-ink-faint">{i + 1}</span>
-                <span className="flex-1 truncate text-sm text-ink">
-                  {r.username}
-                </span>
-                <span className="mono text-xs text-signal">
-                  +{formatNumber(r.net_count)}
-                </span>
-              </div>
-            ))}
+            {(reactors ?? []).slice(0, 6).map((r, i) => {
+              const maxNet = reactors?.[0]?.net_count || 1;
+              const pct = Math.max(4, Math.round((r.net_count / maxNet) * 100));
+              return (
+                <div key={r.user_id} className="flex items-center gap-3">
+                  <span className="mono w-5 text-ink-faint">{i + 1}</span>
+                  <span className="w-28 shrink-0 truncate text-sm text-ink-soft sm:w-40">
+                    {r.username}
+                  </span>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
+                    <div
+                      className="h-full rounded-full bg-signal/70"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="mono w-12 text-right text-xs text-signal">
+                    +{formatNumber(r.net_count)}
+                  </span>
+                </div>
+              );
+            })}
             {(reactors ?? []).length === 0 && <EmptyHint />}
           </div>
         </GlassPanel>

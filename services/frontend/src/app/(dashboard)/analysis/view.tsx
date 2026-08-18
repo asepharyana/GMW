@@ -6,23 +6,12 @@ import { useAmbient } from "@/components/ambient/ambient-context";
 import { Avatar, Badge, GlassPanel, Input } from "@/components/primitives";
 import { EmptyState, LoadingState, SectionHeader } from "@/components/shared";
 import { useChannels, useMessageSearch, useTopReactors } from "@/hooks";
-import { getMessageChannelLabel, renderMessageContent } from "@/lib/format";
-import type { AiStatus } from "@/lib/types";
-
-function aiTone(
-  s?: AiStatus | null,
-): "signal" | "amber" | "vermilion" | "neutral" {
-  if (s === "clean") return "signal";
-  if (s === "warn") return "amber";
-  if (s === "flagged" || s === "error") return "vermilion";
-  return "neutral";
-}
-
-/** Human-readable analysis duration, e.g. 850ms / 1.2s / 3.4s. */
-function formatAnalysisDuration(ms: number): string {
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
+import { aiTone } from "@/lib/ai-status";
+import {
+  formatDuration,
+  getMessageChannelLabel,
+  renderMessageContent,
+} from "@/lib/format";
 
 export function AnalysisView() {
   const [query, setQuery] = useState("");
@@ -109,7 +98,7 @@ export function AnalysisView() {
                         <Badge tone={aiTone(m.ai_status)} className="ml-auto">
                           {m.ai_analysis_duration_ms &&
                           m.ai_analysis_duration_ms > 0
-                            ? `${m.ai_status} · ${formatAnalysisDuration(m.ai_analysis_duration_ms)}`
+                            ? `${m.ai_status} · ${formatDuration(m.ai_analysis_duration_ms)}`
                             : m.ai_status}
                         </Badge>
                       )}
@@ -135,18 +124,33 @@ export function AnalysisView() {
               }
             />
             <div className="space-y-2">
-              {(reactors ?? []).slice(0, 6).map((r, i) => (
-                <div
-                  key={r.user_id}
-                  className="flex items-center gap-3 text-sm"
-                >
-                  <span className="mono w-5 text-ink-faint">{i + 1}</span>
-                  <span className="flex-1 truncate text-ink">{r.username}</span>
-                  <span className="mono text-xs text-signal">
-                    +{r.net_count}
-                  </span>
-                </div>
-              ))}
+              {(reactors ?? []).slice(0, 6).map((r, i) => {
+                const maxNet = reactors?.[0]?.net_count || 1;
+                const pct = Math.max(
+                  4,
+                  Math.round((r.net_count / maxNet) * 100),
+                );
+                return (
+                  <div
+                    key={r.user_id}
+                    className="flex items-center gap-3 text-sm"
+                  >
+                    <span className="mono w-5 text-ink-faint">{i + 1}</span>
+                    <span className="w-28 shrink-0 truncate text-ink-soft sm:w-40">
+                      {r.username}
+                    </span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
+                      <div
+                        className="h-full rounded-full bg-signal/70"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="mono w-12 text-right text-xs text-signal">
+                      +{r.net_count}
+                    </span>
+                  </div>
+                );
+              })}
               {(reactors ?? []).length === 0 && (
                 <div className="py-4 text-center text-xs text-ink-faint">
                   No data
