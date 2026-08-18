@@ -26,6 +26,7 @@ import {
   setEventBroadcaster as setMessageCaptureEventBroadcaster,
 } from "../modules/message-capture/messageCapture.js";
 import { setModerationEventBroadcaster } from "../modules/message-capture/moderationActionsDb.js";
+import { startDigestScheduler } from "../modules/monitor/digestScheduler.js";
 import { registerReactionCapture } from "../modules/reaction-tracking/index.js";
 import { registerThreadCapture } from "../modules/thread-tracking/index.js";
 import { registerPresenceCapture } from "../modules/user-presence/index.js";
@@ -275,6 +276,8 @@ export async function initializeDiscordGateway() {
 
     // Start retention cleanup scheduler
     startRetentionCleanup();
+    // Start weekly moderation digest (public, automated)
+    startDigestScheduler();
   });
 
   client.on("error", (err) => {
