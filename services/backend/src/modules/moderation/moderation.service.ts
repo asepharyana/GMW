@@ -15,6 +15,26 @@ export class ModerationService {
     return moderationRepository.getTrends(days);
   }
 
+  async getTopFlaggedDomains(days = 30) {
+    return moderationRepository.getTopFlaggedDomains(days);
+  }
+
+  async getTopFlaggedChannels(days = 30) {
+    return moderationRepository.getTopFlaggedChannels(days);
+  }
+
+  async getHourlyModeration(days = 30) {
+    return moderationRepository.getHourlyModeration(days);
+  }
+
+  async getByCategory(days = 30, category: string) {
+    return moderationRepository.getByCategory(days, category);
+  }
+
+  async getCoverage(days = 30) {
+    return moderationRepository.getCoverage(days);
+  }
+
   async listActions(query: ListModerationQuery) {
     logger.debug({ query }, "Listing moderation actions");
     return moderationRepository.listActions(query);

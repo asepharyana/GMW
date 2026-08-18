@@ -5,6 +5,7 @@ import { messagesApi, voiceApi } from "@/lib/api";
 import type {
   AttachmentRecord,
   Channel,
+  EditHistoryRow,
   MessageActivityBucket,
   MessageRecord,
   SemanticSearchResult,
@@ -379,5 +380,17 @@ export function useMessagesStream(
 export function useMessageActivity(days = 30) {
   return useSWR<MessageActivityBucket[]>(["activity", days], () =>
     messagesApi.getActivity(days),
+  );
+}
+
+export function useRecentEdits(
+  limit = 50,
+  channelId?: string,
+  initialData?: EditHistoryRow[],
+) {
+  return useSWR<EditHistoryRow[]>(
+    ["recent-edits", limit, channelId ?? null],
+    () => messagesApi.getRecentEdits(limit, channelId),
+    { fallbackData: initialData },
   );
 }

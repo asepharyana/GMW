@@ -5,6 +5,7 @@ import { chatRequestSchema } from "../modules/chatbot/chatbot.schema";
 import { chatbotService } from "../modules/chatbot/chatbot.service";
 // ── Service imports ──────────────────────────────────────────────
 import { dashboardService } from "../modules/dashboard/dashboard.service";
+import { knowledgeService } from "../modules/knowledge/knowledge.service";
 import {
   mediaLoopSchema,
   mediaQueueSchema,
@@ -151,6 +152,17 @@ const messagesRouter = {
       }),
     )
     .handler(({ input }) => messagesService.getActivity(input.days)),
+  // Public, read-only recent message edits (evasion tracker).
+  editHistory: os
+    .input(
+      z.object({
+        limit: z.coerce.number().int().positive().default(50),
+        channelId: z.string().optional(),
+      }),
+    )
+    .handler(({ input }) =>
+      messagesService.getRecentEdits(input.limit, input.channelId),
+    ),
 };
 
 // ── Moderation ───────────────────────────────────────────────────
@@ -180,6 +192,51 @@ const moderationRouter = {
       }),
     )
     .handler(({ input }) => moderationService.getTrends(input.days)),
+  // Flagged link / scam domain ranking (public Scam Domain panel).
+  topDomains: os
+    .input(
+      z.object({
+        days: z.coerce.number().int().positive().max(365).default(30),
+      }),
+    )
+    .handler(({ input }) => moderationService.getTopFlaggedDomains(input.days)),
+  // Top flagged channels (join moderation_actions → messages).
+  topChannels: os
+    .input(
+      z.object({
+        days: z.coerce.number().int().positive().max(365).default(30),
+      }),
+    )
+    .handler(({ input }) =>
+      moderationService.getTopFlaggedChannels(input.days),
+    ),
+  // Hour-of-day moderation distribution (heatmap by hour).
+  byHour: os
+    .input(
+      z.object({
+        days: z.coerce.number().int().positive().max(365).default(30),
+      }),
+    )
+    .handler(({ input }) => moderationService.getHourlyModeration(input.days)),
+  // Flag category drill-down (list actions for one category).
+  byCategory: os
+    .input(
+      z.object({
+        days: z.coerce.number().int().positive().max(365).default(30),
+        category: z.string().min(1),
+      }),
+    )
+    .handler(({ input }) =>
+      moderationService.getByCategory(input.days, input.category),
+    ),
+  // Auto-moderation coverage (analysis run completion rate).
+  coverage: os
+    .input(
+      z.object({
+        days: z.coerce.number().int().positive().max(365).default(30),
+      }),
+    )
+    .handler(({ input }) => moderationService.getCoverage(input.days)),
 };
 
 // ── Media ────────────────────────────────────────────────────────
@@ -321,7 +378,29 @@ const chatbotRouter = {
     }),
 };
 
-// ── Config (public dashboard config snapshot) ──────────────────────
+// ── Knowledge (public read-only culture glossary + term KB) ───────
+const knowledgeRouter = {
+  channelCultures: os
+    .input(
+      z.object({
+        limit: z.coerce.number().int().positive().default(50),
+        search: z.string().optional(),
+      }),
+    )
+    .handler(({ input }) =>
+      knowledgeService.listChannelCultures(input.limit, input.search),
+    ),
+  glossary: os
+    .input(
+      z.object({
+        limit: z.coerce.number().int().positive().default(50),
+        search: z.string().optional(),
+      }),
+    )
+    .handler(({ input }) =>
+      knowledgeService.listGlossary(input.limit, input.search),
+    ),
+};
 const configRouter = {
   get: os.handler(() => ({
     monitorGuildId: config.MONITOR_GUILD_ID || null,
@@ -360,6 +439,7 @@ export const appRouter = {
   chatbot: chatbotRouter,
   config: configRouter,
   uiState: uiStateRouter,
+  knowledge: knowledgeRouter,
 };
 
 export type AppRouter = typeof appRouter;

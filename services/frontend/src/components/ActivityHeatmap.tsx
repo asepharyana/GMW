@@ -24,7 +24,7 @@ export function ActivityHeatmap({
   for (const b of buckets) {
     const k = `${b.channelId}:${b.hour}`;
     byKey.set(k, (byKey.get(k) ?? 0) + b.count);
-    if (byKey.get(k)! > max) max = byKey.get(k)!;
+    if ((byKey.get(k) ?? 0) > max) max = byKey.get(k) ?? 0;
   }
 
   if (buckets.length === 0) {

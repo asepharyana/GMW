@@ -50,3 +50,44 @@ export interface ModerationTrends {
   severities: { level: string; count: number }[];
   actions: { type: string; count: number }[];
 }
+
+export interface FlaggedDomain {
+  domain: string;
+  count: number;
+}
+
+export interface FlaggedChannel {
+  channel_id: string;
+  channel_name: string | null;
+  flagged_count: number;
+}
+
+export interface HourlyModeration {
+  hour: number;
+  total: number;
+}
+
+export interface CategoryAction {
+  id: string;
+  message_id: string | null;
+  user_id: string | null;
+  guild_id: string;
+  action_type: ModerationActionType;
+  reason: string | null;
+  status: ModerationStatus;
+  created_at: number | null;
+  severity: "none" | "low" | "medium" | "high" | "critical" | null;
+  confidence: number | null;
+  score: number | null;
+  username: string | null;
+  content: string | null;
+}
+
+export interface ModerationCoverage {
+  total: number;
+  completed: number;
+  failed: number;
+  pending: number;
+  coverage_rate: number;
+  failed_rate: number;
+}

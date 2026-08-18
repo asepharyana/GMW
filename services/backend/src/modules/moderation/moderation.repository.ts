@@ -218,6 +218,166 @@ export class ModerationRepository {
       })),
     };
   }
+
+  /**
+   * Top flagged domains over the last `days` days.
+   * Extracts the host from any URL in `content`/`reason`/`evidence` and ranks
+   * by how often it appears in moderation actions. Powers the Scam Domain panel.
+   */
+  async getTopFlaggedDomains(days: number) {
+    const db = getDatabase();
+    const since = Date.now() - days * 24 * 60 * 60 * 1000;
+    const result = await db.execute(sql`
+      SELECT host, COUNT(*)::int AS c
+      FROM (
+        SELECT DISTINCT a.id,
+          (regexp_matches(COALESCE(a.content,'') || ' ' || COALESCE(a.reason,'') || ' ' || COALESCE(a.evidence,''), 'https?://([^/\s?#]+)', 'g'))[1] AS host
+        FROM moderation_actions a
+        WHERE a.created_at >= ${since}
+          AND (a.content IS NOT NULL OR a.reason IS NOT NULL OR a.evidence IS NOT NULL)
+      ) sub
+      WHERE host IS NOT NULL
+      GROUP BY host
+      ORDER BY c DESC
+      LIMIT 20
+    `);
+    const rows = (result.rows as Record<string, unknown>[]) || [];
+    return rows.map((r) => ({
+      domain: String(r.host).toLowerCase(),
+      count: Number(r.c ?? 0),
+    }));
+  }
+
+  /**
+   * Top flagged channels over the last `days` days.
+   * Joins moderation_actions → messages to attribute each action to a channel.
+   * Powers the Top Flagged Channels panel.
+   */
+  async getTopFlaggedChannels(days: number) {
+    const db = getDatabase();
+    const since = Date.now() - days * 24 * 60 * 60 * 1000;
+    const result = await db.execute(sql`
+      SELECT
+        m.channel_id,
+        COALESCE(NULLIF((m.metadata::jsonb -> 'channel' ->> 'channelName'), ''), m.channel_id) AS channel_name,
+        COUNT(*)::int AS flagged_count
+      FROM moderation_actions a
+      LEFT JOIN messages m ON m.id = a.message_id
+      WHERE a.created_at >= ${since} AND m.channel_id IS NOT NULL
+      GROUP BY m.channel_id, (m.metadata::jsonb -> 'channel' ->> 'channelName')
+      ORDER BY flagged_count DESC
+      LIMIT 15
+    `);
+    const rows = (result.rows as Record<string, unknown>[]) || [];
+    return rows.map((r) => ({
+      channel_id: String(r.channel_id),
+      channel_name: r.channel_name ? String(r.channel_name) : null,
+      flagged_count: Number(r.flagged_count),
+    }));
+  }
+
+  /**
+   * Hour-of-day distribution of moderation actions over the last `days` days.
+   * 24 rows (hour 0..23), with total + flagged-by-severity counts.
+   * Powers the Moderation Heatmap by Hour panel.
+   */
+  async getHourlyModeration(days: number) {
+    const db = getDatabase();
+    const since = Date.now() - days * 24 * 60 * 60 * 1000;
+    const result = await db.execute(sql`
+      SELECT
+        EXTRACT(HOUR FROM to_timestamp(created_at / 1000))::int AS hour,
+        COUNT(*)::int AS total
+      FROM moderation_actions
+      WHERE created_at >= ${since}
+      GROUP BY hour
+      ORDER BY hour
+    `);
+    const rows = (result.rows as Record<string, unknown>[]) || [];
+    const byHour = new Map<number, number>();
+    for (const r of rows) byHour.set(Number(r.hour), Number(r.total));
+    return Array.from({ length: 24 }, (_, h) => ({
+      hour: h,
+      total: byHour.get(h) ?? 0,
+    }));
+  }
+
+  /**
+   * Moderation actions filtered to a single category (drill-down).
+   * Powers the Flag Category Drill-down panel.
+   */
+  async getByCategory(days: number, category: string, limit = 50) {
+    const db = getDatabase();
+    const since = Date.now() - days * 24 * 60 * 60 * 1000;
+    const result = await db.execute(
+      sql.raw(`
+      SELECT
+        a.id, a.message_id, a.user_id, a.guild_id, a.action_type,
+        a.reason, a.status, a.created_at, a.severity, a.confidence, a.score,
+        m.username, LEFT(m.content, 300) AS content
+      FROM moderation_actions a
+      LEFT JOIN messages m ON m.id = a.message_id
+      WHERE a.created_at >= ${since}
+        AND a.categories IS NOT NULL
+        AND a.categories::jsonb @> ${JSON.stringify([category])}::jsonb
+      ORDER BY a.created_at DESC
+      LIMIT ${limit}
+    `),
+    );
+    const rows = (result.rows as Record<string, unknown>[]) || [];
+    return rows.map((r) => ({
+      id: String(r.id ?? ""),
+      message_id: r.message_id ? String(r.message_id) : null,
+      user_id: r.user_id ? String(r.user_id) : null,
+      guild_id: String(r.guild_id ?? ""),
+      action_type: String(r.action_type ?? "unknown"),
+      reason: r.reason ? String(r.reason) : null,
+      status: String(r.status ?? "unknown"),
+      created_at: r.created_at ? Number(r.created_at) : null,
+      severity: r.severity ? String(r.severity) : null,
+      confidence: r.confidence != null ? Number(r.confidence) : null,
+      score: r.score != null ? Number(r.score) : null,
+      username: r.username ? String(r.username) : null,
+      content: r.content ? String(r.content) : null,
+    }));
+  }
+
+  /**
+   * Auto-moderation coverage over the last `days` days.
+   * Run completion rate from ai_analysis_runs — what fraction of analysis runs
+   * completed (vs failed/pending). Public "how much is automated" trust metric.
+   */
+  async getCoverage(days: number) {
+    const db = getDatabase();
+    const since = Date.now() - days * 24 * 60 * 60 * 1000;
+    const result = await db.execute(sql`
+      SELECT status, COUNT(*)::int AS c
+      FROM ai_analysis_runs
+      WHERE created_at >= ${since}
+      GROUP BY status
+    `);
+    const rows = (result.rows as Record<string, unknown>[]) || [];
+    const counts: Record<string, number> = {};
+    let total = 0;
+    for (const r of rows) {
+      const s = String(r.status);
+      const c = Number(r.c ?? 0);
+      counts[s] = c;
+      total += c;
+    }
+    const completed = counts.completed ?? 0;
+    const failed = counts.failed ?? 0;
+    const pending = (counts.pending ?? 0) + (counts.processing ?? 0);
+    return {
+      total,
+      completed,
+      failed,
+      pending,
+      coverage_rate:
+        total > 0 ? Number(((completed / total) * 100).toFixed(1)) : 0,
+      failed_rate: total > 0 ? Number(((failed / total) * 100).toFixed(1)) : 0,
+    };
+  }
 }
 
 export const moderationRepository = new ModerationRepository();

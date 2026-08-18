@@ -5,7 +5,6 @@ import {
   pgChannelCulturesTable,
   pgMessagesTable,
   pgUserProfilesTable,
-  pgUserReputationsTable,
   pgVoiceRecordingsTable,
 } from "../../shared/index.js";
 import type { ListUsersQuery } from "./dashboard.service.js";
@@ -156,8 +155,7 @@ export class DashboardRepository {
         p.profile_summary,
         m.total_messages,
         m.flagged_count,
-        m.last_message_at,
-        r.trust_score
+        m.last_message_at
       FROM (
         SELECT
           user_id,
@@ -170,7 +168,6 @@ export class DashboardRepository {
         GROUP BY user_id, username, avatar_url
       ) m
       LEFT JOIN ${pgUserProfilesTable} p ON p.user_id = m.user_id
-      LEFT JOIN ${pgUserReputationsTable} r ON r.user_id = m.user_id
       ${whereClause}
       ORDER BY m.last_message_at DESC NULLS LAST
       LIMIT ${limit + 1}
@@ -186,10 +183,6 @@ export class DashboardRepository {
         total_messages: Number(r.total_messages),
         flagged_count: Number(r.flagged_count),
         last_message_at: r.last_message_at ? Number(r.last_message_at) : null,
-        trust_score:
-          r.trust_score !== null && r.trust_score !== undefined
-            ? Number(r.trust_score)
-            : null,
       }));
 
     const lastRow = rows[limit - 1] as Record<string, unknown> | undefined;
@@ -437,10 +430,7 @@ export class DashboardRepository {
         m.flagged_count,
         m.clean_count,
         p.profile_summary,
-        p.last_analyzed_at,
-        r.trust_score,
-        r.clean_message_streak,
-        r.total_infractions
+        p.last_analyzed_at
       FROM (
         SELECT
           user_id,
@@ -454,7 +444,6 @@ export class DashboardRepository {
         GROUP BY user_id, username, avatar_url
       ) m
       LEFT JOIN ${pgUserProfilesTable} p ON p.user_id = m.user_id
-      LEFT JOIN ${pgUserReputationsTable} r ON r.user_id = m.user_id
     `);
 
     const row = userResult.rows[0] as Record<string, unknown> | undefined;
@@ -481,13 +470,6 @@ export class DashboardRepository {
       last_analyzed_at: row.last_analyzed_at
         ? Number(row.last_analyzed_at)
         : null,
-      trust_score: row.trust_score != null ? Number(row.trust_score) : null,
-      clean_message_streak:
-        row.clean_message_streak != null
-          ? Number(row.clean_message_streak)
-          : null,
-      total_infractions:
-        row.total_infractions != null ? Number(row.total_infractions) : null,
       recent_messages: (recent.rows as Record<string, unknown>[]).map((r) => ({
         id: String(r.id),
         content: String(r.content),

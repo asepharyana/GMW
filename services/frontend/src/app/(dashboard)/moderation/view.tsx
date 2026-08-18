@@ -15,14 +15,18 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
+import { CategoryDrilldown } from "@/components/CategoryDrilldown";
+import { CoverageTiles } from "@/components/CoverageTiles";
 import { Donut } from "@/components/charts";
 import { LiveModerationFeed } from "@/components/LiveModerationFeed";
+import { ModerationHeatmap } from "@/components/ModerationHeatmap";
 import {
   Badge,
   GlassPanel,
   Select,
   type SelectOption,
 } from "@/components/primitives";
+import { ScamDomains } from "@/components/ScamDomains";
 import {
   ErrorState,
   MetricTile,
@@ -31,12 +35,18 @@ import {
   SkeletonPanel,
   SkeletonRows,
 } from "@/components/shared";
+import { TopChannels } from "@/components/TopChannels";
 import { TopicTrends } from "@/components/TopicTrends";
 import {
+  useHourlyModeration,
   useLiveModeration,
   useModerationActions,
+  useModerationByCategory,
+  useModerationCoverage,
   useModerationStats,
   useModerationTrends,
+  useTopFlaggedChannels,
+  useTopFlaggedDomains,
 } from "@/hooks";
 import { aiTone } from "@/lib/ai-status";
 import { downloadCsv } from "@/lib/csv";
@@ -81,6 +91,13 @@ export function ModerationView({
   );
   const liveActions = useLiveModeration(initialActions ?? [], 50);
   const { data: trends } = useModerationTrends(30);
+  const { data: domains } = useTopFlaggedDomains(30);
+  const { data: channels } = useTopFlaggedChannels(30);
+  const { data: hourly } = useHourlyModeration(30);
+  const { data: coverage } = useModerationCoverage(30);
+  const [drilldown, setDrilldown] = useState<string | null>(null);
+  const { data: categoryActions, isValidating: categoryLoading } =
+    useModerationByCategory(drilldown ? 30 : 0, drilldown);
 
   const failedRate = stats ? stats.failed_rate * 100 : 0;
 
@@ -170,6 +187,44 @@ export function ModerationView({
 
         <div className="lg:col-span-5">
           <LiveModerationFeed actions={liveActions} />
+        </div>
+
+        {coverage ? (
+          <CoverageTiles coverage={coverage} />
+        ) : (
+          <SkeletonPanel rows={3} className="lg:col-span-5" />
+        )}
+
+        <div className="lg:col-span-2">
+          {domains ? (
+            <ScamDomains domains={domains} />
+          ) : (
+            <SkeletonPanel rows={6} />
+          )}
+        </div>
+        <div className="lg:col-span-2">
+          {hourly ? (
+            <ModerationHeatmap hours={hourly} />
+          ) : (
+            <SkeletonPanel rows={6} />
+          )}
+        </div>
+        <div className="lg:col-span-1">
+          {channels ? (
+            <TopChannels channels={channels} />
+          ) : (
+            <SkeletonPanel rows={6} />
+          )}
+        </div>
+
+        <div className="lg:col-span-3">
+          <CategoryDrilldown
+            trends={trends ?? { categories: [], severities: [], actions: [] }}
+            selected={drilldown}
+            actions={categoryActions ?? []}
+            loading={categoryLoading}
+            onSelect={setDrilldown}
+          />
         </div>
 
         <GlassPanel className="lg:col-span-2">

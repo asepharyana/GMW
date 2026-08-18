@@ -105,6 +105,11 @@ export class MessagesService {
   async getActivity(days = 30) {
     return messagesRepository.getActivity(days);
   }
+
+  async getRecentEdits(limit = 50, channelId?: string) {
+    logger.debug({ limit, channelId }, "Getting recent message edits");
+    return messagesRepository.getRecentEdits(limit, channelId);
+  }
 }
 
 /** Shape returned to the frontend (text + metadata from the archive payload). */

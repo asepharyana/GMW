@@ -1,5 +1,6 @@
 export * from "./dashboard";
 export * from "./guild";
+export * from "./knowledge";
 export * from "./media";
 export * from "./message";
 export * from "./moderation";

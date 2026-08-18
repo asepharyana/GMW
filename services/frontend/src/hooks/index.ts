@@ -10,6 +10,7 @@ export {
   useUsers,
 } from "./use-dashboard";
 export { useGuilds } from "./use-guilds";
+export { useChannelCultures, useGlossary } from "./use-knowledge";
 export {
   useMediaLoop,
   useMediaQueue,
@@ -21,22 +22,28 @@ export {
 export {
   useImages,
   useLoadMore,
+  useMessageActivity,
   useMessageDetail,
   useMessageSearch,
   useMessages,
   useMessagesHasMore,
   useMessagesStream,
   useMessagesWsSync,
+  useRecentEdits,
   useReview,
   useSemanticSearch,
   useTextChannels,
-  useMessageActivity,
 } from "./use-messages";
 export {
+  useHourlyModeration,
   useLiveModeration,
   useModerationActions,
+  useModerationByCategory,
+  useModerationCoverage,
   useModerationStats,
   useModerationTrends,
+  useTopFlaggedChannels,
+  useTopFlaggedDomains,
 } from "./use-moderation";
 export {
   useDeleteRecording,

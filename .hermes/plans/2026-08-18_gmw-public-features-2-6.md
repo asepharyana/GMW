@@ -86,3 +86,16 @@ hour-of-day (0–23) over last 14 days. Return
 - frontend: `lib/ws/*`, `hooks/use-moderation.ts`, `hooks/use-messages.ts`,
   `lib/csv.ts`, `lib/types/*`, `app/(dashboard)/moderation/view.tsx`,
   `app/(dashboard)/messages/view.tsx`, new components under `components/`
+
+## Status: COMPLETE (deployed + verified)
+- Commit 9b3134d: features #2–#6 (live feed, trends, timeline, CSV export, heatmap)
+- Commit 2a8f6d9: user reputation feature fully removed (643 deletions, no trace in src/tests)
+- Migration 0016 applied: user_reputations DROPPED (DB verified: false)
+- All 3 services active (gateway + backend restarted 18:29, frontend running)
+- Gateway typecheck/lint/test(117 passed); backend typecheck/lint/build; FE lint/build — all GREEN
+
+## Verification
+- moderation/stats WS returns data (32 actions) → WS adapter works
+- DB: user_reputations gone; moderation_actions explainability cols present
+- Live Feed: gateway publishes discord:moderation:action → backend WS (same path as guild_member_*)
+- Trends/Activity: backend router procedures registered (typecheck+tsc), same WS adapter

@@ -1,6 +1,7 @@
 import { orpc } from "@/lib/orpc/client";
 import type {
   AttachmentRecord,
+  EditHistoryRow,
   MessageActivityBucket,
   MessageRecord,
   SemanticSearchResult,
@@ -79,5 +80,11 @@ export const messagesApi = {
   getActivity: (days = 30) =>
     orpc.messages.activity({ days }) as unknown as Promise<
       MessageActivityBucket[]
+    >,
+
+  // Public, read-only recent message edits (evasion tracker).
+  getRecentEdits: (limit = 50, channelId?: string) =>
+    orpc.messages.editHistory({ limit, channelId }) as unknown as Promise<
+      EditHistoryRow[]
     >,
 };

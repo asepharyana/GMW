@@ -484,6 +484,44 @@ export class MessagesRepository {
       count: Number(r.c ?? 0),
     }));
   }
+
+  /**
+   * Recent message edits across the server (evasion-signal tracker).
+   * Public, read-only. Joins message_edits → messages for context.
+   */
+  async getRecentEdits(limit = 50, channelId?: string) {
+    const db = getDatabase();
+    const where = channelId
+      ? `WHERE m.channel_id = '${channelId.replace(/'/g, "''")}'`
+      : "";
+    const result = await db.execute(
+      sql.raw(`
+        SELECT
+          e.id,
+          e.message_id,
+          e.old_content,
+          e.edited_at,
+          m.channel_id,
+          COALESCE(NULLIF((m.metadata::jsonb -> 'channel' ->> 'channelName'), ''), m.channel_id) AS channel_name,
+          m.username
+        FROM message_edits e
+        JOIN messages m ON m.id = e.message_id
+        ${where}
+        ORDER BY e.edited_at DESC
+        LIMIT ${limit}
+      `),
+    );
+    const rows = (result.rows as Record<string, unknown>[]) || [];
+    return rows.map((r) => ({
+      id: String(r.id),
+      message_id: String(r.message_id),
+      old_content: r.old_content ? String(r.old_content) : "",
+      edited_at: r.edited_at ? Number(r.edited_at) : 0,
+      channel_id: r.channel_id ? String(r.channel_id) : null,
+      channel_name: r.channel_name ? String(r.channel_name) : null,
+      username: r.username ? String(r.username) : null,
+    }));
+  }
 }
 
 export const messagesRepository = new MessagesRepository();

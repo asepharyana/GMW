@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { moderationApi } from "@/lib/api";
 import type {
+  CategoryAction,
+  FlaggedChannel,
+  FlaggedDomain,
+  HourlyModeration,
   ModerationAction,
+  ModerationCoverage,
   ModerationStats,
   ModerationTrends,
 } from "@/lib/types";
@@ -80,5 +85,37 @@ export function useModerationTrends(days = 30, initialData?: ModerationTrends) {
     ["moderation-trends", days],
     () => moderationApi.getTrends(days),
     { fallbackData: initialData },
+  );
+}
+
+export function useTopFlaggedDomains(days = 30) {
+  return useSWR<FlaggedDomain[]>(["moderation-domains", days], () =>
+    moderationApi.getTopDomains(days),
+  );
+}
+
+export function useTopFlaggedChannels(days = 30) {
+  return useSWR<FlaggedChannel[]>(["moderation-channels", days], () =>
+    moderationApi.getTopChannels(days),
+  );
+}
+
+export function useHourlyModeration(days = 30) {
+  return useSWR<HourlyModeration[]>(["moderation-byhour", days], () =>
+    moderationApi.getHourlyModeration(days),
+  );
+}
+
+export function useModerationByCategory(days = 30, category: string | null) {
+  return useSWR<CategoryAction[]>(
+    category ? ["moderation-bycategory", days, category] : null,
+    () => moderationApi.getByCategory(days, category as string),
+    { keepPreviousData: true },
+  );
+}
+
+export function useModerationCoverage(days = 30) {
+  return useSWR<ModerationCoverage>(["moderation-coverage", days], () =>
+    moderationApi.getCoverage(days),
   );
 }

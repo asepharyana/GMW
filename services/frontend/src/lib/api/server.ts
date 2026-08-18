@@ -16,11 +16,19 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type {
   AppConfig,
+  ChannelCultureRow,
   DashboardActivity,
   DashboardStats,
+  EditHistoryRow,
+  FlaggedChannel,
+  FlaggedDomain,
+  GlossaryRow,
   Guild,
+  HourlyModeration,
   MediaState,
+  ModerationCoverage,
   ModerationStats,
+  ModerationTrends,
   PaginatedModerationActions,
   PaginatedRecordings,
   VoiceStatus,
@@ -84,6 +92,33 @@ export async function getModerationActions(limit = 100) {
   })) as unknown as PaginatedModerationActions;
   return res.data;
 }
+export async function getModerationTrends(
+  days = 30,
+): Promise<ModerationTrends> {
+  return serverOrpc().moderation.trends({
+    days,
+  }) as unknown as Promise<ModerationTrends>;
+}
+export async function getTopFlaggedDomains(days = 30) {
+  return serverOrpc().moderation.topDomains({
+    days,
+  }) as unknown as FlaggedDomain[];
+}
+export async function getTopFlaggedChannels(days = 30) {
+  return serverOrpc().moderation.topChannels({
+    days,
+  }) as unknown as FlaggedChannel[];
+}
+export async function getHourlyModeration(days = 30) {
+  return serverOrpc().moderation.byHour({
+    days,
+  }) as unknown as HourlyModeration[];
+}
+export async function getCoverage(days = 30) {
+  return serverOrpc().moderation.coverage({
+    days,
+  }) as unknown as ModerationCoverage;
+}
 
 // ---- Voice ----
 export async function getGuilds(): Promise<Guild[]> {
@@ -121,4 +156,21 @@ export async function getMessages(
     data: import("@/lib/types").MessageRecord[];
     nextCursor: string | null;
   }>;
+}
+// ---- Knowledge (public read-only) ----
+export async function getChannelCultures(limit = 100) {
+  return serverOrpc().knowledge.channelCultures({
+    limit,
+  }) as unknown as Promise<ChannelCultureRow[]>;
+}
+export async function getGlossary(limit = 100) {
+  return serverOrpc().knowledge.glossary({
+    limit,
+  }) as unknown as Promise<GlossaryRow[]>;
+}
+
+export async function getRecentEdits(limit = 50): Promise<EditHistoryRow[]> {
+  return serverOrpc().messages.editHistory({
+    limit,
+  }) as unknown as Promise<EditHistoryRow[]>;
 }

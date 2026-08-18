@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityHeatmap } from "@/components/ActivityHeatmap";
 import { useAmbient } from "@/components/ambient/ambient-context";
+import { EditHistory } from "@/components/EditHistory";
 import {
   Avatar,
   Badge,
@@ -37,6 +38,7 @@ import {
   useMessagesHasMore,
   useMessagesStream,
   useMessagesWsSync,
+  useRecentEdits,
   useSemanticSearch,
 } from "@/hooks";
 import { aiTone } from "@/lib/ai-status";
@@ -48,7 +50,12 @@ import {
   renderMessageContent,
   safeParseJsonArray,
 } from "@/lib/format";
-import type { AiStatus, Guild, MessageRecord } from "@/lib/types";
+import type {
+  AiStatus,
+  EditHistoryRow,
+  Guild,
+  MessageRecord,
+} from "@/lib/types";
 import { staggerDelay } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
@@ -56,6 +63,7 @@ export function MessagesView({
   initialGuilds,
   initialGuildId,
   initialMessages,
+  initialEdits,
 }: {
   initialGuilds?: Guild[];
   initialGuildId?: string | null;
@@ -63,6 +71,7 @@ export function MessagesView({
     data: MessageRecord[];
     nextCursor: string | null;
   } | null;
+  initialEdits?: EditHistoryRow[];
 }) {
   const ws = useWebSocket();
   const [guildId, setGuildId] = useState<string | null>(
@@ -112,6 +121,7 @@ export function MessagesView({
     query.trim().length >= 2 && semanticMode,
   );
   const activity = useMessageActivity(30);
+  const edits = useRecentEdits(50, undefined, initialEdits);
   const detail = useMessageDetail(selected);
   const ambient = useAmbient();
 
@@ -431,6 +441,8 @@ export function MessagesView({
       {activity.data && activity.data.length > 0 && (
         <ActivityHeatmap buckets={activity.data} />
       )}
+
+      {edits.data && <EditHistory edits={edits.data} />}
     </div>
   );
 }
