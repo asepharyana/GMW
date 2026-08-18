@@ -1,10 +1,10 @@
-import { embedText } from "@/modules/ai-moderation/embeddingClient.js";
+import { embedText } from "@/modules/ai-moderation/embeddingClient";
 import {
   ARCHIVE_COLLECTION,
   qdrantPointId,
   upsertQdrantPointV2,
-} from "@/modules/ai-moderation/qdrantClient.js";
-import { config } from "@/shared/config/config.js";
+} from "@/modules/ai-moderation/qdrantClient";
+import { config } from "../../shared/config/config.js";
 import { createChildLogger } from "@/shared/logger/index";
 
 const log = createChildLogger("archive-embedder");
