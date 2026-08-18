@@ -34,7 +34,7 @@ export const configSchema = z
       .describe("Thread IDs to exclude from capture"),
     BOT_EXCLUDED_CHANNEL_IDS: z
       .string()
-      .default("1206269771340058694")
+      .default("1206269771340058694,1318544753821880362")
       .transform((v) => v.split(",").filter(Boolean))
       .describe(
         "Channel IDs where bot messages are NOT captured/analyzed (bot detection stays on everywhere else)",
