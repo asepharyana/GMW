@@ -1,7 +1,7 @@
 import type { Readable } from "node:stream";
 import type { StreamType } from "@discordjs/voice";
 
-export type MediaMode = "music";
+export type MediaMode = "music" | "screenshare";
 export type MediaSourceKind =
   | "url"
   | "local"
