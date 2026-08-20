@@ -25,7 +25,16 @@ function walk(dir) {
       const pat = /from\s+['"]([^'"]+)['"]/g;
       const n = c.replace(pat, (m, spec) => {
         if (spec.startsWith("@/")) {
-          const target = join("dist", spec.slice(2)) + ".js";
+          // Source may already carry an extension (e.g. "@/shared/config/index.js");
+          // only append ".js" when the specifier has none — otherwise we'd
+          // produce "index.js.js".
+          const core = spec.slice(2);
+          let target;
+          if (/\.(js|json|node|mjs|cjs)$/.test(core)) {
+            target = join("dist", core);
+          } else {
+            target = join("dist", core) + ".js";
+          }
           let rel = relative(dirname(p), target);
           if (!rel.startsWith(".")) rel = "./" + rel;
           return `from "${rel}"`;
