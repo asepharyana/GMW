@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   Headphones,
   LayoutDashboard,
   type LucideIcon,
@@ -62,6 +63,12 @@ export const navItems: NavItem[] = [
     label: "Search",
     icon: Search,
     matchPrefix: "/analysis",
+  },
+  {
+    href: "/materi",
+    label: "Materi",
+    icon: BookOpen,
+    matchPrefix: "/materi",
   },
 ];
 
