@@ -104,7 +104,7 @@ export async function searchMateri(
       const contentMatch = doc.content
         .toLowerCase()
         .includes(query.toLowerCase());
-      const tagMatch = (doc.tags ?? []).some((t) =>
+      const tagMatch = ((doc.tags as string[]) ?? []).some((t) =>
         t.toLowerCase().includes(query.toLowerCase()),
       );
       if (titleMatch || contentMatch || tagMatch) {
