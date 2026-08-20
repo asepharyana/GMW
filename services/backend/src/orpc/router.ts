@@ -3,16 +3,8 @@ import { z } from "zod";
 import { analysisService } from "../modules/analysis/analysis.service";
 import { chatRequestSchema } from "../modules/chatbot/chatbot.schema";
 import { chatbotService } from "../modules/chatbot/chatbot.service";
-// ── Service imports ──────────────────────────────────────────────
 import { dashboardService } from "../modules/dashboard/dashboard.service";
 import { knowledgeService } from "../modules/knowledge/knowledge.service";
-import {
-  createMateriSchema,
-  materiQuerySchema,
-  materiRagChatSchema,
-  materiService,
-  updateMateriSchema,
-} from "../modules/materi/index.js";
 import {
   mediaLoopSchema,
   mediaQueueSchema,
@@ -434,28 +426,6 @@ const uiStateRouter = {
     .handler(({ input }) => uiStateService.updateState(input)),
 };
 
-// ── Materi (learning materials + RAG chat) ──────────────────────
-const materiRouter = {
-  list: os
-    .input(materiQuerySchema)
-    .handler(({ input }) => materiService.list(input)),
-  detail: os
-    .input(z.object({ id: z.string() }))
-    .handler(({ input }) => materiService.byId(input.id)),
-  create: os
-    .input(createMateriSchema)
-    .handler(({ input }) => materiService.create(input, "anonymous")),
-  update: os
-    .input(z.object({ id: z.string() }).merge(updateMateriSchema))
-    .handler(({ input }) => materiService.update(input.id, input)),
-  delete: os
-    .input(z.object({ id: z.string() }))
-    .handler(({ input }) => materiService.delete(input.id)),
-  chat: os
-    .input(materiRagChatSchema)
-    .handler(({ input }) => materiService.ragChat(input, "anonymous")),
-};
-
 // ── Root router ───────────────────────────────────────────────────
 export const appRouter = {
   dashboard: dashboardRouter,
@@ -469,7 +439,6 @@ export const appRouter = {
   config: configRouter,
   uiState: uiStateRouter,
   knowledge: knowledgeRouter,
-  materi: materiRouter,
 };
 
 export type AppRouter = typeof appRouter;
