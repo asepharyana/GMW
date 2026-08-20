@@ -93,7 +93,7 @@ export function useLoadMore() {
         (old: MessagePage | undefined): MessagePage | undefined =>
           old
             ? {
-                data: [...old.data, ...result.data],
+                data: sortMessages([...old.data, ...result.data]),
                 nextCursor: result.nextCursor,
               }
             : result,
@@ -201,6 +201,17 @@ export function useSemanticSearch(query: string, enabled: boolean) {
 
 // ── WS sync helpers ──────────────────────────────
 
+/**
+ * Sort messages newest-first (descending by created_at). The message list is
+ * stored newest-first in SWR data (the view reverses it for display), so every
+ * WS insert must maintain this order regardless of arrival order. Without this,
+ * out-of-order `message_created` / `message_snapshot` frames produce a
+ * scrambled feed.
+ */
+function sortMessages(msgs: MessageRecord[]): MessageRecord[] {
+  return [...msgs].sort((a, b) => b.created_at - a.created_at);
+}
+
 export function useMessagesWsSync(ws: WsHook, guildId: string) {
   const { mutate } = useSWRConfig();
   useEffect(() => {
@@ -237,7 +248,8 @@ export function useMessagesWsSync(ws: WsHook, guildId: string) {
       const msg = data as MessageRecord;
       patchLists(
         (_k, m) => matchesFilter(_k as unknown[], m),
-        (old) => (old ? { ...old, data: [msg, ...old.data] } : old),
+        (old) =>
+          old ? { ...old, data: sortMessages([msg, ...old.data]) } : old,
         msg,
       );
     });
@@ -254,8 +266,8 @@ export function useMessagesWsSync(ws: WsHook, guildId: string) {
           old
             ? {
                 ...old,
-                data: old.data.map((m) =>
-                  m.id === msg.id ? { ...m, ...msg } : m,
+                data: sortMessages(
+                  old.data.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)),
                 ),
               }
             : old,
@@ -283,7 +295,12 @@ export function useMessagesWsSync(ws: WsHook, guildId: string) {
         (_k, m) => matchesFilter(_k as unknown[], m),
         (old) =>
           old
-            ? { ...old, data: old.data.map((m) => (m.id === msg.id ? msg : m)) }
+            ? {
+                ...old,
+                data: sortMessages(
+                  old.data.map((m) => (m.id === msg.id ? msg : m)),
+                ),
+              }
             : old,
         msg,
       );
@@ -331,7 +348,10 @@ export function useMessagesStream(
           const data2 = old?.data ?? [];
           if (data2.some((m) => m.id === msg.id))
             return old ?? { data: [], nextCursor: null };
-          return { data: [msg, ...data2], nextCursor: old?.nextCursor ?? null };
+          return {
+            data: sortMessages([msg, ...data2]),
+            nextCursor: old?.nextCursor ?? null,
+          };
         },
         { revalidate: false },
       );
