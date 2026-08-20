@@ -18,6 +18,7 @@ import {
   type RecordingSession,
 } from "./recorder/sessionRecording.js";
 import { createSpeakingHandler } from "./recorder/speakingHandler.js";
+import { hookScreenShareAudio } from "./screenShareAudio.js";
 
 const logger = createChildLogger("recorder");
 
@@ -145,6 +146,13 @@ export async function startRecording(
   });
 
   receiver.speaking.on("start", speakingHandler);
+
+  // ── Screen-share audio capture ──────────────────────────────────────
+  // Discord GoLive sends screen-share audio on a SEPARATE SSRC from the
+  // user's microphone. `receiver.speaking` only fires for voice (mic) SSRCs,
+  // so screen-share audio is silently dropped unless we hook the UDP receiver
+  // to discover and register those SSRCs.
+  hookScreenShareAudio(receiver, speakingHandler);
 
   // Handle unexpected disconnection
   connection.on(VoiceConnectionStatus.Disconnected, async () => {
