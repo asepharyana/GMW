@@ -616,7 +616,7 @@ export const pgMateriDocumentsTable = pgTable(
     description: pgText("description"),
     content: pgText("content").notNull(),
     category: pgText("category").notNull().default("general"),
-    tags: pgText("tags").array(),
+    tags: pgJsonb("tags").notNull().default("[]"),
     owner_user_id: pgText("owner_user_id").notNull(),
     guild_id: pgText("guild_id"),
     channel_id: pgText("channel_id"),
