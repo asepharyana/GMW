@@ -22,11 +22,11 @@
  *    the DB as fast read caches, so repeat lookups are effectively free;
  *  - lookups per batch are bounded (AI_GLOSSARY_MAX_TERMS);
  *  - live Wikipedia calls are rate-limit aware: concurrency 2 + stagger, retry
- *    once on empty results, and misses cached for only 1h so a limiter/
+ *    once on empty results, and misses cached for only 1h so a limiter or
  *    network blip is not treated as a permanent miss;
  *  - only results that read like actual definitions are accepted (Wikipedia
  *    preferred; disambiguation/ads/translate-homepages rejected);
- *  - everything degrades gracefully: no Redis, no SearXNG, no match
+ *  - everything degrades gracefully: no Redis, no Wikipedia API, no match
  *    → the block is simply omitted and moderation proceeds as before.
  */
 
@@ -258,7 +258,7 @@ export function extractGlossaryTerms(
 }
 
 // ---------------------------------------------------------------------------
-// Definition lookup (cached: LRU → Redis → SearXNG/Wikipedia)
+// ─── Definition lookup (cached: LRU → Redis → Wikipedia) ───────────────────
 // ---------------------------------------------------------------------------
 
 export interface TermDefinition {
