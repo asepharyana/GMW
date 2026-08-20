@@ -7,11 +7,11 @@ import { chatbotService } from "../modules/chatbot/chatbot.service";
 import { dashboardService } from "../modules/dashboard/dashboard.service";
 import { knowledgeService } from "../modules/knowledge/knowledge.service";
 import {
+  createMateriSchema,
   materiQuerySchema,
   materiRagChatSchema,
-  createMateriSchema,
-  updateMateriSchema,
   materiService,
+  updateMateriSchema,
 } from "../modules/materi/index.js";
 import {
   mediaLoopSchema,

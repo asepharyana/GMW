@@ -1,14 +1,18 @@
-export { MateriService } from "./materi.service.js";
-export { materiService } from "./materi.service.js";
 export { materiRepository } from "./materi.repository.js";
 export {
-  createMateriSchema,
-  updateMateriSchema,
-  materiQuerySchema,
-  materiRagChatSchema,
   type CreateMateriInput,
-  type UpdateMateriInput,
+  createMateriSchema,
   type MateriQueryInput,
   type MateriRagChatInput,
+  materiQuerySchema,
+  materiRagChatSchema,
+  type UpdateMateriInput,
+  updateMateriSchema,
 } from "./materi.schema.js";
-export { ragChat, searchMateri, type MateriSearchHit, type RAGChatResult } from "./ragClient.js";
+export { MateriService, materiService } from "./materi.service.js";
+export {
+  type MateriSearchHit,
+  type RAGChatResult,
+  ragChat,
+  searchMateri,
+} from "./ragClient.js";

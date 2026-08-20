@@ -1,9 +1,9 @@
-import { PageTransition } from "@/components/shared";
+import { BookOpen, MessageSquare, Plus, Search } from "lucide-react";
+import Link from "next/link";
 import { Badge, Button, GlassCard, Input } from "@/components/primitives";
-import { Plus, BookOpen, MessageSquare, Search } from "lucide-react";
+import { PageTransition } from "@/components/shared";
 import { listMateriSSR } from "@/lib/api/materi";
 import type { MateriDocument } from "@/lib/types/materi";
-import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +28,12 @@ function MateriGrid({ materi }: { materi: MateriDocument[] }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {materi.map((doc) => (
-        <Link key={doc.id} href={"/materi/" + doc.id}>
+        <Link key={doc.id} href={`/materi/${doc.id}`}>
           <GlassCard className="h-full cursor-pointer hover:shadow-lg transition-shadow">
             <div className="p-6">
-              <h3 className="font-bold text-lg mb-2 line-clamp-2">{doc.title}</h3>
+              <h3 className="font-bold text-lg mb-2 line-clamp-2">
+                {doc.title}
+              </h3>
               {doc.description && (
                 <p className="text-sm text-muted-foreground mb-3 line-clamp-3">
                   {doc.description}

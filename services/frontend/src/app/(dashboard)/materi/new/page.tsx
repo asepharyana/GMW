@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { ArrowLeft, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Button, GlassCard, Input, Textarea } from "@/components/primitives";
 import { PageTransition } from "@/components/shared";
-import { Button, Input, Textarea, GlassCard } from "@/components/primitives";
-import { Save, ArrowLeft } from "lucide-react";
 import { createMateri } from "@/lib/api/materi";
 import type { CreateMateriInput } from "@/lib/types/materi";
 
@@ -24,7 +24,10 @@ export default function MateriNewPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function update<K extends keyof CreateMateriInput>(key: K, value: CreateMateriInput[K]) {
+  function update<K extends keyof CreateMateriInput>(
+    key: K,
+    value: CreateMateriInput[K],
+  ) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
@@ -41,7 +44,7 @@ export default function MateriNewPage() {
         .map((t) => t.trim())
         .filter(Boolean);
       const doc = await createMateri({ ...form, tags });
-      router.push("/materi/" + doc.id);
+      router.push(`/materi/${doc.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan materi.");
       setSaving(false);
@@ -66,8 +69,14 @@ export default function MateriNewPage() {
 
         <GlassCard className="p-6 space-y-4">
           <div>
-            <label className="text-sm font-medium mb-1 block">Judul *</label>
+            <label
+              htmlFor="materi-title"
+              className="text-sm font-medium mb-1 block"
+            >
+              Judul *
+            </label>
             <Input
+              id="materi-title"
               value={form.title}
               onChange={(e) => update("title", e.target.value)}
               placeholder="Judul materi"
@@ -75,8 +84,14 @@ export default function MateriNewPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium mb-1 block">Deskripsi</label>
+            <label
+              htmlFor="materi-description"
+              className="text-sm font-medium mb-1 block"
+            >
+              Deskripsi
+            </label>
             <Input
+              id="materi-description"
               value={form.description ?? ""}
               onChange={(e) => update("description", e.target.value)}
               placeholder="Deskripsi singkat"
@@ -84,8 +99,14 @@ export default function MateriNewPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium mb-1 block">Kategori</label>
+            <label
+              htmlFor="materi-category"
+              className="text-sm font-medium mb-1 block"
+            >
+              Kategori
+            </label>
             <Input
+              id="materi-category"
               value={form.category}
               onChange={(e) => update("category", e.target.value)}
               placeholder="general"
@@ -93,8 +114,14 @@ export default function MateriNewPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium mb-1 block">Tags (pisahkan dengan koma)</label>
+            <label
+              htmlFor="materi-tags"
+              className="text-sm font-medium mb-1 block"
+            >
+              Tags (pisahkan dengan koma)
+            </label>
             <Input
+              id="materi-tags"
               value={tagsInput}
               onChange={(e) => setTagsInput(e.target.value)}
               placeholder="wibu, discord, moderation"
@@ -102,8 +129,14 @@ export default function MateriNewPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium mb-1 block">Konten *</label>
+            <label
+              htmlFor="materi-content"
+              className="text-sm font-medium mb-1 block"
+            >
+              Konten *
+            </label>
             <Textarea
+              id="materi-content"
               value={form.content}
               onChange={(e) => update("content", e.target.value)}
               placeholder="Tulis materi di sini..."

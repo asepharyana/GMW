@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { Bot, ExternalLink, Loader2, Send, User } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Button, GlassCard, Textarea } from "@/components/primitives";
 import { PageTransition } from "@/components/shared";
-import { Button, Input, Textarea, GlassCard } from "@/components/primitives";
-import { Send, Bot, User, Loader2, ExternalLink } from "lucide-react";
 import { searchMateri } from "@/lib/api/materi";
-import type { MateriRagChatMessage, MateriRagChatResult } from "@/lib/types/materi";
+import type {
+  MateriRagChatMessage,
+  MateriRagChatResult,
+} from "@/lib/types/materi";
 
 export const dynamic = "force-dynamic";
 
@@ -18,12 +21,15 @@ export default function MateriChatPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, []);
 
   async function handleSend() {
     if (!input.trim() || isLoading) return;
 
-    const userMsg: MateriRagChatMessage = { role: "user", content: input.trim() };
+    const userMsg: MateriRagChatMessage = {
+      role: "user",
+      content: input.trim(),
+    };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
@@ -31,8 +37,15 @@ export default function MateriChatPage() {
     setSources([]);
 
     try {
-      const result = await searchMateri(userMsg.content, newMessages, undefined);
-      const assistantMsg: MateriRagChatMessage = { role: "assistant", content: result.answer };
+      const result = await searchMateri(
+        userMsg.content,
+        newMessages,
+        undefined,
+      );
+      const assistantMsg: MateriRagChatMessage = {
+        role: "assistant",
+        content: result.answer,
+      };
       setMessages([...newMessages, assistantMsg]);
       setSources(result.sources);
     } catch {
@@ -70,8 +83,8 @@ export default function MateriChatPage() {
               <Bot className="mx-auto h-12 w-12 mb-4 opacity-50" />
               <p>Silakan tanyakan sesuatu tentang materi komunitas.</p>
               <p className="text-xs mt-2">
-                Contoh: "Apa itu screenshare audio di GMW?" atau
-                "Cara pakai voice recording"
+                Contoh: "Apa itu screenshare audio di GMW?" atau "Cara pakai
+                voice recording"
               </p>
             </div>
           ) : (
@@ -101,7 +114,9 @@ export default function MateriChatPage() {
                       {msg.role === "user" ? "Anda" : "AI Agent"}
                     </span>
                   </div>
-                  <div className="whitespace-pre-wrap text-sm">{msg.content}</div>
+                  <div className="whitespace-pre-wrap text-sm">
+                    {msg.content}
+                  </div>
                 </div>
               </div>
             ))
@@ -112,7 +127,9 @@ export default function MateriChatPage() {
               <div className="bg-muted/50 rounded-lg p-4 max-w-[80%]">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">AI sedang mencari di materi...</span>
+                  <span className="text-sm">
+                    AI sedang mencari di materi...
+                  </span>
                 </div>
               </div>
             </div>
@@ -155,14 +172,19 @@ export default function MateriChatPage() {
             className="flex-1"
             rows={2}
           />
-          <Button onClick={handleSend} disabled={isLoading || !input.trim()} size="icon">
+          <Button
+            onClick={handleSend}
+            disabled={isLoading || !input.trim()}
+            size="icon"
+          >
             <Send className="h-4 w-4" />
           </Button>
         </div>
 
         <div className="mt-2 text-xs text-muted-foreground">
           <ExternalLink className="h-3 w-3 inline mr-1" />
-          AI mengacu pada materi dan arsip Discord. Jawaban mungkin tidak 100% akurat.
+          AI mengacu pada materi dan arsip Discord. Jawaban mungkin tidak 100%
+          akurat.
         </div>
       </div>
     </PageTransition>

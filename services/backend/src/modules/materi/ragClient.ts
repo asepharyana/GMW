@@ -1,6 +1,6 @@
 import { config } from "@/shared/config/index.js";
-import { createChildLogger } from "@/shared/logger/index.js";
 import type { MateriDocument } from "@/shared/database/schema.js";
+import { createChildLogger } from "@/shared/logger/index.js";
 import { embedQuery } from "../messages/embed.js";
 import { searchArchive } from "../messages/qdrant.js";
 
@@ -101,7 +101,9 @@ export async function searchMateri(
     } else {
       // Fallback: keyword match scoring
       const titleMatch = doc.title.toLowerCase().includes(query.toLowerCase());
-      const contentMatch = doc.content.toLowerCase().includes(query.toLowerCase());
+      const contentMatch = doc.content
+        .toLowerCase()
+        .includes(query.toLowerCase());
       const tagMatch = (doc.tags ?? []).some((t) =>
         t.toLowerCase().includes(query.toLowerCase()),
       );
@@ -117,11 +119,15 @@ export async function searchMateri(
   }
 
   // Also search Discord message archive via Qdrant for conversation context
-  const archiveHits = await searchArchive(queryVec ?? [], topK, SIMILARITY_THRESHOLD);
+  const archiveHits = await searchArchive(
+    queryVec ?? [],
+    topK,
+    SIMILARITY_THRESHOLD,
+  );
   for (const hit of archiveHits) {
     results.push({
       document: {
-        id: "archive-" + Date.now(),
+        id: `archive-${Date.now()}`,
         title: "Discord Archive",
         description: null,
         content: hit.payload.text,
@@ -153,21 +159,30 @@ export async function ragChat(
 ): Promise<RAGChatResult> {
   const hits = await searchMateri(query, documents);
 
-  const contextBlock = hits
-    .map((h) => {
-      const scoreStr = h.score.toFixed(3);
-      return (
-        "<source id=\"" + h.document.id + "\" title=\"" + h.document.title + "\" score=\"" + scoreStr + "\">\n" +
-        h.chunkText +
-        "\n</source>"
-      );
-    })
-    .join("\n\n") || "(tidak ada konteks relevan ditemukan)";
+  const contextBlock =
+    hits
+      .map((h) => {
+        const scoreStr = h.score.toFixed(3);
+        return (
+          '<source id="' +
+          h.document.id +
+          '" title="' +
+          h.document.title +
+          '" score="' +
+          scoreStr +
+          '">\n' +
+          h.chunkText +
+          "\n</source>"
+        );
+      })
+      .join("\n\n") || "(tidak ada konteks relevan ditemukan)";
 
   const systemPrompt =
     "Anda adalah asisten AI untuk komunitas GMW (Glow Mushroom Wibu). " +
     "Jawab pertanyaan pengguna berdasarkan konteks berikut. Jika tidak tahu, katakan tidak tahu.\n\n" +
-    "Konteks materi dan arsip Discord:\n" + contextBlock + "\n\n" +
+    "Konteks materi dan arsip Discord:\n" +
+    contextBlock +
+    "\n\n" +
     "Instruksi: jawab singkat, akurat, dan berguna. Kutip sumber jika perlu.";
 
   const baseUrL = config.AI_LLM_BASE_URL;
@@ -185,8 +200,8 @@ export async function ragChat(
     ].filter((m) => m.content) as Array<{ role: string; content: string }>;
 
     const authHeaders: Record<string, string> = {};
-    authHeaders["Authorization"] = authHeader;
-    const res = await fetch(baseUrL + "/chat/completions", {
+    authHeaders.Authorization = authHeader;
+    const res = await fetch(`${baseUrL}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -202,14 +217,16 @@ export async function ragChat(
     });
 
     if (!res.ok) {
-      throw new Error("LLM request failed: " + res.status);
+      throw new Error(`LLM request failed: ${res.status}`);
     }
 
     const data = (await res.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
     };
 
-    const answer = data.choices?.[0]?.message?.content ?? "Maaf, tidak bisa menjawab saat ini.";
+    const answer =
+      data.choices?.[0]?.message?.content ??
+      "Maaf, tidak bisa menjawab saat ini.";
 
     return {
       answer,

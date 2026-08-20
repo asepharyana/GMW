@@ -1,11 +1,11 @@
 import type { MateriDocument } from "@/shared/database/schema.js";
 import { createChildLogger } from "@/shared/logger/index.js";
 import { materiRepository } from "./materi.repository.js";
-import {
-  type MateriQueryInput,
-  type CreateMateriInput,
-  type UpdateMateriInput,
-  type MateriRagChatInput,
+import type {
+  CreateMateriInput,
+  MateriQueryInput,
+  MateriRagChatInput,
+  UpdateMateriInput,
 } from "./materi.schema.js";
 import { ragChat } from "./ragClient.js";
 
@@ -14,7 +14,10 @@ const logger = createChildLogger("materi.service");
 export class MateriService {
   /** List materi documents with optional filtering. */
   async list(input: MateriQueryInput): Promise<MateriDocument[]> {
-    logger.debug({ limit: input.limit, search: input.search }, "Listing materi");
+    logger.debug(
+      { limit: input.limit, search: input.search },
+      "Listing materi",
+    );
     return materiRepository.list(input);
   }
 
@@ -72,7 +75,15 @@ export class MateriService {
   async ragChat(
     input: MateriRagChatInput,
     ownerUserId: string,
-  ): Promise<{ answer: string; sources: Array<{ id: string; title: string; score: number; excerpt: string }> }> {
+  ): Promise<{
+    answer: string;
+    sources: Array<{
+      id: string;
+      title: string;
+      score: number;
+      excerpt: string;
+    }>;
+  }> {
     logger.info({ ownerUserId, hasMateriId: !!input.materiId }, "RAG chat");
 
     // Fetch relevant materi documents

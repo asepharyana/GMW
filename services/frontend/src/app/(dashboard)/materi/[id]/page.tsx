@@ -1,7 +1,7 @@
+import { Pencil, Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
-import { PageTransition, MarkdownLite } from "@/components/shared";
-import { Button, Badge } from "@/components/primitives";
-import { Trash2, Pencil } from "lucide-react";
+import { Badge, Button } from "@/components/primitives";
+import { MarkdownLite, PageTransition } from "@/components/shared";
 import { getMateriSSR } from "@/lib/api/materi";
 
 export const dynamic = "force-dynamic";
@@ -30,12 +30,12 @@ export default async function MateriDetailPage({
           </div>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" asChild>
-              <a href={"/materi/" + doc.id + "/edit"}>
+              <a href={`/materi/${doc.id}/edit`}>
                 <Pencil className="h-4 w-4" />
               </a>
             </Button>
             <Button variant="ghost" size="sm" asChild>
-              <a href={"/materi/new?duplicate=" + doc.id}>
+              <a href={`/materi/new?duplicate=${doc.id}`}>
                 <Trash2 className="h-4 w-4" />
               </a>
             </Button>

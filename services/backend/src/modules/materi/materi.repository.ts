@@ -1,9 +1,9 @@
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { getDatabase } from "@/shared/database/index.js";
 import {
   type MateriDocument,
   materiDocumentsTable,
 } from "@/shared/database/schema.js";
-import { getDatabase } from "@/shared/database/index.js";
 import type { MateriQueryInput } from "./materi.schema.js";
 
 export class MateriRepository {
@@ -39,8 +39,7 @@ export class MateriRepository {
       conditions.push(eq(materiDocumentsTable.is_public, true));
     }
 
-    const whereClause =
-      conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const result = await db
       .select()
