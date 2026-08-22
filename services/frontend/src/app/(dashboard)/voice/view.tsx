@@ -166,13 +166,13 @@ export function VoiceView({
             {micOn ? "Mic live" : "Push-to-talk"}
           </Button>
           {micOn && (
-            <div className="flex items-center gap-2 rounded-[10px] border border-signal/30 bg-signal/[0.06] px-3 py-1.5">
+            <div
+              className="flex items-center gap-2 rounded-[10px] border border-signal/30 bg-signal/[0.06] px-3 py-1.5"
+              role="status"
+              aria-label="Microphone level meter"
+            >
               <Mic className="size-4 text-signal" />
-              <Equalizer
-                bars={micBars}
-                className="w-28"
-                aria-label="Microphone level"
-              />
+              <Equalizer bars={micBars} className="w-28" />
             </div>
           )}
           <Button
