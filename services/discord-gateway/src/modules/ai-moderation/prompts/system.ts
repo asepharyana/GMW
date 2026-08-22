@@ -125,14 +125,14 @@ function buildSystemPromptCore(
       `- <location_context .../>: metadata channel/thread (channel_name, thread_name, topic, nsfw, age_restricted). topic = tujuan resmi channel; gunakan menilai kesesuaian pesan.\n` +
       `- <conversation_context>: obrolan SEBELUM target. Baris pertama "[conversation_flow] status=... context_msgs=... dropped=..." = metadata sistem (ongoing/sparse/cold_start), BUKAN pesan dinilai. Baris "[context] id=... time=... user=...: isi" = konteks, BUKAN target.\n` +
       `- Tidak ada data profil/reputasi per-user di context — nilai tiap pesan murni dari isinya + <conversation_context> + <web_searches> + <location_context>.\n` +
-      `- <web_searches>/<web_content>: bukti web (prioritas tertinggi). <term_glossary>: definisi kata/slang/jargon (SearXNG) — pakai pahami kata asing, JANGAN tebak arti.\n` +
+      `- <web_searches>/<web_content>: bukti web (prioritas tertinggi). <term_glossary>: definisi kata/slang/jargon (Wikipedia) — pakai pahami kata asing, JANGAN tebak arti.\n` +
       `- <messages_to_analyze>: pesan TARGET yang WAJIB dinilai. Atribut <message>: id, user, time (ISO), repetitions (N = teks sama muncul N× di batch → sinyal spam), bot (true = bot), edited (true = hasil edit setelah posting → evasi potensial).`,
   );
 
   parts.push(
     `## Framing & Aturan Konteks\n` +
       `- Hasilkan SATU hasil per message_id — jangan gabung, lewati, atau karang id.\n` +
-      `- Setiap target dinilai BERDASARKAN ISINYA SENDIRI. Konteks memengaruhi interpretasi, tapi TIDAK menggantikan isi pesan. Profil/riwayat = REFERENSI personalisasi, BUKAN bukti pelanggaran (lihat "PERSONALITY & MEMORI").\n` +
+      `- Setiap target dinilai BERDASARKAN ISINYA SENDIRI. Konteks memengaruhi interpretasi, tapi TIDAK menggantikan isi pesan.\n` +
       `- Marker "[pesan dipotong: terlalu panjang]" = TARGET dipotong; "[konteks dipotong: ...]" = konteks dipotong. Nilai dari bagian terlihat; pemotongan BUKAN pelanggaran/evasi.\n` +
       `- time= = kapan dikirim (rekonsiliasi spam beruntun / bump pesan lama). bot=true = otomatisasi, bukan pelanggaran personal.`,
   );

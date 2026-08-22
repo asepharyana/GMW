@@ -1,11 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Context enrichment builders — <user_history>, <user_profiles> as_of,
-// bot/edited detection (pure, no DB)
+// Context enrichment builders — bot/edited detection (pure, no DB)
+// (buildUserHistoryXml / buildUserProfilesBlock were removed with the
+// per-user context minimization; their tests went with them.)
 // ═══════════════════════════════════════════════════════════════════════════
 import { describe, expect, it } from "vitest";
 import {
-  buildUserHistoryXml,
-  buildUserProfilesBlock,
   resolveIsBot,
   resolveIsEdited,
 } from "../src/modules/ai-moderation/moderationBuilders.js";
@@ -38,85 +37,6 @@ function msg(overrides: Partial<MessageRecord> = {}): MessageRecord {
     ...overrides,
   };
 }
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-describe("buildUserHistoryXml — last flagged messages for repeat offenders", () => {
-  it("returns empty when there is no real history", () => {
-    expect(buildUserHistoryXml([])).toBe("");
-    expect(
-      buildUserHistoryXml([{ content: "   ", severity: "low", created_at: 1 }]),
-    ).toBe("");
-  });
-
-  it("renders <infraction> rows with severity and recency", () => {
-    const xml = buildUserHistoryXml(
-      [
-        {
-          content: "beli barang murah disini https://scam.example",
-          severity: "high",
-          created_at: NOW - 3 * DAY_MS,
-        },
-      ],
-      NOW,
-    );
-    expect(xml).toContain("<user_history>");
-    expect(xml).toContain('severity="high"');
-    expect(xml).toContain('time_ago_days="3"');
-    expect(xml).toContain("beli barang murah disini");
-  });
-
-  it("caps long snippets and XML-escapes content", () => {
-    const xml = buildUserHistoryXml(
-      [
-        {
-          content: "x".repeat(300),
-          severity: "low",
-          created_at: NOW - DAY_MS,
-        },
-      ],
-      NOW,
-    );
-    expect(xml.length).toBeLessThan(250);
-  });
-});
-
-describe("buildUserProfilesBlock — deduplicated map with staleness", () => {
-  it("emits as_of when the profile has a last-generated timestamp", () => {
-    const block = buildUserProfilesBlock(
-      new Map([
-        [
-          "u1",
-          {
-            text: "Developer teknis, bahasa Indonesia",
-            asOf: NOW - 3 * DAY_MS,
-          },
-        ],
-      ]),
-    );
-    expect(block).toContain('<user_profile user_id="u1"');
-    expect(block).toContain(
-      `as_of="${new Date(NOW - 3 * DAY_MS).toISOString()}"`,
-    );
-    expect(block).toContain("Developer teknis");
-  });
-
-  it("omits as_of when absent, and drops empty profiles", () => {
-    const block = buildUserProfilesBlock(
-      new Map([
-        ["u1", { text: "profil aktif", asOf: null }],
-        ["u2", { text: "   " }],
-      ]),
-    );
-    expect(block).toContain('user_id="u1"');
-    expect(block).not.toContain("as_of");
-    expect(block).not.toContain("u2");
-  });
-
-  it("returns empty for no profiles", () => {
-    expect(buildUserProfilesBlock(new Map())).toBe("");
-  });
-});
 
 describe("resolveIsBot / resolveIsEdited — message flags", () => {
   it("reads author.bot from captured metadata", () => {

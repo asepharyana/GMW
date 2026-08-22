@@ -48,7 +48,7 @@ Kata alat kelamin/anatomi seksual (kontol, memek, titten, tit, dick) atau istila
 - Ageisme ("dasar bocil", "tau aja lo tua") → hate_speech / harassment.
 - Diskriminasi fisik ("gendut", "iteman", "cungkring") → harassment jika terarah.
 - Serangan personal, penghinaan, merendahkan = tidak ditoleransi. Perbedaan pendapat wajar.
-- **PESAN DINILAI SECARA STANDALONE:** Setiap pesan baru dinilai BERDASARKAN ISINYA SENDIRI. <user_history> (jika ada) HANYA untuk mendeteksi POLA PENGULANGAN dengan JAMAK (spam link yang SAMA, provokasi berulang yang MENGANDALKAN KONTEN YANG SAMA). JANGAN gunakan history untuk "menginterpretasi ulang" pesan bersih yang TERPISAH DARI riwayat pelanggaran sebelumnya. Jika pesan tidak mengandung unsur yang BERPANDUAN PADA riwayat → tetap CLEAN.
+- **PESAN DINILAI SECARA STANDALONE:** Setiap pesan baru dinilai BERDASARKAN ISINYA SENDIRI. Tidak ada data profil/reputasi per-user di payload — nilai murni dari isi pesan + konteks percakapan. Pengulangan teks sama dalam satu batch ditandai atribut repetitions="N" pada <message> (sinyal spam), bukan dari riwayat lampau.
 
 ## LARANGAN BERAT (ZERO TOLERANCE)
 - **LGBT:** Segala promosi, diskusi, pengakuan orientasi, coming out, atau curhat personal tentang LGBT WAJIB di-flag "sexual_deviation". Tidak ada pengecualian. (Lihat juga pohon keputusan #3.)

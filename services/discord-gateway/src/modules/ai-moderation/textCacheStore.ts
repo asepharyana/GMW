@@ -260,11 +260,31 @@ export async function invalidateTextModerationCache(
 }
 
 /**
- * Lookup a cached moderation result for a text content.
- * Returns the stored result fields or null.
+ * Normalize a stored verdict status to the full three-state union.
+ *
+ * Bug history (2026-08-22): both cache readers narrowed their types to
+ * "clean" | "flagged", so a stored "warn" verdict fell into the legacy
+ * `flags.length === 0 ? clean : flagged` branch and was served back as
+ * FLAGGED (breaking auto-delete gating + dashboard labels). New entries
+ * store the exact status; legacy rows without one derive from flags.
  */
-export async function getCachedTextModeration(cacheKey: string): Promise<{
-  status: "clean" | "flagged";
+export function normalizeStoredStatus(
+  storedStatus: string | undefined,
+  flags: string[],
+): "clean" | "warn" | "flagged" {
+  if (
+    storedStatus === "clean" ||
+    storedStatus === "warn" ||
+    storedStatus === "flagged"
+  ) {
+    return storedStatus;
+  }
+  return flags.length === 0 ? "clean" : "flagged";
+}
+
+/** Shape shared by every moderation-cache read path. */
+export interface StoredModerationVerdict {
+  status: "clean" | "warn" | "flagged";
   flags: string[];
   score: number;
   analysis: string;
@@ -272,7 +292,15 @@ export async function getCachedTextModeration(cacheKey: string): Promise<{
   severity: string;
   confidence: number;
   recommendedAction: string;
-} | null> {
+}
+
+/**
+ * Lookup a cached moderation result for a text content.
+ * Returns the stored result fields or null.
+ */
+export async function getCachedTextModeration(
+  cacheKey: string,
+): Promise<StoredModerationVerdict | null> {
   try {
     const row = await executeGet(
       `SELECT flags, source, analyzed_at, expires_at, hit_count
@@ -285,14 +313,12 @@ export async function getCachedTextModeration(cacheKey: string): Promise<{
 
     const parsed = JSON.parse(row.flags) as Record<string, unknown>;
     const flags = (parsed.flags as string[]) ?? [];
-    // Use stored status if available (new entries), otherwise derive from flags (legacy compatibility)
-    const storedStatus = parsed.status as string | undefined;
-    const status: "clean" | "flagged" =
-      storedStatus === "clean" || storedStatus === "flagged"
-        ? storedStatus
-        : flags.length === 0
-          ? "clean"
-          : "flagged";
+    // Use stored status if available (new entries), otherwise derive from
+    // flags (legacy compatibility). "warn" must survive the round-trip.
+    const status = normalizeStoredStatus(
+      parsed.status as string | undefined,
+      flags,
+    );
 
     return {
       status,
@@ -321,18 +347,12 @@ export async function getCachedTextModeration(cacheKey: string): Promise<{
 export function parseQdrantVerdict(
   payload: QdrantVerdictPayload,
   similarity: number,
-): {
-  text: string;
-  similarity: number;
-  status: "clean" | "warn" | "flagged";
-  flags: string[];
-  score: number;
-  analysis: string;
-  categories: string[];
-  severity: string;
-  confidence: number;
-  recommendedAction: string;
-} | null {
+):
+  | (StoredModerationVerdict & {
+      text: string;
+      similarity: number;
+    })
+  | null {
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(payload.flags) as Record<string, unknown>;
@@ -341,17 +361,17 @@ export function parseQdrantVerdict(
   }
   if (!parsed || typeof parsed !== "object") return null;
 
-  const storedStatus = (parsed.status as string) ?? "clean";
-  const status: "clean" | "warn" | "flagged" =
-    storedStatus === "warn" || storedStatus === "flagged"
-      ? storedStatus
-      : "clean";
+  const flags = (parsed.flags as string[]) ?? [];
+  const status = normalizeStoredStatus(
+    parsed.status as string | undefined,
+    flags,
+  );
 
   return {
     text: payload.text,
     similarity,
     status,
-    flags: (parsed.flags as string[]) ?? [],
+    flags,
     score: (parsed.score as number) ?? 0,
     analysis: (parsed.analysis as string) ?? "",
     categories: (parsed.categories as string[]) ?? [],
@@ -373,18 +393,9 @@ export async function findSimilarTextModeration(
   embedding: number[],
   minSimilarity: number,
   limit: number,
-): Promise<{
-  text: string;
-  similarity: number;
-  status: "clean" | "warn" | "flagged";
-  flags: string[];
-  score: number;
-  analysis: string;
-  categories: string[];
-  severity: string;
-  confidence: number;
-  recommendedAction: string;
-} | null> {
+): Promise<
+  (StoredModerationVerdict & { text: string; similarity: number }) | null
+> {
   // Qdrant path (primary)
   if (isQdrantConfigured()) {
     const hits = await searchQdrant(embedding, limit, minSimilarity);
@@ -443,11 +454,10 @@ export async function findSimilarTextModeration(
     const hit = candidates[match.index];
     const parsed = hit.parsed;
     const flags = (parsed.flags as string[]) ?? [];
-    const storedStatus = (parsed.status as string) ?? "clean";
-    const status: "clean" | "warn" | "flagged" =
-      storedStatus === "warn" || storedStatus === "flagged"
-        ? storedStatus
-        : "clean";
+    const status = normalizeStoredStatus(
+      parsed.status as string | undefined,
+      flags,
+    );
     return {
       text: hit.text,
       similarity: match.similarity,

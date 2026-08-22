@@ -45,18 +45,18 @@ Wajib sebutkan ISI/KONTEN spesifik apa yang dibicarakan pengirim — bukan templ
 - **Teks + gambar**: "Pengirim mengirim screenshot chat sambil membahas makanan favorit. Gambar dan teks sama-sama tentang percakapan sehari-hari. Tidak ada pelanggaran." ✓ / "Pesan berisi teks dan gambar tanpa pelanggaran." ✗
 
 ### Per kasus:
-|- **Melanggar:** "Pengirim <pelanggaran X>. <bukti teks/gambar>. <dampak/konteks>."
-|- **conflict_instigation:** "Pengirim <ajakan memicu konflik>. <konteks>. Diberi peringatan karena berpotensi memicu drama."
-|- **Username ofensif (pesan bersih):** "Pengirim memiliki username yang <alasan ofensif>. Isi pesan hanya <isi>. Diberi warning ringan." — (pesan memperkuat): "<username SARA> + isi pesan memperkuat tone kebencian. Pelanggaran berat."
-|- **Evasi (zalgo/leetspeak):** "Pengirim menggunakan teknik obfuscation untuk menyembunyikan <makna asli>. <dampak>. <kesimpulan>."
-|- **Spam (repetitions > 1):** "Pengirim mengirim teks yang sama sebanyak N kali dalam waktu singkat. <isi pesan>. Diberi peringatan karena spam berulang." — nilai tetap dari isi; pengulangan saja (mis. "ok" x5 dalam obrolan aktif) bukan pelanggaran.
-|- **sexual_deviation:** "Pengirim <konten penyimpangan>. <konteks>. Melanggar kebijikan server."
-|- **SARA/penistaan agama:** "Pengirim <jenis penistaan spesifik: parodi ayat, mengaku Tuhan, mockery ritual, istilah agama sebagai joke, provokasi antar-agama>. <bukti>. Melanggar kebijikan SARA." — JANGAN gunakan kata "bercanda" untuk SARA.
+- **Melanggar:** "Pengirim <pelanggaran X>. <bukti teks/gambar>. <dampak/konteks>."
+- **conflict_instigation:** "Pengirim <ajakan memicu konflik>. <konteks>. Diberi peringatan karena berpotensi memicu drama."
+- **Username ofensif (pesan bersih):** "Pengirim memiliki username yang <alasan ofensif>. Isi pesan hanya <isi>. Diberi warning ringan." — (pesan memperkuat): "<username SARA> + isi pesan memperkuat tone kebencian. Pelanggaran berat."
+- **Evasi (zalgo/leetspeak):** "Pengirim menggunakan teknik obfuscation untuk menyembunyikan <makna asli>. <dampak>. <kesimpulan>."
+- **Spam (repetitions > 1):** "Pengirim mengirim teks yang sama sebanyak N kali dalam waktu singkat. <isi pesan>. Diberi peringatan karena spam berulang." — nilai tetap dari isi; pengulangan saja (mis. "ok" x5 dalam obrolan aktif) bukan pelanggaran.
+- **sexual_deviation:** "Pengirim <konten penyimpangan>. <konteks>. Melanggar kebijikan server."
+- **SARA/penistaan agama:** "Pengirim <jenis penistaan spesifik: parodi ayat, mengaku Tuhan, mockery ritual, istilah agama sebagai joke, provokasi antar-agama>. <bukti>. Melanggar kebijikan SARA." — JANGAN gunakan kata "bercanda" untuk SARA.
 
-**CRITICAL — dilarang menulis analysis generik:** JANGAN PERNAH menulis "Pesan hanya berisi...", "Tidak ada indikasi pelanggaran", atau template seperti "Pengirim mengirimkan sebuah file GIF tanpa pelanggaran." Selalu sebutkan ISI/KONTEN secifik, apa yang dibicarakan, apa yang terlihat.
+**CRITICAL — dilarang menulis analysis generik:** JANGAN PERNAH menulis "Pesan hanya berisi...", "Tidak ada indikasi pelanggaran", atau template seperti "Pengirim mengirimkan sebuah file GIF tanpa pelanggaran." Selalu sebutkan ISI/KONTEN spesifik, apa yang dibicarakan, apa yang terlihat.
 
-|- **BALASAN (reply):** jelaskan konteks balasannya (apa dibicarakan, siapa dibalas tanpa nama, bagaimana tanggapan pengirim).
-|- Gunakan Media analysis untuk mendeskripsikan gambar. Analisis harus MEMBERI KONTEKS, bukan hanya status.`;
+- **BALASAN (reply):** jelaskan konteks balasannya (apa dibicarakan, siapa dibalas tanpa nama, bagaimana tanggapan pengirim).
+- Gunakan Media analysis untuk mendeskripsikan gambar. Analisis harus MEMBERI KONTEKS, bukan hanya status.`;
 
 // ---------------------------------------------------------------------------
 // Sanitize AI-generated content (channel culture / user profile) to prevent

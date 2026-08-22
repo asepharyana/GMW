@@ -75,8 +75,6 @@ export function buildConversationContextBlock(input: {
 // huge paste (stack traces, log dumps, copypasta). Truncation is explicit so
 // the model never mistakes the cut for a real message boundary.
 // ---------------------------------------------------------------------------
-
-/** Max characters of a message's content sent to the LLM `<content>` payload. */
 export const AI_CONTENT_MAX_CHARS = 4000;
 
 /** Marker appended when a message is longer than AI_CONTENT_MAX_CHARS. */
@@ -89,78 +87,11 @@ export function truncateForAi(content: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// User profile deduplication — a batch can contain many messages from the
-// same user. Instead of repeating the (up to 3000-char) profile summary on
-// every message, emit a single <user_profiles> map per batch and reference
-// entries per message with <user_profile_ref user_id="..."/>.
+// User profile deduplication — REMOVED (2026-08-22).
+// Per-user profile/history context was stripped from the moderation prompt
+// (context minimization): buildUserProfilesBlock / buildUserProfileRef /
+// UserProfileEntry / buildUserHistoryXml had no remaining production callers.
 // ---------------------------------------------------------------------------
-
-export interface UserProfileEntry {
-  /** Profile summary text (from user_profiles.profile_summary). */
-  text: string;
-  /** Epoch ms when the profile was last generated — staleness signal for
-   *  the LLM (a profile from months ago may not reflect current behavior). */
-  asOf?: number | null;
-}
-
-/** Build a deduplicated `<user_profiles>` map block, keyed by Discord user id. */
-export function buildUserProfilesBlock(
-  profiles: ReadonlyMap<string, UserProfileEntry>,
-): string {
-  const entries = Array.from(profiles.entries()).filter(
-    ([, entry]) => entry.text.trim().length > 0,
-  );
-  if (entries.length === 0) return "";
-  const lines = entries.map(([userId, entry]) => {
-    const asOfAttr =
-      typeof entry.asOf === "number" && entry.asOf > 0
-        ? ` as_of="${new Date(entry.asOf).toISOString()}"`
-        : "";
-    return `  <user_profile user_id="${escapeXml(userId)}"${asOfAttr}>${sanitizeAiContent(entry.text)}</user_profile>`;
-  });
-  return `<user_profiles>\n${lines.join("\n")}\n</user_profiles>`;
-}
-
-/** Per-message reference tag pointing at an entry in the `<user_profiles>` map. */
-export function buildUserProfileRef(userId: string): string {
-  return `<user_profile_ref user_id="${escapeXml(userId)}"/>`;
-}
-
-// ---------------------------------------------------------------------------
-// Per-user history context (last flagged messages only — no trust model).
-// context to AI moderation.
-// ---------------------------------------------------------------------------
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/**
- * Builds an optional `<user_history>` block (last flagged messages) from
- * getUserRecentInfractions rows. Only emitted when there is real history —
- * lets the LLM see the PATTERN (e.g. the same scam link posted repeatedly)
- * without treating old flags as proof for the current message.
- */
-export function buildUserHistoryXml(
-  history: Array<{
-    content: string;
-    severity: string | null;
-    created_at: number;
-  }>,
-  now: number = Date.now(),
-): string {
-  const filtered = history.filter((h) => h.content?.trim());
-  if (filtered.length === 0) return "";
-  const lines = filtered.map((h) => {
-    const daysAgo = Math.max(0, Math.floor((now - h.created_at) / DAY_MS));
-    const severityAttr = h.severity
-      ? ` severity="${escapeXml(h.severity)}"`
-      : "";
-    const snippet =
-      h.content.length > 100
-        ? `${h.content.slice(0, 100).trimEnd()}…`
-        : h.content;
-    return `  <infraction${severityAttr} time_ago_days="${daysAgo}">${escapeXml(snippet)}</infraction>`;
-  });
-  return `<user_history>\n${lines.join("\n")}\n</user_history>`;
-}
 
 /**
  * Whether the message author was a bot (captured in metadata.author.bot).
