@@ -13,6 +13,7 @@ import type {
   MessageRecord,
 } from "../message-capture/types.js";
 import { getChannelCulture } from "./channelCultureStore.js";
+import { estimateTokens } from "./conversationContext.js";
 import type { RetryState } from "./llmCaller.js";
 import { callModerationLLM } from "./llmCaller.js";
 import { prepareMediaMessage } from "./mediaAnalysisClient.js";
@@ -87,11 +88,22 @@ export async function runMediaBatch(
   timeoutId.unref();
 
   try {
+    // Output budget scales with the prompt (see textBatchProcessor): small
+    // media batches don't need the full 16k completion window.
+    const promptEstimate =
+      2000 +
+      estimateTokens(userContent) +
+      targets.reduce((sum, m) => sum + estimateTokens(m.content ?? "") + 50, 0);
+    const dynamicMaxTokens = Math.min(
+      16384,
+      Math.max(2048, Math.ceil(promptEstimate * 1.5)),
+    );
     const result = await callModerationLLM(
       async (_state: RetryState) => ({ system: systemText, user: userContent }),
       targetIds,
       `media-batch:${targetIds.length}msgs`,
       abortController.signal,
+      dynamicMaxTokens,
     );
     log.info(
       { mediaCount: targets.length, resultCount: result.results.length },

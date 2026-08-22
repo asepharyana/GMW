@@ -49,6 +49,10 @@ export async function callModerationLLM(
   targetIds: string[],
   label: string,
   signal?: AbortSignal,
+  // Output-side token cap. Defaults to the previous hard-coded value; batch
+  // callers pass a prompt-derived ceiling so small batches don't reserve a
+  // 16k completion budget (some routers pre-allocate KV cache per max_tokens).
+  maxTokens?: number,
 ): Promise<{
   results: AnalysisResult[];
   raw: ChatCompletion | null;
@@ -75,7 +79,7 @@ export async function callModerationLLM(
                 ];
           const completion = await llmChat({
             messages,
-            max_tokens: 16384,
+            max_tokens: maxTokens ?? 16384,
             jsonResponse: { type: "json_object" },
             retries: 0,
             signal,

@@ -14,6 +14,7 @@ import type {
   MessageRecord,
 } from "../message-capture/types.js";
 import { getChannelCulture } from "./channelCultureStore.js";
+import { estimateTokens } from "./conversationContext.js";
 import type { ModerationPromptContent, RetryState } from "./llmCaller.js";
 import { callModerationLLM } from "./llmCaller.js";
 import { analyzeSingleMediaImage } from "./mediaAnalysisClient.js";
@@ -341,11 +342,29 @@ export async function runTextOnlyBatch(
 
     let batchResult: { results: AnalysisResult[]; raw: unknown };
     try {
+      // Output budget scales with the prompt: the JSON verdict block is
+      // roughly proportional to message count, so a small sub-batch doesn't
+      // need to reserve a full 16k completion window. Estimated here from
+      // raw materials (system/rules baseline ~2k + context + message
+      // bodies) instead of inside buildContent, because max_tokens must be
+      // known at call time.
+      const subBatchPromptEstimate =
+        2000 +
+        estimateTokens(contextBlock ?? "") +
+        batch.reduce(
+          (sum, m) => sum + estimateTokens(m.edited_content ?? m.content) + 50,
+          0,
+        );
+      const dynamicMaxTokens = Math.min(
+        16384,
+        Math.max(2048, Math.ceil(subBatchPromptEstimate * 1.5)),
+      );
       batchResult = await callModerationLLM(
         buildContent,
         targetIds,
         `text-batch-${i + 1}`,
         abortController.signal,
+        dynamicMaxTokens,
       );
     } catch (err: any) {
       if (err.name === "AbortError" || abortController.signal.aborted) {

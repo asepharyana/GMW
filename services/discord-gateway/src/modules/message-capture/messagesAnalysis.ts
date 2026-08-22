@@ -246,6 +246,14 @@ export class MessagesAnalysis {
           .returning();
       });
 
+      // UPDATE..RETURNING has no guaranteed row order (Postgres returns rows
+      // in physical update order). Consumers rely on chronological order:
+      // batchScheduler/pickBatchWithinBudget treat the array as a created_at
+      // ASC prefix, and the context anchor uses messages[0].created_at.
+      rows.sort(
+        (a, b) =>
+          (a as MessageRecord).created_at - (b as MessageRecord).created_at,
+      );
       return rows as MessageRecord[];
     } catch (error) {
       this.logger.error(
@@ -386,6 +394,13 @@ export class MessagesAnalysis {
           .returning();
       });
 
+      // Same UPDATE..RETURNING ordering guarantee as above: re-sort to
+      // created_at ASC so the individual fallback path also sees a
+      // chronological array.
+      rows.sort(
+        (a, b) =>
+          (a as MessageRecord).created_at - (b as MessageRecord).created_at,
+      );
       return rows as MessageRecord[];
     } catch (error) {
       this.logger.error(

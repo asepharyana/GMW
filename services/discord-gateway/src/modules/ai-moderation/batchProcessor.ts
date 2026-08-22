@@ -3,6 +3,7 @@ import { config } from "../../shared/config/config.js";
 import { isAgeRestrictedMetadata } from "../message-capture/messageMetadata.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
+import { pickBatchWithinBudget as pickBatchWithinBudgetPure } from "./batchBudget.js";
 import { workerPool } from "./circuitBreaker.js";
 import { estimateTokens } from "./conversationContext.js";
 import {
@@ -39,30 +40,21 @@ export let activeRequests = 0;
 
 /**
  * Picks a batch of messages within a token budget.
- * `tokensPerMessage` accounts for JSON structure overhead around each entry.
- * Uses a rough character-based token estimate (avoids async formatMessageForPrompt
- * since this function runs in a synchronous promise chain).
+ * Thin wrapper over the pure helper in batchBudget.ts (kept here so the
+ * existing import surface stays stable); passes the tiktoken-based
+ * estimateTokens. See batchBudget.ts for the overflow-stopping semantics.
  */
 export function pickBatchWithinBudget(
   messages: MessageRecord[],
   maxTokens: number,
   tokensPerMessage: number,
 ): MessageRecord[] {
-  const batch: MessageRecord[] = [];
-  let usedTokens = 0;
-
-  for (const msg of messages) {
-    const content = msg.edited_content ?? msg.content;
-    // Accurate token count via tiktoken (+ overhead for JSON structure)
-    const msgTokens = estimateTokens(content) + tokensPerMessage;
-
-    if (usedTokens + msgTokens <= maxTokens) {
-      batch.push(msg);
-      usedTokens += msgTokens;
-    }
-  }
-
-  return batch;
+  return pickBatchWithinBudgetPure(
+    messages,
+    maxTokens,
+    tokensPerMessage,
+    estimateTokens,
+  );
 }
 
 // ---------------------------------------------------------------------------
