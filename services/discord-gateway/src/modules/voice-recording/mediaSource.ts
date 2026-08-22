@@ -31,7 +31,7 @@ export interface ResolveOptions {
   timeout?: number;
   /**
    * yt-dlp format string override (e.g. "bestaudio[ext=m4a]").
-   * Defaults to "bestaudio".
+   * Defaults to "bestaudio[ext=m4a]/bestaudio/best".
    */
   quality?: string;
 }
@@ -319,7 +319,11 @@ export function resolveMediaUrl(
   options?: ResolveOptions,
 ): Promise<MediaSourceResolution> {
   return new Promise<MediaSourceResolution>((resolve, reject) => {
-    const format = options?.quality ?? "bestaudio";
+    // Fallback chain: YouTube gets progressive m4a audio; direct-file hosts
+    // (upload mirror / Telegram files) expose a single generic format with an
+    // arbitrary ID — `bestaudio` alone fails there ("Requested format is not
+    // available"), so fall back to `bestaudio` then plain `best`.
+    const format = options?.quality ?? "bestaudio[ext=m4a]/bestaudio/best";
     const cookieArgs = buildCookieArgs();
     const args = [
       "-f",
