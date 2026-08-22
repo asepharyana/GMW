@@ -66,6 +66,8 @@ export class MicTransmitter {
   private ctx: AudioContext | null = null;
   private stream: MediaStream | null = null;
   private node: AudioWorkletNode | null = null;
+  private analyser: AnalyserNode | null = null;
+  private levelBuf: Float32Array<ArrayBuffer> | null = null;
   private active = false;
   private volume = 1;
 
@@ -119,6 +121,14 @@ export class MicTransmitter {
     };
 
     source.connect(this.node);
+
+    // Level metering tap: analyser reads the raw mic (pre-volume) so the UI
+    // shows what the mic actually hears. Silent sink keeps the graph alive.
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 1024;
+    this.levelBuf = new Float32Array(this.analyser.fftSize);
+    source.connect(this.analyser);
+
     // Keep the graph alive with an inaudible tail (silent gain) so the
     // worklet keeps pulling mic data without audible feedback.
     const silent = this.ctx.createGain();
@@ -127,6 +137,15 @@ export class MicTransmitter {
     silent.connect(this.ctx.destination);
 
     this.active = true;
+  }
+
+  /** RMS mic level 0..1 since the last call (drives the live meter UI). */
+  getLevel(): number {
+    if (!this.analyser || !this.levelBuf) return 0;
+    this.analyser.getFloatTimeDomainData(this.levelBuf);
+    let sum = 0;
+    for (let i = 0; i < this.levelBuf.length; i++) sum += this.levelBuf[i] ** 2;
+    return Math.min(1, Math.sqrt(sum / this.levelBuf.length) * 4);
   }
 
   setVolume(volume: number): void {
@@ -139,6 +158,9 @@ export class MicTransmitter {
     this.node?.port.postMessage({ type: "volume", value: 0 });
     this.node?.disconnect();
     this.node = null;
+    this.analyser?.disconnect();
+    this.analyser = null;
+    this.levelBuf = null;
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     this.ctx?.close().catch(() => {});

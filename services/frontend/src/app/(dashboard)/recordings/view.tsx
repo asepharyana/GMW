@@ -1,7 +1,7 @@
 "use client";
 
 import { Download, Hash, Headphones, Loader2, Trash2 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import {
   Avatar,
@@ -13,6 +13,10 @@ import {
   toast,
 } from "@/components/primitives";
 import { EmptyState, ErrorState, SectionHeader } from "@/components/shared";
+import {
+  NowPlayingChip,
+  RecordingAudioPlayer,
+} from "@/components/voice/recording-audio-player";
 import {
   useDeleteRecording,
   useRecordings,
@@ -33,6 +37,7 @@ export function RecordingsView({
   const del = useDeleteRecording();
   useRecordingsWsSync(ws);
   const ambient = useAmbient();
+  const [playingId, setPlayingId] = useState<string | null>(null);
 
   useEffect(() => {
     ambient.set("signal", 0.3, "recordings");
@@ -97,10 +102,15 @@ export function RecordingsView({
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {(items ?? []).map((r, i) => {
             const up = uploadStatus(r);
+            const isPlaying = playingId === r.id;
             return (
               <GlassCard
                 key={r.id}
-                className="animate-stagger flex flex-col gap-3 transition-colors hover:bg-white/[0.06]"
+                className={`animate-stagger flex flex-col gap-3 transition-colors hover:bg-white/[0.06] ${
+                  isPlaying
+                    ? "border-signal/40 shadow-[0_0_36px_-16px_var(--color-signal-glow)]"
+                    : ""
+                }`}
                 style={staggerDelay(i)}
               >
                 <div className="flex items-center gap-3">
@@ -120,20 +130,24 @@ export function RecordingsView({
                       </span>
                     </div>
                   </div>
-                  {up && <Badge tone={up.tone}>{up.label}</Badge>}
+                  {isPlaying && <NowPlayingChip />}
+                  {up && !isPlaying && <Badge tone={up.tone}>{up.label}</Badge>}
                   <span className="mono text-[0.65rem] text-ink-faint">
                     {formatBytes(r.size_bytes)}
                   </span>
                 </div>
 
                 {r.download_url ? (
-                  // eslint-disable-next-line jsx-a11y/media-has-caption
-                  <audio
-                    controls
+                  <RecordingAudioPlayer
                     src={r.download_url}
-                    className="h-9 w-full"
-                    preload="none"
-                    aria-label={`Voice recording ${r.id}`}
+                    label={`Voice recording by ${r.username}`}
+                    onPlayStateChange={(active) =>
+                      setPlayingId((prev) => {
+                        if (active) return r.id;
+                        // Only clear if THIS card was the one playing.
+                        return prev === r.id ? null : prev;
+                      })
+                    }
                   />
                 ) : (
                   <div className="flex items-center gap-1.5 rounded-[10px] border border-hairline bg-white/5 px-3 py-2 text-xs text-ink-faint">

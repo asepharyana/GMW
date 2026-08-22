@@ -106,6 +106,7 @@ export function useMicTransmit(ws: {
   sendBinary: (data: ArrayBufferLike) => void;
 }) {
   const transmitterRef = useRef<MicTransmitter | null>(null);
+  const [micLevel, setMicLevel] = useState(0);
 
   const action = useAction(async (active: boolean) => {
     if (active) {
@@ -116,6 +117,7 @@ export function useMicTransmit(ws: {
     } else {
       transmitterRef.current?.stop();
       transmitterRef.current = null;
+      setMicLevel(0);
       await voiceApi.sendCommand("voice:transmit:stop");
     }
   });
@@ -124,7 +126,15 @@ export function useMicTransmit(ws: {
     transmitterRef.current?.setVolume(volume / 100);
   }, []);
 
-  return { ...action, setVolume };
+  // Poll the analyser RMS so the UI can render a live input meter.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setMicLevel(transmitterRef.current?.getLevel() ?? 0);
+    }, 120);
+    return () => clearInterval(timer);
+  }, []);
+
+  return { ...action, setVolume, micLevel };
 }
 
 /**

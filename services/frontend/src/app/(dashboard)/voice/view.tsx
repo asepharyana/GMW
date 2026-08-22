@@ -55,6 +55,8 @@ export function VoiceView({
     initialStatus?.activeChannelId ?? null,
   );
   const [micOn, setMicOn] = useState(false);
+  const [micVol, setMicVol] = useState(100);
+  const [listenVol, setListenVol] = useState(75);
 
   useEffect(() => {
     const unsub = subscribe(ws);
@@ -80,6 +82,14 @@ export function VoiceView({
 
   const connected = status?.connected ?? false;
   const listenBars = Array.from(listen.levels.values()).slice(0, 32);
+  const micBars = mic.micLevel
+    ? Array.from({ length: 12 }, (_, i) =>
+        Math.max(
+          0.08,
+          Math.min(1, mic.micLevel * (1 - i * 0.06) + (i % 3) * 0.05),
+        ),
+      )
+    : [];
 
   const onConnect = async () => {
     if (!guildId || !channelId) {
@@ -155,6 +165,16 @@ export function VoiceView({
             {micOn ? <Mic className="size-4" /> : <MicOff className="size-4" />}
             {micOn ? "Mic live" : "Push-to-talk"}
           </Button>
+          {micOn && (
+            <div className="flex items-center gap-2 rounded-[10px] border border-signal/30 bg-signal/[0.06] px-3 py-1.5">
+              <Mic className="size-4 text-signal" />
+              <Equalizer
+                bars={micBars}
+                className="w-28"
+                aria-label="Microphone level"
+              />
+            </div>
+          )}
           <Button
             variant={listen.active ? "primary" : "outline"}
             size="sm"
@@ -173,6 +193,42 @@ export function VoiceView({
               <Equalizer bars={listenBars} className="w-40" />
             </div>
           )}
+          <div className="ml-auto flex items-center gap-3">
+            <label className="flex items-center gap-2 text-xs text-ink-faint">
+              <MicOff className="size-3.5" />
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={micVol}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setMicVol(v);
+                  mic.setVolume(v);
+                }}
+                aria-label="Mic transmit volume"
+                className="h-1 w-24 cursor-pointer accent-[var(--color-signal)]"
+              />
+              <span className="mono w-8 text-right">{micVol}%</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs text-ink-faint">
+              <Volume2 className="size-3.5" />
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={listenVol}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setListenVol(v);
+                  listen.setVolume(v);
+                }}
+                aria-label="Listen volume"
+                className="h-1 w-24 cursor-pointer accent-[var(--color-signal)]"
+              />
+              <span className="mono w-8 text-right">{listenVol}%</span>
+            </label>
+          </div>
         </div>
       </GlassPanel>
 

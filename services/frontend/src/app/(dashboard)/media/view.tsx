@@ -96,13 +96,45 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
           <div
             className={`flex size-32 shrink-0 items-center justify-center rounded-full border border-hairline bg-gradient-to-br from-white/10 to-white/[0.02] ${playing ? "animate-spin-disc" : "animate-spin-disc paused"}`}
           >
-            <div className="flex size-28 items-center justify-center rounded-full bg-canvas/60">
-              <ListMusic className="size-10 text-signal" />
+            <div className="flex size-28 items-center justify-center overflow-hidden rounded-full bg-canvas/60">
+              {current?.thumbnailUrl ? (
+                // biome-ignore lint/performance/noImgElement: external CDN thumbnails, next/image needs remote allowlist
+                <img
+                  src={current.thumbnailUrl}
+                  alt=""
+                  className="size-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <ListMusic className="size-10 text-signal" />
+              )}
             </div>
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="eyebrow mb-1">Now playing</div>
+            <div className="eyebrow mb-1 flex items-center gap-2">
+              {playing ? (
+                <>
+                  <span aria-hidden className="flex h-3 items-end gap-[2px]">
+                    {[0, 1, 2].map((i) => (
+                      <span
+                        key={`eq-${i}`}
+                        className="w-[3px] animate-eq rounded-full bg-signal"
+                        style={{
+                          animationDelay: `${i * 160}ms`,
+                          height: "100%",
+                        }}
+                      />
+                    ))}
+                  </span>
+                  <span className="text-signal">Now playing</span>
+                </>
+              ) : current ? (
+                "Paused"
+              ) : (
+                "Nothing queued"
+              )}
+            </div>
             <h2 className="display text-balance text-2xl text-ink">
               {current?.title ?? "Nothing queued"}
             </h2>
@@ -203,27 +235,56 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
           </div>
         ) : (
           <div className="space-y-2">
-            {queueList.map((item, i) => (
-              <div
-                key={`${item.source}-${i}`}
-                className="animate-stagger flex items-center gap-3 rounded-[10px] border border-hairline bg-white/5 px-3 py-2.5"
-                style={staggerDelay(i)}
-              >
-                <span className="mono w-5 text-ink-faint">{i + 1}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm text-ink">{item.title}</div>
-                  <div className="mono truncate text-[0.65rem] text-ink-faint">
-                    {item.source}
+            {queueList.map((item, i) => {
+              const isNext = i === 0 && playing;
+              return (
+                <div
+                  key={`${item.source}-${i}`}
+                  className={`animate-stagger flex items-center gap-3 rounded-[10px] border px-3 py-2.5 ${
+                    isNext
+                      ? "border-signal/40 bg-signal/[0.07]"
+                      : "border-hairline bg-white/5"
+                  }`}
+                  style={staggerDelay(i)}
+                >
+                  <span className="mono w-5 text-ink-faint">{i + 1}</span>
+                  {item.thumbnailUrl ? (
+                    // biome-ignore lint/performance/noImgElement: external CDN thumbnails, next/image needs remote allowlist
+                    <img
+                      src={item.thumbnailUrl}
+                      alt=""
+                      className="size-9 shrink-0 rounded-md object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-hairline bg-white/5">
+                      <ListMusic className="size-4 text-ink-faint" />
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm text-ink">
+                      {item.title}
+                    </div>
+                    <div className="mono truncate text-[0.65rem] text-ink-faint">
+                      {item.source}
+                    </div>
                   </div>
-                </div>
-                <span className="pill capitalize">{item.mode ?? "music"}</span>
-                {formatDuration(item.durationMs) && (
-                  <span className="mono w-10 text-right text-[0.65rem] text-ink-faint">
-                    {formatDuration(item.durationMs)}
+                  {isNext && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-signal/40 bg-signal/10 px-2 py-0.5 text-[0.6rem] font-medium text-signal">
+                      up next
+                    </span>
+                  )}
+                  <span className="pill hidden capitalize sm:inline-flex">
+                    {item.mode ?? "music"}
                   </span>
-                )}
-              </div>
-            ))}
+                  {formatDuration(item.durationMs) && (
+                    <span className="mono w-10 text-right text-[0.65rem] text-ink-faint">
+                      {formatDuration(item.durationMs)}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </GlassPanel>
