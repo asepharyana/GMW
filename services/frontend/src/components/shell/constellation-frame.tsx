@@ -4,10 +4,11 @@
  * ConstellationFrame — replaces the classic AppFrame chrome.
  * The stage canvas sits fixed behind everything; page content is an
  * overlay layer (absolute, no top bar / nav rail / scroll shell).
- * MiniPlayer + Chatbot + CommandPalette keep mounting at the layout level.
+ * Chatbot + CommandPalette keep mounting at the layout level.
  */
 import { usePathname } from "next/navigation";
 import { type ReactNode, useMemo } from "react";
+import { MiniPlayer } from "@/components/media/mini-player";
 import { ConstellationStage } from "@/components/shell/constellation-stage";
 import { FloatingChrome } from "@/components/shell/floating-chrome";
 import { resolveScene, type SceneSeed } from "@/components/shell/route-scenes";
@@ -38,6 +39,7 @@ export function ConstellationFrame({
         }}
       />
       <FloatingChrome />
+      <MiniPlayer />
       {/* Overlay content region — scenes place floating panels inside. */}
       <main className="pointer-events-none absolute inset-0 z-10 overflow-y-auto overscroll-contain">
         <div className="pointer-events-auto min-h-full">{children}</div>
