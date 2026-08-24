@@ -48,7 +48,13 @@ export class MessagesCleanup {
   }
 
   async revertStuckProcessingMessages(
-    timeoutMs: number = 300000,
+    // 2026-08-24: lowered from 300000 — this cleanup is the last-resort
+    // recoverer for rows stuck in `processing`. With the upload-pending
+    // race-guard now requeueing properly (fallbackResultClassifier), any row
+    // that still sits here for >2min is a genuine leak; reverting sooner
+    // bounds the worst-case delay without racing legitimate in-flight work
+    // (media batches can legitimately take ~60s+).
+    timeoutMs: number = 120000,
   ): Promise<number> {
     this.logger.debug({ timeoutMs }, "revertStuckProcessingMessages entry");
     try {

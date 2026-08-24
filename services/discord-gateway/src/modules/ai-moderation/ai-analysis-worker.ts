@@ -100,7 +100,16 @@ type BatchErrorResponse = {
   rows: MessageRecord[];
   error: string;
 };
-type IndividualOkResponse = { ok: true; results: AnalysisResult[] };
+type IndividualOkResponse = {
+  ok: true;
+  results: AnalysisResult[];
+  /**
+   * Race-guard signal (2026-08-24): the message's attachment upload is still
+   * in-flight — NO analysis ran. The processor must re-queue the message as
+   * `pending` and re-schedule, never treat this as a completed moderation.
+   */
+  uploadPending?: boolean;
+};
 type IndividualErrorResponse = {
   ok: false;
   results: AnalysisResult[];
@@ -415,7 +424,7 @@ async function processIndividual(job: {
     (a) => a.message_id === message.id && a.upload_status === "pending",
   );
   if (uploadStillPending) {
-    return { ok: true, results: [] };
+    return { ok: true, results: [], uploadPending: true };
   }
 
   try {

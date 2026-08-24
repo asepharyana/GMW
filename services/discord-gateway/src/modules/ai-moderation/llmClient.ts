@@ -356,10 +356,10 @@ export async function llmVision(
   promptText: string,
   imageUrl: { url: string },
 ): Promise<string | null> {
-  const completion = await llmChat({
+  const params = {
     messages: [
       {
-        role: "user",
+        role: "user" as const,
         content: [
           { type: "text" as const, text: promptText },
           { type: "image_url" as const, image_url: imageUrl },
@@ -371,9 +371,26 @@ export async function llmVision(
     temperature: 0.1,
     top_p: 0.9,
     retries: 0,
-    stream: true, // router always streams SSE; non-stream waits for full body and times out
     timeout: config.AI_LLM_VISION_ANALYSIS_TIMEOUT_MS ?? 60_000,
-  });
+  };
+
+  // Streaming first (the router always streams SSE; a non-stream request
+  // waits for the full body and times out on slow models). Fallback (2026-08-24):
+  // large GIFs/images sometimes get their SSE stream truncated mid-flight by
+  // the upstream ("Stream ended before producing a non-ping SSE event") — all
+  // streaming retries fail identically, so retry ONCE with stream:false where
+  // the router assembles the complete response server-side.
+  let completion;
+  try {
+    completion = await llmChat({ ...params, stream: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/stream ended before producing a non-ping sse/i.test(msg)) {
+      completion = await llmChat({ ...params, stream: false });
+    } else {
+      throw err;
+    }
+  }
 
   if (!completion) return null;
   return completion.choices[0]?.message?.content?.trim() ?? null;
