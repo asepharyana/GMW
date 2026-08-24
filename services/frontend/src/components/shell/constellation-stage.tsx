@@ -9,7 +9,12 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { type CameraState, fitCamera } from "@/lib/constellation/camera";
+import {
+  type CameraState,
+  easeInOutCubic,
+  fitCamera,
+  flyTo,
+} from "@/lib/constellation/camera";
 import type { ConstellationGraph } from "@/lib/constellation/graph";
 import { computeLayout, type LayoutNode } from "@/lib/constellation/layout";
 import { readPalette, type StagePalette } from "@/lib/constellation/palette";
@@ -59,6 +64,14 @@ export function ConstellationStage({
   }, []);
 
   // Deterministic layout whenever graph or viewport changes.
+  // On scene change we FLY the camera to the new fit instead of snapping.
+  const prevSceneRef = useRef("");
+  const animRef = useRef<{
+    from: CameraState;
+    to: CameraState;
+    t0: number;
+  } | null>(null);
+
   useEffect(() => {
     if (size.w < 50 || size.h < 50) return;
     const layout = computeLayout(graph.nodes, graph.edges, {
@@ -68,7 +81,19 @@ export function ConstellationStage({
       reduced,
     });
     layoutRef.current = layout;
-    camRef.current = fitCamera(layout, size.w, size.h);
+    const target = fitCamera(layout, size.w, size.h);
+    const first = graph.nodes[0]?.id ?? "";
+    const sceneKey = `${graph.nodes.length}:${first}`;
+    if (!reduced && prevSceneRef.current && prevSceneRef.current !== sceneKey) {
+      animRef.current = {
+        from: { ...camRef.current },
+        to: target,
+        t0: performance.now(),
+      };
+    } else {
+      camRef.current = target;
+    }
+    prevSceneRef.current = sceneKey;
   }, [graph, size.w, size.h, seed, reduced]);
 
   // Build + run the renderer.
@@ -310,6 +335,19 @@ export function ConstellationStage({
       if (disposed) return;
       raf = requestAnimationFrame(frame);
       if (hidden) return;
+
+      // Camera fly-to (scene transitions): eased interpolation over ~900ms.
+      const anim = animRef.current;
+      if (anim) {
+        const raw = (now - anim.t0) / 900;
+        if (raw >= 1) {
+          camRef.current = anim.to;
+          animRef.current = null;
+        } else if (raw > 0) {
+          camRef.current = flyTo(anim.from, anim.to, raw, easeInOutCubic);
+        }
+      }
+
       applyCamera();
 
       // Gentle breathing glow (visual only — hit positions stay baked).
