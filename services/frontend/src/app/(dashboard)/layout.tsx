@@ -1,7 +1,7 @@
 import { AmbientProvider } from "@/components/ambient/ambient-context";
 import { Chatbot } from "@/components/chatbot/chatbot";
 import { CommandPalette } from "@/components/command/command-palette";
-import { AppFrame } from "@/components/shell";
+import { ConstellationFrame } from "@/components/shell";
 import { WsProvider } from "@/lib/ws/context";
 
 export default function DashboardLayout({
@@ -10,7 +10,7 @@ export default function DashboardLayout({
   return (
     <AmbientProvider>
       <WsProvider>
-        <AppFrame>{children}</AppFrame>
+        <ConstellationFrame>{children}</ConstellationFrame>
         <Chatbot />
         <CommandPalette />
       </WsProvider>
