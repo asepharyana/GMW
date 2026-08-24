@@ -18,6 +18,7 @@ import {
   resolveScene,
   type SceneSeed,
 } from "@/components/shell/route-scenes";
+import { SceneA11yMirror } from "@/components/shell/scene-a11y-mirror";
 import {
   SceneGraphProvider,
   useSceneGraph,
@@ -62,6 +63,7 @@ export function ConstellationFrame({
       <div className="relative h-dvh w-full overflow-hidden">
         <StageFromContext seed={sceneSeed} />
         <FloatingChrome />
+        <SceneA11yMirror />
         <MiniPlayer />
         {/* Overlay content region — scenes place floating panels inside. */}
         <main className="pointer-events-none absolute inset-0 z-10 overflow-y-auto overscroll-contain">
