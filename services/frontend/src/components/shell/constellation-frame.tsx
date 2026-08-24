@@ -67,7 +67,8 @@ export function ConstellationFrame({
         <MiniPlayer />
         {/* Overlay content region — scenes place floating panels inside. */}
         <main className="pointer-events-none absolute inset-0 z-10 overflow-y-auto overscroll-contain">
-          <div className="pointer-events-auto min-h-full">{children}</div>
+          {/* no pointer-events here: empty areas stay click-through to the sky */}
+          <div className="min-h-full">{children}</div>
         </main>
       </div>
     </SceneGraphProvider>
