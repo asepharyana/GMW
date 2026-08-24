@@ -380,7 +380,7 @@ export async function llmVision(
   // the upstream ("Stream ended before producing a non-ping SSE event") — all
   // streaming retries fail identically, so retry ONCE with stream:false where
   // the router assembles the complete response server-side.
-  let completion;
+  let completion: Awaited<ReturnType<typeof llmChat>>;
   try {
     completion = await llmChat({ ...params, stream: true });
   } catch (err) {
