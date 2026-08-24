@@ -21,6 +21,7 @@
 import { createChildLogger } from "@/shared/logger/index";
 import { createAbortControllerWithTimeout } from "@/shared/utils/index";
 import { config } from "../../shared/config/config.js";
+import { cacheGet, cacheSet, makeCacheKey } from "./cacheStore.js";
 
 const log = createChildLogger("wikipedia-client");
 
@@ -57,10 +58,19 @@ function stripHtml(snippet: string): string {
     .trim();
 }
 
+/** Redis TTL for cached search results (6h — articles change slowly). */
+const SEARCH_CACHE_TTL_SECONDS = 6 * 60 * 60;
+
 /**
  * Search Wikipedia for a query and return up to MAX_RESULTS structured hits.
  * Uses the Action API `list=search` (srsearch) which is stable and returns
  * title + HTML snippet. Graceful: returns [] on any failure.
+ *
+ * Cached in the shared Redis store: the same query recurs across batches
+ * (repeat slang, recurring topics), and an uncached re-search per batch was
+ * pure latency + Wikipedia rate-limit pressure. Only NON-EMPTY results are
+ * cached — an empty result may be a transient limiter/network blip, so it is
+ * retried on a later batch instead of being pinned for 6 hours.
  */
 export async function wikipediaSearch(
   query: string,
@@ -69,6 +79,32 @@ export async function wikipediaSearch(
   const q = query.trim();
   if (!q) return [];
 
+  const cacheKey = makeCacheKey("wikisearch", q);
+  const cached = await cacheGet(cacheKey);
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached) as SearchResult[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        log.debug({ query: q }, "Wikipedia search cache HIT");
+        return parsed;
+      }
+    } catch {
+      // Malformed entry — fall through to live fetch.
+    }
+  }
+
+  const mapped = await wikipediaSearchLive(q, timeoutMs);
+  if (mapped.length > 0) {
+    cacheSet(cacheKey, JSON.stringify(mapped), SEARCH_CACHE_TTL_SECONDS);
+  }
+  return mapped;
+}
+
+/** Live (uncached) Action API search. Returns [] on any failure. */
+async function wikipediaSearchLive(
+  q: string,
+  timeoutMs: number,
+): Promise<SearchResult[]> {
   const params = new URLSearchParams({
     action: "query",
     list: "search",

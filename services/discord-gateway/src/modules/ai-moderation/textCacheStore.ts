@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { createChildLogger } from "@/shared/logger/index";
+import { config } from "../../shared/config/config.js";
 import { executeAll, executeGet } from "../../shared/database/drizzle.js";
 import { findBestEmbeddingMatch } from "./embeddingClient.js";
 import {
@@ -84,8 +85,41 @@ export function makeImageCacheKey(imageUrl: string): string {
   // size is 8191"), which fails acquireMediaAnalysisLock and silently skips
   // every media analysis. A 32-char sha256 keeps the key well under the limit
   // and is still deterministic (same attachment → same key).
-  const hash = createHash("sha256").update(imageUrl).digest("hex").slice(0, 32);
+  const hash = createHash("sha256")
+    .update(normalizeDiscordImageUrl(imageUrl))
+    .digest("hex")
+    .slice(0, 32);
   return `image:${hash}`;
+}
+
+/**
+ * Strip volatile query params from Discord CDN URLs so the SAME attachment
+ * always maps to ONE vision-cache key regardless of how it reached us
+ * (signed `?ex=&is=&hm=` tokens rotate per fetch; render variants differ by
+ * `format/width/height/size`). Previously each token variant hashed to its
+ * own key → the same image was re-downloaded and re-analyzed by the vision
+ * model once per variant. Non-Discord URLs and data: URLs are returned
+ * untouched (their query can be semantically meaningful).
+ */
+export function normalizeDiscordImageUrl(imageUrl: string): string {
+  try {
+    const parsed = new URL(imageUrl);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return imageUrl;
+    }
+    const host = parsed.hostname;
+    const isAttachmentCdn = host === "cdn.discordapp.com";
+    const isRenderOrPreview =
+      host === "media.discordapp.net" ||
+      /^images-ext-\d+\.discordapp\.net$/.test(host);
+    if (!isAttachmentCdn && !isRenderOrPreview) return imageUrl;
+    if (!parsed.search) return imageUrl;
+    // Path IS the stable identity of the attachment; everything after "?" is
+    // signing or a render variant.
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return imageUrl;
+  }
 }
 
 /**
@@ -294,10 +328,71 @@ export interface StoredModerationVerdict {
   recommendedAction: string;
 }
 
+/** Raw DB row shape needed to rebuild a StoredModerationVerdict. */
+interface VerdictRow {
+  flags: string;
+  analyzed_at?: number;
+}
+
+/**
+ * Parse one `text_analysis_cache` row into a StoredModerationVerdict.
+ * Shared by the single-key and batched getters so their semantics can never
+ * drift apart (status normalization lives in exactly one place).
+ */
+export function parseStoredVerdictRow(
+  row: VerdictRow,
+): StoredModerationVerdict | null {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(row.flags) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object") return null;
+
+  const flags = Array.isArray(parsed.flags) ? (parsed.flags as string[]) : [];
+  const status = normalizeStoredStatus(
+    parsed.status as string | undefined,
+    flags,
+  );
+  return {
+    status,
+    flags,
+    score: (parsed.score as number) ?? 0,
+    analysis: (parsed.analysis as string) ?? "",
+    categories: (parsed.categories as string[]) ?? [],
+    severity: (parsed.severity as string) ?? "none",
+    confidence: (parsed.confidence as number) ?? 0,
+    recommendedAction: (parsed.recommendedAction as string) ?? "none",
+  };
+}
+
+/**
+ * Increment the hit counter for a cache key (fire-and-forget).
+ *
+ * Bug history: `hit_count` was written as 0 on insert and never updated by
+ * any reader, so cache effectiveness was unmeasurable. This is best-effort
+ * observability — a failed bump must never affect the read path.
+ */
+function bumpHitCount(cacheKey: string): void {
+  executeAll(
+    `UPDATE text_analysis_cache SET hit_count = hit_count + 1 WHERE text = $1`,
+    [cacheKey],
+  ).catch(() => {});
+}
+
+/** Error-artifact flags that make a cached verdict unusable. */
+export const ERROR_ARTIFACT_FLAGS = [
+  "analysis_api_failed",
+  "analysis_parse_failed",
+  "analysis_incomplete",
+] as const;
+
 /**
  * Lookup a cached moderation result for a text content.
  * Returns the stored result fields or null.
  */
+
 export async function getCachedTextModeration(
   cacheKey: string,
 ): Promise<StoredModerationVerdict | null> {
@@ -311,25 +406,11 @@ export async function getCachedTextModeration(
 
     if (!row) return null;
 
-    const parsed = JSON.parse(row.flags) as Record<string, unknown>;
-    const flags = (parsed.flags as string[]) ?? [];
-    // Use stored status if available (new entries), otherwise derive from
-    // flags (legacy compatibility). "warn" must survive the round-trip.
-    const status = normalizeStoredStatus(
-      parsed.status as string | undefined,
-      flags,
-    );
+    const verdict = parseStoredVerdictRow(row);
+    if (!verdict) return null;
 
-    return {
-      status,
-      flags,
-      score: (parsed.score as number) ?? 0,
-      analysis: (parsed.analysis as string) ?? "",
-      categories: (parsed.categories as string[]) ?? [],
-      severity: (parsed.severity as string) ?? "none",
-      confidence: (parsed.confidence as number) ?? 0,
-      recommendedAction: (parsed.recommendedAction as string) ?? "none",
-    };
+    bumpHitCount(cacheKey);
+    return verdict;
   } catch (error) {
     logger.error(
       { error: error instanceof Error ? error.message : String(error) },
@@ -337,6 +418,128 @@ export async function getCachedTextModeration(
     );
     return null;
   }
+}
+
+/**
+ * Batched exact-hash lookup: ONE query for N keys.
+ *
+ * Semantics are identical to calling `getCachedTextModeration` per key
+ * (unexpired rows only, shared row parser). Per-key hit-count bumps are NOT
+ * issued here — the orchestrator logs an aggregate "cache applied" line
+ * instead, keeping a 60-message burst at exactly one round-trip.
+ * `analyzedAt` is surfaced so callers can apply freshness guards.
+ */
+export interface BatchedVerdictEntry {
+  verdict: StoredModerationVerdict;
+  analyzedAt: number | null;
+}
+
+export async function getCachedTextModerations(
+  cacheKeys: string[],
+): Promise<Map<string, BatchedVerdictEntry>> {
+  const results = new Map<string, BatchedVerdictEntry>();
+  const uniqueKeys = Array.from(new Set(cacheKeys)).filter(Boolean);
+  if (uniqueKeys.length === 0) return results;
+
+  const CHUNK_SIZE = 200;
+  try {
+    for (let i = 0; i < uniqueKeys.length; i += CHUNK_SIZE) {
+      const chunk = uniqueKeys.slice(i, i + CHUNK_SIZE);
+      // Postgres has a 32k bind-parameter ceiling; ANY($1) keeps it at one
+      // array param per chunk regardless of chunk length.
+      const rows = await executeAll(
+        `SELECT text, flags, analyzed_at
+         FROM text_analysis_cache
+         WHERE text = ANY($1::text[]) AND expires_at > $2`,
+        [chunk, Date.now()],
+      );
+      for (const row of rows ?? []) {
+        if (results.has(row.text)) continue;
+        const verdict = parseStoredVerdictRow(row);
+        if (!verdict) continue;
+        results.set(row.text, {
+          verdict,
+          analyzedAt:
+            typeof row.analyzed_at === "number" ? row.analyzed_at : null,
+        });
+      }
+    }
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed batched text moderation lookup",
+    );
+  }
+  return results;
+}
+
+/**
+ * Fire-and-forget bulk hit-count bump for keys actually served as hits.
+ * Companion to the batched getter (which skips per-row bumps): one UPDATE
+ * per analysis batch keeps hit-rate metrics working at zero extra latency
+ * cost per message.
+ */
+export function bumpTextModerationHitCounts(cacheKeys: string[]): void {
+  const uniqueKeys = Array.from(new Set(cacheKeys)).filter(Boolean);
+  if (uniqueKeys.length === 0) return;
+  executeAll(
+    `UPDATE text_analysis_cache SET hit_count = hit_count + 1 WHERE text = ANY($1::text[])`,
+    [uniqueKeys],
+  ).catch(() => {});
+}
+
+// ---------------------------------------------------------------------------
+// Semantic two-band acceptance
+// ---------------------------------------------------------------------------
+
+/**
+ * True when a semantic-cache hit may be reused given its verdict class.
+ * Two bands (2026-08-24): non-actionable verdicts (clean / flagless /
+ * action=none) are accepted from the LOOSER clean band; actionable verdicts
+ * (warn/flagged or any flags/action) keep the strict historical gate.
+ * Between the bands → reject → the message falls through to the LLM
+ * (fail-open toward accuracy).
+ */
+export function isSemanticBandAccepted(
+  verdict: StoredModerationVerdict,
+  similarity: number,
+): boolean {
+  const isNonActionable =
+    verdict.status === "clean" &&
+    verdict.flags.length === 0 &&
+    (verdict.recommendedAction ?? "none") === "none";
+  return isNonActionable
+    ? similarity >= config.AI_LLM_EMBEDDING_MIN_SIMILARITY_CLEAN
+    : similarity >= config.AI_LLM_EMBEDDING_MIN_SIMILARITY;
+}
+
+// ---------------------------------------------------------------------------
+// Global exact-cache reuse guard (context-free fallback)
+// ---------------------------------------------------------------------------
+
+/**
+ * True when a stored verdict is safe to reuse OUTSIDE its original channel:
+ * only verdicts that cannot trigger an action and carry no flags qualify,
+ * and they must be confident + fresh. Flagged/warn verdicts are NEVER
+ * globally reused — enforcement is context-sensitive by design.
+ */
+export function isGloballyReusableCleanVerdict(
+  verdict: StoredModerationVerdict,
+  analyzedAtMs: number | undefined,
+): boolean {
+  if (verdict.status !== "clean") return false;
+  if (verdict.flags.length > 0) return false;
+  if ((verdict.recommendedAction ?? "none") !== "none") return false;
+  if (!(verdict.confidence >= config.AI_CACHE_GLOBAL_REUSE_MIN_CONFIDENCE))
+    return false;
+  if (
+    typeof analyzedAtMs === "number" &&
+    Date.now() - analyzedAtMs >
+      config.AI_CACHE_GLOBAL_REUSE_MAX_AGE_H * 60 * 60 * 1000
+  ) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -353,31 +556,13 @@ export function parseQdrantVerdict(
       similarity: number;
     })
   | null {
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(payload.flags) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-  if (!parsed || typeof parsed !== "object") return null;
-
-  const flags = (parsed.flags as string[]) ?? [];
-  const status = normalizeStoredStatus(
-    parsed.status as string | undefined,
-    flags,
-  );
+  const parsed = parseStoredVerdictRow({ flags: payload.flags });
+  if (!parsed) return null;
 
   return {
+    ...parsed,
     text: payload.text,
     similarity,
-    status,
-    flags,
-    score: (parsed.score as number) ?? 0,
-    analysis: (parsed.analysis as string) ?? "",
-    categories: (parsed.categories as string[]) ?? [],
-    severity: (parsed.severity as string) ?? "none",
-    confidence: (parsed.confidence as number) ?? 0,
-    recommendedAction: (parsed.recommendedAction as string) ?? "none",
   };
 }
 

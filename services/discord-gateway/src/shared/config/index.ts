@@ -168,6 +168,16 @@ export const configSchema = z
       .min(0)
       .max(1)
       .default(0.97),
+    // Two-band semantic acceptance (2026-08-24): non-actionable verdicts
+    // (clean, no flags, action=none) may be reused from a LOOSER similarity
+    // band than actionable ones (warn/flagged). Actionable verdicts keep the
+    // strict gate above; anything between the two bands falls through to the
+    // LLM (fail-open toward accuracy).
+    AI_LLM_EMBEDDING_MIN_SIMILARITY_CLEAN: z.coerce
+      .number()
+      .min(0)
+      .max(1)
+      .default(0.92),
     AI_LLM_EMBEDDING_MAX_CANDIDATES: z.coerce
       .number()
       .int()
@@ -247,6 +257,20 @@ export const configSchema = z
 
     // ── AI Analysis Batch ───────────────────────────────────────────────
     AI_ANALYSIS_MAX_BATCH_SIZE: z.coerce.number().int().positive().default(200),
+    // Global exact-cache reuse guard (2026-08-24): a context-scoped miss may
+    // fall back to the legacy bare (context-free) key, but ONLY for verdicts
+    // that cannot trigger an action and are fresh + confident. These knobs
+    // bound that reuse.
+    AI_CACHE_GLOBAL_REUSE_MIN_CONFIDENCE: z.coerce
+      .number()
+      .min(0)
+      .max(1)
+      .default(0.85),
+    AI_CACHE_GLOBAL_REUSE_MAX_AGE_H: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(72),
     AI_ANALYSIS_MAX_CONTEXT_TOKENS: z.coerce.number().positive().default(8000),
     AI_ANALYSIS_MAX_TARGET_TOKENS: z.coerce.number().positive().default(14000),
     AI_ANALYSIS_CONTEXT_MESSAGE_LIMIT: z.coerce

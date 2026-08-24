@@ -20,11 +20,16 @@ import { isQdrantConfigured, searchQdrantBatch } from "./qdrantClient.js";
 import { logCacheEvent } from "./responseLogger.js";
 import { runTextOnlyBatch } from "./textBatchProcessor.js";
 import {
+  bumpTextModerationHitCounts,
+  ERROR_ARTIFACT_FLAGS,
   findSimilarTextModeration,
-  getCachedTextModeration,
+  getCachedTextModerations,
+  isGloballyReusableCleanVerdict,
+  isSemanticBandAccepted,
   makeModerationContextKey,
   makeTextModerationCacheKey,
   parseQdrantVerdict,
+  type StoredModerationVerdict,
   setCachedTextModeration,
 } from "./textCacheStore.js";
 
@@ -73,97 +78,164 @@ export async function runModerationAnalysis(
   initCacheStore(config.REDIS_URL);
   if (!targets.length) throw new Error("No targets provided for analysis");
 
-  // ── Phase 1: exact-hash cache (per conversation context) ────────────────
+  // ── Phase 1: exact-hash cache — ONE batched DB query ────────────────────
+  // Key is content + conversation context (channel/thread). On a scoped miss
+  // we also probe the legacy bare key: verdicts that CANNOT trigger an action
+  // (clean, flagless, action=none) may be reused across channels under strict
+  // freshness + confidence guards — flagged/warn verdicts never leave their
+  // conversation. This replaced the old N-sequential-query loop (60-message
+  // burst = 60 PgBouncer round-trips before).
   const cacheHits: AnalysisResult[] = [];
   const uncachedTargets: MessageRecord[] = [];
-  // cacheKey → result for identical-content dedupe within one batch
+  // cacheKey → representative result for identical-content dedupe
   const hitByKey = new Map<string, AnalysisResult>();
   // Embedding per exact cache key — computed once during lookup, reused
   // when the fresh LLM verdict is written back to the semantic cache.
   const embeddingsByKey = new Map<string, number[]>();
 
+  interface ExactCandidate {
+    target: MessageRecord;
+    scopedKey: string;
+    bareKey: string;
+  }
+  const candidates: ExactCandidate[] = [];
   for (const target of targets) {
-    const hasMedia = hasMediaContent(target, attachments);
-    if (hasMedia) {
+    if (hasMediaContent(target, attachments)) {
       uncachedTargets.push(target);
       continue;
     }
-
     const rawContent = target.edited_content ?? target.content;
     if (!rawContent.trim()) {
       uncachedTargets.push(target);
       continue;
     }
+    candidates.push({
+      target,
+      scopedKey: makeTextModerationCacheKey(
+        rawContent,
+        makeModerationContextKey(target),
+      ),
+      bareKey: makeTextModerationCacheKey(rawContent),
+    });
+  }
 
-    const cacheKey = makeTextModerationCacheKey(
-      rawContent,
-      makeModerationContextKey(target),
-    );
-    const seen = hitByKey.get(cacheKey);
-    if (seen) {
-      // Same content already resolved this batch — reuse the verdict.
-      cacheHits.push({ ...seen, messageId: target.id });
+  // Identical content within one batch resolves once (representative).
+  const firstByScopedKey = new Map<string, ExactCandidate>();
+  for (const c of candidates) {
+    if (!firstByScopedKey.has(c.scopedKey))
+      firstByScopedKey.set(c.scopedKey, c);
+  }
+
+  // Single round-trip for every key we might serve from (scoped + bare).
+  const storedEntries = await getCachedTextModerations([
+    ...firstByScopedKey.keys(),
+    ...Array.from(firstByScopedKey.values(), (c) => c.bareKey),
+  ]);
+  // Keys actually served — bumped in one UPDATE at the end for metrics.
+  const servedCacheKeys = new Set<string>();
+
+  /** Validate + admit one stored verdict for a candidate. */
+  const acceptExactVerdict = (
+    candidate: ExactCandidate,
+    cacheKey: string,
+    entry: { verdict: StoredModerationVerdict },
+    policyVersion: string,
+  ): boolean => {
+    const { verdict } = entry;
+    const hasMediaInMeta =
+      candidate.target.metadata &&
+      (() => {
+        const ev = extractMessageMediaEvidence(candidate.target.metadata);
+        return (
+          ev.attachments.length > 0 ||
+          ev.stickers.length > 0 ||
+          ev.embeds.length > 0
+        );
+      })();
+
+    if (hasMediaInMeta) {
+      log.debug(
+        { messageId: candidate.target.id, cacheKey },
+        "Cache entry but message has media — treating as miss",
+      );
+      return false;
+    }
+    if (
+      verdict.flags.some((f) =>
+        (ERROR_ARTIFACT_FLAGS as readonly string[]).includes(f),
+      )
+    ) {
+      log.warn(
+        { messageId: candidate.target.id, cacheKey },
+        "Cache entry contains error artifact — treating as miss",
+      );
+      return false;
+    }
+
+    hitByKey.set(candidate.scopedKey, {
+      messageId: candidate.target.id,
+      status: verdict.status,
+      flags: verdict.flags,
+      score: verdict.score,
+      analysis: verdict.analysis,
+      categories: verdict.categories,
+      severity: verdict.severity as AnalysisResult["severity"],
+      confidence: verdict.confidence,
+      recommendedAction:
+        verdict.recommendedAction as AnalysisResult["recommendedAction"],
+      policyVersion,
+      evidence: [],
+    });
+    servedCacheKeys.add(cacheKey);
+    logCacheEvent("hit", cacheKey, "text");
+    return true;
+  };
+
+  for (const candidate of firstByScopedKey.values()) {
+    const scopedEntry = storedEntries.get(candidate.scopedKey);
+    if (
+      scopedEntry &&
+      acceptExactVerdict(
+        candidate,
+        candidate.scopedKey,
+        scopedEntry,
+        "cached-user-moderation-2026-06",
+      )
+    ) {
       continue;
     }
 
-    try {
-      const cached = await getCachedTextModeration(cacheKey);
-      if (cached) {
-        const hasMediaInMeta =
-          target.metadata &&
-          (() => {
-            const ev = extractMessageMediaEvidence(target.metadata);
-            return (
-              ev.attachments.length > 0 ||
-              ev.stickers.length > 0 ||
-              ev.embeds.length > 0
-            );
-          })();
-
-        if (hasMediaInMeta) {
-          log.debug(
-            { messageId: target.id, cacheKey },
-            "Cache entry but message has media — treating as miss",
-          );
-        } else if (
-          cached.flags.some((f) =>
-            [
-              "analysis_api_failed",
-              "analysis_parse_failed",
-              "analysis_incomplete",
-            ].includes(f),
-          )
-        ) {
-          log.warn(
-            { messageId: target.id, cacheKey },
-            "Cache entry contains error artifact — treating as miss",
-          );
-        } else {
-          const hit: AnalysisResult = {
-            messageId: target.id,
-            status: cached.status,
-            flags: cached.flags,
-            score: cached.score,
-            analysis: cached.analysis,
-            categories: cached.categories,
-            severity: cached.severity as AnalysisResult["severity"],
-            confidence: cached.confidence,
-            recommendedAction:
-              cached.recommendedAction as AnalysisResult["recommendedAction"],
-            policyVersion: "cached-user-moderation-2026-06",
-            evidence: [],
-          };
-          cacheHits.push(hit);
-          hitByKey.set(cacheKey, hit);
-          logCacheEvent("hit", cacheKey, "text");
-          continue;
-        }
-      }
-    } catch {
-      /* proceed */
+    // Context-free fallback: ONLY non-actionable clean verdicts qualify
+    // (guard enforces status/flags/action/confidence/freshness). The bare
+    // key equals the scoped key for context-less messages, so the guard
+    // also prevents double-serving the same row.
+    const bareEntry = storedEntries.get(candidate.bareKey);
+    if (
+      bareEntry &&
+      candidate.bareKey !== candidate.scopedKey &&
+      isGloballyReusableCleanVerdict(
+        bareEntry.verdict,
+        bareEntry.analyzedAt ?? undefined,
+      )
+    ) {
+      acceptExactVerdict(
+        candidate,
+        candidate.bareKey,
+        bareEntry,
+        "cached-global-clean-2026-08",
+      );
     }
+  }
 
-    uncachedTargets.push(target);
+  // Fan-out: every candidate (representative + in-batch duplicates) gets its
+  // own copy of the representative verdict; unresolved ones stay queued.
+  for (const candidate of candidates) {
+    const representative = hitByKey.get(candidate.scopedKey);
+    if (representative) {
+      cacheHits.push({ ...representative, messageId: candidate.target.id });
+    } else {
+      uncachedTargets.push(candidate.target);
+    }
   }
 
   // ── Phase 2: semantic cache — batched (one embed call + one Qdrant
@@ -199,10 +271,12 @@ export async function runModerationAnalysis(
         }
 
         if (isQdrantConfigured()) {
+          // ONE batch search at the LOOSER threshold; per-hit re-classification
+          // enforces the strict band for actionable verdicts.
           const batchHits = await searchQdrantBatch(
             embeddings,
             config.AI_LLM_EMBEDDING_MAX_CANDIDATES,
-            config.AI_LLM_EMBEDDING_MIN_SIMILARITY,
+            config.AI_LLM_EMBEDDING_MIN_SIMILARITY_CLEAN,
           );
           for (let i = 0; i < semanticCandidates.length; i++) {
             const { target, cacheKey } = semanticCandidates[i];
@@ -210,6 +284,7 @@ export async function runModerationAnalysis(
             if (hits.length === 0) continue;
             const verdict = parseQdrantVerdict(hits[0].payload, hits[0].score);
             if (!verdict) continue;
+            if (!isSemanticBandAccepted(verdict, verdict.similarity)) continue;
             log.debug(
               {
                 messageId: target.id,
@@ -242,10 +317,12 @@ export async function runModerationAnalysis(
             const { target, cacheKey } = semanticCandidates[i];
             const semantic = await findSimilarTextModeration(
               embeddings[i],
-              config.AI_LLM_EMBEDDING_MIN_SIMILARITY,
+              config.AI_LLM_EMBEDDING_MIN_SIMILARITY_CLEAN,
               config.AI_LLM_EMBEDDING_MAX_CANDIDATES,
             );
             if (!semantic) continue;
+            if (!isSemanticBandAccepted(semantic, semantic.similarity))
+              continue;
             log.debug(
               {
                 messageId: target.id,
@@ -290,6 +367,8 @@ export async function runModerationAnalysis(
   }
 
   if (cacheHits.length > 0) {
+    // Metrics: one bulk UPDATE for every exact-cache key actually served.
+    bumpTextModerationHitCounts(Array.from(servedCacheKeys));
     log.info(
       {
         cacheHits: cacheHits.length,

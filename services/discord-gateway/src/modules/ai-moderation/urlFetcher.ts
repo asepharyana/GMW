@@ -1,5 +1,6 @@
 import { resolve } from "node:dns/promises";
 import { isIP } from "node:net";
+import { LRUCache } from "lru-cache";
 import { createChildLogger } from "@/shared/logger/index";
 import { createAbortControllerWithTimeout } from "@/shared/utils/index";
 
@@ -148,6 +149,47 @@ function truncateAndCleanHtml(html: string, maxLen = 1000): string {
 }
 
 export async function fetchUrlSafely(
+  url: string,
+  depth = 0,
+): Promise<FetchedUrlContext> {
+  // Text results are memoized (in-process, short TTL): the same link recurs
+  // across batches and re-downloading + re-parsing the page each time was
+  // pure latency. Images are NEVER cached here — they are vision evidence
+  // and multi-MB buffers don't belong in an LRU. Errors are not cached so a
+  // transient network blip retries on the next batch.
+  if (depth === 0) {
+    const memo = textFetchMemo.get(url);
+    if (memo) return memo;
+    // In-flight dedupe: concurrent callers share one live request.
+    const existing = textInFlight.get(url);
+    if (existing) return existing;
+    const promise = fetchUrlSafelyUncached(url, depth)
+      .then((fetched) => {
+        if (fetched.type === "text") textFetchMemo.set(url, fetched);
+        return fetched;
+      })
+      .finally(() => {
+        textInFlight.delete(url);
+      });
+    textInFlight.set(url, promise);
+    return promise;
+  }
+  return fetchUrlSafelyUncached(url, depth);
+}
+
+/** In-process memo of successful TEXT fetches (30 min TTL, bounded size). */
+const textFetchMemo = new LRUCache<string, FetchedUrlContext>({
+  max: 500,
+  ttl: 30 * 60 * 1000,
+});
+
+/** Concurrent same-URL text fetches collapse into one live request. */
+const textInFlight = new LRUCache<string, Promise<FetchedUrlContext>>({
+  max: 100,
+  ttl: 60_000,
+});
+
+async function fetchUrlSafelyUncached(
   url: string,
   depth = 0,
 ): Promise<FetchedUrlContext> {
