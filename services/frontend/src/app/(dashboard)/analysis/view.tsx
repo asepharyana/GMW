@@ -1,72 +1,24 @@
 "use client";
 
-/**
- * Analysis scene — semantic search lives in a floating console (left);
- * results stream into a translucent dossier (right). The stage shows an
- * analysis hub wired to the guild's top channels.
- */
-import { Hash, Search, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Hash, Search, Sparkles, TrendingUp } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
-import { Avatar, Badge } from "@/components/primitives";
-import { EmptyState, SkeletonRows } from "@/components/shared";
-import { useScenePublish } from "@/components/shell/scene-graph-context";
-import { useChannels, useMessageSearch } from "@/hooks";
+import { Avatar, Badge, GlassPanel, Input } from "@/components/primitives";
+import { EmptyState, SectionHeader, SkeletonRows } from "@/components/shared";
+import { useChannels, useMessageSearch, useTopReactors } from "@/hooks";
 import { aiTone } from "@/lib/ai-status";
-import type { ConstellationGraph } from "@/lib/constellation/graph";
 import {
   formatDuration,
   getMessageChannelLabel,
   renderMessageContent,
 } from "@/lib/format";
 
-function analysisGraph(
-  channels:
-    | {
-        channel_id: string;
-        channel_name?: string | null;
-        total_messages: number;
-      }[]
-    | undefined,
-): ConstellationGraph {
-  const rows = (channels ?? []).slice(0, 10);
-  const maxMsg = rows.reduce((m, c) => Math.max(m, c.total_messages), 0);
-  const clamp = (n: number) => (maxMsg <= 0 ? 0.3 : Math.max(0.15, n / maxMsg));
-  return {
-    nodes: [
-      { id: "hub", label: "analysis", kind: "guild", value: 1 },
-      ...rows.map((c) => ({
-        id: `channel:${c.channel_id}`,
-        label: c.channel_name ?? c.channel_id.slice(0, 8),
-        kind: "channel" as const,
-        href: "/channels/",
-        value: clamp(c.total_messages),
-      })),
-    ],
-    edges: rows.map((c) => ({
-      source: "hub",
-      target: `channel:${c.channel_id}`,
-    })),
-  };
-}
-
 export function AnalysisView() {
   const [query, setQuery] = useState("");
   const search = useMessageSearch(query, query.trim().length >= 2);
+  const { data: reactors } = useTopReactors();
   const { data: channels } = useChannels();
   const ambient = useAmbient();
-  const publish = useScenePublish();
-
-  const graph = useMemo(() => analysisGraph(channels), [channels]);
-
-  useEffect(() => {
-    publish({ graph, focus: null });
-  }, [graph, publish]);
-
-  useEffect(
-    () => () => publish({ graph: { nodes: [], edges: [] }, focus: null }),
-    [publish],
-  );
 
   useEffect(() => {
     ambient.set(
@@ -77,50 +29,52 @@ export function AnalysisView() {
   }, [query, ambient]);
 
   return (
-    <div className="min-h-full">
-      {/* Search console — left */}
-      <section
-        className="pointer-events-auto absolute left-5 top-16 w-[min(26rem,88vw)]"
-        aria-label="Semantic search"
-      >
-        <p className="eyebrow mb-2 flex items-center gap-1.5">
-          <Sparkles className="size-3.5 text-signal" /> Search the archive
-        </p>
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[var(--color-ink-faint)]" />
-          <input
-            type="search"
+    <div className="space-y-5">
+      <GlassPanel glow className="relative overflow-hidden">
+        <div className="scan-line absolute inset-x-0 top-0" />
+        <div className="flex items-center gap-3">
+          <Sparkles className="size-5 text-signal" />
+          <div>
+            <div className="eyebrow">Semantic search</div>
+            <h2 className="display text-balance text-2xl text-ink">
+              Search the archive
+            </h2>
+          </div>
+        </div>
+        <div className="relative mt-4">
+          <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-ink-faint" />
+          <Input
+            className="h-12 pl-12 text-base"
+            placeholder="Find messages, patterns, flags…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Find messages, patterns, flags…"
             autoFocus
-            className="h-11 w-full rounded-full border border-[var(--color-hairline)] bg-[var(--color-canvas)]/70 pl-11 pr-4 text-sm text-[var(--color-ink)] backdrop-blur-md outline-none placeholder:text-[var(--color-ink-faint)] focus:border-[var(--color-signal)]"
           />
         </div>
-        {query.trim().length > 0 && query.trim().length < 2 ? (
-          <p className="mt-2 font-mono text-xs text-[var(--color-ink-faint)]">
-            minimal 2 karakter…
-          </p>
-        ) : null}
-      </section>
+        {query.trim().length > 0 && query.trim().length < 2 && (
+          <div className="mono mt-2 text-xs text-ink-faint">
+            Type at least 2 characters…
+          </div>
+        )}
+      </GlassPanel>
 
-      {/* Results dossier — right */}
-      <section
-        className="pointer-events-auto absolute bottom-20 right-5 hidden max-h-[62vh] w-[min(30rem,92vw)] flex-col overflow-hidden rounded-2xl border border-[var(--color-hairline)] bg-[var(--color-canvas-2)]/75 backdrop-blur-xl md:flex"
-        aria-label="Search results"
-      >
-        <div className="flex items-center justify-between border-b border-[var(--color-hairline)] px-4 py-2.5">
-          <span className="eyebrow">matches</span>
-          <span className="font-mono text-xs text-[var(--color-ink-faint)]">
-            {(search.data ?? []).length}
-          </span>
-        </div>
-        <div className="overflow-y-auto p-3">
-          {query.trim().length >= 2 && search.isLoading ? (
-            <SkeletonRows rows={5} />
-          ) : (search.data ?? []).length === 0 ? (
+      <div className="grid gap-5 lg:grid-cols-5">
+        <GlassPanel className="lg:col-span-3">
+          <SectionHeader
+            eyebrow="results"
+            title="Matches"
+            action={
+              <span className="mono text-xs text-ink-faint">
+                {(search.data ?? []).length}
+              </span>
+            }
+          />
+          {query.trim().length >= 2 && search.isLoading && (
+            <SkeletonRows rows={6} />
+          )}
+          {(search.data ?? []).length === 0 ? (
             <EmptyState
-              icon={<Search className="size-6" />}
+              icon={<Search className="size-7" />}
               title="No matches yet"
               description="Run a search to surface messages across the guild."
             />
@@ -129,27 +83,27 @@ export function AnalysisView() {
               {(search.data ?? []).map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-start gap-3 rounded-xl border border-[var(--color-hairline)] p-2.5"
+                  className="flex items-start gap-3 rounded-[12px] border border-hairline bg-white/[0.03] p-3"
                 >
-                  <Avatar src={m.avatar_url} name={m.username} size={28} />
+                  <Avatar src={m.avatar_url} name={m.username} size={32} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-[var(--color-ink)]">
+                      <span className="text-sm font-semibold text-ink">
                         {m.username}
                       </span>
-                      <span className="font-mono text-[0.65rem] text-[var(--color-ink-faint)]">
+                      <span className="mono text-[0.65rem] text-ink-faint">
                         {getMessageChannelLabel(m)}
                       </span>
-                      {m.ai_status ? (
+                      {m.ai_status && (
                         <Badge tone={aiTone(m.ai_status)} className="ml-auto">
                           {m.ai_analysis_duration_ms &&
                           m.ai_analysis_duration_ms > 0
                             ? `${m.ai_status} · ${formatDuration(m.ai_analysis_duration_ms)}`
                             : m.ai_status}
                         </Badge>
-                      ) : null}
+                      )}
                     </div>
-                    <div className="mt-0.5 line-clamp-2 text-sm text-[var(--color-ink-soft)]">
+                    <div className="mt-0.5 text-sm text-ink-soft">
                       {renderMessageContent(m.content, m.metadata) || "(embed)"}
                     </div>
                   </div>
@@ -157,14 +111,86 @@ export function AnalysisView() {
               ))}
             </div>
           )}
-        </div>
-      </section>
+        </GlassPanel>
 
-      {/* Channels hint — bottom-left */}
-      <p className="pointer-events-none absolute bottom-24 left-5 hidden items-center gap-1.5 font-mono text-xs text-[var(--color-ink-faint)] lg:flex">
-        <Hash className="size-3.5" /> {(channels ?? []).length} channels
-        terhubung ke hub analitik — klik untuk membuka konstelasi channel
-      </p>
+        <div className="space-y-5 lg:col-span-2">
+          <GlassPanel>
+            <SectionHeader
+              eyebrow="culture"
+              title={
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="size-4 text-signal" /> Top reactors
+                </span>
+              }
+            />
+            <div className="space-y-2">
+              {(reactors ?? []).slice(0, 6).map((r, i) => {
+                const maxNet = reactors?.[0]?.net_count || 1;
+                const pct = Math.max(
+                  4,
+                  Math.round((r.net_count / maxNet) * 100),
+                );
+                return (
+                  <div
+                    key={r.user_id}
+                    className="flex items-center gap-3 text-sm"
+                  >
+                    <span className="mono w-5 text-ink-faint">{i + 1}</span>
+                    <span className="w-28 shrink-0 truncate text-ink-soft sm:w-40">
+                      {r.username}
+                    </span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
+                      <div
+                        className="h-full rounded-full bg-signal/70"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="mono w-12 text-right text-xs text-signal">
+                      +{r.net_count}
+                    </span>
+                  </div>
+                );
+              })}
+              {(reactors ?? []).length === 0 && (
+                <div className="py-4 text-center text-xs text-ink-faint">
+                  No data
+                </div>
+              )}
+            </div>
+          </GlassPanel>
+
+          <GlassPanel>
+            <SectionHeader
+              eyebrow="channels"
+              title={
+                <span className="flex items-center gap-2">
+                  <Hash className="size-4 text-signal" /> Top channels
+                </span>
+              }
+            />
+            <div className="space-y-2">
+              {(channels ?? []).slice(0, 6).map((c) => (
+                <div
+                  key={c.channel_id}
+                  className="flex items-center gap-3 text-sm"
+                >
+                  <span className="flex-1 truncate text-ink-soft">
+                    {c.channel_name ?? c.channel_id.slice(0, 8)}
+                  </span>
+                  <span className="mono text-xs text-ink-faint">
+                    {c.total_messages}
+                  </span>
+                </div>
+              ))}
+              {(channels ?? []).length === 0 && (
+                <div className="py-4 text-center text-xs text-ink-faint">
+                  No data
+                </div>
+              )}
+            </div>
+          </GlassPanel>
+        </div>
+      </div>
     </div>
   );
 }

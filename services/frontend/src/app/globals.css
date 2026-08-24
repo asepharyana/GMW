@@ -17,7 +17,7 @@
   /* ── Surfaces (dark-first; light overrides below) ── */
   --color-canvas: oklch(0.12 0.014 70);
   --color-canvas-2: oklch(0.16 0.02 70);
-  --color-surface: oklch(0.2 0.022 70 / 0.55);
+  --color-surface: oklch(0.2 0.022 70 / 0.45);
   --color-surface-2: oklch(0.26 0.024 70 / 0.45);
 
   /* ── Ink ── */
@@ -76,11 +76,6 @@
 .light ::selection {
   background: var(--color-signal-glow);
   color: var(--color-ink);
-}
-/* Constellation stage: soften glow layers so stars stay legible on pale sky */
-.light .glass-glow,
-.light [class*="shadow-[0_0"] {
-  --tw-shadow-color: oklch(0.5 0.1 150 / 0.18);
 }
 
 @layer base {

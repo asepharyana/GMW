@@ -1,10 +1,5 @@
 "use client";
 
-/**
- * Media scene — the queue becomes a spiral of nodes on the stage; the
- * player console (disc + transport + URL bar) floats bottom-left, and
- * the up-next list docks right.
- */
 import {
   ListMusic,
   Play,
@@ -14,14 +9,15 @@ import {
   Square,
   Volume2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
-import { Button, Input, toast } from "@/components/primitives";
-import { ErrorState, SkeletonHero } from "@/components/shared";
+import { Button, GlassPanel, Input, toast } from "@/components/primitives";
 import {
-  useSceneFocusSetter,
-  useScenePublish,
-} from "@/components/shell/scene-graph-context";
+  ErrorState,
+  SectionHeader,
+  SkeletonHero,
+  SkeletonPanel,
+} from "@/components/shared";
 import {
   useMediaLoop,
   useMediaQueue,
@@ -30,36 +26,10 @@ import {
   useMediaStop,
   useMediaWsSync,
 } from "@/hooks";
-import type { ConstellationGraph } from "@/lib/constellation/graph";
 import { formatDuration } from "@/lib/format";
 import type { MediaState } from "@/lib/types";
 import { staggerDelay } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
-
-function queueGraph(media: MediaState | undefined): ConstellationGraph {
-  const items = (media?.queue ?? []).slice(0, 24);
-  return {
-    nodes: [
-      {
-        id: "now-playing",
-        label: media?.current?.title ?? "media",
-        kind: "guild",
-        value: 1,
-      },
-      ...items.map((it, i) => ({
-        id: `track:${i}:${it.source}`,
-        label: it.title,
-        kind: "media" as const,
-        value: Math.max(0.2, 0.8 - i * 0.05),
-        href: undefined,
-      })),
-    ],
-    edges: items.map((it, i) => ({
-      source: "now-playing",
-      target: `track:${i}:${it.source}`,
-    })),
-  };
-}
 
 export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
   const ws = useWebSocket();
@@ -70,8 +40,6 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
   const loop = useMediaLoop();
   useMediaWsSync(ws);
   const ambient = useAmbient();
-  const publish = useScenePublish();
-  const setFocus = useSceneFocusSetter();
 
   const [url, setUrl] = useState("");
 
@@ -81,19 +49,6 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
   const queueTotal = queueList.reduce(
     (acc, it) => acc + (it.durationMs ?? 0),
     0,
-  );
-
-  const graph = useMemo(() => queueGraph(media), [media]);
-  useEffect(() => {
-    publish({ graph, focus: null });
-  }, [graph, publish]);
-
-  useEffect(
-    () => () => {
-      publish({ graph: { nodes: [], edges: [] }, focus: null });
-      setFocus(null);
-    },
-    [publish, setFocus],
   );
 
   const tone = playing ? "signal" : queueList.length ? "amber" : "signal";
@@ -125,105 +80,126 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
   };
 
   if (error && !media) return <ErrorState error={error} />;
-  if (!media && isLoading) return <SkeletonHero />;
+  if (!media && isLoading)
+    return (
+      <div className="space-y-5">
+        <SkeletonHero />
+        <SkeletonPanel rows={4} />
+      </div>
+    );
 
   return (
-    <div className="min-h-full">
-      {/* Now playing — top-center whisper */}
-      <section
-        className="pointer-events-none absolute inset-x-0 top-16 hidden justify-center px-6 md:flex"
-        aria-label="Now playing"
-      >
-        <div className="pointer-events-auto flex max-w-[52vw] items-center gap-3 rounded-full border border-[var(--color-hairline)] bg-[var(--color-canvas)]/60 px-4 py-2 backdrop-blur-md">
+    <div className="space-y-5">
+      <GlassPanel glow className="relative overflow-hidden">
+        <div className="scan-line absolute inset-x-0 top-0" />
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <div
-            className={`flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--color-hairline)] ${playing ? "animate-spin-disc" : ""}`}
+            className={`flex size-32 shrink-0 items-center justify-center rounded-full border border-hairline bg-gradient-to-br from-white/10 to-white/[0.02] ${playing ? "animate-spin-disc" : "animate-spin-disc paused"}`}
           >
-            {current?.thumbnailUrl ? (
-              // biome-ignore lint/performance/noImgElement: external CDN thumbnails, next/image needs remote allowlist
-              <img
-                src={current.thumbnailUrl}
-                alt=""
-                className="size-full object-cover"
-                loading="lazy"
-              />
-            ) : (
-              <ListMusic className="size-4 text-signal" />
-            )}
+            <div className="flex size-28 items-center justify-center overflow-hidden rounded-full bg-canvas/60">
+              {current?.thumbnailUrl ? (
+                // biome-ignore lint/performance/noImgElement: external CDN thumbnails, next/image needs remote allowlist
+                <img
+                  src={current.thumbnailUrl}
+                  alt=""
+                  className="size-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <ListMusic className="size-10 text-signal" />
+              )}
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="eyebrow flex items-center gap-2">
-              {playing ? (
-                <span className="flex h-3 items-end gap-[2px]" aria-hidden>
-                  {[0, 1, 2].map((i) => (
-                    <span
-                      key={`eq-${i}`}
-                      className="w-[3px] animate-eq rounded-full bg-signal"
-                      style={{ animationDelay: `${i * 160}ms`, height: "100%" }}
-                    />
-                  ))}
-                </span>
-              ) : null}
-              {playing ? "Now playing" : current ? "Paused" : "Nothing queued"}
-            </p>
-            <p className="truncate text-sm text-[var(--color-ink)]">
-              {current?.title ?? "Nothing queued"}
-              {formatDuration(current?.durationMs)
-                ? ` · ${formatDuration(current?.durationMs)}`
-                : ""}
-            </p>
-          </div>
-        </div>
-      </section>
 
-      {/* Console — bottom-left */}
-      <section
-        className="pointer-events-auto absolute bottom-20 left-5 z-20 w-[min(26rem,92vw)] space-y-2.5 rounded-2xl border border-[var(--color-hairline)] bg-[var(--color-canvas-2)]/75 p-3 backdrop-blur-xl lg:bottom-24"
-        aria-label="Player console"
-      >
-        <div className="relative">
-          <Input
-            placeholder="Paste a YouTube / music URL…"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onPlay()}
-          />
+          <div className="min-w-0 flex-1">
+            <div className="eyebrow mb-1 flex items-center gap-2">
+              {playing ? (
+                <>
+                  <span aria-hidden className="flex h-3 items-end gap-[2px]">
+                    {[0, 1, 2].map((i) => (
+                      <span
+                        key={`eq-${i}`}
+                        className="w-[3px] animate-eq rounded-full bg-signal"
+                        style={{
+                          animationDelay: `${i * 160}ms`,
+                          height: "100%",
+                        }}
+                      />
+                    ))}
+                  </span>
+                  <span className="text-signal">Now playing</span>
+                </>
+              ) : current ? (
+                "Paused"
+              ) : (
+                "Nothing queued"
+              )}
+            </div>
+            <h2 className="display text-balance text-2xl text-ink">
+              {current?.title ?? "Nothing queued"}
+            </h2>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-faint">
+              {current?.source && (
+                <span className="mono truncate">{current.source}</span>
+              )}
+              {current?.mode && (
+                <span className="pill capitalize">{current.mode}</span>
+              )}
+              {formatDuration(current?.durationMs) && (
+                <span className="mono">
+                  {formatDuration(current?.durationMs)}
+                </span>
+              )}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={onPlay}
+                disabled={queue.isPending}
+              >
+                <Play className="size-4" /> Queue & play
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => skip.mutate()}
+                disabled={skip.isPending}
+              >
+                <SkipForward className="size-4" /> Skip
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => stop.mutate()}
+                disabled={stop.isPending}
+              >
+                <Square className="size-4" /> Stop
+              </Button>
+              <Button
+                variant={media?.loop ? "primary" : "outline"}
+                size="sm"
+                onClick={() => loop.mutate(!media?.loop)}
+                aria-pressed={!!media?.loop}
+              >
+                <Repeat className="size-4" /> Loop
+              </Button>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={onPlay}
-            disabled={queue.isPending}
-          >
-            <Play className="size-4" /> Queue &amp; play
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => skip.mutate()}
-            disabled={skip.isPending}
-          >
-            <SkipForward className="size-4" /> Skip
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => stop.mutate()}
-            disabled={stop.isPending}
-          >
-            <Square className="size-4" /> Stop
-          </Button>
-          <Button
-            variant={media?.loop ? "primary" : "outline"}
-            size="sm"
-            onClick={() => loop.mutate(!media?.loop)}
-            aria-pressed={!!media?.loop}
-          >
-            <Repeat className="size-4" /> Loop
-          </Button>
-          <div className="ml-auto flex items-center gap-2">
-            <Volume2 className="size-4 text-[var(--color-ink-faint)]" />
-            <div className="h-1.5 w-20 overflow-hidden rounded-full bg-white/10">
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div className="relative min-w-0 flex-1">
+            <Input
+              placeholder="Paste a YouTube / music URL…"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && onPlay()}
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-2 rounded-[10px] border border-hairline bg-white/5 px-3 py-2.5">
+            <Volume2 className="size-4 text-ink-faint" />
+            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
               <div
                 className="h-full rounded-full bg-signal/70"
                 style={{
@@ -231,89 +207,87 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
                 }}
               />
             </div>
-            <span className="w-9 text-right font-mono text-[0.65rem] text-[var(--color-ink-faint)]">
+            <span className="mono w-9 text-right text-[0.65rem] text-ink-faint">
               {Math.round((media?.musicVolume ?? 0) * 100)}%
             </span>
           </div>
         </div>
-      </section>
+      </GlassPanel>
 
-      {/* Up next — right dock */}
-      <section
-        className="pointer-events-auto absolute bottom-20 right-5 top-28 hidden w-[min(24rem,92vw)] flex-col overflow-hidden rounded-2xl border border-[var(--color-hairline)] bg-[var(--color-canvas-2)]/70 backdrop-blur-xl md:flex"
-        aria-label="Up next"
-      >
-        <div className="flex items-center justify-between border-b border-[var(--color-hairline)] px-4 py-2.5">
-          <span className="eyebrow">up next</span>
-          <span className="font-mono text-xs text-[var(--color-ink-faint)]">
-            {queueList.length} track{queueList.length === 1 ? "" : "s"}
-            {queueTotal ? ` · ${formatDuration(queueTotal)}` : ""}
-          </span>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          {queueList.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-10 text-center">
-              <Radio className="size-6 text-[var(--color-ink-faint)]" />
-              <p className="text-sm text-[var(--color-ink-soft)]">
-                Queue is empty
-              </p>
-              <p className="font-mono text-xs text-[var(--color-ink-faint)]">
-                Paste a URL to start playback.
-              </p>
+      <GlassPanel>
+        <SectionHeader
+          eyebrow="up next"
+          title="Queue"
+          action={
+            <span className="mono text-xs text-ink-faint">
+              {queueList.length} track{queueList.length === 1 ? "" : "s"}
+              {queueTotal && ` · ${formatDuration(queueTotal)}`}
+            </span>
+          }
+        />
+        {queueList.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <Radio className="size-6 text-ink-faint" />
+            <div className="text-sm text-ink-soft">Queue is empty</div>
+            <div className="text-xs text-ink-faint">
+              Paste a URL above to start playback.
             </div>
-          ) : (
-            <div className="space-y-1.5">
-              {queueList.map((item, i) => {
-                const isNext = i === 0 && playing;
-                return (
-                  <div
-                    key={`${item.source}-${i}`}
-                    className={`animate-stagger flex items-center gap-3 rounded-xl border px-3 py-2 ${
-                      isNext
-                        ? "border-signal/40 bg-signal/[0.07]"
-                        : "border-[var(--color-hairline)]"
-                    }`}
-                    style={staggerDelay(i)}
-                  >
-                    <span className="w-5 font-mono text-xs text-[var(--color-ink-faint)]">
-                      {i + 1}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {queueList.map((item, i) => {
+              const isNext = i === 0 && playing;
+              return (
+                <div
+                  key={`${item.source}-${i}`}
+                  className={`animate-stagger flex items-center gap-3 rounded-[10px] border px-3 py-2.5 ${
+                    isNext
+                      ? "border-signal/40 bg-signal/[0.07]"
+                      : "border-hairline bg-white/5"
+                  }`}
+                  style={staggerDelay(i)}
+                >
+                  <span className="mono w-5 text-ink-faint">{i + 1}</span>
+                  {item.thumbnailUrl ? (
+                    // biome-ignore lint/performance/noImgElement: external CDN thumbnails, next/image needs remote allowlist
+                    <img
+                      src={item.thumbnailUrl}
+                      alt=""
+                      className="size-9 shrink-0 rounded-md object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-hairline bg-white/5">
+                      <ListMusic className="size-4 text-ink-faint" />
                     </span>
-                    {item.thumbnailUrl ? (
-                      // biome-ignore lint/performance/noImgElement: external CDN thumbnails, next/image needs remote allowlist
-                      <img
-                        src={item.thumbnailUrl}
-                        alt=""
-                        className="size-9 shrink-0 rounded-md object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-[var(--color-hairline)]">
-                        <ListMusic className="size-4 text-[var(--color-ink-faint)]" />
-                      </span>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-[var(--color-ink)]">
-                        {item.title}
-                      </p>
-                      <p className="truncate font-mono text-[0.65rem] text-[var(--color-ink-faint)]">
-                        {item.source}
-                      </p>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm text-ink">
+                      {item.title}
                     </div>
-                    {isNext ? (
-                      <span className="shrink-0 rounded-full border border-signal/40 bg-signal/10 px-2 py-0.5 font-mono text-[0.6rem] text-signal">
-                        up next
-                      </span>
-                    ) : null}
-                    <span className="w-10 text-right font-mono text-[0.65rem] text-[var(--color-ink-faint)]">
+                    <div className="mono truncate text-[0.65rem] text-ink-faint">
+                      {item.source}
+                    </div>
+                  </div>
+                  {isNext && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-signal/40 bg-signal/10 px-2 py-0.5 text-[0.6rem] font-medium text-signal">
+                      up next
+                    </span>
+                  )}
+                  <span className="pill hidden capitalize sm:inline-flex">
+                    {item.mode ?? "music"}
+                  </span>
+                  {formatDuration(item.durationMs) && (
+                    <span className="mono w-10 text-right text-[0.65rem] text-ink-faint">
                       {formatDuration(item.durationMs)}
                     </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </section>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </GlassPanel>
     </div>
   );
 }
