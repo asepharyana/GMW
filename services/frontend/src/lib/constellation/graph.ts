@@ -2,7 +2,11 @@
  * Constellation graph model — pure data, no React/DOM.
  * Builders convert existing API payloads into star-graph structures.
  */
-import type { DashboardChannel, DashboardStats } from "@/lib/types";
+import type {
+  ChannelCultureRow,
+  DashboardChannel,
+  DashboardStats,
+} from "@/lib/types";
 
 export type NodeKind =
   | "guild"
@@ -90,6 +94,21 @@ export function channelsToGraph(
     meta: {
       flagged_count: c.flagged_count,
       culture_summary: c.culture_summary,
+    },
+  }));
+  return { nodes, edges: [] };
+}
+
+/** Channels scene variant fed by culture-knowledge rows. */
+export function culturesToGraph(rows: ChannelCultureRow[]): ConstellationGraph {
+  const nodes: GraphNode[] = rows.map((r, i) => ({
+    id: `channel:${r.channel_id}`,
+    label: r.channel_name || r.channel_id,
+    kind: "channel",
+    value: r.culture_summary ? 0.4 + (i % 5) * 0.12 : 0.2,
+    meta: {
+      culture_summary: r.culture_summary,
+      last_analyzed_at: r.last_analyzed_at,
     },
   }));
   return { nodes, edges: [] };

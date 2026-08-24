@@ -17,6 +17,8 @@ import { readPalette, type StagePalette } from "@/lib/constellation/palette";
 export interface ConstellationStageProps {
   graph: ConstellationGraph;
   seed?: number;
+  /** Node id kept highlighted (scene selection). */
+  selectedId?: string | null;
   onNodeClick?: (nodeId: string) => void;
 }
 
@@ -26,6 +28,7 @@ const Z_MAX = 3;
 export function ConstellationStage({
   graph,
   seed = 42,
+  selectedId = null,
   onNodeClick,
 }: ConstellationStageProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -34,7 +37,7 @@ export function ConstellationStage({
   const layoutRef = useRef<LayoutNode[]>([]);
   const nodeByIdRef = useRef(new Map(graph.nodes.map((n) => [n.id, n])));
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [hovered, setHovered] = useState<string | null>(null);
+  const hoveredRef = useRef<string | null>(null);
   const [reduced, setReduced] = useState(false);
 
   nodeByIdRef.current = new Map(graph.nodes.map((n) => [n.id, n]));
@@ -222,7 +225,7 @@ export function ConstellationStage({
         return;
       }
       const hit = pickNode(ev.clientX, ev.clientY);
-      setHovered(hit ? hit.id : null);
+      hoveredRef.current = hit ? hit.id : null;
       canvas.style.cursor = hit ? "pointer" : "grab";
     };
     const onPointerUp = (ev: PointerEvent) => {
@@ -318,7 +321,7 @@ export function ConstellationStage({
           v.halo.material.opacity =
             (v.id === "guild" ? 0.14 : 0.08) * (0.7 + 0.6 * pulse);
         }
-        const hov = v.id === hovered;
+        const hov = v.id === hoveredRef.current || v.id === selectedId;
         v.core.scale.setScalar(hov ? 1.25 : 1);
         i += 1;
       }
@@ -334,7 +337,9 @@ export function ConstellationStage({
           const sy = -(v.y - y) * z + size.h / 2 + v.r + 14;
           el.style.transform = `translate(${sx}px, ${sy}px) translateX(-50%)`;
           el.style.color =
-            id === hovered ? "var(--color-signal)" : "var(--color-ink-soft)";
+            id === hoveredRef.current || id === selectedId
+              ? "var(--color-signal)"
+              : "var(--color-ink-soft)";
         }
       }
     };
@@ -354,7 +359,7 @@ export function ConstellationStage({
       scene.clear();
       renderer.dispose();
     };
-  }, [graph, size.w, size.h, reduced, hovered, onNodeClick]);
+  }, [graph, size.w, size.h, reduced, selectedId, onNodeClick]);
 
   const emptyGraph = graph.nodes.length === 0;
   const hint = useMemo(
