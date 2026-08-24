@@ -68,7 +68,7 @@ export function ConstellationFrame({
         {/* Overlay content region — scenes place floating panels inside. */}
         <main className="pointer-events-none absolute inset-0 z-10 overflow-y-auto overscroll-contain">
           {/* no pointer-events here: empty areas stay click-through to the sky */}
-          <div className="min-h-full">{children}</div>
+          <div className="h-full">{children}</div>
         </main>
       </div>
     </SceneGraphProvider>
