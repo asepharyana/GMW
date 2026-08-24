@@ -322,22 +322,22 @@
   pointer-events: none;
 }
 .game-nav-item::before {
-  border-left: 1.5px solid currentColor;
-  border-top: 1.5px solid currentColor;
+  border-left: 2px solid currentColor;
+  border-top: 2px solid currentColor;
   border-top-left-radius: 13px;
-  clip-path: polygon(0 0, 55% 0, 55% 28%, 28% 28%, 28% 100%, 0 100%);
+  clip-path: polygon(0 0, 62% 0, 62% 30%, 30% 30%, 30% 100%, 0 100%);
 }
 .game-nav-item::after {
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
   border-bottom-right-radius: 13px;
-  clip-path: polygon(100% 100%, 45% 100%, 45% 72%, 72% 72%, 72% 0, 100% 0);
+  clip-path: polygon(100% 100%, 38% 100%, 38% 70%, 70% 70%, 70% 0, 100% 0);
 }
 .game-nav-item:hover::before,
 .game-nav-item:hover::after,
 .game-nav-item.is-active::before,
 .game-nav-item.is-active::after {
-  opacity: 0.9;
+  opacity: 1;
 }
 /* one-shot sweep */
 .game-nav-item .game-sweep {
@@ -371,10 +371,16 @@
   top: 50%;
   width: 0;
   height: 0;
-  border-block: 5px solid transparent;
-  border-left: 7px solid currentColor;
+  border-block: 7px solid transparent;
+  border-left: 11px solid currentColor;
   transform: translateY(-50%);
-  filter: drop-shadow(0 0 4px var(--color-signal-glow));
+  filter: drop-shadow(0 0 6px var(--color-signal-glow));
+  animation: marker-nudge 1.6s ease-in-out infinite;
+}
+
+@keyframes marker-nudge {
+  0%, 100% { transform: translateY(-50%) translateX(0); }
+  50% { transform: translateY(-50%) translateX(3px); }
 }
 
 @keyframes sweep-x {
