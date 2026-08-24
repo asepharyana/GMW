@@ -5,6 +5,7 @@
  * parallel text+media analysis, LLM calls with retry, and cache handling.
  */
 import { createChildLogger } from "@/shared/logger/index";
+import { LRUCache } from "lru-cache";
 import { config } from "../../shared/config/config.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
 import type {
@@ -34,6 +35,13 @@ import {
 } from "./textCacheStore.js";
 
 const log = createChildLogger("moderationOrchestrator");
+
+/**
+ * Bare keys already written this process (dual-key write-back dedupe).
+ * LRU-bounded so a long-lived gateway can't grow it without limit; the DB
+ * upsert underneath is idempotent anyway — this just avoids redundant writes.
+ */
+const globalBareKeysWritten = new LRUCache<string, true>({ max: 5000 });
 
 // ---------------------------------------------------------------------------
 // Types
@@ -434,20 +442,50 @@ export async function runModerationAnalysis(
       rawContent,
       makeModerationContextKey(target),
     );
+    const stored = {
+      flags: result.flags ?? [],
+      score: result.score ?? 0,
+      analysis: result.analysis ?? "",
+      categories: result.categories ?? result.flags ?? [],
+      severity: result.severity ?? "none",
+      confidence: result.confidence ?? result.score ?? 0,
+      recommendedAction: result.recommendedAction ?? "none",
+      status: result.status,
+    };
     setCachedTextModeration(
       cacheKey,
-      {
-        flags: result.flags ?? [],
-        score: result.score ?? 0,
-        analysis: result.analysis ?? "",
-        categories: result.categories ?? result.flags ?? [],
-        severity: result.severity ?? "none",
-        confidence: result.confidence ?? result.score ?? 0,
-        recommendedAction: result.recommendedAction ?? "none",
-        status: result.status,
-      },
+      stored,
       embeddingsByKey.get(cacheKey),
     ).catch(() => {});
+
+    // Dual-key write-back (2026-08-24): the FIRST analysis of a message runs
+    // WITH conversation context (accurate), but its verdict is also stored
+    // under the context-free bare key so repeats in OTHER channels hit the
+    // exact cache instead of paying a new LLM call. Same guard as the read
+    // path — only non-actionable clean verdicts may cross channels. No
+    // embedding on the bare row: the semantic tier is already global, and
+    // writing one would create a duplicate Qdrant point for this content.
+    const bareKey = makeTextModerationCacheKey(rawContent);
+    if (
+      bareKey !== cacheKey &&
+      !globalBareKeysWritten.has(bareKey) &&
+      isGloballyReusableCleanVerdict(
+        {
+          status: stored.status,
+          flags: stored.flags,
+          score: stored.score,
+          analysis: stored.analysis,
+          categories: stored.categories,
+          severity: stored.severity,
+          confidence: stored.confidence,
+          recommendedAction: stored.recommendedAction,
+        },
+        undefined,
+      )
+    ) {
+      globalBareKeysWritten.set(bareKey, true);
+      setCachedTextModeration(bareKey, stored, null).catch(() => {});
+    }
   }
 
   const allResults = [

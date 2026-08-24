@@ -524,7 +524,7 @@ export function isSemanticBandAccepted(
  * globally reused — enforcement is context-sensitive by design.
  */
 export function isGloballyReusableCleanVerdict(
-  verdict: StoredModerationVerdict,
+  verdict: Omit<StoredModerationVerdict, "status"> & { status: string },
   analyzedAtMs: number | undefined,
 ): boolean {
   if (verdict.status !== "clean") return false;

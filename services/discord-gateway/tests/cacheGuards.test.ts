@@ -157,4 +157,13 @@ describe("isGloballyReusableCleanVerdict", () => {
   it("skips the age check when analyzedAt is unknown", () => {
     expect(isGloballyReusableCleanVerdict(makeVerdict(), undefined)).toBe(true);
   });
+
+  it("rejects non-standard statuses such as processing write-backs", () => {
+    expect(
+      isGloballyReusableCleanVerdict(
+        { ...makeVerdict(), status: "processing" },
+        undefined,
+      ),
+    ).toBe(false);
+  });
 });
