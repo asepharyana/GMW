@@ -24,16 +24,25 @@ export function MobileNav() {
             aria-label={item.label}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative flex flex-1 flex-col items-center justify-center rounded-[12px] rounded-t-[20px] px-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-2 md:hidden",
+              "game-nav-item relative flex min-h-[44px] flex-1 flex-col items-center justify-center rounded-t-[20px] px-2 pt-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] md:hidden",
               active
-                ? "bg-signal/15 text-signal"
-                : "text-ink-faint hover:bg-white/5 hover:text-ink-soft",
+                ? "is-active text-white"
+                : "text-ink-faint hover:text-ink-soft",
             )}
           >
             {active && (
-              <span className="absolute -top-2 h-8 w-8 rounded-full bg-signal shadow-[0_0_12px_var(--color-signal-glow)]" />
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-4 top-0 h-[2px] bg-white shadow-[0_0_8px_var(--color-signal-glow)]"
+              />
             )}
-            <item.icon className="size-[20px]" strokeWidth={active ? 2.4 : 2} />
+            <span className="game-sweep" aria-hidden="true">
+              <i />
+            </span>
+            <item.icon
+              className="relative z-10 size-[20px]"
+              strokeWidth={active ? 2.4 : 2}
+            />
             {item.label}
           </Link>
         );

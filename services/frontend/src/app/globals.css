@@ -29,13 +29,13 @@
   --color-hairline: oklch(1 0 0 / 0.1);
   --hairline-w: 1px;
 
-  /* ── Semantic signals ── */
-  --color-signal: oklch(0.86 0.19 128);
-  --color-signal-ink: oklch(0.18 0.03 70);
-  --color-signal-glow: oklch(0.86 0.19 128 / 0.4);
-  --color-amber: oklch(0.85 0.15 72);
-  --color-vermilion: oklch(0.68 0.21 25);
-  --color-vermilion-glow: oklch(0.68 0.21 25 / 0.4);
+  /* ── Semantic signals (monochrome: tone = luminance steps) ── */
+  --color-signal: oklch(0.97 0 0);
+  --color-signal-ink: oklch(0.1 0 0);
+  --color-signal-glow: oklch(1 0 0 / 0.35);
+  --color-amber: oklch(0.72 0 0);
+  --color-vermilion: oklch(0.85 0 0);
+  --color-vermilion-glow: oklch(1 0 0 / 0.45);
 
   --color-ring: var(--color-signal);
 
@@ -74,8 +74,8 @@
   background: oklch(0.22 0.02 70 / 0.34);
 }
 .light ::selection {
-  background: var(--color-signal-glow);
-  color: var(--color-ink);
+  background: oklch(0.2 0 0 / 0.9);
+  color: oklch(1 0 0);
 }
 
 @layer base {
@@ -297,6 +297,138 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+/* ═══ Game-menu nav (monochrome) ═══
+   Corner brackets + one-shot light sweep + staggered entrance.
+   Pure transform/opacity — compositor only. */
+
+.game-nav-item {
+  --i: 0;
+  position: relative;
+  isolation: isolate;
+  animation: nav-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i) * 45ms);
+}
+/* corner brackets on hover/active */
+.game-nav-item::before,
+.game-nav-item::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+.game-nav-item::before {
+  border-left: 1.5px solid currentColor;
+  border-top: 1.5px solid currentColor;
+  border-top-left-radius: 13px;
+  clip-path: polygon(0 0, 55% 0, 55% 28%, 28% 28%, 28% 100%, 0 100%);
+}
+.game-nav-item::after {
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  border-bottom-right-radius: 13px;
+  clip-path: polygon(100% 100%, 45% 100%, 45% 72%, 72% 72%, 72% 0, 100% 0);
+}
+.game-nav-item:hover::before,
+.game-nav-item:hover::after,
+.game-nav-item.is-active::before,
+.game-nav-item.is-active::after {
+  opacity: 0.9;
+}
+/* one-shot sweep */
+.game-nav-item .game-sweep {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.game-nav-item .game-sweep > i {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  width: 34%;
+  left: -60%;
+  background: linear-gradient(
+    105deg,
+    transparent,
+    oklch(1 0 0 / 0.16),
+    transparent
+  );
+  transform: skewX(-14deg);
+}
+.game-nav-item:hover .game-sweep > i,
+.game-nav-item.is-active .game-sweep > i {
+  animation: sweep-x 0.55s ease-out both;
+}
+/* active triangle marker (game cursor) */
+.game-marker {
+  position: absolute;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-block: 5px solid transparent;
+  border-left: 7px solid currentColor;
+  transform: translateY(-50%);
+  filter: drop-shadow(0 0 4px var(--color-signal-glow));
+}
+
+@keyframes sweep-x {
+  from { left: -60%; }
+  to   { left: 130%; }
+}
+@keyframes nav-in {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Game frame: panel with cut corners + drawn-in edge lines ── */
+.game-frame {
+  position: relative;
+}
+.game-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--color-hairline), var(--color-hairline)) top left /
+      26px 1.5px,
+    linear-gradient(var(--color-hairline), var(--color-hairline)) top left / 1.5px
+      26px,
+    linear-gradient(var(--color-hairline), var(--color-hairline)) top right /
+      26px 1.5px,
+    linear-gradient(var(--color-hairline), var(--color-hairline)) top right / 1.5px
+      26px,
+    linear-gradient(var(--color-hairline), var(--color-hairline)) bottom left /
+      26px 1.5px,
+    linear-gradient(var(--color-hairline), var(--color-hairline)) bottom left /
+      1.5px 26px,
+    linear-gradient(var(--color-hairline), var(--color-hairline)) bottom right /
+      26px 1.5px,
+    linear-gradient(var(--color-hairline), var(--color-hairline)) bottom right /
+      1.5px 26px;
+  background-repeat: no-repeat;
+}
+
+/* ── Mobile lightness (<md): cheaper blur, shorter animations ── */
+@media (max-width: 767px) {
+  .glass {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .game-nav-item {
+    animation-duration: 0.25s;
+    animation-delay: calc(var(--i) * 18ms);
+  }
+  .scan-line::after,
+  .animate-shimmer {
+    display: none;
   }
 }
 

@@ -12,11 +12,14 @@ import { AmbientCanvas } from "./ambient-canvas";
 
 export type SignalTone = "signal" | "amber" | "vermilion";
 
-/** sRGB triplets for the three semantic signals (matches globals.css). */
+/**
+ * sRGB triplets for the three semantic signals — MONOCHROME build:
+ * tone is expressed as luminance/intensity, not hue (black & white theme).
+ */
 export const SIGNAL_RGB: Record<SignalTone, [number, number, number]> = {
-  signal: [0.42, 1.0, 0.52],
-  amber: [1.0, 0.76, 0.28],
-  vermilion: [1.0, 0.34, 0.28],
+  signal: [0.92, 0.94, 0.96], // nominal — near-white
+  amber: [0.62, 0.64, 0.68], // warn — mid grey
+  vermilion: [0.78, 0.8, 0.84], // danger — bright flash grey
 };
 
 export interface AmbientState {

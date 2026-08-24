@@ -67,6 +67,19 @@ export function AmbientCanvas({
     const mount = mountRef.current;
     if (!mount) return;
 
+    // Lightness gate: skip the WebGL layer entirely on small/coarse/data-saver
+    // devices — the static CSS fallback below stays. Desktop keeps the haze.
+    const nav = navigator as Navigator & {
+      connection?: { saveData?: boolean; deviceMemory?: number };
+      deviceMemory?: number;
+    };
+    const lightDevice =
+      window.matchMedia("(max-width: 767px)").matches ||
+      window.matchMedia("(pointer: coarse)").matches ||
+      nav.connection?.saveData === true ||
+      (nav.deviceMemory ?? 8) <= 4;
+    if (lightDevice) return;
+
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({

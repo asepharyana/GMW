@@ -87,7 +87,7 @@ export function DashboardView({
   return (
     <div className="space-y-5">
       {/* Hero */}
-      <GlassPanel glow className="relative overflow-hidden">
+      <GlassPanel glow className="game-frame relative overflow-hidden">
         <div className="scan-line absolute inset-x-0 top-0" />
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>

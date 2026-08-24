@@ -9,30 +9,37 @@ function NavItem({
   label,
   active,
   Icon,
+  index,
 }: {
   href: string;
   label: string;
   active: boolean;
   Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  index: number;
 }) {
   return (
     <a
       href={href}
       aria-label={label}
       aria-current={active ? "page" : undefined}
+      style={{ "--i": index } as React.CSSProperties}
       className={cn(
-        "group relative flex size-11 items-center justify-center rounded-[13px] transition-all",
+        "game-nav-item group flex size-11 items-center justify-center rounded-[13px] transition-colors",
         active
-          ? "bg-signal/15 text-signal"
+          ? "is-active bg-white/10 text-white"
           : "text-ink-faint hover:bg-white/5 hover:text-ink-soft",
       )}
     >
-      {active && (
-        <span className="absolute -left-3 h-6 w-1 rounded-full bg-signal shadow-[0_0_12px_var(--color-signal-glow)]" />
-      )}
-      <Icon className="size-[18px]" strokeWidth={active ? 2.4 : 2} />
+      {active && <span className="game-marker -left-3.5" />}
+      <span className="game-sweep" aria-hidden="true">
+        <i />
+      </span>
+      <Icon
+        className="relative z-10 size-[18px]"
+        strokeWidth={active ? 2.4 : 2}
+      />
       {/* hover tooltip — labels are hidden in the rail, so surface on hover */}
-      <span className="pointer-events-none absolute left-full z-50 ml-3 hidden whitespace-nowrap rounded-[9px] border border-hairline bg-canvas-2 px-2.5 py-1.5 text-xs font-medium text-ink-soft opacity-0 shadow-lg transition-opacity group-hover:opacity-100 md:block">
+      <span className="pointer-events-none absolute left-full z-50 ml-3 hidden whitespace-nowrap rounded-[9px] border border-hairline bg-canvas-2 px-2.5 py-1.5 font-mono text-xs font-medium text-ink-soft opacity-0 shadow-lg transition-opacity group-hover:opacity-100 md:block">
         {label}
       </span>
     </a>
@@ -46,11 +53,12 @@ export function NavRail() {
   return (
     <nav className="glass mb-[calc(0.75rem+env(safe-area-inset-bottom))] ml-[calc(0.75rem+env(safe-area-inset-left))] mt-[calc(0.75rem+env(safe-area-inset-top))] hidden w-[68px] flex-col items-center gap-1 rounded-[18px] py-4 md:flex">
       <div className="flex flex-1 flex-col gap-1">
-        {navItems.map((item) => (
+        {navItems.map((item, i) => (
           <NavItem
             key={item.href}
             href={item.href}
             label={item.label}
+            index={i}
             active={isActivePath(path, item.matchPrefix)}
             Icon={item.icon}
           />
