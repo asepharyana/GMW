@@ -219,6 +219,25 @@ export function MessagesView({
 
   return (
     <div className="space-y-4">
+      {/* Tactical HUD Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
+        <div className="flex items-center gap-3">
+          <div className="relative flex size-3 items-center justify-center">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-signal opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-signal" />
+          </div>
+          <h1 className="font-mono text-xs font-semibold tracking-widest text-ink uppercase">
+            CHAT LOG STREAM · SCAN_01
+          </h1>
+        </div>
+        <div className="inline-flex items-center gap-1.5 rounded-sm bg-surface px-2 py-0.5 font-mono text-[11px] text-ink-soft">
+          <span className="text-ink-faint">FEED:</span>
+          <span className="font-bold text-signal">
+            {searching ? "SEARCH" : viewMode.toUpperCase()}
+          </span>
+        </div>
+      </div>
+
       <GlassPanel className="flex flex-wrap items-center gap-3">
         <GuildChannelPicker
           mode="text"
@@ -372,7 +391,7 @@ export function MessagesView({
               )}
               <div
                 ref={scrollRef}
-                className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1"
+                className="scan-line max-h-[60vh] space-y-1.5 overflow-y-auto pr-1"
                 onScroll={(e) => {
                   const el = e.currentTarget;
                   // Track whether the user is near the bottom (to follow live
