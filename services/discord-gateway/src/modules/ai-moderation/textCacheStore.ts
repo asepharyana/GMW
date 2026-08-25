@@ -665,6 +665,55 @@ export async function findSimilarTextModeration(
 }
 
 /**
+ * Upsert a bare (context-free) clean verdict to the Qdrant vector store,
+ * making global-reuse clean verdicts discoverable by semantic search.
+ *
+ * Why: the main `setCachedTextModeration` writes bare-key rows to Postgres
+ * with embedding=null (deliberate — no duplicate PG embedding column), but
+ * a bare clean verdict that never reaches Qdrant is invisible to
+ * searchQdrantBatch. So two messages with identical clean content in
+ * DIFFERENT channels never match semantically — the semantic hit-rate is
+ * capped below the exact-cache hit-rate. This helper shares the embedding
+ * already computed at lookup time so the bare point is semantically
+ * findable.
+ *
+ * Guard: only non-actionable clean verdicts qualify (same guard as the
+ * read path and as the orchestrator's bare-key write-back). No-op when
+ * Qdrant is disabled or no embedding is available.
+ */
+export async function upsertBareKeyToQdrant(
+  bareKey: string,
+  result: {
+    status: string;
+    flags: string[];
+    score: number;
+    analysis: string;
+    categories: string[];
+    severity: string;
+    confidence: number;
+    recommendedAction: string;
+  },
+  embedding: number[] | null | undefined,
+): Promise<void> {
+  if (!isQdrantConfigured() || !embedding || embedding.length === 0) return;
+  if (!isGloballyReusableCleanVerdict(result, undefined)) return;
+  const now = Date.now();
+  const USER_MOD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+  await upsertQdrantPoint(bareKey, embedding, {
+    text: bareKey,
+    flags: JSON.stringify(result),
+    analyzed_at: now,
+    expires_at: now + USER_MOD_CACHE_TTL_MS,
+    content_hash: bareKey.split(":").pop() ?? "",
+  }).catch((err: unknown) => {
+    logger.error(
+      { error: err instanceof Error ? err.message : String(err), bareKey },
+      "Failed to upsert bare-key clean verdict to Qdrant",
+    );
+  });
+}
+
+/**
  * Store a moderation result for a (user, content) pair.
  * The `flags` field stores the full result object as JSON.
  * `embedding` (optional) is stored for semantic near-duplicate lookups.

@@ -33,6 +33,7 @@ import {
   parseQdrantVerdict,
   type StoredModerationVerdict,
   setCachedTextModeration,
+  upsertBareKeyToQdrant,
 } from "./textCacheStore.js";
 
 const log = createChildLogger("moderationOrchestrator");
@@ -318,6 +319,7 @@ export async function runModerationAnalysis(
             };
             cacheHits.push(hit);
             hitByKey.set(cacheKey, hit);
+            servedCacheKeys.add(cacheKey); // bump hit_count for metrics
             logCacheEvent("hit", cacheKey, "text");
           }
         } else {
@@ -356,6 +358,7 @@ export async function runModerationAnalysis(
             };
             cacheHits.push(hit);
             hitByKey.set(cacheKey, hit);
+            servedCacheKeys.add(cacheKey); // bump hit_count for metrics
             logCacheEvent("hit", cacheKey, "text");
           }
         }
@@ -383,6 +386,7 @@ export async function runModerationAnalysis(
         cacheHits: cacheHits.length,
         uncached: uncachedTargets.length,
         total: targets.length,
+        servedKeys: servedCacheKeys.size,
       },
       "User moderation cache applied",
     );
@@ -463,9 +467,14 @@ export async function runModerationAnalysis(
     // WITH conversation context (accurate), but its verdict is also stored
     // under the context-free bare key so repeats in OTHER channels hit the
     // exact cache instead of paying a new LLM call. Same guard as the read
-    // path — only non-actionable clean verdicts may cross channels. No
-    // embedding on the bare row: the semantic tier is already global, and
-    // writing one would create a duplicate Qdrant point for this content.
+    // path — only non-actionable clean verdicts may cross channels.
+    //
+    // 2026-08-25 cache-hit fix: the bare key is ALSO upserted to Qdrant
+    // (via upsertBareKeyToQdrant) with the SAME embedding already computed
+    // at lookup time. Previously the bare key was only PG-written with
+    // embedding=null — bare clean verdicts were DB-only and invisible to
+    // searchQdrantBatch, capping the semantic hit-rate below the exact-cache
+    // hit-rate for cross-channel repeats.
     const bareKey = makeTextModerationCacheKey(rawContent);
     if (
       bareKey !== cacheKey &&
@@ -486,6 +495,10 @@ export async function runModerationAnalysis(
     ) {
       globalBareKeysWritten.set(bareKey, true);
       setCachedTextModeration(bareKey, stored, null).catch(() => {});
+      const bareEmbedding = embeddingsByKey.get(cacheKey);
+      if (bareEmbedding && bareEmbedding.length > 0) {
+        upsertBareKeyToQdrant(bareKey, stored, bareEmbedding).catch(() => {});
+      }
     }
   }
 

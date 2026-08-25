@@ -145,10 +145,10 @@ describe("isGloballyReusableCleanVerdict", () => {
   });
 
   it("rejects entries older than the freshness window", () => {
-    // Default AI_CACHE_GLOBAL_REUSE_MAX_AGE_H = 72h.
-    const tooOld = Date.now() - 73 * 60 * 60 * 1000;
+    // Default AI_CACHE_GLOBAL_REUSE_MAX_AGE_H = 120h.
+    const tooOld = Date.now() - 121 * 60 * 60 * 1000;
     expect(isGloballyReusableCleanVerdict(makeVerdict(), tooOld)).toBe(false);
-    const freshEnough = Date.now() - 71 * 60 * 60 * 1000;
+    const freshEnough = Date.now() - 119 * 60 * 60 * 1000;
     expect(isGloballyReusableCleanVerdict(makeVerdict(), freshEnough)).toBe(
       true,
     );
