@@ -1,46 +1,49 @@
 "use client";
 
 import {
-  Activity,
-  Flag,
+  AudioWaveform,
+  ChevronRight,
+  Flame,
   MessageSquare,
   Mic,
-  Radio,
+  Shield,
   ShieldAlert,
+  Terminal,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import { AreaActivity, RadialGauge } from "@/components/charts";
 import { GlassPanel } from "@/components/primitives";
 import {
   ErrorState,
-  LoadingState,
+  PageTransition,
   SkeletonHero,
   SkeletonMetricRow,
   SkeletonPanel,
 } from "@/components/shared";
-import { MetricTile, SectionHeader } from "@/components/shared/section";
-import {
-  useActivity,
-  useStats,
-  useTopReactions,
-  useTopReactors,
-} from "@/hooks";
+import { useActivity, useStats, useTopReactions } from "@/hooks";
+import { useStaggerReveal } from "@/hooks/use-gsap-animation";
 import { formatNumber } from "@/lib/format";
 import type { DashboardStats } from "@/lib/types";
-import { staggerDelay } from "@/lib/utils";
 
 function deriveSignal(stats?: DashboardStats) {
-  if (!stats) return { tone: "signal" as const, label: "nominal" };
+  if (!stats)
+    return { tone: "signal" as const, label: "NOMINAL", state: "STABLE" };
   const total = stats.total_flagged + stats.total_clean || 1;
   const ratio = stats.total_flagged / total;
   if (stats.moderation_overview.error > 0)
-    return { tone: "vermilion" as const, label: "moderation fault" };
+    return { tone: "vermilion" as const, label: "FAULT", state: "MOD_ERR" };
   if (ratio > 0.25)
-    return { tone: "vermilion" as const, label: "elevated flags" };
-  if (ratio > 0.1) return { tone: "amber" as const, label: "watch" };
-  return { tone: "signal" as const, label: "nominal" };
+    return {
+      tone: "vermilion" as const,
+      label: "ELEVATED",
+      state: "HIGH_RISK",
+    };
+  if (ratio > 0.1)
+    return { tone: "amber" as const, label: "WATCH", state: "ADVISORY" };
+  return { tone: "signal" as const, label: "NOMINAL", state: "OPTIMAL" };
 }
 
 export function DashboardView({
@@ -57,9 +60,14 @@ export function DashboardView({
     mutate: mutateStats,
   } = useStats(initialStats);
   const { data: activity } = useActivity(14, initialActivity as never);
-  const { data: reactors } = useTopReactors();
   const { data: reactions } = useTopReactions();
   const ambient = useAmbient();
+
+  const hudRef = useStaggerReveal<HTMLDivElement>(".hud-tile", {
+    stagger: 0.05,
+    y: 16,
+    dependencies: [stats],
+  });
 
   useEffect(() => {
     const s = deriveSignal(stats);
@@ -78,16 +86,12 @@ export function DashboardView({
         <SkeletonHero />
         <SkeletonMetricRow cols={4} />
         <SkeletonPanel rows={5} />
-        <div className="grid gap-5 lg:grid-cols-5">
-          <SkeletonPanel className="lg:col-span-3" rows={4} />
-          <SkeletonPanel className="lg:col-span-2" rows={4} />
-        </div>
       </div>
     );
   if (!stats)
     return (
       <ErrorState
-        error={error ?? new Error("No data")}
+        error={error ?? new Error("No telemetry stream")}
         onRetry={() => void mutateStats()}
       />
     );
@@ -95,286 +99,278 @@ export function DashboardView({
   const s = stats;
   const total = s.total_flagged + s.total_clean || 1;
   const cleanRatio = s.total_clean / total;
+  const sig = deriveSignal(s);
 
   return (
-    <div className="space-y-5">
-      {/* Hero */}
-      <GlassPanel glow className="game-frame relative overflow-hidden">
-        <div className="scan-line absolute inset-x-0 top-0" />
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <div className="eyebrow mb-2">GMW · Operations Grid</div>
-            <h2 className="display hero-clamp leading-none text-ink glow-signal">
-              Ambient Field
-            </h2>
-            <p className="mt-2 max-w-md text-pretty text-sm text-ink-soft">
-              Real-time moderation, voice & media presence across the monitored
-              guild. {formatNumber(s.total_messages)} messages captured.
-            </p>
+    <PageTransition>
+      <div ref={hudRef} className="space-y-4">
+        {/* Tactical HUD Header Bar */}
+        <div className="hud-tile flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
+          <div className="flex items-center gap-3">
+            <div className="relative flex size-3 items-center justify-center">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-signal opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-signal" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <h1 className="font-mono text-xs font-semibold tracking-widest text-ink uppercase">
+                GMW TELEMETRY · MATRIX_01
+              </h1>
+              <span className="font-mono text-[10px] text-ink-faint">
+                [LIVE_MONITOR]
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-ink-soft">
-            <Radio className="size-4 text-signal animate-breathe" />
-            <span className="mono text-xs uppercase tracking-wider">
-              {deriveSignal(s).label}
-            </span>
+
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-sm bg-surface px-2 py-0.5 font-mono text-[11px] text-ink-soft">
+              <span className="text-ink-faint">SYS_STATUS:</span>
+              <span className="font-bold text-signal">{sig.state}</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 rounded-sm bg-surface px-2 py-0.5 font-mono text-[11px] text-ink-soft">
+              <span className="text-ink-faint">VER:</span>
+              <span className="text-ink">v2.4-GSAP</span>
+            </div>
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <MetricTile
-            label="Messages"
-            value={formatNumber(s.total_messages)}
-            tone="signal"
-            icon={<MessageSquare className="size-3.5" />}
-            className="animate-stagger"
-            style={staggerDelay(0)}
-          />
-          <MetricTile
-            label="Flagged"
-            value={formatNumber(s.total_flagged)}
-            tone={s.total_flagged > 0 ? "vermilion" : "neutral"}
-            hint={`${s.today_flagged} today`}
-            className="animate-stagger"
-            style={staggerDelay(1)}
-          />
-          <MetricTile
-            label="Active 24h"
-            value={formatNumber(s.active_users_24h)}
-            tone="signal"
-            icon={<Users className="size-3.5" />}
-            className="animate-stagger"
-            style={staggerDelay(2)}
-          />
-          <MetricTile
-            label="Voice clips"
-            value={formatNumber(s.total_voice_recordings)}
-            icon={<Mic className="size-3.5" />}
-            className="animate-stagger"
-            style={staggerDelay(3)}
-          />
-        </div>
-      </GlassPanel>
-
-      {/* Activity */}
-      <GlassPanel>
-        <SectionHeader
-          eyebrow="14-day signal"
-          title={
-            <span className="flex items-center gap-2">
-              <Activity className="size-4 text-signal" /> Activity & moderation
-            </span>
-          }
-          action={
-            <div className="flex items-center gap-3 text-xs text-ink-soft">
-              <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-signal" /> messages
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-vermilion" /> flagged
-              </span>
-            </div>
-          }
-        />
-        {activity ? (
-          <AreaActivity daily={activity.daily} />
-        ) : (
-          <LoadingState label="streaming" />
-        )}
-      </GlassPanel>
-
-      {/* Two-column: channels + moderation */}
-      <div className="grid gap-5 lg:grid-cols-5">
-        <GlassPanel className="lg:col-span-3">
-          <SectionHeader eyebrow="throughput" title="Top channels" />
-          <div className="space-y-2.5">
-            {s.top_channels.slice(0, 7).map((c) => {
-              const pct =
-                (c.message_count / (s.top_channels[0]?.message_count || 1)) *
-                100;
-              return (
-                <div key={c.channel_id} className="flex items-center gap-3">
-                  <span className="w-28 shrink-0 truncate text-sm text-ink-soft sm:w-40">
-                    {c.channel_name ?? c.channel_id.slice(0, 8)}
+        {/* Spatial HUD Grid: Live Mission Control */}
+        <div className="grid gap-4 lg:grid-cols-12">
+          {/* Main Telemetry & Activity Area */}
+          <div className="space-y-4 lg:col-span-8">
+            {/* Primary Telemetry Cluster */}
+            <div className="hud-tile grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              <div className="group relative overflow-hidden rounded-md border border-hairline bg-surface/50 p-3.5 backdrop-blur-md transition-colors hover:border-signal/40">
+                <div className="flex items-center justify-between text-ink-faint">
+                  <span className="font-mono text-[10px] tracking-wider uppercase">
+                    Messages
                   </span>
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/8">
-                    <div
-                      className="h-full rounded-full bg-signal/70"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <span className="mono w-14 text-right text-xs text-ink-faint">
-                    {formatNumber(c.message_count)}
-                  </span>
+                  <MessageSquare className="size-3.5 text-signal" />
                 </div>
-              );
-            })}
-          </div>
-        </GlassPanel>
-
-        <GlassPanel className="lg:col-span-2">
-          <SectionHeader eyebrow="trust" title="Moderation" />
-          <div className="flex items-center gap-5">
-            <RadialGauge
-              value={cleanRatio}
-              tone={
-                cleanRatio > 0.8
-                  ? "signal"
-                  : cleanRatio > 0.6
-                    ? "amber"
-                    : "vermilion"
-              }
-              label={`${Math.round(cleanRatio * 100)}%`}
-              sublabel="clean"
-            />
-            <div className="flex-1 space-y-2 text-sm">
-              <Row
-                icon={<ShieldAlert className="size-4 text-signal" />}
-                label="Clean"
-                value={formatNumber(s.total_clean)}
-              />
-              <Row
-                icon={<Flag className="size-4 text-vermilion" />}
-                label="Flagged"
-                value={formatNumber(s.total_flagged)}
-              />
-              <Row
-                icon={<Activity className="size-4 text-amber" />}
-                label="Warned"
-                value={formatNumber(s.total_warned)}
-              />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center justify-around border-t border-hairline pt-3 text-center">
-            <Mini
-              label="pending"
-              value={s.moderation_overview.pending}
-              tone="amber"
-            />
-            <Mini
-              label="processing"
-              value={s.moderation_overview.processing}
-              tone="signal"
-            />
-            <Mini
-              label="errors"
-              value={s.moderation_overview.error}
-              tone="vermilion"
-            />
-          </div>
-        </GlassPanel>
-      </div>
-
-      {/* Reactors + reactions */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <GlassPanel>
-          <SectionHeader eyebrow="engagement" title="Top reactors" />
-          <div className="space-y-2">
-            {(reactors ?? []).slice(0, 6).map((r, i) => {
-              const maxNet = reactors?.[0]?.net_count || 1;
-              const pct = Math.max(4, Math.round((r.net_count / maxNet) * 100));
-              return (
-                <div key={r.user_id} className="flex items-center gap-3">
-                  <span className="mono w-5 text-ink-faint">{i + 1}</span>
-                  <span className="w-28 shrink-0 truncate text-sm text-ink-soft sm:w-40">
-                    {r.username}
-                  </span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
-                    <div
-                      className="h-full rounded-full bg-signal/70"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <span className="mono w-12 text-right text-xs text-signal">
-                    +{formatNumber(r.net_count)}
-                  </span>
+                <div className="mt-2 font-mono text-xl font-bold tracking-tight text-ink">
+                  {formatNumber(s.total_messages)}
                 </div>
-              );
-            })}
-            {(reactors ?? []).length === 0 && <EmptyHint />}
-          </div>
-        </GlassPanel>
-
-        <GlassPanel>
-          <SectionHeader eyebrow="culture" title="Top reactions" />
-          <div className="space-y-3">
-            {(reactions ?? []).slice(0, 5).map((m) => (
-              <div key={m.message_id} className="flex items-start gap-3">
-                <div className="flex flex-wrap gap-1 pt-0.5">
-                  {m.top_emojis.slice(0, 3).map((e, i) => (
-                    <span
-                      key={`${m.message_id}-${i}`}
-                      className="text-lg leading-none"
-                    >
-                      {e.emoji}
-                    </span>
-                  ))}
+                <div className="mt-1 flex items-center gap-1 font-mono text-[10px] text-ink-faint">
+                  <span className="text-signal">↑ live</span> ingest
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm text-ink">
-                    {m.content || "(no text)"}
-                  </div>
-                  <div className="mono text-[0.65rem] text-ink-faint">
-                    {m.username} · {m.channel_name ?? m.channel_id.slice(0, 8)}
-                  </div>
-                </div>
-                <span className="mono text-xs text-ink-soft">
-                  {m.reaction_count}
-                </span>
               </div>
-            ))}
-            {(reactions ?? []).length === 0 && <EmptyHint />}
+
+              <div className="group relative overflow-hidden rounded-md border border-hairline bg-surface/50 p-3.5 backdrop-blur-md transition-colors hover:border-signal/40">
+                <div className="flex items-center justify-between text-ink-faint">
+                  <span className="font-mono text-[10px] tracking-wider uppercase">
+                    Flagged
+                  </span>
+                  <ShieldAlert className="size-3.5 text-vermilion" />
+                </div>
+                <div className="mt-2 font-mono text-xl font-bold tracking-tight text-ink">
+                  {formatNumber(s.total_flagged)}
+                </div>
+                <div className="mt-1 font-mono text-[10px] text-ink-faint">
+                  <span className="text-vermilion">{s.today_flagged}</span>{" "}
+                  today
+                </div>
+              </div>
+
+              <div className="group relative overflow-hidden rounded-md border border-hairline bg-surface/50 p-3.5 backdrop-blur-md transition-colors hover:border-signal/40">
+                <div className="flex items-center justify-between text-ink-faint">
+                  <span className="font-mono text-[10px] tracking-wider uppercase">
+                    Active 24h
+                  </span>
+                  <Users className="size-3.5 text-signal" />
+                </div>
+                <div className="mt-2 font-mono text-xl font-bold tracking-tight text-ink">
+                  {formatNumber(s.active_users_24h)}
+                </div>
+                <div className="mt-1 font-mono text-[10px] text-ink-faint">
+                  <span>unique accounts</span>
+                </div>
+              </div>
+
+              <div className="group relative overflow-hidden rounded-md border border-hairline bg-surface/50 p-3.5 backdrop-blur-md transition-colors hover:border-signal/40">
+                <div className="flex items-center justify-between text-ink-faint">
+                  <span className="font-mono text-[10px] tracking-wider uppercase">
+                    Voice Captures
+                  </span>
+                  <Mic className="size-3.5 text-signal" />
+                </div>
+                <div className="mt-2 font-mono text-xl font-bold tracking-tight text-ink">
+                  {formatNumber(s.total_voice_recordings)}
+                </div>
+                <div className="mt-1 font-mono text-[10px] text-ink-faint">
+                  <span>audio buffers</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Activity Waveform / Time Series */}
+            <GlassPanel className="hud-tile rounded-md border border-hairline bg-surface/40 p-4 backdrop-blur-md">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <div className="font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+                    CHRONO TELEMETRY (14D)
+                  </div>
+                  <div className="text-sm font-medium text-ink">
+                    Message & Activity Stream
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 font-mono text-[11px]">
+                  <div className="flex items-center gap-1 text-ink-soft">
+                    <span className="size-2 rounded-full bg-signal" />
+                    <span>Activity Trend</span>
+                  </div>
+                </div>
+              </div>
+              <div className="h-56 w-full">
+                {activity?.daily ? (
+                  <AreaActivity daily={activity.daily} />
+                ) : (
+                  <div className="flex h-full items-center justify-center font-mono text-xs text-ink-faint">
+                    ACQUIRING SIGNAL...
+                  </div>
+                )}
+              </div>
+            </GlassPanel>
+
+            {/* Quick Tactical Links */}
+            <div className="hud-tile grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+              <Link
+                href="/voice"
+                className="group flex items-center justify-between rounded-md border border-hairline bg-surface/30 p-3 transition hover:border-signal/50 hover:bg-surface/60"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="flex size-8 items-center justify-center rounded bg-canvas-2 text-signal group-hover:bg-signal group-hover:text-signal-ink">
+                    <AudioWaveform className="size-4" />
+                  </div>
+                  <div>
+                    <div className="font-mono text-xs font-semibold text-ink">
+                      Voice Matrix
+                    </div>
+                    <div className="text-[11px] text-ink-faint">
+                      Realtime speaker stream
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="size-4 text-ink-faint group-hover:text-signal" />
+              </Link>
+
+              <Link
+                href="/messages"
+                className="group flex items-center justify-between rounded-md border border-hairline bg-surface/30 p-3 transition hover:border-signal/50 hover:bg-surface/60"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="flex size-8 items-center justify-center rounded bg-canvas-2 text-signal group-hover:bg-signal group-hover:text-signal-ink">
+                    <Terminal className="size-4" />
+                  </div>
+                  <div>
+                    <div className="font-mono text-xs font-semibold text-ink">
+                      Chat Log Stream
+                    </div>
+                    <div className="text-[11px] text-ink-faint">
+                      Live telemetry feed
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="size-4 text-ink-faint group-hover:text-signal" />
+              </Link>
+
+              <Link
+                href="/moderation"
+                className="group flex items-center justify-between rounded-md border border-hairline bg-surface/30 p-3 transition hover:border-signal/50 hover:bg-surface/60"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="flex size-8 items-center justify-center rounded bg-canvas-2 text-signal group-hover:bg-signal group-hover:text-signal-ink">
+                    <Shield className="size-4" />
+                  </div>
+                  <div>
+                    <div className="font-mono text-xs font-semibold text-ink">
+                      Auto-Mod Radar
+                    </div>
+                    <div className="text-[11px] text-ink-faint">
+                      Classification & audits
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="size-4 text-ink-faint group-hover:text-signal" />
+              </Link>
+            </div>
           </div>
-        </GlassPanel>
+
+          {/* Side Telemetry Panel: Health, Dials, & Nodes */}
+          <div className="space-y-4 lg:col-span-4">
+            {/* Safety & Moderation Integrity Gauge */}
+            <GlassPanel className="hud-tile rounded-md border border-hairline bg-surface/40 p-4 backdrop-blur-md">
+              <div className="font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+                INTEGRITY MATRIX
+              </div>
+              <div className="mt-1 text-sm font-medium text-ink">
+                Clean Stream Ratio
+              </div>
+              <div className="my-4 flex items-center justify-center">
+                <RadialGauge
+                  value={Math.round(cleanRatio * 100)}
+                  size={140}
+                  tone={cleanRatio > 0.9 ? "signal" : "amber"}
+                  label={`${Math.round(cleanRatio * 100)}%`}
+                  sublabel="CLEAN RATIO"
+                />
+              </div>
+              <div className="space-y-2 border-t border-hairline pt-3 font-mono text-xs">
+                <div className="flex justify-between">
+                  <span className="text-ink-faint">Clean Messages:</span>
+                  <span className="font-medium text-ink">
+                    {formatNumber(s.total_clean)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink-faint">Pending Flags:</span>
+                  <span className="font-medium text-vermilion">
+                    {formatNumber(s.total_flagged)}
+                  </span>
+                </div>
+              </div>
+            </GlassPanel>
+
+            {/* Top Reacted Messages / Emitters */}
+            <GlassPanel className="hud-tile rounded-md border border-hairline bg-surface/40 p-4 backdrop-blur-md">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+                    FREQUENT EMITTERS
+                  </div>
+                  <div className="text-sm font-medium text-ink">
+                    Top Reacted Messages
+                  </div>
+                </div>
+                <Flame className="size-4 text-amber" />
+              </div>
+
+              <div className="mt-3 space-y-2">
+                {reactions && reactions.length > 0 ? (
+                  reactions.slice(0, 4).map((r) => (
+                    <div
+                      key={r.message_id}
+                      className="flex items-center justify-between rounded bg-surface/30 px-2.5 py-1.5 font-mono text-xs"
+                    >
+                      <span className="max-w-[150px] truncate text-ink-soft">
+                        {r.username ? `@${r.username}` : "anonymous"}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-ink-faint">reacts:</span>
+                        <span className="font-bold text-signal">
+                          {r.reaction_count}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-4 text-center font-mono text-xs text-ink-faint">
+                    NO EMITTER TELEMETRY
+                  </div>
+                )}
+              </div>
+            </GlassPanel>
+          </div>
+        </div>
       </div>
-    </div>
-  );
-}
-
-function Row({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center gap-2.5">
-      {icon}
-      <span className="flex-1 text-ink-soft">{label}</span>
-      <span className="mono text-ink">{value}</span>
-    </div>
-  );
-}
-
-function Mini({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "signal" | "amber" | "vermilion";
-}) {
-  const color =
-    tone === "vermilion"
-      ? "text-vermilion"
-      : tone === "amber"
-        ? "text-amber"
-        : "text-signal";
-  return (
-    <div>
-      <div className={`display text-xl ${color}`}>{value}</div>
-      <div className="eyebrow mt-0.5">{label}</div>
-    </div>
-  );
-}
-
-function EmptyHint() {
-  return (
-    <div className="py-6 text-center text-xs text-ink-faint">
-      Awaiting data…
-    </div>
+    </PageTransition>
   );
 }
