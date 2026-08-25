@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "@/components/primitives";
 import { WsConnection } from "./connection";
 import type { PcmChunk, WsEventHandler, WsEventType, WsStatus } from "./types";
 
@@ -29,16 +30,6 @@ interface WsContextValue {
 
 const WsContext = createContext<WsContextValue | null>(null);
 
-/** FNV-1a 32-bit hash matching the backend's hashUserId function */
-function _hashUserId(userId: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < userId.length; i++) {
-    hash ^= userId.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
-}
-
 export function WsProvider({
   children,
   url,
@@ -48,6 +39,9 @@ export function WsProvider({
 }) {
   const connRef = useRef<WsConnection | null>(null);
   const [status, setStatus] = useState<WsStatus>("disconnected");
+  // Tracks whether we've ever been connected — used to suppress the
+  // "reconnecting" toast on initial page load.
+  const wasConnected = useRef(false);
 
   // Event handler registry — Ref so listeners survive re-renders without reconnect
   // Using unknown as internal store; typed at the subscribe interface
@@ -85,7 +79,31 @@ export function WsProvider({
     const conn = new WsConnection(url);
     connRef.current = conn;
 
-    const unsubStatus = conn.onStatusChange(setStatus);
+    const unsubStatus = conn.onStatusChange((s) => {
+      setStatus(s);
+      // User feedback on WS lifecycle transitions.
+      if (s === "connecting") {
+        // Only toast if we were previously connected (i.e. a disconnect,
+        // not the initial connect on page load).
+        if (wasConnected.current) {
+          toast({
+            title: "Reconnecting…",
+            description: "WebSocket connection lost. Attempting to reconnect.",
+            tone: "neutral",
+          });
+        }
+        wasConnected.current = false;
+      } else if (s === "connected") {
+        wasConnected.current = true;
+      } else if (s === "error" && !wasConnected.current) {
+        toast({
+          title: "Connection error",
+          description:
+            "WebSocket failed to connect. Retrying in the background.",
+          tone: "vermilion",
+        });
+      }
+    });
     const unsubEvent = conn.onEvent((event) => {
       if (event.type === "text") {
         handleJsonEvent(event.data);

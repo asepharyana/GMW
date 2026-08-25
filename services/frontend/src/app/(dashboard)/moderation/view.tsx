@@ -81,7 +81,12 @@ export function ModerationView({
   initialStats?: ModerationStats;
   initialActions?: ModerationAction[];
 }) {
-  const { data: stats, isLoading, error } = useModerationStats(initialStats);
+  const {
+    data: stats,
+    isLoading,
+    error,
+    mutate: mutateStats,
+  } = useModerationStats(initialStats);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("");
   const { data: actions } = useModerationActions(
@@ -122,7 +127,8 @@ export function ModerationView({
     );
   }, [failedRate, ambient]);
 
-  if (error && !stats) return <ErrorState error={error} />;
+  if (error && !stats)
+    return <ErrorState error={error} onRetry={() => void mutateStats()} />;
   if (!stats && isLoading)
     return (
       <div className="space-y-5">
@@ -131,7 +137,13 @@ export function ModerationView({
         <SkeletonRows rows={6} />
       </div>
     );
-  if (!stats) return <ErrorState error={error ?? new Error("No data")} />;
+  if (!stats)
+    return (
+      <ErrorState
+        error={error ?? new Error("No data")}
+        onRetry={() => void mutateStats()}
+      />
+    );
 
   const statusOpts: SelectOption[] = [
     { value: "", label: "All statuses" },

@@ -50,7 +50,12 @@ export function DashboardView({
   initialStats?: DashboardStats;
   initialActivity?: Awaited<ReturnType<typeof useActivity>>["data"];
 }) {
-  const { data: stats, isLoading, error } = useStats(initialStats);
+  const {
+    data: stats,
+    isLoading,
+    error,
+    mutate: mutateStats,
+  } = useStats(initialStats);
   const { data: activity } = useActivity(14, initialActivity as never);
   const { data: reactors } = useTopReactors();
   const { data: reactions } = useTopReactions();
@@ -65,7 +70,8 @@ export function DashboardView({
     );
   }, [stats, ambient]);
 
-  if (error && !stats) return <ErrorState error={error} />;
+  if (error && !stats)
+    return <ErrorState error={error} onRetry={() => void mutateStats()} />;
   if (!stats && isLoading)
     return (
       <div className="space-y-5">
@@ -78,7 +84,13 @@ export function DashboardView({
         </div>
       </div>
     );
-  if (!stats) return <ErrorState error={error ?? new Error("No data")} />;
+  if (!stats)
+    return (
+      <ErrorState
+        error={error ?? new Error("No data")}
+        onRetry={() => void mutateStats()}
+      />
+    );
 
   const s = stats;
   const total = s.total_flagged + s.total_clean || 1;

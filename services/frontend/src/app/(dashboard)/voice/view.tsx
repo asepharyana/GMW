@@ -40,7 +40,12 @@ export function VoiceView({
   initialGuilds?: Guild[];
 }) {
   const ws = useWebSocket();
-  const { data: status, isLoading, error } = useVoiceStatus(initialStatus);
+  const {
+    data: status,
+    isLoading,
+    error,
+    mutate,
+  } = useVoiceStatus(initialStatus);
   const connect = useVoiceConnect();
   const disconnect = useVoiceDisconnect();
   const mic = useMicTransmit(ws);
@@ -68,7 +73,8 @@ export function VoiceView({
     else ambient.set("vermilion", 0.35, "voice idle");
   }, [status?.connected, ambient]);
 
-  if (error && !status) return <ErrorState error={error} />;
+  if (error && !status)
+    return <ErrorState error={error} onRetry={() => void mutate()} />;
   if (!status && isLoading)
     return (
       <div className="space-y-5">
