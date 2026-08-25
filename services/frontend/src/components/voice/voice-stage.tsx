@@ -16,6 +16,10 @@ export function VoiceStage({ speakers }: { speakers: ActiveSpeaker[] }) {
   const n = speakers.length;
   const speaking = speakers.filter((s) => s.speaking).length;
   const live = speaking > 0;
+  const speakingIds = speakers
+    .filter((s) => s.speaking)
+    .map((s) => s.userId)
+    .join(",");
 
   useGSAP(
     () => {
@@ -37,6 +41,37 @@ export function VoiceStage({ speakers }: { speakers: ActiveSpeaker[] }) {
       }
     },
     { scope: containerRef, dependencies: [speakers.length] },
+  );
+
+  // Reactive pulse ring loop keyed to active speaking set — cleared on stop.
+  useGSAP(
+    () => {
+      if (!containerRef.current) return;
+      const prefersReduced = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      if (prefersReduced) return;
+
+      const ringNodes = containerRef.current.querySelectorAll(
+        ".speaker-pulse-ring",
+      );
+      if (ringNodes.length === 0) return;
+
+      const tl = gsap.timeline({ repeat: -1, yoyo: true });
+      tl.to(ringNodes, {
+        scale: 1.18,
+        opacity: 0.35,
+        duration: 0.55,
+        ease: "sine.inOut",
+        stagger: { each: 0.08, from: "random" },
+      });
+
+      return () => {
+        tl.kill();
+        gsap.set(ringNodes, { clearProps: "scale,opacity" });
+      };
+    },
+    { scope: containerRef, dependencies: [speakingIds] },
   );
 
   return (
@@ -91,7 +126,7 @@ export function VoiceStage({ speakers }: { speakers: ActiveSpeaker[] }) {
                   ring={s.speaking}
                 />
                 {s.speaking && (
-                  <span className="absolute -inset-1 rounded-full ring-2 ring-signal ring-offset-2 ring-offset-canvas animate-pulse-ring" />
+                  <span className="speaker-pulse-ring absolute -inset-1 rounded-full ring-2 ring-signal ring-offset-2 ring-offset-canvas" />
                 )}
               </span>
               <span className="font-mono max-w-[100px] truncate rounded-md border border-hairline bg-canvas-2/90 px-2 py-0.5 text-[10px] font-semibold text-ink shadow-md backdrop-blur-md">

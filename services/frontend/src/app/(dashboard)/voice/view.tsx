@@ -29,6 +29,7 @@ import {
   useVoiceListen,
   useVoiceStatus,
 } from "@/hooks";
+import { useStaggerReveal } from "@/hooks/use-gsap-animation";
 import type { Guild, VoiceStatus } from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
 
@@ -62,6 +63,12 @@ export function VoiceView({
   const [micOn, setMicOn] = useState(false);
   const [micVol, setMicVol] = useState(100);
   const [listenVol, setListenVol] = useState(75);
+
+  const hudRef = useStaggerReveal<HTMLDivElement>(".hud-tile", {
+    stagger: 0.06,
+    y: 14,
+    dependencies: [status],
+  });
 
   useEffect(() => {
     const unsub = subscribe(ws);
@@ -124,8 +131,37 @@ export function VoiceView({
   };
 
   return (
-    <div className="space-y-5">
-      <GlassPanel>
+    <div ref={hudRef} className="space-y-4">
+      {/* Tactical HUD Header Bar */}
+      <div className="hud-tile flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
+        <div className="flex items-center gap-3">
+          <div className="relative flex size-3 items-center justify-center">
+            <span
+              className={`absolute inline-flex size-full rounded-full opacity-75 ${
+                connected ? "animate-ping bg-signal" : "bg-vermilion"
+              }`}
+            />
+            <span
+              className={`relative inline-flex size-2 rounded-full ${
+                connected ? "bg-signal" : "bg-vermilion"
+              }`}
+            />
+          </div>
+          <h1 className="font-mono text-xs font-semibold tracking-widest text-ink uppercase">
+            VOICE MATRIX · LIVE_LINK
+          </h1>
+        </div>
+        <div className="inline-flex items-center gap-1.5 rounded-sm bg-surface px-2 py-0.5 font-mono text-[11px] text-ink-soft">
+          <span className="text-ink-faint">LINK:</span>
+          <span
+            className={`font-bold ${connected ? "text-signal" : "text-vermilion"}`}
+          >
+            {connected ? "ESTABLISHED" : "STANDBY"}
+          </span>
+        </div>
+      </div>
+
+      <GlassPanel className="hud-tile">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <GuildChannelPicker
             mode="voice"
@@ -238,10 +274,10 @@ export function VoiceView({
         </div>
       </GlassPanel>
 
-      <div className="grid gap-5 lg:grid-cols-3">
-        <GlassPanel className="lg:col-span-2">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <GlassPanel className="hud-tile lg:col-span-2">
           <SectionHeader
-            eyebrow="stage"
+            eyebrow="stage · radar"
             title="Live speakers"
             action={
               <span className="mono text-xs text-ink-faint">
@@ -283,7 +319,7 @@ export function VoiceView({
           )}
         </GlassPanel>
 
-        <GlassPanel>
+        <GlassPanel className="hud-tile">
           <SectionHeader eyebrow="links" title="Connections" />
           <div className="space-y-2">
             {(status?.connections ?? []).map((c) => (
