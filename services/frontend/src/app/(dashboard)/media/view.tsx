@@ -33,7 +33,12 @@ import { useWebSocket } from "@/lib/ws/context";
 
 export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
   const ws = useWebSocket();
-  const { data: media, isLoading, error } = useMediaState(initialStatus);
+  const {
+    data: media,
+    isLoading,
+    error,
+    mutate,
+  } = useMediaState(initialStatus);
   const queue = useMediaQueue();
   const skip = useMediaSkip();
   const stop = useMediaStop();
@@ -79,7 +84,8 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
     }
   };
 
-  if (error && !media) return <ErrorState error={error} />;
+  if (error && !media)
+    return <ErrorState error={error} onRetry={() => void mutate()} />;
   if (!media && isLoading)
     return (
       <div className="space-y-5">

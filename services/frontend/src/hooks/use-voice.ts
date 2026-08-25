@@ -4,19 +4,13 @@ import { useAction } from "@/hooks/use-action";
 import { voiceApi } from "@/lib/api";
 import { MicTransmitter } from "@/lib/audio/mic-transmit";
 import { PcmPlayer } from "@/lib/audio/pcm-player";
+import { hashUserId } from "@/lib/hash";
 import type { ActiveSpeaker, Channel, VoiceStatus } from "@/lib/types";
 import type { PcmChunk } from "@/lib/ws/types";
 import type { WsHook } from "@/lib/ws-hook";
 
-/** FNV-1a 32-bit — same hash the gateway uses to tag PCM frames. */
-export function hashUserId(userId: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < userId.length; i++) {
-    hash ^= userId.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
-}
+// Re-export for components that still import hashUserId from this module.
+export { hashUserId };
 
 const STATUS_KEY = ["voice-status"] as const;
 
@@ -34,6 +28,8 @@ export function useVoiceChannels(guildId: string) {
   );
 }
 
+const SPEAKERS_KEY = ["voice-speakers"] as const;
+
 /**
  * Live shared speaker state.
  *
@@ -44,48 +40,66 @@ export function useVoiceChannels(guildId: string) {
  *    every client with the same list);
  *  - `voice_active_user` → incremental upsert of a single speaker delta.
  *
+ * Now backed by SWR (consistent with all other hooks) so cache, revalidation,
+ * and deduping apply. WS events mutate the SWR cache directly
+ * ({ revalidate: false }) to avoid refetching the full status.
+ *
  * This replaces the old per-browser model where each tab accumulated speakers
  * only from events it happened to receive while mounted.
  */
 export function useSpeakers(initialStatusActive?: ActiveSpeaker[]) {
-  const [speakers, setSpeakers] = useState<ActiveSpeaker[]>(
-    initialStatusActive ?? [],
+  const {
+    data: speakers,
+    error,
+    mutate,
+    isValidating,
+  } = useSWR<ActiveSpeaker[]>(SPEAKERS_KEY, () => Promise.resolve([]), {
+    fallbackData: initialStatusActive ?? [],
+    revalidateOnMount: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
+
+  const subscribe = useCallback(
+    (ws: WsHook) => {
+      const unsubSnapshot = ws.on("voice_state", (data) => {
+        const state = data as { activeSpeakers?: ActiveSpeaker[] };
+        if (Array.isArray(state?.activeSpeakers)) {
+          void mutate(state.activeSpeakers, { revalidate: false });
+        }
+      });
+      const unsub = ws.on("voice_active_user", (data) => {
+        const speaker = data as ActiveSpeaker;
+        void mutate(
+          (prev: ActiveSpeaker[] | undefined) => {
+            const arr = prev ?? [];
+            const idx = arr.findIndex((s) => s.userId === speaker.userId);
+            if (idx >= 0) {
+              const next = [...arr];
+              next[idx] = speaker;
+              return next;
+            }
+            return [...arr, speaker];
+          },
+          { revalidate: false },
+        );
+      });
+      return () => {
+        unsubSnapshot();
+        unsub();
+      };
+    },
+    [mutate],
   );
 
-  const subscribe = useCallback((ws: WsHook) => {
-    const unsubSnapshot = ws.on("voice_state", (data) => {
-      const state = data as { activeSpeakers?: ActiveSpeaker[] };
-      if (Array.isArray(state?.activeSpeakers)) {
-        setSpeakers(state.activeSpeakers);
-      }
-    });
-    const unsub = ws.on("voice_active_user", (data) => {
-      const speaker = data as ActiveSpeaker;
-      setSpeakers((prev) => {
-        const idx = prev.findIndex((s) => s.userId === speaker.userId);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = speaker;
-          return next;
-        }
-        return [...prev, speaker];
-      });
-    });
-    return () => {
-      unsubSnapshot();
-      unsub();
-      setSpeakers([]);
-    };
-  }, []);
-
-  return { speakers, subscribe };
+  return { speakers: speakers ?? [], subscribe, error, isValidating };
 }
 
 function useStatusInvalidator() {
   const { mutate } = useSWRConfig();
-  return () => {
+  return useCallback(() => {
     void mutate(STATUS_KEY);
-  };
+  }, [mutate]);
 }
 
 export function useVoiceConnect() {

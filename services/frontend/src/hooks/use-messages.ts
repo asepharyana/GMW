@@ -124,19 +124,41 @@ export function useImages(guildId: string) {
   );
 }
 
-// ── Review ───────────────────────────────────────
+// ── Review ────────────────────────────────────────
+// WS-driven now (was: refreshInterval:15000 polling). The backend broadcasts
+// `moderation_action` events over WS whenever a moderation action is created;
+// the review list is revalidated on that event instead of polling.
 
 export function useReview(channelId?: string) {
+  const key = msgKeys.review(channelId);
   return useSWR<MessageRecord[]>(
-    msgKeys.review(channelId),
+    key,
     async () => {
       const result = await messagesApi.getReview(50, channelId || undefined);
       return result.results;
     },
     {
-      refreshInterval: 15_000,
+      revalidateOnFocus: true,
+      // No more polling — WS sync handles real-time updates.
     },
   );
+}
+
+/**
+ * Subscribe to WS `moderation_action` events and invalidate the review
+ * SWR cache. Replaces the old 15-second polling interval that caused
+ * duplicate requests and race conditions with WS updates.
+ */
+export function useReviewWsSync(ws: WsHook, channelId?: string) {
+  const { mutate } = useSWRConfig();
+  const key = msgKeys.review(channelId);
+
+  useEffect(() => {
+    const unsub = ws.on("moderation_action", () => {
+      void mutate(key, undefined, { revalidate: true });
+    });
+    return unsub;
+  }, [ws, key, mutate]);
 }
 
 // ── Detail ───────────────────────────────────────
@@ -168,7 +190,11 @@ export function useMessageDetail(id: string | null) {
     message: detail.data ?? null,
     attachments: attachments.data ?? [],
     loading: detail.isLoading || attachments.isLoading,
-    error: detail.error,
+    error: detail.error ?? attachments.error,
+    refetch: () => {
+      void detail.mutate();
+      void attachments.mutate();
+    },
   };
 }
 
@@ -216,7 +242,7 @@ export function useMessagesWsSync(ws: WsHook, guildId: string) {
   const { mutate } = useSWRConfig();
   useEffect(() => {
     if (!guildId) return;
-    // Patch every message-list key for this guild (all channels + "**filtered**").
+    // Patch every message-list key for this guild (all channels + "__all__").
     // The updater receives the SWR key so we can honor its channel filter:
     // a live `message_created`/updated for channel B must NOT be prepended to
     // a list that is filtered down to channel A.
@@ -255,13 +281,13 @@ export function useMessagesWsSync(ws: WsHook, guildId: string) {
     });
     const unsub2 = ws.on("message_updated", (data) => {
       const msg = data as Partial<MessageRecord> & { id: string };
-      // The gateway broadcasts a PARTIAL update ({ id, edited_content,
-      // edited_at, ... }) — merge it over the existing record instead of
-      // replacing it, or the card would lose username/content/channel/etc.
+      // The gateway broadcasts a PARTIAL update ({ id } plus the changed fields
+      // — merge it over the existing record instead of replacing it, or the
+      // card would lose username/content/channel/etc.
       patchLists(
         (_k, m) =>
           (m as Partial<MessageRecord>).channel_id === undefined ||
-          matchesFilter(_k as unknown[], m),
+          matchesFilter(_k as unknown[], m as { channel_id?: string }),
         (old) =>
           old
             ? {
@@ -271,7 +297,7 @@ export function useMessagesWsSync(ws: WsHook, guildId: string) {
                 ),
               }
             : old,
-        msg,
+        msg as { channel_id?: string },
       );
       void mutate(
         msgKeys.detail(msg.id),
@@ -321,7 +347,7 @@ export function useMessagesWsSync(ws: WsHook, guildId: string) {
  * `message_snapshot` into the SWR list as it arrives, so the UI renders
  * progressively. Falls back to the batched `messagesApi.list` if WS is down.
  *
- * Returns: { streaming, streamed, error }.
+ * Returns: { streaming, error }.
  */
 export function useMessagesStream(
   ws: WsHook,
@@ -414,3 +440,5 @@ export function useRecentEdits(
     { fallbackData: initialData },
   );
 }
+
+export { msgKeys };

@@ -39,6 +39,7 @@ import {
   useMessagesStream,
   useMessagesWsSync,
   useRecentEdits,
+  useReviewWsSync,
   useSemanticSearch,
 } from "@/hooks";
 import { aiTone } from "@/lib/ai-status";
@@ -94,6 +95,7 @@ export function MessagesView({
     data: messages,
     isLoading,
     error,
+    refetch,
   } = useMessages(
     guildId ?? "",
     channelId ?? undefined,
@@ -112,6 +114,7 @@ export function MessagesView({
   const hasMore = pageInfo?.hasMore ?? false;
   const loadMore = useLoadMore();
   useMessagesWsSync(ws, guildId ?? "");
+  useReviewWsSync(ws);
   const search = useMessageSearch(
     query,
     query.trim().length >= 2 && !semanticMode,
@@ -326,7 +329,7 @@ export function MessagesView({
             }
           />
           {error && !messages ? (
-            <ErrorState error={error} />
+            <ErrorState error={error} onRetry={() => refetch()} />
           ) : isLoading && !messages ? (
             <SkeletonRows rows={8} />
           ) : list.length === 0 ? (

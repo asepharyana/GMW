@@ -33,7 +33,7 @@ export function RecordingsView({
   initialItems?: VoiceRecording[];
 }) {
   const ws = useWebSocket();
-  const { data: items, isLoading, error } = useRecordings(initialItems);
+  const { data: items, isLoading, error, mutate } = useRecordings(initialItems);
   const del = useDeleteRecording();
   useRecordingsWsSync(ws);
   const ambient = useAmbient();
@@ -56,7 +56,8 @@ export function RecordingsView({
     }
   };
 
-  if (error && !items) return <ErrorState error={error} />;
+  if (error && !items)
+    return <ErrorState error={error} onRetry={() => void mutate()} />;
   if (!items && isLoading)
     return (
       <GlassPanel>

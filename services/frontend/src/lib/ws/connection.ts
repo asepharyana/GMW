@@ -37,6 +37,11 @@ export class WsConnection {
     return this._status;
   }
 
+  /** Current reconnect attempt count (0 = connected/first attempt). */
+  get reconnectAttemptCount(): number {
+    return this.reconnectAttempt;
+  }
+
   onStatusChange(listener: (status: WsStatus) => void): () => void {
     this.statusListeners.push(listener);
     return () => {
