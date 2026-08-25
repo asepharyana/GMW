@@ -29,7 +29,12 @@ const orpc: ORPCClient = (() => {
     basePath: "trpc",
   });
 
-  const link = new RPCLink({ websocket: socket });
+  const link = new RPCLink({
+    websocket: socket as unknown as Pick<
+      WebSocket,
+      "addEventListener" | "readyState" | "removeEventListener" | "send"
+    >,
+  });
   return createORPCClient(link) as unknown as ORPCClient;
 })();
 

@@ -126,7 +126,7 @@ export class WsConnection {
 
   sendBinary(data: ArrayBufferLike): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(data);
+      this.ws.send(data as ArrayBuffer);
     }
   }
 
