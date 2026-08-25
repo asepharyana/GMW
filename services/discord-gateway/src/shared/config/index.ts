@@ -150,7 +150,7 @@ export const configSchema = z
       .string()
       .url()
       .default("https://9router.asepharyana.my.id/v1"),
-    AI_LLM_MODEL: z.string().default("claude-opus-5"),
+    AI_LLM_MODEL: z.string().default("text"),
     // Vision uses the SAME router/base URL as text moderation
     // (AI_LLM_BASE_URL) but a different model alias. The dedicated NVIDIA
     // multimodal endpoint was removed.
