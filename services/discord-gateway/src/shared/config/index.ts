@@ -254,6 +254,12 @@ export const configSchema = z
       .positive()
       .default(10000),
     AI_ANALYSIS_ERROR_COOLDOWN_MS: z.coerce.number().positive().default(30000),
+    // Upload-pending batch poll (2026-08-25): when a batch is deferred because
+    // attachments are still uploading, the processor re-schedules with this
+    // base delay (linear ramp per consecutive poll, capped) instead of the
+    // 250ms debounce — the old path hot-looped ~300ms for the whole upload.
+    AI_ANALYSIS_UPLOAD_POLL_MS: z.coerce.number().positive().default(1500),
+    AI_ANALYSIS_MAX_UPLOAD_POLL_MS: z.coerce.number().positive().default(8000),
 
     // ── AI Analysis Batch ───────────────────────────────────────────────
     AI_ANALYSIS_MAX_BATCH_SIZE: z.coerce.number().int().positive().default(200),

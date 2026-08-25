@@ -93,6 +93,12 @@ type BatchOkResponse = {
   ok: true;
   conversationKey: string;
   rows: MessageRecord[];
+  /**
+   * Race-guard signal (2026-08-25): target ids whose attachment upload is
+   * still in-flight — NO analysis ran for them. The processor must defer
+   * these (requeue + poll), never fan them out as failures.
+   */
+  uploadPendingIds?: string[];
 };
 type BatchErrorResponse = {
   ok: false;
@@ -319,7 +325,16 @@ async function processBatch(job: {
       ? messages
       : messages.filter((m) => !pendingUploadTargetIds.has(m.id));
   if (readyMessages.length === 0) {
-    return { ok: true, conversationKey, rows: [] };
+    // Explicit signal (2026-08-25): every target is still upload-pending.
+    // Returning bare {ok:true, rows:[]} made the processor classify all of
+    // them "incomplete" and fan out to the individual queue — a hot ~300ms
+    // requeue loop for the whole upload duration.
+    return {
+      ok: true,
+      conversationKey,
+      rows: [],
+      uploadPendingIds: messages.map((m) => m.id),
+    };
   }
 
   // The orchestrator handles text/media split + caching + parallel paths
