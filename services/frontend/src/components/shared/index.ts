@@ -1,8 +1,8 @@
+export { ErrorBoundary } from "./error-boundary";
 export { GuildChannelPicker } from "./guild-picker";
 export { MarkdownLite } from "./markdown";
 export { PageTransition } from "./page-transition";
 export { MetricTile, SectionHeader } from "./section";
-export { ErrorBoundary } from "./error-boundary";
 export {
   EmptyState,
   ErrorState,
