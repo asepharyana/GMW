@@ -1,5 +1,7 @@
 "use client";
 
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
 import {
   AlertTriangle,
   Ban,
@@ -13,7 +15,7 @@ import {
   UserX,
   XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import { CategoryDrilldown } from "@/components/CategoryDrilldown";
 import { CoverageTiles } from "@/components/CoverageTiles";
@@ -57,6 +59,10 @@ import type {
   ModerationStats,
 } from "@/lib/types";
 import { staggerDelay } from "@/lib/utils";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(useGSAP);
+}
 
 const ACTION_ICON: Record<ModerationActionType, React.ReactNode> = {
   delete_message: <Trash2 className="size-3.5" />,
@@ -127,6 +133,32 @@ export function ModerationView({
     );
   }, [failedRate, ambient]);
 
+  // Alert-priority HUD: a GSAP pulse loop on the inverted mono badge when
+  // there is anything pending review — cleared up when the queue empties.
+  const alertRef = useRef<HTMLDivElement>(null);
+  const pendingCount = stats?.pending ?? 0;
+  useGSAP(
+    () => {
+      if (!alertRef.current || pendingCount <= 0) return;
+      const prefersReduced = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      if (prefersReduced) return;
+      const tl = gsap.timeline({ repeat: -1, yoyo: true });
+      tl.to(alertRef.current, {
+        opacity: 0.45,
+        duration: 0.7,
+        ease: "sine.inOut",
+      });
+      return () => {
+        tl.kill();
+        if (alertRef.current)
+          gsap.set(alertRef.current, { clearProps: "opacity" });
+      };
+    },
+    { scope: alertRef, dependencies: [pendingCount] },
+  );
+
   if (error && !stats)
     return <ErrorState error={error} onRetry={() => void mutateStats()} />;
   if (!stats && isLoading)
@@ -160,7 +192,39 @@ export function ModerationView({
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      {/* Alert-priority HUD header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
+        <div className="flex items-center gap-3">
+          <div className="relative flex size-3 items-center justify-center">
+            <span
+              className={`absolute inline-flex size-full rounded-full opacity-75 ${
+                pendingCount > 0 ? "animate-ping bg-ink" : "bg-signal"
+              }`}
+            />
+            <span
+              className={`relative inline-flex size-2 rounded-full ${
+                pendingCount > 0 ? "bg-ink" : "bg-signal"
+              }`}
+            />
+          </div>
+          <h1 className="font-mono text-xs font-semibold tracking-widest text-ink uppercase">
+            AUTO-MOD RADAR · ALERT_QUEUE
+          </h1>
+        </div>
+        <div
+          ref={alertRef}
+          className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[11px] font-bold uppercase ${
+            pendingCount > 0
+              ? "border border-ink bg-ink text-canvas"
+              : "bg-surface text-ink-soft"
+          }`}
+        >
+          <span>{pendingCount > 0 ? "PENDING" : "QUEUE CLEAR"}</span>
+          {pendingCount > 0 && <span>· {pendingCount}</span>}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <MetricTile
           label="Total actions"
