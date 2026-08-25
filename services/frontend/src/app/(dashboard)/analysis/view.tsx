@@ -1,7 +1,9 @@
 "use client";
 
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
 import { Hash, Search, Sparkles, TrendingUp } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import { Avatar, Badge, GlassPanel, Input } from "@/components/primitives";
 import { EmptyState, SectionHeader, SkeletonRows } from "@/components/shared";
@@ -13,12 +15,19 @@ import {
   renderMessageContent,
 } from "@/lib/format";
 
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(useGSAP);
+}
+
 export function AnalysisView() {
   const [query, setQuery] = useState("");
   const search = useMessageSearch(query, query.trim().length >= 2);
   const { data: reactors } = useTopReactors();
   const { data: channels } = useChannels();
   const ambient = useAmbient();
+
+  const reactorsRef = useRef<HTMLDivElement>(null);
+  const channelsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     ambient.set(
@@ -28,8 +37,96 @@ export function AnalysisView() {
     );
   }, [query, ambient]);
 
+  // Count-up + bar-fill reveal for the reactor leaderboard — HUD gauge motif.
+  useGSAP(
+    () => {
+      if (!reactorsRef.current) return;
+      const bars = reactorsRef.current.querySelectorAll(".reactor-bar-fill");
+      const counters = reactorsRef.current.querySelectorAll(".reactor-count");
+      if (bars.length === 0) return;
+      const prefersReduced = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      if (prefersReduced) {
+        gsap.set(bars, { scaleX: 1 });
+        return;
+      }
+      gsap.fromTo(
+        bars,
+        { scaleX: 0 },
+        {
+          scaleX: 1,
+          duration: 0.7,
+          stagger: 0.06,
+          ease: "power2.out",
+          transformOrigin: "left center",
+        },
+      );
+      counters.forEach((el) => {
+        const target = Number(el.getAttribute("data-target") ?? "0");
+        const obj = { val: 0 };
+        gsap.to(obj, {
+          val: target,
+          duration: 0.8,
+          ease: "power2.out",
+          onUpdate: () => {
+            el.textContent = `+${Math.round(obj.val)}`;
+          },
+        });
+      });
+    },
+    { scope: reactorsRef, dependencies: [reactors] },
+  );
+
+  useGSAP(
+    () => {
+      if (!channelsRef.current) return;
+      const rows = channelsRef.current.querySelectorAll(".channel-row");
+      if (rows.length === 0) return;
+      const prefersReduced = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      if (prefersReduced) {
+        gsap.set(rows, { opacity: 1, x: 0 });
+        return;
+      }
+      gsap.fromTo(
+        rows,
+        { opacity: 0, x: -10 },
+        {
+          opacity: 1,
+          x: 0,
+          duration: 0.35,
+          stagger: 0.04,
+          ease: "power2.out",
+          clearProps: "transform",
+        },
+      );
+    },
+    { scope: channelsRef, dependencies: [channels] },
+  );
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      {/* Tactical HUD Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
+        <div className="flex items-center gap-3">
+          <div className="relative flex size-3 items-center justify-center">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-signal opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-signal" />
+          </div>
+          <h1 className="font-mono text-xs font-semibold tracking-widest text-ink uppercase">
+            ANALYSIS ENGINE · DEEP_SCAN
+          </h1>
+        </div>
+        <div className="inline-flex items-center gap-1.5 rounded-sm bg-surface px-2 py-0.5 font-mono text-[11px] text-ink-soft">
+          <span className="text-ink-faint">MODE:</span>
+          <span className="font-bold text-signal">
+            {query.trim().length >= 2 ? "SEARCHING" : "IDLE"}
+          </span>
+        </div>
+      </div>
+
       <GlassPanel glow className="relative overflow-hidden">
         <div className="scan-line absolute inset-x-0 top-0" />
         <div className="flex items-center gap-3">
@@ -123,7 +220,7 @@ export function AnalysisView() {
                 </span>
               }
             />
-            <div className="space-y-2">
+            <div ref={reactorsRef} className="space-y-2">
               {(reactors ?? []).slice(0, 6).map((r, i) => {
                 const maxNet = reactors?.[0]?.net_count || 1;
                 const pct = Math.max(
@@ -141,12 +238,15 @@ export function AnalysisView() {
                     </span>
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
                       <div
-                        className="h-full rounded-full bg-signal/70"
+                        className="reactor-bar-fill h-full rounded-full bg-signal/70"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <span className="mono w-12 text-right text-xs text-signal">
-                      +{r.net_count}
+                    <span
+                      className="reactor-count mono w-12 text-right text-xs text-signal"
+                      data-target={r.net_count}
+                    >
+                      +0
                     </span>
                   </div>
                 );
@@ -168,11 +268,11 @@ export function AnalysisView() {
                 </span>
               }
             />
-            <div className="space-y-2">
+            <div ref={channelsRef} className="space-y-2">
               {(channels ?? []).slice(0, 6).map((c) => (
                 <div
                   key={c.channel_id}
-                  className="flex items-center gap-3 text-sm"
+                  className="channel-row flex items-center gap-3 text-sm"
                 >
                   <span className="flex-1 truncate text-ink-soft">
                     {c.channel_name ?? c.channel_id.slice(0, 8)}
