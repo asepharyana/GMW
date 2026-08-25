@@ -2,19 +2,23 @@
 
 import {
   Bot,
-  Check,
-  Copy,
-  MessageCircle,
-  RotateCw,
+  MessageSquare,
+  Send,
   Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
 import { Avatar, Button, GlassPanel, toast } from "@/components/primitives";
 import { MarkdownLite } from "@/components/shared";
 import { useChatbotUserId } from "@/hooks/use-chatbot-user";
 import { chatbotApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(useGSAP);
+}
 
 interface Msg {
   id: string;
@@ -34,31 +38,26 @@ function formatTime(ts: number): string {
   }
 }
 
-function TypingDots() {
-  return (
-    <div className="flex items-center gap-1 py-1">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="size-1.5 rounded-full bg-ink-faint animate-bounce"
-          style={{ animationDelay: `${i * 0.15}s`, animationDuration: "0.9s" }}
-        />
-      ))}
-    </div>
-  );
-}
-
 export function Chatbot() {
   const userId = useChatbotUserId();
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  const taRef = useRef<HTMLTextAreaElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      if (!open || !panelRef.current) return;
+      gsap.fromTo(
+        panelRef.current,
+        { opacity: 0, y: 12, scale: 0.98 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.22, ease: "power2.out" },
+      );
+    },
+    { dependencies: [open] },
+  );
 
   useEffect(() => {
     if (!open || !userId) return;
@@ -85,44 +84,12 @@ export function Chatbot() {
       .catch(() => {});
   }, [open, userId]);
 
-  // Auto-scroll to newest whenever the thread or typing state changes.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll must fire on thread/typing changes even though the body only reads the ref
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [msgs, loading, open]);
-
-  // Auto-grow the composer.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: height recompute is keyed to input changes; body only reads the textarea element
-  useEffect(() => {
-    const ta = taRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
-  }, [input]);
-
-  const copy = async (id: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedId(id);
-      window.setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1200);
-    } catch {
-      /* clipboard unavailable */
-    }
-  };
-
-  const clearAll = async () => {
-    if (!userId) return;
-    setMsgs([]);
-    try {
-      await chatbotApi.clearHistory(userId);
-    } catch {
-      /* best-effort */
-    }
-  };
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs, loading]);
 
   const send = async (text: string) => {
     if (!text.trim() || loading || !userId) return;
-    setFailed(null);
     setInput("");
     setMsgs((m) => [
       ...m,
@@ -141,10 +108,19 @@ export function Chatbot() {
         },
       ]);
     } catch (e) {
-      setFailed(text);
       toast({ title: "Chat error", description: String(e), tone: "vermilion" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const clearAll = async () => {
+    if (!userId) return;
+    setMsgs([]);
+    try {
+      await chatbotApi.clearHistory(userId);
+    } catch {
+      /* best-effort */
     }
   };
 
@@ -154,159 +130,94 @@ export function Chatbot() {
         type="button"
         aria-label="Open assistant"
         onClick={() => setOpen((o) => !o)}
-        className="fixed right-4 bottom-24 z-50 flex items-center justify-center rounded-full bg-signal text-signal-ink shadow-[0_10px_30px_-8px_var(--color-signal-glow)] transition-transform hover:scale-105 md:right-5 md:bottom-5"
-        style={{ width: 52, height: 52 }}
+        className="fixed right-4 bottom-5 z-50 flex size-10 items-center justify-center rounded-full border border-white/[0.12] bg-[#0f1011] text-[#f7f8f8] shadow-2xl transition-all duration-150 hover:scale-105 hover:border-[#7170ff] hover:bg-[#191a1b]"
       >
-        {open ? <X className="size-5" /> : <MessageCircle className="size-5" />}
+        {open ? <X className="size-4" /> : <MessageSquare className="size-4 text-[#7170ff]" />}
       </button>
 
       {open && (
-        <GlassPanel
-          className="fixed right-4 bottom-24 z-50 flex w-[min(94vw,360px)] flex-col p-0 md:right-5 md:bottom-20"
-          style={{
-            animation: "fade-up 0.16s ease",
-            height: "min(68dvh, 520px)",
-          }}
+        <div
+          ref={panelRef}
+          className="fixed right-4 bottom-18 z-50 flex h-[min(65dvh,480px)] w-[min(92vw,350px)] flex-col rounded-[10px] border border-white/[0.08] bg-[#0f1011]/95 p-0 shadow-2xl backdrop-blur-xl"
         >
-          <div className="flex items-center gap-2 border-b border-hairline px-4 py-3">
-            <span className="flex size-8 items-center justify-center rounded-full bg-signal/15 text-signal">
-              <Bot className="size-4" />
-            </span>
-            <div>
-              <div className="text-sm font-semibold text-ink">
-                GMW Assistant
-              </div>
-              <div className="mono text-[0.6rem] text-ink-faint">
-                context-aware
+          <div className="flex items-center justify-between border-b border-white/[0.06] px-3.5 py-2.5">
+            <div className="flex items-center gap-2">
+              <span className="flex size-6 items-center justify-center rounded-md bg-[#7170ff]/15 text-[#7170ff]">
+                <Bot className="size-3.5" />
+              </span>
+              <div>
+                <div className="text-xs font-semibold text-[#f7f8f8]">
+                  Linear Assistant
+                </div>
+                <div className="font-mono text-[9px] text-[#62666d]">
+                  active context
+                </div>
               </div>
             </div>
             <button
               type="button"
-              aria-label="Clear conversation"
               onClick={clearAll}
-              className="ml-auto rounded-[9px] p-1.5 text-ink-faint transition-colors hover:bg-white/5 hover:text-ink-soft"
+              className="rounded-[5px] p-1 text-[#62666d] hover:bg-white/[0.05] hover:text-[#d0d6e0]"
             >
-              <Trash2 className="size-4" />
+              <Trash2 className="size-3.5" />
             </button>
           </div>
 
-          <div
-            ref={listRef}
-            className="flex-1 space-y-3 overflow-y-auto px-4 py-3"
-          >
+          <div className="flex-1 space-y-2.5 overflow-y-auto px-3.5 py-3">
             {msgs.length === 0 && !loading && (
-              <div className="py-8 text-center text-xs text-ink-faint">
-                Ask about moderation, voice, or media.
+              <div className="py-8 text-center text-xs text-[#62666d]">
+                Ask anything about telemetry, moderation, or media.
               </div>
             )}
             {msgs.map((m) => (
               <div
                 key={m.id}
                 className={cn(
-                  "group flex gap-2",
-                  m.role === "user" ? "justify-end" : "justify-start",
+                  "flex flex-col text-xs",
+                  m.role === "user" ? "items-end" : "items-start",
                 )}
               >
-                {m.role === "bot" && (
-                  <Avatar
-                    name="GMW"
-                    size={26}
-                    className="mt-0.5 bg-signal/15 text-signal"
-                  />
-                )}
-                <div className="flex max-w-[82%] flex-col">
-                  <div
-                    className={cn(
-                      "rounded-2xl px-3 py-2 text-sm",
-                      m.role === "user"
-                        ? "rounded-br-sm bg-signal/20 text-ink"
-                        : "rounded-bl-sm bg-white/5 text-ink-soft",
-                    )}
-                  >
-                    {m.role === "bot" ? (
-                      <MarkdownLite content={m.content} />
-                    ) : (
-                      <span className="whitespace-pre-wrap break-words">
-                        {m.content}
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    className={cn(
-                      "mt-0.5 flex items-center gap-1.5 text-[0.6rem] text-ink-faint",
-                      m.role === "user" && "flex-row-reverse",
-                    )}
-                  >
-                    <span className="mono">{formatTime(m.ts)}</span>
-                    <button
-                      type="button"
-                      aria-label="Copy message"
-                      onClick={() => copy(m.id, m.content)}
-                      className="rounded p-0.5 opacity-0 transition-opacity hover:text-ink-soft group-hover:opacity-100"
-                    >
-                      {copiedId === m.id ? (
-                        <Check className="size-3 text-signal" />
-                      ) : (
-                        <Copy className="size-3" />
-                      )}
-                    </button>
-                  </div>
+                <div
+                  className={cn(
+                    "max-w-[85%] rounded-[6px] px-2.5 py-1.5",
+                    m.role === "user"
+                      ? "bg-[#5e6ad2] text-white"
+                      : "border border-white/[0.06] bg-white/[0.03] text-[#d0d6e0]",
+                  )}
+                >
+                  {m.role === "bot" ? (
+                    <MarkdownLite content={m.content} />
+                  ) : (
+                    <span>{m.content}</span>
+                  )}
                 </div>
+                <span className="font-mono mt-0.5 text-[9px] text-[#62666d]">
+                  {formatTime(m.ts)}
+                </span>
               </div>
             ))}
-            {loading && (
-              <div className="flex gap-2">
-                <Avatar
-                  name="GMW"
-                  size={26}
-                  className="bg-signal/15 text-signal"
-                />
-                <div className="rounded-2xl rounded-bl-sm bg-white/5 px-3 py-2">
-                  <TypingDots />
-                </div>
-              </div>
-            )}
             <div ref={bottomRef} />
           </div>
 
-          {failed && (
-            <div className="mx-3 mb-1 flex items-center gap-2 rounded-[10px] border border-vermilion/30 bg-vermilion/10 px-3 py-1.5 text-xs text-vermilion">
-              <span className="flex-1 truncate">Send failed</span>
-              <button
-                type="button"
-                onClick={() => send(failed)}
-                className="inline-flex items-center gap-1 font-medium hover:underline"
-              >
-                <RotateCw className="size-3" /> Retry
-              </button>
-            </div>
-          )}
-
-          <div className="flex items-end gap-2 border-t border-hairline p-3">
-            <textarea
-              ref={taRef}
-              rows={1}
-              placeholder="Message…"
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              send(input);
+            }}
+            className="flex items-center gap-1.5 border-t border-white/[0.06] p-2"
+          >
+            <input
+              type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  send(input);
-                }
-              }}
-              className="max-h-[140px] min-h-[40px] flex-1 resize-none rounded-[11px] bg-white/5 border border-hairline px-3 py-2 text-sm text-ink placeholder:text-ink-faint transition-colors focus:outline-none focus:border-signal/50 focus:bg-white/8"
+              placeholder="Ask command..."
+              className="flex-1 rounded-[5px] border border-white/[0.08] bg-white/[0.02] px-2.5 py-1.5 text-xs text-[#f7f8f8] placeholder:text-[#62666d] focus:border-[#7170ff] focus:outline-none"
             />
-            <Button
-              variant="primary"
-              size="icon"
-              onClick={() => send(input)}
-              disabled={loading}
-            >
-              <MessageCircle className="size-4" />
+            <Button type="submit" size="sm" variant="primary">
+              <Send className="size-3" />
             </Button>
-          </div>
-        </GlassPanel>
+          </form>
+        </div>
       )}
     </>
   );

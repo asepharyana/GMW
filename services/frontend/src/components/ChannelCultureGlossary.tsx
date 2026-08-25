@@ -9,10 +9,6 @@ import { downloadCsv } from "@/lib/csv";
 import { formatRelativeTime } from "@/lib/format";
 import type { ChannelCultureRow } from "@/lib/types";
 
-/**
- * Deterministic pseudo signal-strength (0..1) derived from recency + summary
- * richness — purely cosmetic telemetry framing, no backend field for this.
- */
 function deriveSignalStrength(c: ChannelCultureRow): number {
   let score = 0.25;
   if (c.culture_summary) {
@@ -39,22 +35,17 @@ export function ChannelCultureGlossary({
     [cultures],
   );
 
-  const hudRef = useStaggerReveal<HTMLDivElement>(".channel-node", {
-    stagger: 0.045,
-    y: 14,
+  const containerRef = useStaggerReveal<HTMLDivElement>(".channel-row", {
+    stagger: 0.025,
+    y: 6,
     dependencies: [cultures],
   });
 
   return (
-    <GlassPanel className="lg:col-span-3">
+    <GlassPanel>
       <SectionHeader
-        eyebrow="knowledge · roster"
-        title={
-          <span className="flex items-center gap-2">
-            <Radio className="size-4 text-signal" />
-            Channel Culture Glossary
-          </span>
-        }
+        eyebrow="Roster Intelligence"
+        title="Channel Culture & Activity Roster"
         action={
           cultures.length > 0 ? (
             <button
@@ -69,7 +60,7 @@ export function ChannelCultureGlossary({
                   })),
                 )
               }
-              className="flex items-center gap-1.5 font-mono text-[11px] text-ink-soft hover:text-ink"
+              className="font-mono text-[11px] text-[#8a8f98] transition-colors hover:text-[#f7f8f8]"
             >
               EXPORT_CSV
             </button>
@@ -77,47 +68,31 @@ export function ChannelCultureGlossary({
         }
       />
       {cultures.length === 0 ? (
-        <p className="py-6 text-center font-mono text-xs text-ink-faint">
-          NO CHANNEL TELEMETRY CAPTURED YET
-        </p>
+        <div className="py-8 text-center font-mono text-xs text-[#8a8f98]">
+          NO CHANNELS LOGGED
+        </div>
       ) : (
-        <div ref={hudRef} className="space-y-2">
-          {ranked.map(({ c, signal }) => (
+        <div ref={containerRef} className="space-y-2 mt-3">
+          {ranked.map(({ c }) => (
             <div
               key={c.channel_id}
-              className="channel-node group relative overflow-hidden rounded-md border border-hairline bg-surface/40 p-3 backdrop-blur-md transition-colors hover:border-signal/40"
+              className="channel-row flex flex-col gap-1 rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-3 transition-all hover:border-white/[0.12] hover:bg-white/[0.04]"
             >
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="truncate font-mono text-xs font-semibold text-ink">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs font-semibold text-[#f7f8f8]">
                   #{c.channel_name ?? c.channel_id.slice(0, 8)}
                 </span>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Signal className="size-3 text-ink-faint" />
-                  {c.last_analyzed_at && (
-                    <span className="font-mono text-[10px] text-ink-faint">
-                      {formatRelativeTime(c.last_analyzed_at)}
-                    </span>
-                  )}
-                </div>
+                {c.last_analyzed_at && (
+                  <span className="font-mono text-[10px] text-[#8a8f98]">
+                    {formatRelativeTime(c.last_analyzed_at)}
+                  </span>
+                )}
               </div>
-
-              {c.culture_summary ? (
-                <p className="mt-1.5 line-clamp-2 text-[13px] text-ink-soft">
+              {c.culture_summary && (
+                <p className="font-sans text-xs text-[#8a8f98] leading-relaxed line-clamp-2">
                   {c.culture_summary}
                 </p>
-              ) : (
-                <span className="mt-1.5 block font-mono text-[11px] text-ink-faint">
-                  (no summary captured)
-                </span>
               )}
-
-              {/* Signal strength readout bar */}
-              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-canvas-2">
-                <div
-                  className="h-full rounded-full bg-signal transition-[width] duration-700 ease-out"
-                  style={{ width: `${Math.round(signal * 100)}%` }}
-                />
-              </div>
             </div>
           ))}
         </div>

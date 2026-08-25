@@ -1,500 +1,198 @@
 "use client";
 
-import { useGSAP } from "@gsap/react";
-import gsap from "gsap";
 import {
   AlertTriangle,
-  Ban,
   CheckCircle2,
-  Clock,
   Filter,
-  MessageSquareWarning,
-  MicOff,
+  Shield,
   ShieldAlert,
-  Trash2,
-  UserX,
-  XCircle,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
 import { useAmbient } from "@/components/ambient/ambient-context";
-import { CategoryDrilldown } from "@/components/CategoryDrilldown";
-import { CoverageTiles } from "@/components/CoverageTiles";
-import { Donut } from "@/components/charts";
 import { LiveModerationFeed } from "@/components/LiveModerationFeed";
 import { ModerationHeatmap } from "@/components/ModerationHeatmap";
-import {
-  Badge,
-  GlassPanel,
-  Select,
-  type SelectOption,
-} from "@/components/primitives";
-import { ScamDomains } from "@/components/ScamDomains";
+import { Button, GlassPanel } from "@/components/primitives";
 import {
   ErrorState,
   MetricTile,
+  PageTransition,
   SectionHeader,
   SkeletonMetricRow,
   SkeletonPanel,
-  SkeletonRows,
 } from "@/components/shared";
-import { TopChannels } from "@/components/TopChannels";
-import { TopicTrends } from "@/components/TopicTrends";
 import {
   useHourlyModeration,
-  useLiveModeration,
   useModerationActions,
-  useModerationByCategory,
   useModerationCoverage,
   useModerationStats,
   useModerationTrends,
-  useTopFlaggedChannels,
-  useTopFlaggedDomains,
 } from "@/hooks";
-import { aiTone } from "@/lib/ai-status";
-import { downloadCsv } from "@/lib/csv";
-import { formatNumber, formatRelativeTime } from "@/lib/format";
+import { useStaggerReveal } from "@/hooks/use-gsap-animation";
+import { formatNumber } from "@/lib/format";
 import type {
   ModerationAction,
-  ModerationActionType,
+  ModerationCoverage,
   ModerationStats,
 } from "@/lib/types";
-import { staggerDelay } from "@/lib/utils";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(useGSAP);
 }
 
-const ACTION_ICON: Record<ModerationActionType, React.ReactNode> = {
-  delete_message: <Trash2 className="size-3.5" />,
-  mute_user: <MicOff className="size-3.5" />,
-  warn_user: <MessageSquareWarning className="size-3.5" />,
-  kick_user: <UserX className="size-3.5" />,
-  ban_user: <Ban className="size-3.5" />,
-};
-
-const ACTION_LABEL: Record<ModerationActionType, string> = {
-  delete_message: "Delete",
-  mute_user: "Mute",
-  warn_user: "Warn",
-  kick_user: "Kick",
-  ban_user: "Ban",
-};
-
 export function ModerationView({
   initialStats,
   initialActions,
+  initialCoverage,
 }: {
   initialStats?: ModerationStats;
   initialActions?: ModerationAction[];
+  initialCoverage?: ModerationCoverage;
 }) {
   const {
     data: stats,
     isLoading,
     error,
-    mutate: mutateStats,
+    mutate,
   } = useModerationStats(initialStats);
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [typeFilter, setTypeFilter] = useState<string>("");
   const { data: actions } = useModerationActions(
-    statusFilter || undefined,
-    typeFilter || undefined,
-    !statusFilter && !typeFilter ? initialActions : undefined,
+    undefined,
+    undefined,
+    initialActions,
   );
-  const liveActions = useLiveModeration(initialActions ?? [], 50);
-  const { data: trends } = useModerationTrends(30);
-  const { data: domains } = useTopFlaggedDomains(30);
-  const { data: channels } = useTopFlaggedChannels(30);
-  const { data: hourly } = useHourlyModeration(30);
+  const { data: hourly } = useHourlyModeration();
+  const { data: trends } = useModerationTrends(14);
   const { data: coverage } = useModerationCoverage(30);
-  const [drilldown, setDrilldown] = useState<string | null>(null);
-  const { data: categoryActions, isValidating: categoryLoading } =
-    useModerationByCategory(drilldown ? 30 : 0, drilldown);
-
-  const failedRate = stats ? stats.failed_rate * 100 : 0;
-
-  const byAction = stats?.by_action ?? {};
-  const segments = Object.entries(byAction).map(([k, _v]) => ({
-    value: 1,
-    color:
-      k === "ban_user" || k === "kick_user"
-        ? "var(--color-vermilion)"
-        : k === "warn_user"
-          ? "var(--color-amber)"
-          : "var(--color-signal)",
-    label: k,
-  }));
-
   const ambient = useAmbient();
-  useEffect(() => {
-    ambient.set(
-      failedRate > 20 ? "vermilion" : failedRate > 5 ? "amber" : "signal",
-      0.3 + Math.min(0.4, failedRate / 50),
-      "moderation",
-    );
-  }, [failedRate, ambient]);
 
-  // Alert-priority HUD: a GSAP pulse loop on the inverted mono badge when
-  // there is anything pending review — cleared up when the queue empties.
-  const alertRef = useRef<HTMLDivElement>(null);
-  const pendingCount = stats?.pending ?? 0;
-  useGSAP(
-    () => {
-      if (!alertRef.current || pendingCount <= 0) return;
-      const prefersReduced = window.matchMedia(
-        "(prefers-reduced-motion: reduce)",
-      ).matches;
-      if (prefersReduced) return;
-      const tl = gsap.timeline({ repeat: -1, yoyo: true });
-      tl.to(alertRef.current, {
-        opacity: 0.45,
-        duration: 0.7,
-        ease: "sine.inOut",
-      });
-      return () => {
-        tl.kill();
-        if (alertRef.current)
-          gsap.set(alertRef.current, { clearProps: "opacity" });
-      };
-    },
-    { scope: alertRef, dependencies: [pendingCount] },
+  const [filterMode, setFilterMode] = useState<"all" | "flagged" | "clean">(
+    "all",
   );
+
+  const containerRef = useStaggerReveal<HTMLDivElement>(".mod-tile", {
+    stagger: 0.035,
+    y: 8,
+    dependencies: [stats],
+  });
+
+  const executed = stats?.executed ?? 0;
+  const failed = stats?.failed ?? 0;
+  const total = stats?.total || 1;
+  const failedRatio = failed / total;
+
+  useEffect(() => {
+    if (failedRatio > 0.15) ambient.set("vermilion", 0.5, "high failure rate");
+    else if (failedRatio > 0.05) ambient.set("amber", 0.35, "moderate issues");
+    else ambient.set("signal", 0.25, "moderation nominal");
+  }, [failedRatio, ambient]);
 
   if (error && !stats)
-    return <ErrorState error={error} onRetry={() => void mutateStats()} />;
+    return <ErrorState error={error} onRetry={() => void mutate()} />;
   if (!stats && isLoading)
     return (
-      <div className="space-y-5">
-        <SkeletonMetricRow cols={4} />
-        <SkeletonPanel rows={5} />
-        <SkeletonRows rows={6} />
+      <div className="space-y-4">
+        <SkeletonMetricRow cols={3} />
+        <SkeletonPanel rows={6} />
       </div>
     );
-  if (!stats)
-    return (
-      <ErrorState
-        error={error ?? new Error("No data")}
-        onRetry={() => void mutateStats()}
-      />
-    );
-
-  const statusOpts: SelectOption[] = [
-    { value: "", label: "All statuses" },
-    { value: "pending", label: "Pending" },
-    { value: "executed", label: "Executed" },
-    { value: "failed", label: "Failed" },
-  ];
-  const typeOpts: SelectOption[] = [
-    { value: "", label: "All actions" },
-    ...Object.keys(byAction).map((k) => ({
-      value: k,
-      label: ACTION_LABEL[k as ModerationActionType] ?? k,
-    })),
-  ];
+  if (!stats) return null;
 
   return (
-    <div className="space-y-4">
-      {/* Alert-priority HUD header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
-        <div className="flex items-center gap-3">
-          <div className="relative flex size-3 items-center justify-center">
+    <PageTransition>
+      <div ref={containerRef} className="space-y-4">
+        {/* Precision Sub-Header Bar */}
+        <div className="mod-tile flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+          <div className="flex items-center gap-2.5">
             <span
-              className={`absolute inline-flex size-full rounded-full opacity-75 ${
-                pendingCount > 0 ? "animate-ping bg-ink" : "bg-signal"
+              className={`h-2 w-2 rounded-full ${
+                failedRatio > 0.1
+                  ? "bg-[#f43f5e] shadow-[0_0_8px_#f43f5e]"
+                  : "bg-[#7170ff] shadow-[0_0_8px_#7170ff]"
               }`}
             />
-            <span
-              className={`relative inline-flex size-2 rounded-full ${
-                pendingCount > 0 ? "bg-ink" : "bg-signal"
-              }`}
-            />
+            <h1 className="font-mono text-xs font-semibold tracking-wide text-[#f7f8f8] uppercase">
+              Moderation Intelligence Console
+            </h1>
           </div>
-          <h1 className="font-mono text-xs font-semibold tracking-widest text-ink uppercase">
-            AUTO-MOD RADAR · ALERT_QUEUE
-          </h1>
-        </div>
-        <div
-          ref={alertRef}
-          className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[11px] font-bold uppercase ${
-            pendingCount > 0
-              ? "border border-ink bg-ink text-canvas"
-              : "bg-surface text-ink-soft"
-          }`}
-        >
-          <span>{pendingCount > 0 ? "PENDING" : "QUEUE CLEAR"}</span>
-          {pendingCount > 0 && <span>· {pendingCount}</span>}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <MetricTile
-          label="Total actions"
-          value={formatNumber(stats.total)}
-          tone="signal"
-          icon={<ShieldAlert className="size-3.5" />}
-        />
-        <MetricTile
-          label="Executed"
-          value={formatNumber(stats.executed)}
-          tone="signal"
-          icon={<CheckCircle2 className="size-3.5" />}
-        />
-        <MetricTile
-          label="Failed"
-          value={formatNumber(stats.failed)}
-          tone={stats.failed > 0 ? "vermilion" : "neutral"}
-          icon={<XCircle className="size-3.5" />}
-        />
-        <MetricTile
-          label="Pending"
-          value={formatNumber(stats?.pending)}
-          tone={stats?.pending > 0 ? "amber" : "neutral"}
-          icon={<Clock className="size-3.5" />}
-        />
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-5">
-        <div className="lg:col-span-2">
-          {trends ? (
-            <TopicTrends trends={trends} />
-          ) : (
-            <SkeletonPanel rows={6} />
-          )}
+          <div className="flex items-center gap-1.5 rounded-[5px] border border-white/[0.06] bg-white/[0.02] p-0.5">
+            {(["all", "flagged", "clean"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setFilterMode(mode)}
+                className={`rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
+                  filterMode === mode
+                    ? "bg-white/[0.08] text-white border border-white/[0.12]"
+                    : "text-[#8a8f98] hover:text-[#d0d6e0]"
+                }`}
+              >
+                {mode.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="lg:col-span-5">
-          <LiveModerationFeed actions={liveActions} />
-        </div>
-
-        {coverage ? (
-          <CoverageTiles coverage={coverage} />
-        ) : (
-          <SkeletonPanel rows={3} className="lg:col-span-5" />
-        )}
-
-        <div className="lg:col-span-2">
-          {domains ? (
-            <ScamDomains domains={domains} />
-          ) : (
-            <SkeletonPanel rows={6} />
-          )}
-        </div>
-        <div className="lg:col-span-2">
-          {hourly ? (
-            <ModerationHeatmap hours={hourly} />
-          ) : (
-            <SkeletonPanel rows={6} />
-          )}
-        </div>
-        <div className="lg:col-span-1">
-          {channels ? (
-            <TopChannels channels={channels} />
-          ) : (
-            <SkeletonPanel rows={6} />
-          )}
-        </div>
-
-        <div className="lg:col-span-3">
-          <CategoryDrilldown
-            trends={trends ?? { categories: [], severities: [], actions: [] }}
-            selected={drilldown}
-            actions={categoryActions ?? []}
-            loading={categoryLoading}
-            onSelect={setDrilldown}
+        {/* Primary Metric Grid */}
+        <div className="mod-tile grid gap-3 sm:grid-cols-3">
+          <MetricTile
+            label="Total Audited"
+            value={formatNumber(stats.total)}
+            hint="Continuous LLM inspection"
+            icon={<Shield className="size-4" />}
+          />
+          <MetricTile
+            label="Clean Executed"
+            value={formatNumber(stats.executed)}
+            hint={`${Math.round((executed / total) * 100)}% execution rate`}
+            tone="signal"
+            icon={<CheckCircle2 className="size-4" />}
+          />
+          <MetricTile
+            label="Pending / Failed"
+            value={formatNumber(stats.pending + stats.failed)}
+            hint={`${stats.failed} failed items`}
+            tone={failedRatio > 0.05 ? "vermilion" : "neutral"}
+            icon={<AlertTriangle className="size-4" />}
           />
         </div>
 
-        <GlassPanel className="lg:col-span-2">
-          <SectionHeader eyebrow="health" title="Breakdown" />
-          <div className="flex items-center gap-5">
-            <Donut
-              segments={
-                segments.length
-                  ? segments
-                  : [
-                      {
-                        value: 1,
-                        color: "var(--color-ink-faint)",
-                        label: "none",
-                      },
-                    ]
-              }
-              centerLabel={`${Math.round(failedRate)}%`}
-              centerSub="fail rate"
+        {/* Live Moderation Stream */}
+        <div className="mod-tile">
+          <GlassPanel>
+            <SectionHeader
+              eyebrow="Realtime Feed"
+              title="Live Stream Audit Log"
             />
-            <div className="flex-1 space-y-2 text-sm">
-              {Object.entries(byAction).map(([k, v]) => {
-                const count = typeof v === "number" ? v : null;
-                return (
-                  <div key={k} className="flex items-center gap-2.5">
-                    <span className="text-ink-soft">
-                      {ACTION_ICON[k as ModerationActionType]}
-                    </span>
-                    <span className="flex-1 text-ink-soft">
-                      {ACTION_LABEL[k as ModerationActionType] ?? k}
-                    </span>
-                    {count !== null && (
-                      <span className="mono text-ink">{count}</span>
-                    )}
-                  </div>
-                );
-              })}
-              {Object.keys(byAction).length === 0 && (
-                <div className="text-xs text-ink-faint">
-                  No actions recorded yet.
-                </div>
-              )}
+            <div className="mt-3">
+              <LiveModerationFeed
+                actions={
+                  actions?.filter((r) => {
+                    if (filterMode === "flagged") return r.status === "failed";
+                    if (filterMode === "clean") return r.status === "executed";
+                    return true;
+                  }) ?? []
+                }
+              />
             </div>
-          </div>
-        </GlassPanel>
-
-        <GlassPanel className="lg:col-span-3">
-          <SectionHeader
-            eyebrow="filter"
-            title="Action log"
-            action={
-              <div className="flex items-center gap-2">
-                <Filter className="size-3.5 text-ink-faint" />
-                <Select
-                  value={typeFilter}
-                  onChange={setTypeFilter}
-                  options={typeOpts}
-                  size="sm"
-                  className="w-36"
-                />
-                <Select
-                  value={statusFilter}
-                  onChange={setStatusFilter}
-                  options={statusOpts}
-                  size="sm"
-                  className="w-32"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    downloadCsv(
-                      "moderation-actions.csv",
-                      (actions ?? []).map((a) => ({
-                        id: a.id,
-                        user: a.username ?? a.user_id,
-                        action_type: a.action_type,
-                        status: a.status,
-                        severity: a.severity ?? "",
-                        categories: (a.categories ?? []).join("|"),
-                        reason: a.reason ?? "",
-                        created_at: a.created_at
-                          ? new Date(a.created_at).toISOString()
-                          : "",
-                      })),
-                    )
-                  }
-                  className="rounded-full border border-hairline bg-white/[0.03] px-3 py-1 text-xs text-ink-soft transition-colors hover:bg-white/[0.06]"
-                  title="Download moderation actions as CSV"
-                >
-                  CSV
-                </button>
-              </div>
-            }
-          />
-          <div className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1">
-            {(actions ?? []).map((a, i) => (
-              <ActionRow key={a.id} a={a} index={i} />
-            ))}
-            {(actions ?? []).length === 0 && (
-              <div className="py-10 text-center text-xs text-ink-faint">
-                No matching actions.
-              </div>
-            )}
-          </div>
-        </GlassPanel>
-      </div>
-    </div>
-  );
-}
-
-function ActionRow({ a, index = 0 }: { a: ModerationAction; index?: number }) {
-  const tone =
-    a.status === "executed"
-      ? "signal"
-      : a.status === "failed"
-        ? "vermilion"
-        : "amber";
-  const icon = ACTION_ICON[a.action_type] ?? (
-    <AlertTriangle className="size-3.5" />
-  );
-  // Map moderation severity → design-system tone (reuse aiTone with a
-  // severity→status projection so "none" reads as clean/signal).
-  const severityTone =
-    a.severity == null
-      ? null
-      : aiTone(
-          a.severity === "none"
-            ? "clean"
-            : a.severity === "low" || a.severity === "medium"
-              ? "warn"
-              : "flagged",
-        );
-  return (
-    <div
-      className="animate-stagger flex items-start gap-3 rounded-[10px] border border-hairline bg-white/[0.03] p-3"
-      style={staggerDelay(index)}
-    >
-      <span
-        className={`mt-0.5 ${tone === "vermilion" ? "text-vermilion" : tone === "amber" ? "text-amber" : "text-signal"}`}
-      >
-        {icon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-ink">
-            {a.username ?? "unknown"}
-          </span>
-          <Badge tone={tone}>{a.status}</Badge>
-          <span className="mono ml-auto text-[0.6rem] text-ink-faint">
-            {formatRelativeTime(a.created_at)}
-          </span>
+          </GlassPanel>
         </div>
-        {a.reason && (
-          <div className="mt-0.5 text-xs text-ink-soft">“{a.reason}”</div>
-        )}
-        {severityTone && a.severity && (
-          <div className="mt-1 flex flex-wrap items-center gap-1">
-            <Badge tone={severityTone}>{a.severity}</Badge>
-            {a.confidence != null && (
-              <span className="mono text-[0.6rem] text-ink-faint">
-                conf {(a.confidence * 100).toFixed(0)}%
-              </span>
-            )}
+
+        {/* Heatmap Section */}
+        {hourly && hourly.length > 0 && (
+          <div className="mod-tile">
+            <GlassPanel>
+              <SectionHeader
+                eyebrow="Distribution"
+                title="Hourly Incident Heatmap"
+              />
+              <div className="mt-3">
+                <ModerationHeatmap hours={hourly} />
+              </div>
+            </GlassPanel>
           </div>
-        )}
-        {a.flags?.length ? (
-          <div className="mt-1 flex flex-wrap gap-1">
-            {a.flags.slice(0, 6).map((f) => (
-              <Badge key={f} tone="amber">
-                {f}
-              </Badge>
-            ))}
-          </div>
-        ) : null}
-        {a.evidence?.length ? (
-          <div className="mt-1 border-l-2 border-hairline pl-2 text-xs text-ink-faint">
-            &ldquo;{a.evidence[0]}&rdquo;
-          </div>
-        ) : null}
-        {a.executed_by && (
-          <div className="mono mt-0.5 text-[0.6rem] text-ink-faint">
-            by {a.executed_by}
-            {a.executed_at ? ` · ${formatRelativeTime(a.executed_at)}` : ""}
-          </div>
-        )}
-        {a.content && (
-          <div className="mt-1 line-clamp-2 rounded-[8px] bg-white/[0.03] px-2 py-1 text-xs text-ink-faint">
-            {a.content}
-          </div>
-        )}
-        {a.error && (
-          <div className="mt-1 text-xs text-vermilion">{a.error}</div>
         )}
       </div>
-    </div>
+    </PageTransition>
   );
 }

@@ -6,10 +6,16 @@ import { type RefObject, useRef } from "react";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(useGSAP);
+  // Set default Linear-style crisp easing & duration
+  gsap.defaults({
+    ease: "power2.out",
+    duration: 0.35,
+  });
 }
 
 /**
  * Reusable hook for staggered reveal animations on child elements.
+ * Linear-style: crisp entry, very subtle vertical displacement, no layout shift.
  */
 export function useStaggerReveal<T extends HTMLElement = HTMLDivElement>(
   selector: string,
@@ -41,16 +47,14 @@ export function useStaggerReveal<T extends HTMLElement = HTMLDivElement>(
         elements,
         {
           opacity: 0,
-          y: options?.y ?? 12,
-          scale: 0.98,
+          y: options?.y ?? 8,
         },
         {
           opacity: 1,
           y: 0,
-          scale: 1,
-          duration: options?.duration ?? 0.35,
-          delay: options?.delay ?? 0.05,
-          stagger: options?.stagger ?? 0.04,
+          duration: options?.duration ?? 0.32,
+          delay: options?.delay ?? 0.02,
+          stagger: options?.stagger ?? 0.03,
           ease: "power2.out",
           clearProps: "transform",
         },
@@ -80,7 +84,7 @@ export function useCounter(
       const obj = { val: 0 };
       gsap.to(obj, {
         val: targetValue,
-        duration: 0.8,
+        duration: 0.75,
         ease: "power2.out",
         onUpdate: () => {
           if (ref.current) {
@@ -93,4 +97,36 @@ export function useCounter(
     },
     { dependencies: [targetValue] },
   );
+}
+
+/**
+ * Micro-interaction hook for interactive elements (hover card tilt/glow, pulse)
+ */
+export function useLinearHover<T extends HTMLElement = HTMLDivElement>() {
+  const elementRef = useRef<T>(null);
+
+  useGSAP(
+    (_, contextSafe) => {
+      if (!elementRef.current || !contextSafe) return;
+      const el = elementRef.current;
+
+      const onEnter = contextSafe(() => {
+        gsap.to(el, { y: -2, duration: 0.18, ease: "power2.out" });
+      });
+      const onLeave = contextSafe(() => {
+        gsap.to(el, { y: 0, duration: 0.22, ease: "power2.out" });
+      });
+
+      el.addEventListener("mouseenter", onEnter);
+      el.addEventListener("mouseleave", onLeave);
+
+      return () => {
+        el.removeEventListener("mouseenter", onEnter);
+        el.removeEventListener("mouseleave", onLeave);
+      };
+    },
+    { scope: elementRef },
+  );
+
+  return elementRef;
 }

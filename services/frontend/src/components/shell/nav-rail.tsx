@@ -29,25 +29,23 @@ function NavItem({
       href={href}
       aria-label={label}
       aria-current={active ? "page" : undefined}
-      style={{ "--i": index } as React.CSSProperties}
       className={cn(
-        "nav-dock-item game-nav-item group relative flex size-11 items-center justify-center rounded-[13px] transition-all duration-200",
+        "nav-dock-item group relative flex size-9 items-center justify-center rounded-[7px] transition-all duration-150",
         active
-          ? "is-active bg-white/10 text-white shadow-sm ring-1 ring-white/20"
-          : "text-ink-faint hover:bg-white/5 hover:text-ink-soft hover:scale-105",
+          ? "is-active bg-white/[0.08] text-[#f7f8f8] shadow-sm border border-white/[0.12]"
+          : "text-[#8a8f98] hover:bg-white/[0.04] hover:text-[#d0d6e0]",
       )}
     >
-      {active && <span className="game-marker -left-3.5" />}
-      <span className="game-sweep" aria-hidden="true">
-        <i />
-      </span>
       <Icon
-        className="relative z-10 size-[18px]"
-        strokeWidth={active ? 2.4 : 2}
+        className="relative z-10 size-4"
+        strokeWidth={active ? 2.2 : 1.8}
       />
-      {/* HUD Tooltip on hover */}
-      <span className="pointer-events-none absolute left-full z-50 ml-3 hidden whitespace-nowrap rounded-md border border-hairline bg-canvas-2/95 px-2.5 py-1 font-mono text-[11px] font-semibold tracking-wider text-ink opacity-0 shadow-xl backdrop-blur-md transition-all group-hover:translate-x-1 group-hover:opacity-100 md:block">
-        <span className="text-signal mr-1.5">›</span>
+      {/* Precision Micro-Indicator */}
+      {active && (
+        <span className="absolute -left-[5px] h-3.5 w-[2px] rounded-full bg-[#7170ff]" />
+      )}
+      {/* Tooltip on hover */}
+      <span className="pointer-events-none absolute left-full z-50 ml-2.5 hidden whitespace-nowrap rounded-[5px] border border-white/[0.08] bg-[#0f1011] px-2 py-0.5 font-sans text-[11px] font-medium tracking-tight text-[#f7f8f8] opacity-0 shadow-lg backdrop-blur-md transition-all group-hover:translate-x-0.5 group-hover:opacity-100 md:block">
         {label}
       </span>
     </a>
@@ -65,13 +63,12 @@ export function NavRail() {
       const items = railRef.current.querySelectorAll(".nav-dock-item");
       gsap.fromTo(
         items,
-        { opacity: 0, x: -8, scale: 0.9 },
+        { opacity: 0, x: -6 },
         {
           opacity: 1,
           x: 0,
-          scale: 1,
-          duration: 0.4,
-          stagger: 0.04,
+          duration: 0.3,
+          stagger: 0.025,
           ease: "power2.out",
           clearProps: "transform",
         },
@@ -83,9 +80,9 @@ export function NavRail() {
   return (
     <nav
       ref={railRef}
-      className="glass mb-[calc(0.75rem+env(safe-area-inset-bottom))] ml-[calc(0.75rem+env(safe-area-inset-left))] mt-[calc(0.75rem+env(safe-area-inset-top))] hidden w-[68px] flex-col items-center gap-1 rounded-[18px] border border-hairline/80 py-4 shadow-2xl backdrop-blur-xl md:flex"
+      className="mb-[calc(0.75rem+env(safe-area-inset-bottom))] ml-[calc(0.75rem+env(safe-area-inset-left))] mt-[calc(0.75rem+env(safe-area-inset-top))] hidden w-[54px] flex-col items-center gap-1 rounded-[10px] border border-white/[0.08] bg-[#0f1011]/80 py-3 shadow-xl backdrop-blur-md md:flex"
     >
-      <div className="flex flex-1 flex-col gap-1.5">
+      <div className="flex flex-1 flex-col gap-1">
         {navItems.map((item, i) => (
           <NavItem
             key={item.href}

@@ -1,39 +1,52 @@
+import type React from "react";
 import { cn } from "@/lib/utils";
 
-type Tone = "signal" | "amber" | "vermilion" | "neutral";
-
-const tones: Record<Tone, string> = {
-  signal: "bg-signal/12 text-signal border-signal/30",
-  amber: "bg-amber/12 text-amber border-amber/30",
-  vermilion: "bg-vermilion/12 text-vermilion border-vermilion/30",
-  neutral: "bg-white/6 text-ink-soft border-white/10",
-};
+export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+  tone?: "neutral" | "signal" | "amber" | "vermilion" | "success";
+  size?: "sm" | "md";
+  dot?: boolean;
+}
 
 export function Badge({
   tone = "neutral",
-  dot,
+  size = "md",
+  dot = false,
   className,
   children,
-}: {
-  tone?: Tone;
-  dot?: boolean;
-  className?: string;
-  children: React.ReactNode;
-}) {
+  ...props
+}: BadgeProps) {
+  const tones = {
+    neutral: "bg-white/[0.04] text-[#d0d6e0] border-white/[0.08]",
+    signal: "bg-[#7170ff]/10 text-[#7170ff] border-[#7170ff]/25",
+    success: "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/25",
+    amber: "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/25",
+    vermilion: "bg-[#f43f5e]/10 text-[#f43f5e] border-[#f43f5e]/25",
+  };
+
+  const dots = {
+    neutral: "bg-[#8a8f98]",
+    signal: "bg-[#7170ff]",
+    success: "bg-[#10b981]",
+    amber: "bg-[#f59e0b]",
+    vermilion: "bg-[#f43f5e]",
+  };
+
+  const sizes = {
+    sm: "px-1.5 py-0.5 text-[10px]",
+    md: "px-2 py-0.5 text-[11px]",
+  };
+
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[0.7rem] font-semibold tracking-wide",
+        "inline-flex items-center gap-1.5 rounded-[4px] border font-mono font-medium tracking-tight",
         tones[tone],
+        sizes[size],
         className,
       )}
+      {...props}
     >
-      {dot && (
-        <span className="relative flex h-1.5 w-1.5">
-          <span className="absolute inline-flex h-full w-full rounded-full bg-current opacity-60 animate-pulse-ring" />
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
-        </span>
-      )}
+      {dot && <span className={cn("size-1.5 rounded-full", dots[tone])} />}
       {children}
     </span>
   );
