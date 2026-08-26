@@ -1,4 +1,3 @@
-import { PageTransition } from "@/components/shared";
 import { getGlossary } from "@/lib/api/server";
 import type { GlossaryRow } from "@/lib/types";
 import { GlossaryView } from "./view";
@@ -12,9 +11,5 @@ export default async function GlossaryPage() {
   } catch {
     terms = undefined;
   }
-  return (
-    <PageTransition>
-      <GlossaryView initialTerms={terms} />
-    </PageTransition>
-  );
+  return <GlossaryView initialTerms={terms} />;
 }

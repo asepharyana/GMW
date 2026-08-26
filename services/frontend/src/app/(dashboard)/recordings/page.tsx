@@ -1,4 +1,3 @@
-import { PageTransition } from "@/components/shared";
 import { getRecordings } from "@/lib/api/server";
 import { RecordingsView } from "./view";
 
@@ -13,9 +12,5 @@ export default async function RecordingsPage() {
   } catch {
     /* client hooks surface errors */
   }
-  return (
-    <PageTransition>
-      <RecordingsView initialItems={recordings?.items} />
-    </PageTransition>
-  );
+  return <RecordingsView initialItems={recordings?.items} />;
 }

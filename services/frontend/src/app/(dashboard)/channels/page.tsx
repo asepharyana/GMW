@@ -1,4 +1,3 @@
-import { PageTransition } from "@/components/shared";
 import { getChannelCultures } from "@/lib/api/server";
 import type { ChannelCultureRow } from "@/lib/types";
 import { ChannelsView } from "./view";
@@ -12,9 +11,5 @@ export default async function ChannelsPage() {
   } catch {
     cultures = undefined;
   }
-  return (
-    <PageTransition>
-      <ChannelsView initialCultures={cultures} />
-    </PageTransition>
-  );
+  return <ChannelsView initialCultures={cultures} />;
 }

@@ -1,4 +1,3 @@
-import { PageTransition } from "@/components/shared";
 import { getModerationActions, getModerationStats } from "@/lib/api/server";
 import { ModerationView } from "./view";
 
@@ -15,9 +14,5 @@ export default async function ModerationPage() {
   } catch {
     /* client hooks surface errors */
   }
-  return (
-    <PageTransition>
-      <ModerationView initialStats={stats} initialActions={actions} />
-    </PageTransition>
-  );
+  return <ModerationView initialStats={stats} initialActions={actions} />;
 }
