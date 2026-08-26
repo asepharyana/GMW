@@ -102,17 +102,17 @@ export function DashboardView({
   return (
     <PageTransition>
       <div ref={hudRef} className="space-y-4">
-        {/* Precision Sub-Header Bar */}
-        <div className="linear-tile flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+        {/* Tactical HUD Header Bar */}
+        <div className="linear-tile flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
           <div className="flex items-center gap-2.5">
-            <span className="h-2 w-2 rounded-full bg-[#7170ff] shadow-[0_0_8px_#7170ff]" />
-            <h1 className="font-mono text-xs font-semibold tracking-wide text-[#f7f8f8] uppercase">
+            <span className="h-2 w-2 rounded-full bg-signal shadow-[0_0_8px_var(--color-signal-glow)]" />
+            <h1 className="font-mono text-xs font-semibold tracking-wide text-ink uppercase">
               Telemetry Overview · Node 01
             </h1>
           </div>
-          <div className="flex items-center gap-2 font-mono text-[11px] text-[#8a8f98]">
+          <div className="flex items-center gap-2 font-mono text-[11px] text-ink-muted">
             <span>SIGNAL:</span>
-            <span className="rounded bg-white/[0.04] px-1.5 py-0.5 font-medium text-[#7170ff] border border-white/[0.06]">
+            <span className="rounded bg-signal/15 px-2 py-0.5 font-medium text-signal border border-signal/30">
               STABLE_STREAM
             </span>
           </div>
@@ -174,20 +174,16 @@ export function DashboardView({
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3 text-center">
+            <div className="grid grid-cols-2 gap-2 border-t border-hairline pt-3 text-center">
               <div>
-                <div className="font-mono text-[10px] text-[#8a8f98]">
-                  CLEAN
-                </div>
-                <div className="font-sans text-sm font-semibold text-[#10b981]">
+                <div className="eyebrow">CLEAN</div>
+                <div className="font-sans text-sm font-semibold text-success">
                   {formatNumber(s.total_clean)}
                 </div>
               </div>
               <div>
-                <div className="font-mono text-[10px] text-[#8a8f98]">
-                  FLAGGED
-                </div>
-                <div className="font-sans text-sm font-semibold text-[#f43f5e]">
+                <div className="eyebrow">FLAGGED</div>
+                <div className="font-sans text-sm font-semibold text-vermilion">
                   {formatNumber(s.total_flagged)}
                 </div>
               </div>
@@ -207,12 +203,12 @@ export function DashboardView({
                 {reactions.slice(0, 4).map((r) => (
                   <div
                     key={r.message_id}
-                    className="flex items-center justify-between rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-2.5 hover:bg-white/[0.04]"
+                    className="hud-card flex items-center justify-between p-2.5"
                   >
-                    <span className="truncate pr-2 text-xs text-[#d0d6e0]">
+                    <span className="truncate pr-2 text-xs text-ink-soft">
                       {r.content || "[Media/Attachment]"}
                     </span>
-                    <span className="font-mono text-xs font-semibold text-[#7170ff] shrink-0">
+                    <span className="font-mono text-xs font-semibold text-signal shrink-0">
                       {formatNumber(r.reaction_count)} reactions
                     </span>
                   </div>
@@ -227,23 +223,23 @@ export function DashboardView({
               <div className="mt-2 space-y-1.5">
                 <Link
                   href="/moderation"
-                  className="flex items-center justify-between rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-2.5 text-xs text-[#d0d6e0] transition-colors hover:border-white/[0.12] hover:bg-white/[0.04] hover:text-[#f7f8f8]"
+                  className="hud-card flex items-center justify-between p-2.5 text-xs text-ink-soft transition-colors hover:text-ink"
                 >
                   <span className="flex items-center gap-2">
-                    <Shield className="size-3.5 text-[#7170ff]" />
+                    <Shield className="size-3.5 text-signal" />
                     Review Live Moderation Queue
                   </span>
-                  <ChevronRight className="size-3.5 text-[#8a8f98]" />
+                  <ChevronRight className="size-3.5 text-ink-muted" />
                 </Link>
                 <Link
                   href="/voice"
-                  className="flex items-center justify-between rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-2.5 text-xs text-[#d0d6e0] transition-colors hover:border-white/[0.12] hover:bg-white/[0.04] hover:text-[#f7f8f8]"
+                  className="hud-card flex items-center justify-between p-2.5 text-xs text-ink-soft transition-colors hover:text-ink"
                 >
                   <span className="flex items-center gap-2">
-                    <AudioWaveform className="size-3.5 text-[#10b981]" />
+                    <AudioWaveform className="size-3.5 text-success" />
                     Inspect Active Voice Stages
                   </span>
-                  <ChevronRight className="size-3.5 text-[#8a8f98]" />
+                  <ChevronRight className="size-3.5 text-ink-muted" />
                 </Link>
               </div>
             </div>

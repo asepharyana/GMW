@@ -92,16 +92,16 @@ export function RecordingsView({
   return (
     <div className="space-y-4">
       {/* Tactical HUD Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
         <div className="flex items-center gap-2.5">
-          <span className="h-2 w-2 rounded-full bg-[#7170ff] shadow-[0_0_8px_#7170ff]" />
-          <h1 className="font-mono text-xs font-semibold tracking-wide text-[#f7f8f8] uppercase">
+          <span className="h-2 w-2 rounded-full bg-signal shadow-[0_0_8px_var(--color-signal-glow)]" />
+          <h1 className="font-mono text-xs font-semibold tracking-wide text-ink uppercase">
             Tape Deck · Captured Audio Archive
           </h1>
         </div>
-        <div className="flex items-center gap-2 font-mono text-[11px] text-[#8a8f98]">
+        <div className="flex items-center gap-2 font-mono text-[11px] text-ink-muted">
           <span>STATUS:</span>
-          <span className="rounded bg-white/[0.04] px-1.5 py-0.5 font-medium text-[#7170ff] border border-white/[0.06]">
+          <span className="rounded bg-signal/15 px-2 py-0.5 font-medium text-signal border border-signal/30">
             {totalRecordings} CLIPS_ONLINE
           </span>
         </div>
@@ -134,22 +134,22 @@ export function RecordingsView({
               return (
                 <div
                   key={r.id}
-                  className={`recording-deck-card flex flex-col justify-between rounded-[8px] border bg-white/[0.02] p-4 transition-all duration-200 hover:border-white/[0.14] hover:bg-white/[0.04] ${
+                  className={`recording-deck-card hud-card flex flex-col justify-between p-4 transition-all duration-200 ${
                     isPlaying
-                      ? "border-[#7170ff]/50 bg-[#7170ff]/5 shadow-[0_0_24px_-10px_rgba(113,112,255,0.3)]"
-                      : "border-white/[0.06]"
+                      ? "border-signal/50 bg-signal/10 shadow-[0_0_24px_-10px_var(--color-signal-glow)]"
+                      : ""
                   }`}
                 >
                   <div>
                     {/* Header info */}
-                    <div className="flex items-center gap-3 border-b border-white/[0.05] pb-3">
+                    <div className="flex items-center gap-3 border-b border-hairline pb-3">
                       <Avatar src={r.avatar_url} name={r.username} size={36} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-xs font-semibold text-ink">
                           {r.username}
                         </div>
                         <div className="flex items-center gap-1.5 font-mono text-[10px] text-ink-faint">
-                          <Hash className="size-2.5 text-[#7170ff]" />
+                          <Hash className="size-2.5 text-signal" />
                           <span className="truncate">
                             {r.channel_name ?? "voice"}
                           </span>
@@ -179,8 +179,8 @@ export function RecordingsView({
                           }
                         />
                       ) : (
-                        <div className="flex items-center gap-1.5 rounded-[6px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 font-mono text-[11px] text-[#8a8f98]">
-                          <Loader2 className="size-3.5 animate-spin text-[#7170ff]" />
+                        <div className="flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 px-3 py-2 font-mono text-[11px] text-ink-muted">
+                          <Loader2 className="size-3.5 animate-spin text-signal" />
                           {r.upload_status === "pending"
                             ? "UPLOAD_PENDING..."
                             : r.upload_error
@@ -192,7 +192,7 @@ export function RecordingsView({
                   </div>
 
                   {/* Actions & File Stats */}
-                  <div className="flex items-center justify-between border-t border-white/[0.04] pt-2.5">
+                  <div className="flex items-center justify-between border-t border-hairline pt-2.5">
                     <span className="font-mono text-[10px] text-ink-faint">
                       SIZE: {formatBytes(r.size_bytes)}
                     </span>
@@ -202,16 +202,16 @@ export function RecordingsView({
                           href={r.download_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded-[5px] border border-white/[0.08] bg-white/[0.02] px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-ink"
+                          className="inline-flex items-center gap-1 rounded-[5px] border border-hairline bg-surface-2 px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
                         >
-                          <Download className="size-3 text-[#7170ff]" /> RAW
+                          <Download className="size-3 text-signal" /> RAW
                         </a>
                       )}
                       <button
                         type="button"
                         onClick={() => onDelete(r.id)}
                         disabled={del.isPending}
-                        className="inline-flex items-center gap-1 rounded-[5px] border border-white/[0.08] bg-white/[0.02] px-2 py-1 font-mono text-[10px] text-[#f43f5e] transition-colors hover:border-[#f43f5e]/30 hover:bg-[#f43f5e]/10"
+                        className="inline-flex items-center gap-1 rounded-[5px] border border-vermilion/30 bg-vermilion/10 px-2 py-1 font-mono text-[10px] text-vermilion transition-colors hover:bg-vermilion/20"
                       >
                         <Trash2 className="size-3" /> PURGE
                       </button>

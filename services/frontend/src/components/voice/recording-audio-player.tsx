@@ -141,7 +141,7 @@ export function RecordingAudioPlayer({
   return (
     <div
       className={cn(
-        "rounded-[10px] border bg-white/[0.04] px-3 py-2.5 transition-colors",
+        "rounded-[8px] border bg-surface-2 px-3 py-2.5 transition-colors",
         playing || buffering
           ? "border-signal/40 shadow-[0_0_24px_-10px_var(--color-signal-glow)]"
           : "border-hairline",
@@ -160,7 +160,7 @@ export function RecordingAudioPlayer({
             "flex size-9 shrink-0 items-center justify-center rounded-full border transition-all active:scale-95",
             playing || buffering
               ? "border-signal/50 bg-signal/15 text-signal"
-              : "border-hairline bg-white/5 text-ink-soft hover:border-signal/40 hover:text-ink",
+              : "border-hairline bg-surface text-ink-soft hover:border-signal/40 hover:text-ink",
           )}
         >
           {buffering ? (
@@ -195,7 +195,7 @@ export function RecordingAudioPlayer({
             }}
             className="group relative h-4 cursor-pointer"
           >
-            <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-white/10">
+            <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-surface">
               <div
                 className={cn(
                   "h-full rounded-full transition-[width]",

@@ -27,14 +27,14 @@ function actionIcon(type: string) {
   switch (type) {
     case "ban_user":
     case "kick_user":
-      return <UserX className="size-3.5 text-[#f43f5e]" />;
+      return <UserX className="size-3.5 text-vermilion" />;
     case "timeout_user":
-      return <VolumeX className="size-3.5 text-[#f59e0b]" />;
+      return <VolumeX className="size-3.5 text-amber" />;
     case "delete_message":
     case "warn_user":
-      return <ShieldAlert className="size-3.5 text-[#7170ff]" />;
+      return <ShieldAlert className="size-3.5 text-signal" />;
     default:
-      return <CheckCircle2 className="size-3.5 text-[#10b981]" />;
+      return <CheckCircle2 className="size-3.5 text-success" />;
   }
 }
 
@@ -90,11 +90,11 @@ export function LiveModerationFeed({
 
   return (
     <div className="flex max-h-[460px] flex-col">
-      <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+      <div className="flex items-center justify-between border-b border-hairline pb-3">
         <div className="flex items-center gap-2">
           <span className="relative flex size-2">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#10b981] opacity-75" />
-            <span className="relative inline-flex size-2 rounded-full bg-[#10b981]" />
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-success" />
           </span>
           <span className="font-mono text-xs font-medium text-ink">
             Live Stream Audit Log
@@ -116,9 +116,9 @@ export function LiveModerationFeed({
             return (
               <div
                 key={a.id}
-                className="mod-feed-item flex items-start gap-3 rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-3 transition-all hover:border-white/[0.12] hover:bg-white/[0.04]"
+                className="mod-feed-item hud-card flex items-start gap-3 p-3 transition-all"
               >
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-[6px] border border-white/[0.08] bg-white/[0.03]">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-surface-2">
                   {actionIcon(a.action_type)}
                 </span>
 

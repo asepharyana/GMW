@@ -14,7 +14,7 @@ function GlossaryEntry({ t }: { t: GlossaryRow }) {
   const bodyRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="glossary-entry overflow-hidden rounded-[6px] border border-white/[0.06] bg-white/[0.02] transition-all hover:border-white/[0.12] hover:bg-white/[0.04]">
+    <div className="glossary-entry hud-card overflow-hidden transition-all">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -42,7 +42,7 @@ function GlossaryEntry({ t }: { t: GlossaryRow }) {
         style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
       >
         <div className="overflow-hidden">
-          <div className="border-t border-white/[0.04] bg-black/20 px-3.5 py-2.5 text-xs">
+          <div className="border-t border-hairline bg-surface-2 px-3.5 py-2.5 text-xs">
             <p className="font-sans text-ink-soft leading-relaxed">
               {t.definition}
             </p>
@@ -51,7 +51,7 @@ function GlossaryEntry({ t }: { t: GlossaryRow }) {
                 href={t.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] text-[#7170ff] hover:underline"
+                className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] text-signal hover:underline"
               >
                 <Globe className="size-3" />
                 {t.source_url}
@@ -86,16 +86,16 @@ export function TermGlossary({ terms }: { terms: GlossaryRow[] }) {
   return (
     <div className="space-y-4">
       {/* Tactical HUD Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
         <div className="flex items-center gap-2.5">
-          <span className="h-2 w-2 rounded-full bg-[#7170ff] shadow-[0_0_8px_#7170ff]" />
-          <h1 className="font-mono text-xs font-semibold tracking-wide text-[#f7f8f8] uppercase">
+          <span className="h-2 w-2 rounded-full bg-signal shadow-[0_0_8px_var(--color-signal-glow)]" />
+          <h1 className="font-mono text-xs font-semibold tracking-wide text-ink uppercase">
             Slang & Term Glossary · Knowledge Base
           </h1>
         </div>
-        <div className="flex items-center gap-2 font-mono text-[11px] text-[#8a8f98]">
+        <div className="flex items-center gap-2 font-mono text-[11px] text-ink-muted">
           <span>INDEXED:</span>
-          <span className="rounded bg-white/[0.04] px-1.5 py-0.5 font-medium text-[#7170ff] border border-white/[0.06]">
+          <span className="rounded bg-signal/15 px-2 py-0.5 font-medium text-signal border border-signal/30">
             {terms.length} TERMS_RECORDED
           </span>
         </div>
@@ -110,7 +110,7 @@ export function TermGlossary({ terms }: { terms: GlossaryRow[] }) {
             placeholder="Search slang term or definition keywords..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="w-full rounded-[6px] border border-white/[0.08] bg-white/[0.02] py-1.5 pl-9 pr-3 text-xs text-ink placeholder:text-ink-faint focus:border-[#7170ff] focus:outline-none"
+            className="w-full rounded-[6px] border border-hairline bg-surface-2 py-1.5 pl-9 pr-3 text-xs text-ink placeholder:text-ink-faint focus:border-signal focus:outline-none"
           />
         </div>
         {terms.length > 0 && (
@@ -128,9 +128,9 @@ export function TermGlossary({ terms }: { terms: GlossaryRow[] }) {
                 })),
               )
             }
-            className="inline-flex items-center gap-1.5 rounded-[6px] border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 font-mono text-[11px] text-ink-soft transition-colors hover:border-white/[0.16] hover:bg-white/[0.04] hover:text-ink"
+            className="inline-flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 px-3 py-1.5 font-mono text-[11px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
           >
-            <Download className="size-3.5 text-[#7170ff]" />
+            <Download className="size-3.5 text-signal" />
             EXPORT_CSV
           </button>
         )}
@@ -141,7 +141,7 @@ export function TermGlossary({ terms }: { terms: GlossaryRow[] }) {
           eyebrow="knowledge directory"
           title="Slang & Definition Index"
           action={
-            <span className="mono text-xs text-[#8a8f98]">
+            <span className="mono text-xs text-ink-muted">
               {filtered.length} of {terms.length} terms
             </span>
           }

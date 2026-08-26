@@ -227,16 +227,16 @@ export function MessagesView({
   return (
     <div className="space-y-4">
       {/* Tactical HUD Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
         <div className="flex items-center gap-2.5">
-          <span className="h-2 w-2 rounded-full bg-[#7170ff] shadow-[0_0_8px_#7170ff]" />
-          <h1 className="font-mono text-xs font-semibold tracking-wide text-[#f7f8f8] uppercase">
+          <span className="h-2 w-2 rounded-full bg-signal shadow-[0_0_8px_var(--color-signal-glow)]" />
+          <h1 className="font-mono text-xs font-semibold tracking-wide text-ink uppercase">
             Chat Log Stream · Ingestion Stream
           </h1>
         </div>
-        <div className="flex items-center gap-2 font-mono text-[11px] text-[#8a8f98]">
+        <div className="flex items-center gap-2 font-mono text-[11px] text-ink-muted">
           <span>MODE:</span>
-          <span className="rounded bg-white/[0.04] px-1.5 py-0.5 font-medium text-[#7170ff] border border-white/[0.06]">
+          <span className="rounded bg-signal/15 px-2 py-0.5 font-medium text-signal border border-signal/30">
             {searching ? "SEARCH_ACTIVE" : viewMode.toUpperCase()}
           </span>
         </div>
@@ -266,14 +266,14 @@ export function MessagesView({
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-1.5 rounded-[6px] border border-white/[0.08] bg-white/[0.02] p-0.5">
+        <div className="flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 p-0.5">
           <button
             type="button"
             onClick={() => setSemanticMode(false)}
             className={`rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
               !semanticMode
-                ? "bg-white/[0.08] text-white border border-white/[0.12]"
-                : "text-[#8a8f98] hover:text-[#d0d6e0]"
+                ? "bg-surface text-ink border border-hairline-focus shadow-xs"
+                : "text-ink-muted hover:text-ink"
             }`}
           >
             EXACT
@@ -283,8 +283,8 @@ export function MessagesView({
             onClick={() => setSemanticMode(true)}
             className={`flex items-center gap-1 rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
               semanticMode
-                ? "bg-[#7170ff]/20 text-[#7170ff] border border-[#7170ff]/30"
-                : "text-[#8a8f98] hover:text-[#d0d6e0]"
+                ? "bg-signal/20 text-signal border border-signal/40 shadow-xs"
+                : "text-ink-muted hover:text-ink"
             }`}
           >
             <Sparkles className="size-3" />
@@ -292,14 +292,14 @@ export function MessagesView({
           </button>
         </div>
 
-        <div className="flex items-center gap-1.5 rounded-[6px] border border-white/[0.08] bg-white/[0.02] p-0.5">
+        <div className="flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 p-0.5">
           <button
             type="button"
             onClick={() => setViewMode("feed")}
             className={`rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
               viewMode === "feed"
-                ? "bg-white/[0.08] text-white border border-white/[0.12]"
-                : "text-[#8a8f98] hover:text-[#d0d6e0]"
+                ? "bg-surface text-ink border border-hairline-focus shadow-xs"
+                : "text-ink-muted hover:text-ink"
             }`}
           >
             FEED
@@ -309,8 +309,8 @@ export function MessagesView({
             onClick={() => setViewMode("timeline")}
             className={`rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
               viewMode === "timeline"
-                ? "bg-white/[0.08] text-white border border-white/[0.12]"
-                : "text-[#8a8f98] hover:text-[#d0d6e0]"
+                ? "bg-surface text-ink border border-hairline-focus shadow-xs"
+                : "text-ink-muted hover:text-ink"
             }`}
           >
             TIMELINE
@@ -337,18 +337,18 @@ export function MessagesView({
                 {semantic.data.map((r, i) => (
                   <div
                     key={r.message_id ?? i}
-                    className="flex items-start gap-3 rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-3 hover:border-white/[0.12] hover:bg-white/[0.04]"
+                    className="hud-card flex items-start gap-3 p-3"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-[10px] font-semibold text-[#7170ff]">
+                        <span className="font-mono text-[10px] font-semibold text-signal">
                           {(r.score * 100).toFixed(0)}% RELEVANCE
                         </span>
-                        <span className="ml-auto font-mono text-[10px] text-[#8a8f98]">
+                        <span className="ml-auto font-mono text-[10px] text-ink-muted">
                           {formatRelativeTime(r.created_at)}
                         </span>
                       </div>
-                      <div className="mt-1 text-xs text-[#d0d6e0] leading-relaxed">
+                      <div className="mt-1 text-xs text-ink-soft leading-relaxed">
                         {r.content}
                       </div>
                     </div>
@@ -391,20 +391,20 @@ export function MessagesView({
               {!searching && (
                 <div className="mb-2 flex items-center justify-center gap-2">
                   {loadMore.isPending ? (
-                    <span className="flex items-center gap-1.5 font-mono text-xs text-[#8a8f98]">
-                      <Loader2 className="size-3.5 animate-spin" />
+                    <span className="flex items-center gap-1.5 font-mono text-xs text-ink-muted">
+                      <Loader2 className="size-3.5 animate-spin text-signal" />
                       FETCHING EARLIER PACKETS...
                     </span>
                   ) : hasMore && loadedPages < MAX_OLDER_PAGES ? (
                     <button
                       type="button"
                       onClick={loadOlder}
-                      className="rounded-[5px] border border-white/[0.08] bg-white/[0.02] px-3 py-1 font-mono text-[10px] text-[#8a8f98] transition-colors hover:bg-white/[0.05] hover:text-[#f7f8f8]"
+                      className="rounded-[5px] border border-hairline bg-surface-2 px-3 py-1 font-mono text-[10px] text-ink-muted transition-colors hover:bg-surface hover:text-ink"
                     >
                       ↑ LOAD PREVIOUS BATCH
                     </button>
                   ) : (
-                    <span className="font-mono text-[10px] text-[#62666d]">
+                    <span className="font-mono text-[10px] text-ink-faint">
                       {loadedPages >= MAX_OLDER_PAGES
                         ? `CAPPED AT ${MAX_OLDER_PAGES} PAGES`
                         : "STREAM ROOT REACHED"}
@@ -432,9 +432,9 @@ export function MessagesView({
                         node.type === "date" ? (
                           <div
                             key={`date-${node.iso}`}
-                            className="flex items-center gap-2 py-1 font-mono text-[10px] text-[#8a8f98]"
+                            className="flex items-center gap-2 py-1 font-mono text-[10px] text-ink-muted"
                           >
-                            <Calendar className="size-3 text-[#7170ff]" />
+                            <Calendar className="size-3 text-signal" />
                             {node.label}
                           </div>
                         ) : (
@@ -554,7 +554,7 @@ function MessageDetail({
         </div>
       </div>
 
-      <div className="rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-3 text-xs text-[#d0d6e0] leading-relaxed">
+      <div className="hud-card p-3 text-xs text-ink-soft leading-relaxed">
         {renderMessageContent(m.edited_content ?? m.content, m.metadata) ||
           "(no text content)"}
       </div>
@@ -562,7 +562,7 @@ function MessageDetail({
       {m.ai_analysis && (
         <div>
           <div className="eyebrow mb-1">AI heuristic reasoning</div>
-          <div className="rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-3 text-xs text-[#8a8f98] leading-relaxed">
+          <div className="hud-card p-3 text-xs text-ink-muted leading-relaxed">
             {m.ai_analysis}
           </div>
         </div>
@@ -595,11 +595,11 @@ function MessageDetail({
                 href={a.discord_url ?? a.uploaded_url ?? "#"}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-2 rounded-[6px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-[#d0d6e0] hover:border-white/[0.12] hover:text-[#f7f8f8]"
+                className="hud-card flex items-center gap-2 px-3 py-2 text-xs text-ink-soft hover:text-ink"
               >
-                <ImageIcon className="size-3.5 text-[#7170ff]" />
+                <ImageIcon className="size-3.5 text-signal" />
                 <span className="flex-1 truncate">{a.filename}</span>
-                <span className="mono text-[10px] text-[#8a8f98]">
+                <span className="mono text-[10px] text-ink-muted">
                   {formatBytes(a.size)}
                 </span>
               </a>
@@ -626,28 +626,28 @@ function MessageRow({
       key={m.id}
       type="button"
       onClick={() => onSelect(m.id)}
-      className={`msg-feed-card flex w-full items-start gap-3 rounded-[6px] border p-2.5 text-left transition-all ${
+      className={`msg-feed-card flex w-full items-start gap-3 rounded-[8px] border p-2.5 text-left transition-all ${
         selected === m.id
-          ? "border-[#7170ff]/40 bg-[#7170ff]/10"
-          : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]"
+          ? "border-signal/50 bg-signal/10 shadow-xs"
+          : "border-hairline bg-surface-2 hover:border-hairline-focus hover:bg-surface"
       }`}
     >
       <Avatar src={m.avatar_url} name={m.username} size={32} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-xs font-semibold text-[#f7f8f8]">
+          <span className="truncate text-xs font-semibold text-ink">
             {m.username}
           </span>
-          <span className="font-mono text-[10px] text-[#8a8f98]">
+          <span className="font-mono text-[10px] text-ink-muted">
             {getMessageChannelLabel(m)}
           </span>
-          <span className="ml-auto font-mono text-[10px] text-[#8a8f98]">
+          <span className="ml-auto font-mono text-[10px] text-ink-muted">
             {formatRelativeTime(m.created_at)}
           </span>
         </div>
-        <div className="mt-0.5 line-clamp-2 text-xs text-[#d0d6e0]">
+        <div className="mt-0.5 line-clamp-2 text-xs text-ink-soft">
           {renderMessageContent(m.content, m.metadata) || (
-            <span className="italic text-[#8a8f98]">(empty / embed)</span>
+            <span className="italic text-ink-muted">(empty / embed)</span>
           )}
         </div>
       </div>

@@ -63,7 +63,7 @@ export function ChannelCultureGlossary({
             placeholder="Filter channels or culture topics..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="w-full rounded-[6px] border border-white/[0.08] bg-white/[0.02] py-1.5 pl-9 pr-3 text-xs text-ink placeholder:text-ink-faint focus:border-[#7170ff] focus:outline-none"
+            className="w-full rounded-[6px] border border-hairline bg-surface-2 py-1.5 pl-9 pr-3 text-xs text-ink placeholder:text-ink-faint focus:border-signal focus:outline-none"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -80,9 +80,9 @@ export function ChannelCultureGlossary({
                   })),
                 )
               }
-              className="inline-flex items-center gap-1.5 rounded-[6px] border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 font-mono text-[11px] text-ink-soft transition-colors hover:border-white/[0.16] hover:bg-white/[0.04] hover:text-ink"
+              className="inline-flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 px-3 py-1.5 font-mono text-[11px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
             >
-              <Download className="size-3.5 text-[#7170ff]" />
+              <Download className="size-3.5 text-signal" />
               EXPORT_CSV
             </button>
           )}
@@ -116,13 +116,13 @@ export function ChannelCultureGlossary({
               return (
                 <div
                   key={c.channel_id}
-                  className="channel-node-card group relative flex flex-col justify-between overflow-hidden rounded-[8px] border border-white/[0.06] bg-white/[0.02] p-4 transition-all duration-200 hover:border-white/[0.14] hover:bg-white/[0.04] hover:shadow-lg"
+                  className="channel-node-card hud-card group relative flex flex-col justify-between overflow-hidden p-4"
                 >
                   <div>
                     {/* Channel Card Header */}
-                    <div className="flex items-center justify-between gap-2 border-b border-white/[0.05] pb-2.5">
+                    <div className="flex items-center justify-between gap-2 border-b border-hairline pb-2.5">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="flex size-6 items-center justify-center rounded bg-white/[0.04] text-[#7170ff]">
+                        <span className="flex size-6 items-center justify-center rounded bg-surface-2 text-signal">
                           <Hash className="size-3.5" />
                         </span>
                         <span className="truncate font-mono text-xs font-semibold text-ink">
@@ -152,10 +152,10 @@ export function ChannelCultureGlossary({
                   </div>
 
                   {/* Signal Strength Bar & Timestamp */}
-                  <div className="mt-4 pt-3 border-t border-white/[0.04]">
+                  <div className="mt-4 pt-3 border-t border-hairline">
                     <div className="flex items-center justify-between font-mono text-[10px] text-ink-faint mb-1.5">
                       <span className="flex items-center gap-1">
-                        <Activity className="size-3 text-[#7170ff]" />
+                        <Activity className="size-3 text-signal" />
                         INTEL RATIO
                       </span>
                       <span>
@@ -164,9 +164,9 @@ export function ChannelCultureGlossary({
                           : "NEVER"}
                       </span>
                     </div>
-                    <div className="h-1 w-full overflow-hidden rounded-full bg-white/[0.06]">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-[#5e6ad2] to-[#7170ff] transition-all duration-500"
+                        className="h-full rounded-full bg-signal transition-all duration-500"
                         style={{ width: `${pct}%` }}
                       />
                     </div>

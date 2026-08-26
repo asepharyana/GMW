@@ -116,16 +116,16 @@ export function AnalysisView() {
   return (
     <div className="space-y-4">
       {/* Tactical HUD Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
         <div className="flex items-center gap-2.5">
-          <span className="h-2 w-2 rounded-full bg-[#7170ff] shadow-[0_0_8px_#7170ff]" />
-          <h1 className="font-mono text-xs font-semibold tracking-wide text-[#f7f8f8] uppercase">
+          <span className="h-2 w-2 rounded-full bg-signal shadow-[0_0_8px_var(--color-signal-glow)]" />
+          <h1 className="font-mono text-xs font-semibold tracking-wide text-ink uppercase">
             Deep Scan · Semantic Search & Telemetry Analysis
           </h1>
         </div>
-        <div className="flex items-center gap-2 font-mono text-[11px] text-[#8a8f98]">
+        <div className="flex items-center gap-2 font-mono text-[11px] text-ink-muted">
           <span>ENGINE:</span>
-          <span className="rounded bg-white/[0.04] px-1.5 py-0.5 font-medium text-[#7170ff] border border-white/[0.06]">
+          <span className="rounded bg-signal/15 px-2 py-0.5 font-medium text-signal border border-signal/30">
             {query.trim().length >= 2 ? "SCANNING" : "STANDBY"}
           </span>
         </div>
@@ -134,14 +134,14 @@ export function AnalysisView() {
       {/* Hero Query Stage */}
       <GlassPanel className="p-5">
         <div className="flex items-center gap-3">
-          <span className="flex size-8 items-center justify-center rounded-[6px] border border-white/[0.08] bg-[#7170ff]/10 text-[#7170ff]">
+          <span className="flex size-8 items-center justify-center rounded-[6px] border border-signal/30 bg-signal/10 text-signal">
             <Sparkles className="size-4" />
           </span>
           <div>
             <h2 className="text-base font-semibold text-ink">
               Cross-Guild Archive Intelligence
             </h2>
-            <p className="font-mono text-[11px] text-[#8a8f98]">
+            <p className="font-mono text-[11px] text-ink-muted">
               Query vectorized messages, heuristic flags, and user behavior
             </p>
           </div>
@@ -184,7 +184,7 @@ export function AnalysisView() {
               {(search.data ?? []).map((m) => (
                 <div
                   key={m.id}
-                  className="search-result-card flex items-start gap-3 rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-3 transition-all hover:border-white/[0.12] hover:bg-white/[0.04]"
+                  className="search-result-card hud-card flex items-start gap-3 p-3 transition-all"
                 >
                   <Avatar src={m.avatar_url} name={m.username} size={32} />
                   <div className="min-w-0 flex-1">
@@ -224,8 +224,7 @@ export function AnalysisView() {
               eyebrow="engagement"
               title={
                 <span className="flex items-center gap-1.5">
-                  <TrendingUp className="size-3.5 text-[#7170ff]" /> Top
-                  Reactors
+                  <TrendingUp className="size-3.5 text-signal" /> Top Reactors
                 </span>
               }
             />
@@ -247,14 +246,14 @@ export function AnalysisView() {
                     <span className="w-24 shrink-0 truncate font-mono text-xs text-ink sm:w-32">
                       {r.username}
                     </span>
-                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">
                       <div
-                        className="reactor-bar-fill h-full rounded-full bg-gradient-to-r from-[#5e6ad2] to-[#7170ff]"
+                        className="reactor-bar-fill h-full rounded-full bg-signal"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
                     <span
-                      className="reactor-count font-mono w-10 text-right text-[11px] font-semibold text-[#7170ff]"
+                      className="reactor-count font-mono w-10 text-right text-[11px] font-semibold text-signal"
                       data-target={r.net_count}
                     >
                       +0
@@ -275,8 +274,7 @@ export function AnalysisView() {
               eyebrow="volume"
               title={
                 <span className="flex items-center gap-1.5">
-                  <Hash className="size-3.5 text-[#7170ff]" /> Top Active
-                  Channels
+                  <Hash className="size-3.5 text-signal" /> Top Active Channels
                 </span>
               }
             />
@@ -284,13 +282,13 @@ export function AnalysisView() {
               {(channels ?? []).slice(0, 6).map((c) => (
                 <div
                   key={c.channel_id}
-                  className="channel-row flex items-center justify-between rounded-[6px] border border-white/[0.04] bg-white/[0.01] p-2 text-xs hover:bg-white/[0.03]"
+                  className="channel-row hud-card flex items-center justify-between p-2 text-xs"
                 >
                   <span className="flex items-center gap-1.5 truncate font-mono text-xs text-ink">
-                    <Hash className="size-3 text-[#7170ff]" />
+                    <Hash className="size-3 text-signal" />
                     {c.channel_name ?? c.channel_id.slice(0, 10)}
                   </span>
-                  <span className="font-mono text-[10px] text-[#8a8f98]">
+                  <span className="font-mono text-[10px] text-ink-muted">
                     {c.total_messages.toLocaleString()} msgs
                   </span>
                 </div>

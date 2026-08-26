@@ -30,17 +30,17 @@ function NavItem({
       className={cn(
         "nav-dock-item group relative flex size-9 items-center justify-center rounded-[7px] transition-all duration-150",
         active
-          ? "is-active bg-white/[0.08] text-[#f7f8f8] shadow-sm border border-white/[0.12]"
-          : "text-[#8a8f98] hover:bg-white/[0.04] hover:text-[#d0d6e0]",
+          ? "is-active bg-signal/15 text-signal font-semibold shadow-xs border border-signal/30"
+          : "text-ink-muted hover:bg-surface-2 hover:text-ink",
       )}
     >
       <Icon className="relative z-10 size-4" strokeWidth={active ? 2.2 : 1.8} />
       {/* Precision Micro-Indicator */}
       {active && (
-        <span className="absolute -left-[5px] h-3.5 w-[2px] rounded-full bg-[#7170ff]" />
+        <span className="absolute -left-[5px] h-3.5 w-[2px] rounded-full bg-signal shadow-[0_0_8px_var(--color-signal-glow)]" />
       )}
       {/* Tooltip on hover */}
-      <span className="pointer-events-none absolute left-full z-50 ml-2.5 hidden whitespace-nowrap rounded-[5px] border border-white/[0.08] bg-[#0f1011] px-2 py-0.5 font-sans text-[11px] font-medium tracking-tight text-[#f7f8f8] opacity-0 shadow-lg backdrop-blur-md transition-all group-hover:translate-x-0.5 group-hover:opacity-100 md:block">
+      <span className="pointer-events-none absolute left-full z-50 ml-2.5 hidden whitespace-nowrap rounded-[5px] border border-hairline bg-surface px-2 py-0.5 font-sans text-[11px] font-medium tracking-tight text-ink opacity-0 shadow-lg backdrop-blur-md transition-all group-hover:translate-x-0.5 group-hover:opacity-100 md:block">
         {label}
       </span>
     </a>
@@ -75,7 +75,7 @@ export function NavRail() {
   return (
     <nav
       ref={railRef}
-      className="mb-[calc(0.75rem+env(safe-area-inset-bottom))] ml-[calc(0.75rem+env(safe-area-inset-left))] mt-[calc(0.75rem+env(safe-area-inset-top))] hidden w-[54px] flex-col items-center gap-1 rounded-[10px] border border-white/[0.08] bg-[#0f1011]/80 py-3 shadow-xl backdrop-blur-md md:flex"
+      className="glass mb-[calc(0.75rem+env(safe-area-inset-bottom))] ml-[calc(0.75rem+env(safe-area-inset-left))] mt-[calc(0.75rem+env(safe-area-inset-top))] hidden w-[54px] flex-col items-center gap-1 py-3 md:flex"
     >
       <div className="flex flex-1 flex-col gap-1">
         {navItems.map((item) => (

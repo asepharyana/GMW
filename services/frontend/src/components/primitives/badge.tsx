@@ -16,19 +16,19 @@ export function Badge({
   ...props
 }: BadgeProps) {
   const tones = {
-    neutral: "bg-white/[0.04] text-[#d0d6e0] border-white/[0.08]",
-    signal: "bg-[#7170ff]/10 text-[#7170ff] border-[#7170ff]/25",
-    success: "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/25",
-    amber: "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/25",
-    vermilion: "bg-[#f43f5e]/10 text-[#f43f5e] border-[#f43f5e]/25",
+    neutral: "bg-surface-2 text-ink-soft border-hairline",
+    signal: "bg-signal/15 text-signal border-signal/30",
+    success: "bg-success/15 text-success border-success/30",
+    amber: "bg-amber/15 text-amber border-amber/30",
+    vermilion: "bg-vermilion/15 text-vermilion border-vermilion/30",
   };
 
   const dots = {
-    neutral: "bg-[#8a8f98]",
-    signal: "bg-[#7170ff]",
-    success: "bg-[#10b981]",
-    amber: "bg-[#f59e0b]",
-    vermilion: "bg-[#f43f5e]",
+    neutral: "bg-ink-muted",
+    signal: "bg-signal",
+    success: "bg-success",
+    amber: "bg-amber",
+    vermilion: "bg-vermilion",
   };
 
   const sizes = {

@@ -91,21 +91,21 @@ export function ModerationView({
   return (
     <PageTransition>
       <div ref={containerRef} className="space-y-4">
-        {/* Precision Sub-Header Bar */}
-        <div className="mod-tile flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+        {/* Tactical HUD Header Bar */}
+        <div className="mod-tile flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
           <div className="flex items-center gap-2.5">
             <span
               className={`h-2 w-2 rounded-full ${
                 failedRatio > 0.1
-                  ? "bg-[#f43f5e] shadow-[0_0_8px_#f43f5e]"
-                  : "bg-[#7170ff] shadow-[0_0_8px_#7170ff]"
+                  ? "bg-vermilion shadow-[0_0_8px_var(--color-vermilion-glow)]"
+                  : "bg-signal shadow-[0_0_8px_var(--color-signal-glow)]"
               }`}
             />
-            <h1 className="font-mono text-xs font-semibold tracking-wide text-[#f7f8f8] uppercase">
+            <h1 className="font-mono text-xs font-semibold tracking-wide text-ink uppercase">
               Moderation Intelligence Console
             </h1>
           </div>
-          <div className="flex items-center gap-1.5 rounded-[5px] border border-white/[0.06] bg-white/[0.02] p-0.5">
+          <div className="flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 p-0.5">
             {(["all", "flagged", "clean"] as const).map((mode) => (
               <button
                 key={mode}
@@ -113,8 +113,8 @@ export function ModerationView({
                 onClick={() => setFilterMode(mode)}
                 className={`rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
                   filterMode === mode
-                    ? "bg-white/[0.08] text-white border border-white/[0.12]"
-                    : "text-[#8a8f98] hover:text-[#d0d6e0]"
+                    ? "bg-surface text-ink border border-hairline-focus shadow-xs"
+                    : "text-ink-muted hover:text-ink"
                 }`}
               >
                 {mode.toUpperCase()}

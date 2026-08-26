@@ -19,12 +19,8 @@ export function SectionHeader({
       )}
     >
       <div className="min-w-0">
-        {eyebrow && (
-          <div className="font-mono text-[10px] font-medium tracking-wider uppercase text-[#8a8f98] mb-0.5">
-            {eyebrow}
-          </div>
-        )}
-        <h2 className="font-sans text-[1.1rem] font-semibold tracking-tight text-[#f7f8f8]">
+        {eyebrow && <div className="eyebrow mb-0.5">{eyebrow}</div>}
+        <h2 className="font-sans text-[1.1rem] font-semibold tracking-tight text-ink">
           {title}
         </h2>
       </div>
@@ -54,46 +50,44 @@ export function MetricTile({
   className?: string;
   style?: React.CSSProperties;
 }) {
-  const toneColor =
+  const toneClass =
     tone === "vermilion"
-      ? "#f43f5e"
+      ? "text-vermilion"
       : tone === "amber"
-        ? "#f59e0b"
+        ? "text-amber"
         : tone === "signal"
-          ? "#7170ff"
-          : "#f7f8f8";
+          ? "text-signal"
+          : "text-ink";
 
   return (
     <div
-      className={cn(
-        "relative rounded-[8px] border border-white/[0.07] bg-white/[0.025] p-4 transition-all duration-200 hover:border-white/[0.14] hover:bg-white/[0.04]",
-        className,
-      )}
+      className={cn("hud-card p-4 transition-all duration-200", className)}
       style={style}
     >
       <div className="flex items-center justify-between">
-        <div className="font-mono text-[10px] font-medium uppercase tracking-wider text-[#8a8f98]">
-          {label}
-        </div>
-        {icon && <span className="text-[#8a8f98]">{icon}</span>}
+        <div className="eyebrow">{label}</div>
+        {icon && <span className="text-ink-muted">{icon}</span>}
       </div>
       <div
-        className="font-sans mt-1.5 text-[1.65rem] font-semibold leading-none tracking-tight"
-        style={{ color: tone === "neutral" ? undefined : toneColor }}
+        className={cn(
+          "font-sans mt-2 text-[1.65rem] font-semibold leading-none tracking-tight",
+          toneClass,
+        )}
       >
         {value}
       </div>
       {hint && (
-        <div className="font-mono mt-1 text-[10px] text-[#62666d]">{hint}</div>
+        <div className="font-mono mt-1.5 text-[11px] text-ink-muted">
+          {hint}
+        </div>
       )}
       {spark && spark.length > 1 && (
         <div className="mt-2.5">
-          <div className="h-[3px] w-full overflow-hidden rounded-full bg-white/[0.06]">
+          <div className="h-[3px] w-full overflow-hidden rounded-full bg-surface-2">
             <div
-              className="h-full rounded-full"
+              className={cn("h-full rounded-full bg-current", toneClass)}
               style={{
                 width: `${Math.min(100, (spark[spark.length - 1] / (Math.max(...spark) || 1)) * 100)}%`,
-                background: toneColor,
                 opacity: 0.8,
               }}
             />

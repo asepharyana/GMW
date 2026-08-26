@@ -54,7 +54,7 @@ export function TopBar() {
           onClick={() =>
             window.dispatchEvent(new Event("command-palette:open"))
           }
-          className="hidden items-center gap-1.5 rounded-[11px] border border-hairline bg-white/5 px-2.5 py-1.5 text-xs text-ink-soft transition-colors hover:text-ink hover:border-signal/40 sm:flex"
+          className="hidden items-center gap-1.5 rounded-[8px] border border-hairline bg-surface-2 px-2.5 py-1.5 text-xs text-ink-soft transition-colors hover:text-ink hover:border-hairline-focus sm:flex"
         >
           <span className="mono text-[0.65rem]">⌘K</span>
         </button>
@@ -62,7 +62,7 @@ export function TopBar() {
           type="button"
           aria-label="Toggle theme"
           onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-          className="flex size-9 items-center justify-center rounded-[11px] border border-hairline bg-white/5 text-ink-soft transition-colors hover:text-ink hover:border-signal/40"
+          className="flex size-8.5 items-center justify-center rounded-[8px] border border-hairline bg-surface-2 text-ink-soft transition-colors hover:text-ink hover:border-hairline-focus"
         >
           {mounted && theme === "light" ? (
             <Moon className="size-4" />

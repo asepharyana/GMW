@@ -116,26 +116,26 @@ export function VoiceView({
     <PageTransition>
       <div ref={containerRef} className="space-y-4">
         {/* Precision Sub-Header Bar */}
-        <div className="voice-tile flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+        <div className="voice-tile flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
           <div className="flex items-center gap-2.5">
             <span
               className={`h-2 w-2 rounded-full ${
                 connected
-                  ? "bg-[#10b981] shadow-[0_0_8px_#10b981]"
-                  : "bg-[#8a8f98]"
+                  ? "bg-success shadow-[0_0_8px_var(--color-status-success)]"
+                  : "bg-ink-muted"
               }`}
             />
-            <h1 className="font-mono text-xs font-semibold tracking-wide text-[#f7f8f8] uppercase">
+            <h1 className="font-mono text-xs font-semibold tracking-wide text-ink uppercase">
               Voice Spectrum & Stage Controls
             </h1>
           </div>
           <div className="flex items-center gap-2 font-mono text-[11px]">
-            <span className="text-[#8a8f98]">STAGE:</span>
+            <span className="text-ink-muted">STAGE:</span>
             <span
               className={`rounded px-1.5 py-0.5 font-medium border ${
                 connected
-                  ? "border-[#10b981]/30 bg-[#10b981]/10 text-[#10b981]"
-                  : "border-white/[0.06] bg-white/[0.02] text-[#8a8f98]"
+                  ? "border-success/30 bg-success/10 text-success"
+                  : "border-hairline bg-surface-2 text-ink-muted"
               }`}
             >
               {connected ? "LIVE_BRIDGE" : "OFFLINE"}
@@ -203,12 +203,12 @@ export function VoiceView({
               <SectionHeader eyebrow="Telemetry" title="Input / Output Mix" />
               <div className="mt-4 space-y-4">
                 <div>
-                  <div className="flex justify-between text-xs font-medium text-[#d0d6e0]">
+                  <div className="flex justify-between text-xs font-medium text-ink-soft">
                     <span className="flex items-center gap-1.5">
-                      <Mic className="size-3.5 text-[#7170ff]" />
+                      <Mic className="size-3.5 text-signal" />
                       Mic Sensitivity
                     </span>
-                    <span className="font-mono text-[11px] text-[#8a8f98]">
+                    <span className="font-mono text-[11px] text-ink-muted">
                       {micVol}%
                     </span>
                   </div>
@@ -222,17 +222,17 @@ export function VoiceView({
                       setMicVol(v);
                       mic.setVolume(v / 100);
                     }}
-                    className="mt-2 h-1.5 w-full appearance-none rounded-full bg-white/[0.08] accent-[#7170ff]"
+                    className="mt-2 h-1.5 w-full appearance-none rounded-full bg-surface-2 accent-signal"
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-xs font-medium text-[#d0d6e0]">
+                  <div className="flex justify-between text-xs font-medium text-ink-soft">
                     <span className="flex items-center gap-1.5">
-                      <Volume2 className="size-3.5 text-[#10b981]" />
+                      <Volume2 className="size-3.5 text-success" />
                       Monitor Output
                     </span>
-                    <span className="font-mono text-[11px] text-[#8a8f98]">
+                    <span className="font-mono text-[11px] text-ink-muted">
                       {listenVol}%
                     </span>
                   </div>
@@ -246,14 +246,14 @@ export function VoiceView({
                       setListenVol(v);
                       listen.setVolume(v / 100);
                     }}
-                    className="mt-2 h-1.5 w-full appearance-none rounded-full bg-white/[0.08] accent-[#10b981]"
+                    className="mt-2 h-1.5 w-full appearance-none rounded-full bg-surface-2 accent-success"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 border-t border-white/[0.06] pt-3">
-              <div className="font-mono text-[10px] text-[#8a8f98]">
+            <div className="mt-6 border-t border-hairline pt-3">
+              <div className="font-mono text-[10px] text-ink-muted">
                 CODEC: OPUS 48KHZ · LOW_LATENCY
               </div>
             </div>
