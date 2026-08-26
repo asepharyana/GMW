@@ -44,9 +44,21 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable} ${bricolage.variable} h-full antialiased`}
+      className={`${inter.variable} ${jetbrainsMono.variable} ${bricolage.variable} h-full antialiased dark`}
       suppressHydrationWarning
     >
+      <head>
+        {/*
+          Blocking script: apply saved theme (or default "dark") before first
+          paint so the page never flashes light mode during client-side
+          navigation or hydration. next-themes will take over after mount.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');document.documentElement.className+=' '+(t||'dark')}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         <SwrProvider>
           <ThemeProvider
