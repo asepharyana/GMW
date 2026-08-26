@@ -57,6 +57,7 @@ import type {
   AiStatus,
   EditHistoryRow,
   Guild,
+  MessageMetadata,
   MessageRecord,
 } from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
@@ -622,6 +623,22 @@ function MessageDetail({
   );
 }
 
+/** Parse metadata JSON safely — returns null on malformed / missing data. */
+function parseMeta(raw: string | null | undefined): MessageMetadata | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as MessageMetadata;
+  } catch {
+    return null;
+  }
+}
+
+/** True when an attachment content-type looks like an image we can inline. */
+function isImageType(ct?: string | null): boolean {
+  if (!ct) return false;
+  return ct.startsWith("image/");
+}
+
 /** Single message card used by both the live feed and the date-grouped timeline. */
 function MessageRow({
   m,
@@ -632,6 +649,24 @@ function MessageRow({
   selected: string | null;
   onSelect: (id: string) => void;
 }) {
+  const meta = parseMeta(m.metadata);
+  const attachments = meta?.attachments ?? [];
+  const embeds = meta?.embeds ?? [];
+  const stickers = meta?.stickers ?? [];
+  const imageAttachments = attachments.filter((a) =>
+    isImageType(a.contentType),
+  );
+  const fileAttachments = attachments.filter(
+    (a) => !isImageType(a.contentType),
+  );
+
+  // First embed image or sticker url for visual preview
+  const embedImage =
+    embeds.find((e) => e.image?.url)?.image?.url ??
+    embeds.find((e) => e.thumbnail?.url)?.thumbnail?.url ??
+    null;
+  const stickerUrl = stickers.find((s) => s.url)?.url ?? null;
+
   return (
     <button
       key={m.id}
@@ -656,11 +691,107 @@ function MessageRow({
             {formatRelativeTime(m.created_at)}
           </span>
         </div>
-        <div className="mt-0.5 line-clamp-2 text-xs text-ink-soft">
-          {renderMessageContent(m.content, m.metadata) || (
-            <span className="italic text-ink-muted">(empty / embed)</span>
-          )}
-        </div>
+
+        {/* Text content */}
+        {m.content && (
+          <div className="mt-0.5 line-clamp-2 text-xs text-ink-soft">
+            {renderMessageContent(m.content, m.metadata)}
+          </div>
+        )}
+
+        {/* Inline image attachments */}
+        {imageAttachments.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {imageAttachments.map((a) => (
+              <a
+                key={a.url}
+                href={a.url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="block overflow-hidden rounded-[6px] border border-hairline"
+              >
+                <img
+                  src={a.url}
+                  alt={a.name}
+                  loading="lazy"
+                  className="max-h-32 w-auto max-w-[200px] object-cover"
+                />
+              </a>
+            ))}
+          </div>
+        )}
+
+        {/* Sticker image */}
+        {stickerUrl && imageAttachments.length === 0 && (
+          <div className="mt-1.5">
+            <a
+              href={stickerUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="block overflow-hidden rounded-[6px] border border-hairline"
+            >
+              <img
+                src={stickerUrl}
+                alt={stickers[0]?.name ?? "sticker"}
+                loading="lazy"
+                className="max-h-28 w-auto max-w-[160px] object-contain"
+              />
+            </a>
+          </div>
+        )}
+
+        {/* Embed image / thumbnail */}
+        {embedImage && imageAttachments.length === 0 && !stickerUrl && (
+          <div className="mt-1.5">
+            <a
+              href={embedImage}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="block overflow-hidden rounded-[6px] border border-hairline"
+            >
+              <img
+                src={embedImage}
+                alt="embed"
+                loading="lazy"
+                className="max-h-32 w-auto max-w-[240px] object-cover"
+              />
+            </a>
+            {embeds[0]?.title && (
+              <div className="mt-0.5 truncate text-[10px] font-medium text-ink-muted">
+                {embeds[0].title}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Non-image file attachments */}
+        {fileAttachments.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {fileAttachments.map((a) => (
+              <a
+                key={a.url}
+                href={a.url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 rounded-[4px] border border-hairline bg-surface px-2 py-0.5 font-mono text-[10px] text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
+              >
+                <Paperclip className="size-2.5" />
+                {a.name}
+              </a>
+            ))}
+          </div>
+        )}
+
+        {/* No content at all */}
+        {!m.content && attachments.length === 0 && embeds.length === 0 && (
+          <div className="mt-0.5 text-xs italic text-ink-muted">
+            (empty / embed)
+          </div>
+        )}
       </div>
       <AiBadge status={m.ai_status} durationMs={m.ai_analysis_duration_ms} />
     </button>

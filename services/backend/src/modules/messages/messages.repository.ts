@@ -491,26 +491,21 @@ export class MessagesRepository {
    */
   async getRecentEdits(limit = 50, channelId?: string) {
     const db = getDatabase();
-    const where = channelId
-      ? `WHERE m.channel_id = '${channelId.replace(/'/g, "''")}'`
-      : "";
-    const result = await db.execute(
-      sql.raw(`
-        SELECT
-          e.id,
-          e.message_id,
-          e.old_content,
-          e.edited_at,
-          m.channel_id,
-          COALESCE(NULLIF((m.metadata::jsonb -> 'channel' ->> 'channelName'), ''), m.channel_id) AS channel_name,
-          m.username
-        FROM message_edits e
-        JOIN messages m ON m.id = e.message_id
-        ${where}
-        ORDER BY e.edited_at DESC
-        LIMIT ${limit}
-      `),
-    );
+    const result = await db.execute(sql`
+      SELECT
+        e.id,
+        e.message_id,
+        e.old_content,
+        e.edited_at,
+        m.channel_id,
+        COALESCE(NULLIF((m.metadata::jsonb -> 'channel' ->> 'channelName'), ''), m.channel_id) AS channel_name,
+        m.username
+      FROM message_edits e
+      JOIN messages m ON m.id = e.message_id
+      ${channelId ? sql`WHERE m.channel_id = ${channelId}` : sql``}
+      ORDER BY e.edited_at DESC
+      LIMIT ${limit}
+    `);
     const rows = (result.rows as Record<string, unknown>[]) || [];
     return rows.map((r) => ({
       id: String(r.id),
