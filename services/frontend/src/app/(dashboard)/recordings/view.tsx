@@ -144,14 +144,17 @@ export function RecordingsView({
       {/* Tactical HUD Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
         <div className="flex items-center gap-2.5">
-          <span className="h-2 w-2 rounded-full bg-signal shadow-[0_0_8px_var(--color-signal-glow)]" />
+          <span className="h-2 w-2 rounded-full bg-signal glow-pulse" />
           <h1 className="font-mono text-xs font-semibold tracking-wide text-ink uppercase">
             Tape Deck · Captured Audio Archive
           </h1>
         </div>
         <div className="flex items-center gap-2 font-mono text-[11px] text-ink-muted">
           <span>STATUS:</span>
-          <span className="rounded bg-signal/15 px-2 py-0.5 font-medium text-signal border border-signal/30">
+          <span
+            className="glitch-text rounded bg-signal/15 px-2 py-0.5 font-medium text-signal border border-signal/30"
+            data-text={`${totalRecordings} CLIPS_LOADED`}
+          >
             {totalRecordings} CLIPS_LOADED
           </span>
         </div>
@@ -289,6 +292,7 @@ export function RecordingsView({
                 <span className="flex items-center justify-center gap-2 font-mono text-xs text-ink-muted">
                   <Loader2 className="size-4 animate-spin text-signal" />
                   LOADING EARLIER RECORDINGS...
+                  <span className="typing-dots"><span /><span /><span /></span>
                 </span>
               ) : hasMore && loadedPages < MAX_OLDER_PAGES ? (
                 <button

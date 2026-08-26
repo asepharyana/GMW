@@ -1,94 +1,85 @@
 "use client";
 
-import { useGSAP } from "@gsap/react";
-import gsap from "gsap";
 import { Radio } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Avatar } from "@/components/primitives";
 import type { ActiveSpeaker } from "@/lib/types";
-
-if (typeof window !== "undefined") {
-  gsap.registerPlugin(useGSAP);
-}
 
 export function VoiceStage({ speakers }: { speakers: ActiveSpeaker[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const n = speakers.length;
   const speaking = speakers.filter((s) => s.speaking).length;
   const live = speaking > 0;
-  const speakingIds = speakers
-    .filter((s) => s.speaking)
-    .map((s) => s.userId)
-    .join(",");
 
-  useGSAP(
-    () => {
-      if (!containerRef.current) return;
-      const speakerNodes =
-        containerRef.current.querySelectorAll(".speaker-node");
-      if (speakerNodes.length > 0) {
-        gsap.fromTo(
-          speakerNodes,
-          { scale: 0.7, opacity: 0 },
-          {
-            scale: 1,
-            opacity: 1,
-            duration: 0.4,
-            stagger: 0.05,
-            ease: "back.out(1.5)",
-          },
-        );
-      }
-    },
-    { scope: containerRef, dependencies: [speakers.length] },
-  );
+  // CSS stagger reveal for speaker nodes
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const nodes = container.querySelectorAll<HTMLElement>(".speaker-node");
+    if (nodes.length === 0) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-  // Reactive pulse ring loop keyed to active speaking set — cleared on stop.
-  useGSAP(
-    () => {
-      if (!containerRef.current) return;
-      const prefersReduced = window.matchMedia(
-        "(prefers-reduced-motion: reduce)",
-      ).matches;
-      if (prefersReduced) return;
+    nodes.forEach((el, i) => {
+      el.style.opacity = "0";
+      el.style.animationFillMode = "forwards";
+      el.style.animationTimingFunction = "cubic-bezier(0.34, 1.56, 0.64, 1)";
+      el.style.animationName = "scale-bounce-in";
+      el.style.animationDuration = "0.4s";
+      el.style.animationDelay = `${i * 0.05}s`;
+    });
 
-      const ringNodes = containerRef.current.querySelectorAll(
-        ".speaker-pulse-ring",
-      );
-      if (ringNodes.length === 0) return;
-
-      const tl = gsap.timeline({ repeat: -1, yoyo: true });
-      tl.to(ringNodes, {
-        scale: 1.18,
-        opacity: 0.35,
-        duration: 0.55,
-        ease: "sine.inOut",
-        stagger: { each: 0.08, from: "random" },
+    return () => {
+      nodes.forEach((el) => {
+        el.style.removeProperty("opacity");
+        el.style.removeProperty("animation-name");
+        el.style.removeProperty("animation-duration");
+        el.style.removeProperty("animation-delay");
+        el.style.removeProperty("animation-fill-mode");
+        el.style.removeProperty("animation-timing-function");
       });
+    };
+  }, [speakers.length]);
 
-      return () => {
-        tl.kill();
-        gsap.set(ringNodes, { clearProps: "scale,opacity" });
-      };
-    },
-    { scope: containerRef, dependencies: [speakingIds] },
-  );
+  // CSS pulse ring for active speakers
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const rings = container.querySelectorAll<HTMLElement>(".speaker-pulse-ring");
+    if (rings.length === 0) return;
+
+    rings.forEach((el, i) => {
+      el.style.animationName = "pulse-ring";
+      el.style.animationDuration = "1.1s";
+      el.style.animationTimingFunction = "sine.in-out";
+      el.style.animationIterationCount = "infinite";
+      el.style.animationDelay = `${i * 0.08}s`;
+    });
+
+    return () => {
+      rings.forEach((el) => {
+        el.style.removeProperty("animation-name");
+        el.style.removeProperty("animation-duration");
+        el.style.removeProperty("animation-timing-function");
+        el.style.removeProperty("animation-iteration-count");
+        el.style.removeProperty("animation-delay");
+      });
+    };
+  }, [speakers.filter((s) => s.speaking).map((s) => s.userId).join(",")]);
 
   return (
     <div
       ref={containerRef}
       className="relative mx-auto aspect-square w-full max-w-[380px]"
     >
-      {/* Tactical radar coordinate grids & rings */}
       <div className="absolute inset-4 rounded-full border border-hairline/30" />
-      <div className="absolute inset-12 rounded-full border border-dashed border-hairline/40 animate-spin-disc" />
+      <div className="absolute inset-12 rounded-full border border-dashed border-hairline/40 animate-spin-disc radar-sweep" />
       <div className="absolute left-1/2 top-1/2 size-80 -translate-x-1/2 -translate-y-1/2 rounded-full border border-hairline/20" />
       <div
         className="absolute left-1/2 top-1/2 size-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-signal/5 transition-opacity duration-500"
         style={{ opacity: live ? 1 : 0.2 }}
       />
 
-      {/* Central Command Beacon */}
       <div
         className="absolute left-1/2 top-1/2 flex size-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border backdrop-blur-md transition-all duration-300"
         style={{
@@ -105,7 +96,6 @@ export function VoiceStage({ speakers }: { speakers: ActiveSpeaker[] }) {
         </span>
       </div>
 
-      {/* Orbiting Speakers */}
       {speakers.map((s, i) => {
         const angle = (i / Math.max(n, 1)) * Math.PI * 2 - Math.PI / 2;
         const radius = 44;

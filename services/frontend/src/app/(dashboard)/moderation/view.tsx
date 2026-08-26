@@ -1,7 +1,5 @@
 "use client";
 
-import { useGSAP } from "@gsap/react";
-import gsap from "gsap";
 import { AlertTriangle, CheckCircle2, Shield } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
@@ -28,10 +26,6 @@ import type {
   ModerationCoverage,
   ModerationStats,
 } from "@/lib/types";
-
-if (typeof window !== "undefined") {
-  gsap.registerPlugin(useGSAP);
-}
 
 export function ModerationView({
   initialStats,

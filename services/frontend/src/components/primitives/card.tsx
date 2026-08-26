@@ -14,7 +14,7 @@ export function GlassPanel({
   return (
     <div
       className={cn(
-        "relative rounded-[10px] border border-hairline bg-surface p-5 shadow-xl backdrop-blur-md transition-all duration-200",
+        "gradient-border relative rounded-[10px] border border-hairline bg-surface p-5 shadow-xl backdrop-blur-md transition-all duration-200",
         glow && "shadow-[0_0_24px_var(--color-signal-glow)] border-signal/30",
         className,
       )}

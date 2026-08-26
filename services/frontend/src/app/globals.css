@@ -162,6 +162,79 @@
     transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
   }
 
+  /* ── Ambient CSS Background (replaces WebGL/three.js) ── */
+  .ambient-blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: calc(var(--ab-alpha, 0.35) * 0.8);
+    will-change: transform;
+  }
+
+  .ambient-blob-1 {
+    width: 50vw;
+    height: 50vw;
+    top: -10%;
+    left: 20%;
+    background: rgb(var(--ab-r, 45) var(--ab-g, 212) var(--ab-b, 191) / 0.25);
+    animation: ambient-drift-1 25s ease-in-out infinite alternate;
+  }
+
+  .ambient-blob-2 {
+    width: 40vw;
+    height: 40vw;
+    bottom: 10%;
+    right: -5%;
+    background: rgb(var(--ab-r, 45) var(--ab-g, 212) var(--ab-b, 191) / 0.18);
+    animation: ambient-drift-2 30s ease-in-out infinite alternate;
+  }
+
+  .ambient-blob-3 {
+    width: 35vw;
+    height: 35vw;
+    top: 40%;
+    left: -10%;
+    background: rgb(var(--ab-r, 45) var(--ab-g, 212) var(--ab-b, 191) / 0.15);
+    animation: ambient-drift-3 20s ease-in-out infinite alternate;
+  }
+
+  @keyframes ambient-drift-1 {
+    0%   { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(8vw, 5vh) scale(1.15); }
+  }
+  @keyframes ambient-drift-2 {
+    0%   { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(-6vw, -8vh) scale(1.1); }
+  }
+  @keyframes ambient-drift-3 {
+    0%   { transform: translate(0, 0) scale(0.9); }
+    100% { transform: translate(5vw, 6vh) scale(1.1); }
+  }
+
+  /* Floating motes — tiny dots drifting upward */
+  .ambient-motes {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  .ambient-mote {
+    position: absolute;
+    bottom: -4px;
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: rgb(var(--ab-r, 45) var(--ab-g, 212) var(--ab-b, 191) / 0.5);
+    animation: mote-rise linear infinite;
+  }
+
+  @keyframes mote-rise {
+    0%   { transform: translateY(0) translateX(0); opacity: 0; }
+    10%  { opacity: 0.6; }
+    90%  { opacity: 0.4; }
+    100% { transform: translateY(-100vh) translateX(20px); opacity: 0; }
+  }
+
   .glass:hover {
     border-color: var(--panel-border-hover);
   }
@@ -174,12 +247,246 @@
     border-radius: var(--radius-r-panel);
     backdrop-filter: blur(12px);
     box-shadow: var(--shadow-hud);
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .hud-card:hover {
     border-color: var(--panel-border-hover);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hud), 0 8px 32px -8px rgba(45, 212, 191, 0.08);
+  }
+
+  /* ── Noise grain overlay (applied via pseudo-element) ── */
+  .noise-overlay::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    pointer-events: none;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 128px 128px;
+  }
+
+  /* ── Animated gradient border (use on glass panels) ── */
+  .gradient-border {
+    position: relative;
+    overflow: hidden;
+  }
+  .gradient-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(
+      from var(--gb-angle, 0deg),
+      transparent 40%,
+      var(--color-signal) 50%,
+      transparent 60%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: gradient-rotate 4s linear infinite;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .gradient-border:hover::before {
+    opacity: 1;
+  }
+
+  @keyframes gradient-rotate {
+    to { --gb-angle: 360deg; }
+  }
+
+  @property --gb-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  /* ── Glitch text effect (use on status labels) ── */
+  .glitch-text {
+    position: relative;
+  }
+  .glitch-text::before,
+  .glitch-text::after {
+    content: attr(data-text);
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .glitch-text::before {
+    color: var(--color-signal);
+    animation: glitch-shift-1 3s infinite steps(2);
+    clip-path: inset(0 0 65% 0);
+  }
+  .glitch-text::after {
+    color: var(--color-vermilion);
+    animation: glitch-shift-2 3s infinite steps(2);
+    clip-path: inset(65% 0 0 0);
+  }
+
+  @keyframes glitch-shift-1 {
+    0%, 92% { transform: translate(0); }
+    93% { transform: translate(-2px, 1px); }
+    94% { transform: translate(2px, -1px); }
+    95%, 100% { transform: translate(0); }
+  }
+  @keyframes glitch-shift-2 {
+    0%, 94% { transform: translate(0); }
+    95% { transform: translate(2px, 1px); }
+    96% { transform: translate(-1px, -1px); }
+    97%, 100% { transform: translate(0); }
+  }
+
+  /* ── Terminal cursor blink ── */
+  .cursor-blink::after {
+    content: "█";
+    animation: cursor-blink 1s step-end infinite;
+    color: var(--color-signal);
+    margin-left: 2px;
+  }
+
+  @keyframes cursor-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* ── Radar sweep ── */
+  .radar-sweep {
+    position: relative;
+    overflow: hidden;
+  }
+  .radar-sweep::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 50%;
+    height: 2px;
+    transform-origin: left center;
+    background: linear-gradient(90deg, var(--color-signal), transparent);
+    animation: radar-spin 3s linear infinite;
+    opacity: 0.4;
+  }
+
+  @keyframes radar-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ── Data flash — quick bright pulse on content update ── */
+  .data-flash {
+    animation: data-flash 0.5s ease-out;
+  }
+
+  @keyframes data-flash {
+    0% { background-color: rgba(45, 212, 191, 0.15); }
+    100% { background-color: transparent; }
+  }
+
+  /* ── Border trace — animated border drawing effect ── */
+  .border-trace {
+    position: relative;
+  }
+  .border-trace::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid transparent;
+    background: linear-gradient(var(--panel-bg), var(--panel-bg)) padding-box,
+                linear-gradient(var(--trace-angle, 0deg), transparent 30%, var(--color-signal) 50%, transparent 70%) border-box;
+    animation: trace-rotate 3s linear infinite;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .border-trace:hover::before {
+    opacity: 0.6;
+  }
+
+  @keyframes trace-rotate {
+    to { --trace-angle: 360deg; }
+  }
+
+  @property --trace-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  /* ── Typing dots (loading indicator) ── */
+  .typing-dots span {
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--color-signal);
+    animation: typing-bounce 1.4s ease-in-out infinite;
+    margin: 0 2px;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+  @keyframes typing-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  /* ── Glow pulse — breathing glow for live indicators ── */
+  .glow-pulse {
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 4px 1px var(--color-signal-glow); }
+    50% { box-shadow: 0 0 12px 3px var(--color-signal-glow); }
+  }
+
+  /* ── Reveal slide-up — elements rising into view ── */
+  .reveal-up {
+    opacity: 0;
+    transform: translateY(12px);
+    animation: reveal-up 0.5s ease-out forwards;
+  }
+
+  @keyframes reveal-up {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Number ticker — digit roll effect ── */
+  .ticker-digit {
+    display: inline-block;
+    overflow: hidden;
+    height: 1.2em;
+    line-height: 1.2;
+  }
+  .ticker-digit-inner {
+    animation: ticker-roll 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes ticker-roll {
+    from { transform: translateY(-100%); }
+    to { transform: translateY(0); }
+  }
+
+  /* ── Status indicator colors ── */
+  .status-live {
+    animation: glow-pulse 2s ease-in-out infinite;
+    background: var(--color-success);
+  }
+  .status-warning {
+    animation: glow-pulse 2s ease-in-out infinite;
+    background: var(--color-amber);
+  }
+  .status-error {
+    animation: glow-pulse 1.5s ease-in-out infinite;
+    background: var(--color-vermilion);
   }
 
   .eyebrow {
@@ -270,6 +577,36 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes stagger-slide-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scale-bounce-in {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bar-fill-in {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes pulse-ring {
+  0%, 100% { transform: scale(1); opacity: 0.2; }
+  50% { transform: scale(1.18); opacity: 0.45; }
+}
+
+@keyframes fade-scale-in {
+  from { opacity: 0; transform: scale(0.95) translateY(15px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -353,7 +690,15 @@
   .animate-eq,
   .animate-fade-up,
   .animate-toast-in,
-  .scan-line {
+  .scan-line,
+  .ambient-blob,
+  .ambient-mote,
+  .glitch-text::before,
+  .glitch-text::after,
+  .cursor-blink::after,
+  .radar-sweep::after,
+  .border-trace::before,
+  .gradient-border::before {
     animation: none !important;
   }
   *,

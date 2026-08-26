@@ -1,7 +1,5 @@
 "use client";
 
-import { useGSAP } from "@gsap/react";
-import gsap from "gsap";
 import { Hash, Search, Sparkles, TrendingUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
@@ -15,10 +13,6 @@ import {
   getMessageChannelLabel,
   renderMessageContent,
 } from "@/lib/format";
-
-if (typeof window !== "undefined") {
-  gsap.registerPlugin(useGSAP);
-}
 
 export function AnalysisView() {
   const [query, setQuery] = useState("");
@@ -44,88 +38,101 @@ export function AnalysisView() {
     );
   }, [query, ambient]);
 
-  // Count-up + bar-fill reveal for the reactor leaderboard — HUD gauge motif.
-  useGSAP(
-    () => {
-      if (!reactorsRef.current) return;
-      const bars = reactorsRef.current.querySelectorAll(".reactor-bar-fill");
-      const counters = reactorsRef.current.querySelectorAll(".reactor-count");
-      if (bars.length === 0) return;
-      const prefersReduced = window.matchMedia(
-        "(prefers-reduced-motion: reduce)",
-      ).matches;
-      if (prefersReduced) {
-        gsap.set(bars, { scaleX: 1 });
-        return;
-      }
-      gsap.fromTo(
-        bars,
-        { scaleX: 0 },
-        {
-          scaleX: 1,
-          duration: 0.7,
-          stagger: 0.06,
-          ease: "power2.out",
-          transformOrigin: "left center",
-        },
-      );
+  // Bar-fill reveal for reactor leaderboard — CSS animation
+  useEffect(() => {
+    const container = reactorsRef.current;
+    if (!container) return;
+    const bars = container.querySelectorAll<HTMLElement>(".reactor-bar-fill");
+    const counters = container.querySelectorAll<HTMLElement>(".reactor-count");
+    if (bars.length === 0) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      bars.forEach((el) => (el.style.transform = "scaleX(1)"));
       counters.forEach((el) => {
-        const target = Number(el.getAttribute("data-target") ?? "0");
-        const obj = { val: 0 };
-        gsap.to(obj, {
-          val: target,
-          duration: 0.8,
-          ease: "power2.out",
-          onUpdate: () => {
-            el.textContent = `+${Math.round(obj.val)}`;
-          },
-        });
+        el.textContent = `+${el.getAttribute("data-target") ?? "0"}`;
       });
-    },
-    { scope: reactorsRef, dependencies: [reactors] },
-  );
+      return;
+    }
 
-  useGSAP(
-    () => {
-      if (!channelsRef.current) return;
-      const rows = channelsRef.current.querySelectorAll(".channel-row");
-      if (rows.length === 0) return;
-      const prefersReduced = window.matchMedia(
-        "(prefers-reduced-motion: reduce)",
-      ).matches;
-      if (prefersReduced) {
-        gsap.set(rows, { opacity: 1, x: 0 });
-        return;
-      }
-      gsap.fromTo(
-        rows,
-        { opacity: 0, x: -10 },
-        {
-          opacity: 1,
-          x: 0,
-          duration: 0.35,
-          stagger: 0.04,
-          ease: "power2.out",
-          clearProps: "transform",
-        },
-      );
-    },
-    { scope: channelsRef, dependencies: [channels] },
-  );
+    bars.forEach((el, i) => {
+      el.style.transformOrigin = "left center";
+      el.style.animationFillMode = "forwards";
+      el.style.animationTimingFunction = "ease-out";
+      el.style.animationName = "bar-fill-in";
+      el.style.animationDuration = "0.7s";
+      el.style.animationDelay = `${i * 0.06}s`;
+    });
+
+    // Simple counter animation using rAF
+    counters.forEach((el) => {
+      const target = Number(el.getAttribute("data-target") ?? "0");
+      const start = performance.now();
+      const duration = 800;
+      const step = (now: number) => {
+        const progress = Math.min((now - start) / duration, 1);
+        const eased = 1 - (1 - progress) ** 3;
+        el.textContent = `+${Math.round(target * eased)}`;
+        if (progress < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+
+    return () => {
+      bars.forEach((el) => {
+        el.style.removeProperty("animation-name");
+        el.style.removeProperty("animation-duration");
+        el.style.removeProperty("animation-delay");
+        el.style.removeProperty("animation-fill-mode");
+        el.style.removeProperty("animation-timing-function");
+        el.style.removeProperty("transform-origin");
+      });
+    };
+  }, [reactors]);
+
+  // Channel rows stagger slide-in — CSS animation
+  useEffect(() => {
+    const container = channelsRef.current;
+    if (!container) return;
+    const rows = container.querySelectorAll<HTMLElement>(".channel-row");
+    if (rows.length === 0) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    rows.forEach((el, i) => {
+      el.style.opacity = "0";
+      el.style.animationFillMode = "forwards";
+      el.style.animationTimingFunction = "ease-out";
+      el.style.animationName = "stagger-slide-in";
+      el.style.animationDuration = "0.35s";
+      el.style.animationDelay = `${i * 0.04}s`;
+    });
+
+    return () => {
+      rows.forEach((el) => {
+        el.style.removeProperty("opacity");
+        el.style.removeProperty("animation-name");
+        el.style.removeProperty("animation-duration");
+        el.style.removeProperty("animation-delay");
+        el.style.removeProperty("animation-fill-mode");
+        el.style.removeProperty("animation-timing-function");
+      });
+    };
+  }, [channels]);
 
   return (
     <div className="space-y-4">
       {/* Tactical HUD Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
         <div className="flex items-center gap-2.5">
-          <span className="h-2 w-2 rounded-full bg-signal shadow-[0_0_8px_var(--color-signal-glow)]" />
+          <span className="h-2 w-2 rounded-full bg-signal glow-pulse" />
           <h1 className="font-mono text-xs font-semibold tracking-wide text-ink uppercase">
             Deep Scan · Semantic Search & Telemetry Analysis
           </h1>
         </div>
         <div className="flex items-center gap-2 font-mono text-[11px] text-ink-muted">
           <span>ENGINE:</span>
-          <span className="rounded bg-signal/15 px-2 py-0.5 font-medium text-signal border border-signal/30">
+          <span
+            className="glitch-text rounded bg-signal/15 px-2 py-0.5 font-medium text-signal border border-signal/30"
+            data-text={query.trim().length >= 2 ? "SCANNING" : "STANDBY"}
+          >
             {query.trim().length >= 2 ? "SCANNING" : "STANDBY"}
           </span>
         </div>

@@ -1,7 +1,5 @@
 "use client";
 
-import { useGSAP } from "@gsap/react";
-import gsap from "gsap";
 import {
   Bot,
   Loader2,
@@ -16,10 +14,6 @@ import { Button } from "@/components/primitives";
 import { useChatbotUserId } from "@/hooks/use-chatbot-user";
 import { chatbotApi } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
-
-if (typeof window !== "undefined") {
-  gsap.registerPlugin(useGSAP);
-}
 
 interface ChatMessage {
   id: string;
@@ -72,20 +66,15 @@ export function Chatbot() {
     }
   });
 
-  // GSAP animation for floating window
-  useGSAP(
-    () => {
-      if (!containerRef.current) return;
-      if (open) {
-        gsap.fromTo(
-          containerRef.current,
-          { opacity: 0, scale: 0.95, y: 15 },
-          { opacity: 1, scale: 1, y: 0, duration: 0.25, ease: "power2.out" },
-        );
-      }
-    },
-    { dependencies: [open], scope: containerRef },
-  );
+  // CSS animation for floating window open
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !open) return;
+    el.style.animation = "fade-scale-in 0.25s ease-out forwards";
+    return () => {
+      el.style.removeProperty("animation");
+    };
+  }, [open]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -105,7 +105,7 @@ export function DashboardView({
         {/* Tactical HUD Header Bar */}
         <div className="linear-tile flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
           <div className="flex items-center gap-2.5">
-            <span className="h-2 w-2 rounded-full bg-signal shadow-[0_0_8px_var(--color-signal-glow)]" />
+            <span className="h-2 w-2 rounded-full bg-signal glow-pulse" />
             <h1 className="font-mono text-xs font-semibold tracking-wide text-ink uppercase">
               Telemetry Overview · Node 01
             </h1>

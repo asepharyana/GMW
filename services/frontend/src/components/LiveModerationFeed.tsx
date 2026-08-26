@@ -1,16 +1,10 @@
 "use client";
 
-import { useGSAP } from "@gsap/react";
-import gsap from "gsap";
 import { CheckCircle2, ShieldAlert, UserX, VolumeX } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import { Badge } from "@/components/primitives";
 import { formatRelativeTime } from "@/lib/format";
 import type { ModerationAction } from "@/lib/types";
-
-if (typeof window !== "undefined") {
-  gsap.registerPlugin(useGSAP);
-}
 
 const ACTION_LABEL: Record<string, string> = {
   delete_message: "Deleted",
@@ -61,32 +55,33 @@ export function LiveModerationFeed({
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
 
-  useGSAP(
-    () => {
-      if (!feedRef.current) return;
-      const items = feedRef.current.querySelectorAll(".mod-feed-item");
-      if (items.length === 0) return;
+  useEffect(() => {
+    const container = feedRef.current;
+    if (!container) return;
+    const items = container.querySelectorAll<HTMLElement>(".mod-feed-item");
+    if (items.length === 0) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-      const prefersReduced = window.matchMedia(
-        "(prefers-reduced-motion: reduce)",
-      ).matches;
-      if (prefersReduced) return;
+    items.forEach((el, i) => {
+      el.style.opacity = "0";
+      el.style.animationFillMode = "forwards";
+      el.style.animationTimingFunction = "ease-out";
+      el.style.animationName = "stagger-slide-in";
+      el.style.animationDuration = "0.32s";
+      el.style.animationDelay = `${i * 0.025}s`;
+    });
 
-      gsap.fromTo(
-        items,
-        { opacity: 0, x: -8 },
-        {
-          opacity: 1,
-          x: 0,
-          duration: 0.32,
-          stagger: 0.025,
-          ease: "power2.out",
-          clearProps: "transform",
-        },
-      );
-    },
-    { scope: feedRef, dependencies: [actions.length] },
-  );
+    return () => {
+      items.forEach((el) => {
+        el.style.removeProperty("opacity");
+        el.style.removeProperty("animation-name");
+        el.style.removeProperty("animation-duration");
+        el.style.removeProperty("animation-delay");
+        el.style.removeProperty("animation-fill-mode");
+        el.style.removeProperty("animation-timing-function");
+      });
+    };
+  }, [actions.length]);
 
   return (
     <div className="flex max-h-[460px] flex-col">
@@ -147,7 +142,7 @@ export function LiveModerationFeed({
 
                   {a.reason && (
                     <p className="mt-1 font-sans text-xs text-ink-soft line-clamp-2">
-                      “{a.reason}”
+                      &ldquo;{a.reason}&rdquo;
                     </p>
                   )}
 
