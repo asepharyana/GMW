@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Inter, JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/primitives/toast";
+import { SwrProvider } from "@/components/providers";
 import "./globals.css";
 
 const inter = Inter({
@@ -47,16 +48,18 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem={false}
-          enableColorScheme={false}
-          disableTransitionOnChange
-        >
-          {children}
-          <Toaster position="bottom-right" />
-        </ThemeProvider>
+        <SwrProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem={false}
+            enableColorScheme={false}
+            disableTransitionOnChange
+          >
+            {children}
+            <Toaster position="bottom-right" />
+          </ThemeProvider>
+        </SwrProvider>
       </body>
     </html>
   );

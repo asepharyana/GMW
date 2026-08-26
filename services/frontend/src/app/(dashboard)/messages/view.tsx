@@ -102,10 +102,14 @@ export function MessagesView({
     channelId ?? undefined,
     initialMessages ?? undefined,
   );
-  // Stream history one message per WS frame (replaces the 50-row batched fetch).
-  // Drives snapshots into the SWR list above as they arrive; falls back to the
+  // Stream history over WS.
+  // Drives snapshots into the SWR list above buffered by rAF; falls back to the
   // SSR `initialMessages` seed if WS is unavailable.
-  useMessagesStream(ws, guildId ?? "", channelId ?? undefined);
+  const { streaming } = useMessagesStream(
+    ws,
+    guildId ?? "",
+    channelId ?? undefined,
+  );
   // Cursor to the next (older) page + whether more history exists.
   const { data: pageInfo } = useMessagesHasMore(
     guildId ?? "",
@@ -218,10 +222,11 @@ export function MessagesView({
     prevLen.current = list.length;
   }, [list.length, searching]);
 
+  // Depend on viewMode and initial load flag, NOT display.length, so streaming 200 items doesn't thrash animation
   const streamRef = useStaggerReveal<HTMLDivElement>(".msg-feed-card", {
     stagger: 0.02,
     y: 6,
-    dependencies: [display.length, viewMode],
+    dependencies: [viewMode],
   });
 
   return (
@@ -233,6 +238,12 @@ export function MessagesView({
           <h1 className="font-mono text-xs font-semibold tracking-wide text-ink uppercase">
             Chat Log Stream · Ingestion Stream
           </h1>
+          {streaming && (
+            <span className="flex items-center gap-1 font-mono text-[10px] text-signal animate-pulse">
+              <Loader2 className="size-3 animate-spin" />
+              STREAMING
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 font-mono text-[11px] text-ink-muted">
           <span>MODE:</span>

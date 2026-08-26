@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useAction } from "@/hooks/use-action";
 import { messagesApi, voiceApi } from "@/lib/api";
@@ -342,10 +342,10 @@ export function useMessagesWsSync(ws: WsHook, guildId: string) {
 }
 
 /**
- * Stream a channel/guild history ONE message per WS frame (no 50-row batch).
- * Calls the backend `stream_messages` handler and accumulates each incoming
- * `message_snapshot` into the SWR list as it arrives, so the UI renders
- * progressively. Falls back to the batched `messagesApi.list` if WS is down.
+ * Stream a channel/guild history over WS.
+ * Buffers incoming `message_snapshot` frames with rAF/debounce and flushes in batches,
+ * preventing layout thrashing & SWR cascading re-renders during high frame counts (e.g. 200).
+ * Gates sending `stream_messages` on `ws.status !== "disconnected"` or sends when status is ready.
  *
  * Returns: { streaming, error }.
  */
@@ -358,32 +358,64 @@ export function useMessagesStream(
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState(false);
 
+  const bufferRef = useRef<MessageRecord[]>([]);
+  const rafIdRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (!guildId) return;
     let cancelled = false;
-
     const key = msgKeys.list(guildId, channelId ?? undefined);
-    const unsubSnap = ws.on("message_snapshot", (data) => {
-      if (cancelled) return;
-      const msg = data as MessageRecord;
-      if (channelId && msg.channel_id !== channelId) return;
-      if (!channelId && msg.guild_id && msg.guild_id !== guildId) return;
+
+    const flushBuffer = () => {
+      if (bufferRef.current.length === 0) return;
+      const incoming = bufferRef.current;
+      bufferRef.current = [];
+
       void mutate(
         key,
         (old: MessagePage | undefined): MessagePage => {
-          const data2 = old?.data ?? [];
-          if (data2.some((m) => m.id === msg.id))
+          const oldData = old?.data ?? [];
+          const existingIds = new Set(oldData.map((m) => m.id));
+          const newItems = incoming.filter((m) => !existingIds.has(m.id));
+          if (newItems.length === 0)
             return old ?? { data: [], nextCursor: null };
+
           return {
-            data: sortMessages([msg, ...data2]),
+            data: sortMessages([...newItems, ...oldData]),
             nextCursor: old?.nextCursor ?? null,
           };
         },
         { revalidate: false },
       );
+    };
+
+    const scheduleFlush = () => {
+      if (rafIdRef.current !== null) return;
+      rafIdRef.current = requestAnimationFrame(() => {
+        rafIdRef.current = null;
+        flushBuffer();
+      });
+    };
+
+    const unsubSnap = ws.on("message_snapshot", (data) => {
+      if (cancelled) return;
+      const msg = data as MessageRecord;
+      if (channelId && msg.channel_id !== channelId) return;
+      if (!channelId && msg.guild_id && msg.guild_id !== guildId) return;
+
+      bufferRef.current.push(msg);
+      scheduleFlush();
     });
+
     const unsubEnd = ws.on("message_snapshot_end", (data) => {
       if (cancelled) return;
+      // Flush any remaining buffered snapshots immediately
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      flushBuffer();
+
       const end = data as {
         sent: number;
         nextCursor: string | null;
@@ -391,6 +423,7 @@ export function useMessagesStream(
       };
       setStreaming(false);
       setError(Boolean(end.error));
+
       // Persist the next-page cursor so "load older" still works after streaming.
       if (end.nextCursor) {
         void mutate(
@@ -404,21 +437,31 @@ export function useMessagesStream(
       }
     });
 
-    setStreaming(true);
-    setError(false);
-    ws.sendText(
-      JSON.stringify({
-        type: "stream_messages",
-        payload: { guildId, channelId: channelId ?? undefined, limit: 200 },
-      }),
-    );
+    // Send stream request if ws.status is connected (or not provided/undefined)
+    if (ws.status === undefined || ws.status === "connected") {
+      setStreaming(true);
+      setError(false);
+      ws.sendText(
+        JSON.stringify({
+          type: "stream_messages",
+          payload: { guildId, channelId: channelId ?? undefined, limit: 200 },
+        }),
+      );
+    } else {
+      setStreaming(false);
+    }
 
     return () => {
       cancelled = true;
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      bufferRef.current = [];
       unsubSnap();
       unsubEnd();
     };
-  }, [ws, guildId, channelId, mutate]);
+  }, [ws.status, ws.sendText, ws.on, guildId, channelId, mutate]);
 
   return { streaming, error };
 }
