@@ -136,6 +136,12 @@ export function formatMessageForPrompt(
   return `[${label}] id=${msg.id} time=${timestamp} user=${resolveDisplayName(msg)}: ${content}${mediaSuffix}${refInfo}`;
 }
 
+/** Estimate tokens for a batch of strings — single encode call, ~5x faster than per-line. */
+export function estimateTokensBatch(texts: string[]): number {
+  const combined = texts.join("\n");
+  return getEncoder().encode(combined).length + texts.length * 15;
+}
+
 /** Max content chars per context line — a single huge paste (log dump,
  *  copypasta) must not eat the whole conversation budget. */
 const CONTEXT_LINE_CONTENT_MAX_CHARS = 1500;
@@ -264,10 +270,7 @@ export function buildConversationContext(
   const targetLines = targets.map((msg) =>
     formatMessageForPrompt(msg, "target"),
   );
-  let usedTokens = targetLines.reduce(
-    (sum, line) => sum + estimateTokens(line),
-    0,
-  );
+  let usedTokens = estimateTokensBatch(targetLines);
 
   const contextLines = gatedNewestFirst.map((msg) =>
     formatMessageForPrompt(msg, "context"),

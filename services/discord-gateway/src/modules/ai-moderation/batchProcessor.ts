@@ -163,20 +163,14 @@ export async function processBatch(
       messages,
     })) as AnalysisWorkerResponse;
 
-    // Do not broadcast or auto-delete if it's an API failure that will be reverted.
+    // Broadcast + auto-delete only for successfully analyzed rows.
+    // Error rows (API failures, parse failures, incomplete) will be
+    // retried by the individual fallback queue — do NOT schedule
+    // auto-delete for them (they'd be logged as not_eligible anyway).
     for (const row of result.rows) {
-      let isApiFailure = false;
-      if (row.ai_status === "error") {
-        try {
-          const flags = JSON.parse(row.ai_moderation_flags ?? "[]") as string[];
-          isApiFailure = flags.includes("analysis_api_failed");
-        } catch {}
-      }
-
-      if (!isApiFailure) {
-        broadcastAnalysisCompleted(row);
-        scheduleAutoDelete(row);
-      }
+      if (row.ai_status === "error") continue;
+      broadcastAnalysisCompleted(row);
+      scheduleAutoDelete(row);
     }
 
     if (!result.ok) {

@@ -70,6 +70,26 @@ export async function buildCorrectedFewShotExamples(): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
+// Few-shot correction cache (refreshes hourly)
+// ---------------------------------------------------------------------------
+let _correctedExamplesCache: string | null = null;
+let _correctedExamplesCacheAt = 0;
+const CORRECTED_CACHE_TTL_MS = 60 * 60 * 1000;
+
+async function getCachedCorrectedExamples(): Promise<string> {
+  const now = Date.now();
+  if (
+    _correctedExamplesCache !== null &&
+    now - _correctedExamplesCacheAt < CORRECTED_CACHE_TTL_MS
+  ) {
+    return _correctedExamplesCache;
+  }
+  _correctedExamplesCache = await buildCorrectedFewShotExamples();
+  _correctedExamplesCacheAt = now;
+  return _correctedExamplesCache;
+}
+
+// ---------------------------------------------------------------------------
 // Text-only batch
 // ---------------------------------------------------------------------------
 export async function runTextOnlyBatch(
@@ -88,7 +108,22 @@ export async function runTextOnlyBatch(
       for (const url of extractUrlsFromText(msg.edited_content ?? msg.content))
         allUrls.add(url);
     }
-    const urlArr = Array.from(allUrls).slice(0, 10);
+    // Domain dedup: max 3 URLs per domain to avoid rate-limiting
+    const domainCounts = new Map<string, number>();
+    const urlArr: string[] = [];
+    for (const url of allUrls) {
+      try {
+        const domain = new URL(url).hostname;
+        const count = domainCounts.get(domain) ?? 0;
+        if (count >= 3) continue;
+        domainCounts.set(domain, count + 1);
+      } catch {
+        /* invalid URL, skip */
+        continue;
+      }
+      urlArr.push(url);
+      if (urlArr.length >= 10) break;
+    }
     if (urlArr.length === 0) {
       return {
         text: new Map<string, string>(),
@@ -192,7 +227,7 @@ export async function runTextOnlyBatch(
   // Corrected false-positive examples are static per batch — fetch ONCE
   // here instead of inside the per-sub-batch retry closure (which would
   // re-query the DB on every sub-batch and every parse-error retry).
-  const correctedExamples = await buildCorrectedFewShotExamples();
+  const correctedExamples = await getCachedCorrectedExamples();
 
   // ── URL images → multimodal vision evidence (hoisted out of the sub-batch
   //     loop) ───────────────────────────────────────────────────────────
@@ -368,9 +403,13 @@ export async function runTextOnlyBatch(
       );
     } catch (err: any) {
       if (err.name === "AbortError" || abortController.signal.aborted) {
-        throw new Error(
-          `Text-only batch sub-batch ${i + 1} timed out for messages ${targetIds.join(", ")}`,
+        // Sub-batch timed out — log but DO NOT throw. Previous sub-batches'
+        // results are already in allResults; throwing would discard them.
+        log.warn(
+          { subBatch: i + 1, targetIds, timeoutMs },
+          "Sub-batch timed out — preserving partial results from prior sub-batches",
         );
+        continue;
       }
       throw err;
     } finally {

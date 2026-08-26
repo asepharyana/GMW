@@ -16,6 +16,7 @@ import { delay, retryWithBackoff } from "@/shared/utils/index";
 import { config } from "../../shared/config/config.js";
 import type { AnalysisResult } from "../message-capture/types.js";
 import { llmChat } from "./llmClient.js";
+import { parseModerationResponse } from "./moderationResponseParser.js";
 import { logModerationError } from "./responseLogger.js";
 
 const log = createChildLogger("llm-caller");
@@ -79,7 +80,7 @@ export async function callModerationLLM(
                 ];
           const completion = await llmChat({
             messages,
-            max_tokens: maxTokens ?? 16384,
+            max_tokens: maxTokens ?? config.AI_LLM_MAX_COMPLETION_TOKENS ?? 16384,
             jsonResponse: { type: "json_object" },
             retries: 0,
             signal,
@@ -106,9 +107,6 @@ export async function callModerationLLM(
           if (!rawContent) throw new Error("No content in LLM response");
 
           try {
-            const { parseModerationResponse } = await import(
-              "./moderationResponseParser.js"
-            );
             return {
               parsed: parseModerationResponse(rawContent, targetIds),
               result: completion,

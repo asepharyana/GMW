@@ -461,7 +461,9 @@ export async function runModerationAnalysis(
       cacheKey,
       stored,
       embeddingsByKey.get(cacheKey),
-    ).catch(() => {});
+    ).catch((err: unknown) => {
+      log.warn({ cacheKey, error: String(err) }, "Cache write failed");
+    });
 
     // Dual-key write-back (2026-08-24): the FIRST analysis of a message runs
     // WITH conversation context (accurate), but its verdict is also stored

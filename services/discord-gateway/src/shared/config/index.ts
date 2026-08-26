@@ -197,6 +197,7 @@ export const configSchema = z
       .positive()
       .default(1024),
     AI_LLM_TEXT_BATCH_SIZE: z.coerce.number().int().positive().default(60),
+    AI_LLM_MAX_COMPLETION_TOKENS: z.coerce.number().int().positive().default(16384),
     AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS: z.coerce
       .number()
       .int()
