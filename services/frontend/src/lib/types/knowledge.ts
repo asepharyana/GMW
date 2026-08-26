@@ -18,6 +18,7 @@ export interface EditHistoryRow {
   id: string;
   message_id: string;
   old_content: string;
+  new_content: string;
   edited_at: number;
   channel_id: string | null;
   channel_name: string | null;

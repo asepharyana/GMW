@@ -175,6 +175,7 @@ export interface SemanticSearchResult {
 
 export interface MessageActivityBucket {
   channelId: string;
+  channelName: string;
   hour: number;
   count: number;
 }

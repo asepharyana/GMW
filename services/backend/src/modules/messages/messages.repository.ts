@@ -469,17 +469,20 @@ export class MessagesRepository {
     const db = getDatabase();
     const since = Date.now() - days * 24 * 60 * 60 * 1000;
     const result = await db.execute(sql`
-      SELECT channel_id,
-             EXTRACT(HOUR FROM to_timestamp(created_at / 1000))::int AS hour,
-             COUNT(*)::int AS c
-      FROM messages
-      WHERE created_at >= ${since}
-      GROUP BY channel_id, hour
-      ORDER BY channel_id, hour
+      SELECT
+        m.channel_id,
+        COALESCE(NULLIF((m.metadata::jsonb -> 'channel' ->> 'channelName'), ''), m.channel_id) AS channel_name,
+        EXTRACT(HOUR FROM to_timestamp(m.created_at / 1000))::int AS hour,
+        COUNT(*)::int AS c
+      FROM messages m
+      WHERE m.created_at >= ${since}
+      GROUP BY m.channel_id, channel_name, hour
+      ORDER BY channel_name, hour
     `);
     const rows = (result.rows as Record<string, unknown>[]) || [];
     return rows.map((r) => ({
       channelId: String(r.channel_id ?? "unknown"),
+      channelName: String(r.channel_name ?? r.channel_id ?? "unknown"),
       hour: Number(r.hour ?? 0),
       count: Number(r.c ?? 0),
     }));
@@ -499,7 +502,8 @@ export class MessagesRepository {
         e.edited_at,
         m.channel_id,
         COALESCE(NULLIF((m.metadata::jsonb -> 'channel' ->> 'channelName'), ''), m.channel_id) AS channel_name,
-        m.username
+        m.username,
+        m.content AS new_content
       FROM message_edits e
       JOIN messages m ON m.id = e.message_id
       ${channelId ? sql`WHERE m.channel_id = ${channelId}` : sql``}
@@ -511,6 +515,7 @@ export class MessagesRepository {
       id: String(r.id),
       message_id: String(r.message_id),
       old_content: r.old_content ? String(r.old_content) : "",
+      new_content: r.new_content ? String(r.new_content) : "",
       edited_at: r.edited_at ? Number(r.edited_at) : 0,
       channel_id: r.channel_id ? String(r.channel_id) : null,
       channel_name: r.channel_name ? String(r.channel_name) : null,

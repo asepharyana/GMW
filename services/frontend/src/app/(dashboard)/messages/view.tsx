@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Calendar,
   CheckCircle2,
+  History,
   Image as ImageIcon,
   Loader2,
   MessageSquare,
@@ -548,6 +549,10 @@ function MessageDetail({
 }) {
   const flags = safeParseJsonArray(m.ai_moderation_flags);
   const cats = safeParseJsonArray(m.ai_categories);
+  const editHistory =
+    (m as { edit_history?: Array<{ old_content: string; edited_at: number }> })
+      .edit_history ?? [];
+  const editCount = (m as { edit_count?: number }).edit_count ?? 0;
   return (
     <div className="space-y-3 text-sm">
       <div className="flex items-center gap-3">
@@ -592,6 +597,44 @@ function MessageDetail({
               {c}
             </Badge>
           ))}
+        </div>
+      )}
+
+      {/* Edit history — before / after diff */}
+      {editCount > 0 && editHistory.length > 0 && (
+        <div>
+          <div className="eyebrow mb-1.5 flex items-center gap-1.5">
+            <History className="size-3" /> Edit history ({editCount})
+          </div>
+          <div className="space-y-2">
+            {editHistory.map((e, i) => (
+              <div
+                key={`${m.id}-edit-${i}`}
+                className="grid grid-cols-2 gap-1.5 rounded-[6px] border border-hairline bg-surface-2/50 text-[10px] leading-relaxed"
+              >
+                <div className="overflow-hidden rounded-l-[5px] border-r border-hairline">
+                  <div className="border-b border-hairline bg-vermilion/5 px-2 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-wider text-vermilion">
+                    Before
+                  </div>
+                  <div className="max-h-20 overflow-y-auto p-1.5">
+                    <pre className="whitespace-pre-wrap break-words text-ink-faint/80">
+                      {e.old_content || <em>(empty)</em>}
+                    </pre>
+                  </div>
+                </div>
+                <div className="overflow-hidden rounded-r-[5px]">
+                  <div className="border-b border-hairline bg-success/5 px-2 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-wider text-success">
+                    After
+                  </div>
+                  <div className="max-h-20 overflow-y-auto p-1.5">
+                    <pre className="whitespace-pre-wrap break-words text-ink-soft">
+                      {m.content || <em>(empty)</em>}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
