@@ -62,7 +62,7 @@ export function SkeletonRows({
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="flex items-start gap-3 rounded-[12px] border border-hairline bg-white/[0.03] p-3"
+          className="flex items-start gap-3 rounded-[12px] border border-hairline bg-surface-2 p-3"
         >
           <Skeleton className="size-8 shrink-0 rounded-full" />
           <div className="flex-1 space-y-2 py-0.5">
@@ -111,7 +111,7 @@ export function EmptyState({
       )}
     >
       {icon && (
-        <span className="mb-1 flex size-14 items-center justify-center rounded-full border border-hairline bg-white/[0.04] text-ink-soft shadow-[0_0_30px_-12px_var(--color-signal-glow)]">
+        <span className="mb-1 flex size-14 items-center justify-center rounded-full border border-hairline bg-surface-2 text-ink-soft shadow-[0_0_30px_-12px_var(--color-signal-glow)]">
           {icon}
         </span>
       )}

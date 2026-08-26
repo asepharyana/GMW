@@ -202,7 +202,7 @@ export function RecordingsView({
                           href={r.download_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded-[5px] border border-hairline bg-surface-2 px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
+                          className="inline-flex items-center gap-1 rounded-md border border-hairline bg-surface-2 px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
                         >
                           <Download className="size-3 text-signal" /> RAW
                         </a>
@@ -211,7 +211,7 @@ export function RecordingsView({
                         type="button"
                         onClick={() => onDelete(r.id)}
                         disabled={del.isPending}
-                        className="inline-flex items-center gap-1 rounded-[5px] border border-vermilion/30 bg-vermilion/10 px-2 py-1 font-mono text-[10px] text-vermilion transition-colors hover:bg-vermilion/20"
+                        className="inline-flex items-center gap-1 rounded-md border border-vermilion/30 bg-vermilion/10 px-2 py-1 font-mono text-[10px] text-vermilion transition-colors hover:bg-vermilion/20"
                       >
                         <Trash2 className="size-3" /> PURGE
                       </button>

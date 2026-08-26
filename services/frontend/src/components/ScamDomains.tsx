@@ -48,9 +48,9 @@ export function ScamDomains({ domains }: { domains: FlaggedDomain[] }) {
                 <span className="w-44 shrink-0 truncate font-mono text-ink-soft">
                   {d.domain}
                 </span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-hairline">
                   <div
-                    className="h-full rounded-full bg-[#8b5cf6]"
+                    className="h-full rounded-full bg-signal"
                     style={{ width: `${pct}%` }}
                   />
                 </div>

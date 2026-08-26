@@ -46,7 +46,7 @@ export function Select({
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-[11px] border border-hairline bg-white/5 text-left text-ink transition-colors hover:border-signal/40",
+          "flex w-full items-center justify-between gap-2 rounded-[8px] border border-hairline bg-surface-2 text-left text-ink transition-colors hover:border-signal/40",
           "focus:outline-none focus:border-signal/60",
           size === "sm" ? "h-9 px-3 text-xs" : "h-10 px-3.5 text-sm",
         )}
@@ -79,10 +79,10 @@ export function Select({
                 setOpen(false);
               }}
               className={cn(
-                "flex w-full items-center justify-between gap-2 rounded-[9px] px-3 py-2 text-left text-sm transition-colors",
+                "flex w-full items-center justify-between gap-2 rounded-[8px] px-3 py-2 text-left text-sm transition-colors",
                 o.value === value
                   ? "bg-signal/15 text-signal"
-                  : "text-ink hover:bg-white/6",
+                  : "text-ink hover:bg-surface",
               )}
             >
               <span className="truncate">{o.label}</span>

@@ -53,9 +53,9 @@ export function TopChannels({ channels }: { channels: FlaggedChannel[] }) {
                 <span className="w-40 shrink-0 truncate text-ink-soft">
                   {c.channel_name ?? c.channel_id}
                 </span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-hairline">
                   <div
-                    className="h-full rounded-full bg-[#f59e0b]"
+                    className="h-full rounded-full bg-amber"
                     style={{ width: `${pct}%` }}
                   />
                 </div>

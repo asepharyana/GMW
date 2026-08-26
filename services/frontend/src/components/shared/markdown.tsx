@@ -33,7 +33,7 @@ function renderInline(text: string, keyBase: string): ReactNode[] {
       nodes.push(
         <code
           key={`${keyBase}-c${i}`}
-          className="mono rounded bg-white/10 px-1 py-0.5 text-[0.85em] text-signal"
+          className="mono rounded bg-surface-2 px-1 py-0.5 text-[0.85em] text-signal"
         >
           {m[4]}
         </code>,
@@ -56,7 +56,7 @@ function renderBlock(content: string, keyBase: string): ReactNode[] {
       return (
         <pre
           key={`${keyBase}-pre${idx}`}
-          className="my-1.5 overflow-x-auto rounded-[10px] border border-hairline bg-black/30 p-3"
+          className="my-1.5 overflow-x-auto rounded-[10px] border border-hairline bg-surface-2 p-3"
         >
           <code className="mono block whitespace-pre text-xs text-ink-soft">
             {code.replace(/\n$/, "")}

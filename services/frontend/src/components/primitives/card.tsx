@@ -14,8 +14,8 @@ export function GlassPanel({
   return (
     <div
       className={cn(
-        "relative rounded-[10px] border border-white/[0.08] bg-[#0f1011]/80 p-5 shadow-xl backdrop-blur-md transition-all duration-200",
-        glow && "shadow-[0_0_24px_rgba(113,112,255,0.12)] border-[#7170ff]/30",
+        "relative rounded-[10px] border border-hairline bg-surface p-5 shadow-xl backdrop-blur-md transition-all duration-200",
+        glow && "shadow-[0_0_24px_var(--color-signal-glow)] border-signal/30",
         className,
       )}
       style={style}
@@ -35,7 +35,7 @@ export function GlassCard({
   return (
     <div
       className={cn(
-        "relative rounded-[8px] border border-white/[0.06] bg-white/[0.02] p-4 transition-all duration-200 hover:border-white/[0.12] hover:bg-white/[0.04]",
+        "relative rounded-[8px] border border-hairline bg-surface-2 p-4 transition-all duration-200 hover:border-hairline-focus hover:bg-surface",
         className,
       )}
       style={style}

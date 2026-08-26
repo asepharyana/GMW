@@ -166,14 +166,7 @@
     border-color: var(--panel-border-hover);
   }
 
-  .glass-2 {
-    background: var(--panel-bg-subtle);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--radius-r);
-  }
-
   /* HUD Tactical Card */
-  .linear-card,
   .hud-card {
     position: relative;
     background: var(--panel-bg);
@@ -184,7 +177,6 @@
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .linear-card:hover,
   .hud-card:hover {
     border-color: var(--panel-border-hover);
     transform: translateY(-1px);
@@ -263,14 +255,105 @@
   100% { transform: scale(2.2); opacity: 0; }
 }
 
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
 .animate-breathe { animation: breathe 2.5s ease-in-out infinite; }
 .animate-spin-disc { animation: spin-disc 10s linear infinite; }
 .animate-pulse-ring { animation: pulse-ring 2s cubic-bezier(0.16, 1, 0.3, 1) infinite; }
 
+/* Skeleton shimmer — theme-aware base + moving highlight sheen. */
+.animate-shimmer {
+  background-color: var(--panel-bg-subtle);
+  background-image: linear-gradient(
+    105deg,
+    transparent 40%,
+    color-mix(in oklab, var(--text-primary) 6%, transparent) 50%,
+    transparent 60%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* Live equalizer bars (mini-player / recording player). */
+.animate-eq {
+  transform-origin: bottom;
+  animation: eq 0.9s ease-in-out infinite;
+}
+
+/* Entrance for popovers, toasts, mini-player. */
+.animate-fade-up { animation: fade-up 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-toast-in { animation: toast-in 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Sweeping glow line across a hero/placeholder panel. */
+.scan-line {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--accent-signal-glow),
+    transparent
+  );
+  opacity: 0.5;
+  animation: scan 2.6s ease-in-out infinite;
+}
+
+/* Mobile nav hover/active sweep fill. */
+.game-sweep {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.game-sweep i {
+  position: absolute;
+  inset: 0;
+  background: var(--accent-signal-bg);
+  transform: translateY(100%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.game-nav-item.is-active .game-sweep i,
+.game-nav-item:hover .game-sweep i {
+  transform: translateY(0);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-breathe,
   .animate-spin-disc,
-  .animate-pulse-ring {
+  .animate-pulse-ring,
+  .animate-shimmer,
+  .animate-eq,
+  .animate-fade-up,
+  .animate-toast-in,
+  .scan-line {
     animation: none !important;
   }
   *,

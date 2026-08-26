@@ -23,7 +23,7 @@ export function ChannelsView({
             CHANNEL ROSTER · SIGNAL_MAP
           </h1>
         </div>
-        <div className="inline-flex items-center gap-1.5 rounded-sm bg-surface px-2 py-0.5 font-mono text-[11px] text-ink-soft">
+        <div className="inline-flex items-center gap-1.5 rounded-md bg-surface px-2 py-0.5 font-mono text-[11px] text-ink-soft">
           <span className="text-ink-faint">NODES:</span>
           <span className="font-bold text-signal">{cultures?.length ?? 0}</span>
         </div>

@@ -139,7 +139,7 @@ export function CommandPalette() {
             placeholder="Type a command or search…"
             className="flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
           />
-          <kbd className="mono rounded bg-white/8 px-1.5 py-0.5 text-[0.6rem] text-ink-faint">
+          <kbd className="mono rounded bg-surface-2 px-1.5 py-0.5 text-[0.6rem] text-ink-faint">
             ESC
           </kbd>
         </div>
@@ -156,11 +156,11 @@ export function CommandPalette() {
                   key={c.id}
                   className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-sm transition-colors ${
                     i === active
-                      ? "bg-signal/12 text-ink"
-                      : "text-ink-soft hover:bg-white/5"
+                      ? "bg-signal/15 text-ink"
+                      : "text-ink-soft hover:bg-surface"
                   }`}
                 >
-                  <span className="flex size-7 items-center justify-center rounded-[8px] bg-white/5">
+                  <span className="flex size-7 items-center justify-center rounded-[8px] bg-surface-2">
                     {c.icon}
                   </span>
                   <span className="flex-1">{c.label}</span>

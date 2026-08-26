@@ -7,7 +7,7 @@ export function Skeleton({
   return (
     <div
       className={cn(
-        "rounded-[10px] bg-white/[0.06] animate-shimmer relative overflow-hidden",
+        "relative overflow-hidden rounded-[10px] animate-shimmer",
         className,
       )}
       {...props}

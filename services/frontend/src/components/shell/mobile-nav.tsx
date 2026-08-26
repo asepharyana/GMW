@@ -26,14 +26,14 @@ export function MobileNav() {
             className={cn(
               "game-nav-item relative flex min-h-[44px] flex-1 flex-col items-center justify-center rounded-t-[20px] px-2 pt-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] md:hidden",
               active
-                ? "is-active text-white"
+                ? "is-active text-signal"
                 : "text-ink-faint hover:text-ink-soft",
             )}
           >
             {active && (
               <span
                 aria-hidden="true"
-                className="absolute inset-x-4 top-0 h-[2px] bg-white shadow-[0_0_8px_var(--color-signal-glow)]"
+                className="absolute inset-x-4 top-0 h-[2px] bg-signal shadow-[0_0_8px_var(--color-signal-glow)]"
               />
             )}
             <span className="game-sweep" aria-hidden="true">

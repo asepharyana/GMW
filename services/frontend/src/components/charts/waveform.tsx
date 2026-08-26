@@ -17,7 +17,7 @@ export function Equalizer({
           {Array.from({ length: 28 }).map((_, i) => (
             <span
               key={`eq-${i}`}
-              className="flex-1 rounded-full bg-white/10"
+              className="flex-1 rounded-full bg-hairline"
               style={{ height: "12%" }}
             />
           ))}

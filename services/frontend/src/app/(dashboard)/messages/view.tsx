@@ -399,7 +399,7 @@ export function MessagesView({
                     <button
                       type="button"
                       onClick={loadOlder}
-                      className="rounded-[5px] border border-hairline bg-surface-2 px-3 py-1 font-mono text-[10px] text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+                      className="rounded-md border border-hairline bg-surface-2 px-3 py-1 font-mono text-[10px] text-ink-muted transition-colors hover:bg-surface hover:text-ink"
                     >
                       ↑ LOAD PREVIOUS BATCH
                     </button>

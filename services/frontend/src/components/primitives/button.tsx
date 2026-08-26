@@ -28,10 +28,10 @@ export const buttonVariants = ({
   };
 
   const sizes = {
-    sm: "h-7 px-2.5 text-xs rounded-[5px] gap-1.5",
-    md: "h-8.5 px-3.5 text-xs rounded-[6px] gap-2",
-    lg: "h-10 px-4 text-sm rounded-[7px] gap-2.5",
-    icon: "size-8.5 rounded-[6px] p-0",
+    sm: "h-7 px-2.5 text-xs rounded-[8px] gap-1.5",
+    md: "h-8.5 px-3.5 text-xs rounded-[8px] gap-2",
+    lg: "h-10 px-4 text-sm rounded-[8px] gap-2.5",
+    icon: "size-8.5 rounded-[8px] p-0",
   };
 
   return cn(base, variants[variant], sizes[size], className);

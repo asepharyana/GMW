@@ -29,7 +29,7 @@ function BarRow({
   return (
     <div className="flex items-center gap-3 text-sm">
       <span className="w-32 shrink-0 truncate text-ink-soft">{label}</span>
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-hairline">
         <div
           className="h-full rounded-full"
           style={{ width: `${pct}%`, background: color }}

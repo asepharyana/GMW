@@ -28,7 +28,7 @@ function NavItem({
       aria-label={label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "nav-dock-item group relative flex size-9 items-center justify-center rounded-[7px] transition-all duration-150",
+        "nav-dock-item group relative flex size-9 items-center justify-center rounded-[8px] transition-all duration-150",
         active
           ? "is-active bg-signal/15 text-signal font-semibold shadow-xs border border-signal/30"
           : "text-ink-muted hover:bg-surface-2 hover:text-ink",
@@ -40,7 +40,7 @@ function NavItem({
         <span className="absolute -left-[5px] h-3.5 w-[2px] rounded-full bg-signal shadow-[0_0_8px_var(--color-signal-glow)]" />
       )}
       {/* Tooltip on hover */}
-      <span className="pointer-events-none absolute left-full z-50 ml-2.5 hidden whitespace-nowrap rounded-[5px] border border-hairline bg-surface px-2 py-0.5 font-sans text-[11px] font-medium tracking-tight text-ink opacity-0 shadow-lg backdrop-blur-md transition-all group-hover:translate-x-0.5 group-hover:opacity-100 md:block">
+      <span className="pointer-events-none absolute left-full z-50 ml-2.5 hidden whitespace-nowrap rounded-md border border-hairline bg-surface px-2 py-0.5 font-sans text-[11px] font-medium tracking-tight text-ink opacity-0 shadow-lg backdrop-blur-md transition-all group-hover:translate-x-0.5 group-hover:opacity-100 md:block">
         {label}
       </span>
     </a>

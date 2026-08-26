@@ -103,7 +103,7 @@ export function Toaster({ position = "bottom-right" }: { position?: string }) {
                 store = store.filter((x) => x.id !== t.id);
                 emit();
               }}
-              className="rounded-md p-1 text-ink-faint transition-colors hover:bg-white/8 hover:text-ink"
+              className="rounded-md p-1 text-ink-faint transition-colors hover:bg-surface hover:text-ink"
             >
               <X className="size-3.5" />
             </button>

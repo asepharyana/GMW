@@ -19,7 +19,7 @@ export function Progress({
   return (
     <div
       className={cn(
-        "h-1.5 w-full overflow-hidden rounded-full bg-white/8",
+        "h-1.5 w-full overflow-hidden rounded-full bg-hairline",
         className,
       )}
     >
@@ -39,7 +39,7 @@ export function Spinner({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-block size-4 animate-spin rounded-full border-2 border-white/20 border-t-signal",
+        "inline-block size-4 animate-spin rounded-full border-2 border-hairline border-t-signal",
         className,
       )}
     />

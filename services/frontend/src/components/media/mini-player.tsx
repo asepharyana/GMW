@@ -63,7 +63,7 @@ export function MiniPlayer() {
           className="flex min-w-0 flex-1 items-center gap-3"
           aria-label="Open full media player"
         >
-          <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-hairline bg-white/5">
+          <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-hairline bg-surface-2">
             {current.thumbnailUrl ? (
               // biome-ignore lint/performance/noImgElement: external CDN thumbnails, next/image needs remote allowlist
               <img
@@ -130,7 +130,7 @@ export function MiniPlayer() {
             onClick={() => skip.mutate()}
             disabled={skip.isPending}
             aria-label="Skip to next track"
-            className="flex size-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white/10 hover:text-signal active:scale-95"
+            className="flex size-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-surface hover:text-signal active:scale-95"
           >
             <SkipForward className="size-4" />
           </button>
@@ -151,7 +151,7 @@ export function MiniPlayer() {
             className={`hidden size-8 items-center justify-center rounded-full text-xs transition-colors sm:flex ${
               media?.loop
                 ? "bg-signal/15 text-signal"
-                : "text-ink-faint hover:bg-white/10 hover:text-ink"
+                : "text-ink-faint hover:bg-surface hover:text-ink"
             }`}
           >
             ↻

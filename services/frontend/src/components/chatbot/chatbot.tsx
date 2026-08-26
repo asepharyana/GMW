@@ -169,7 +169,7 @@ export function Chatbot() {
               <button
                 type="button"
                 onClick={() => setExpanded(!expanded)}
-                className="rounded-[5px] p-1 text-ink-muted hover:bg-surface-2 hover:text-ink"
+                className="rounded-md p-1 text-ink-muted hover:bg-surface-2 hover:text-ink"
               >
                 {expanded ? (
                   <Minimize2 className="size-3.5" />
@@ -180,7 +180,7 @@ export function Chatbot() {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-[5px] p-1 text-ink-muted hover:bg-surface-2 hover:text-ink"
+                className="rounded-md p-1 text-ink-muted hover:bg-surface-2 hover:text-ink"
               >
                 <X className="size-3.5" />
               </button>

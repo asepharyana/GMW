@@ -8,9 +8,9 @@ import { cn } from "@/lib/utils";
 export function ModerationHeatmap({ hours }: { hours: HourlyModeration[] }) {
   const max = hours.reduce((m, h) => Math.max(m, h.total), 0);
   const intensity = (v: number) => {
-    if (max <= 0) return "bg-white/5";
+    if (max <= 0) return "bg-hairline";
     const t = Math.max(0, Math.min(1, v / max));
-    if (t < 0.25) return "bg-white/[0.06]";
+    if (t < 0.25) return "bg-surface-2";
     if (t < 0.5) return "bg-signal/25";
     if (t < 0.75) return "bg-signal/50";
     return "bg-vermilion/60";
