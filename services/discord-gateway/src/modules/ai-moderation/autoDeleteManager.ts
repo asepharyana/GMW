@@ -130,7 +130,24 @@ function getErrorCode(error: unknown): number | string | undefined {
 
 function isAlreadyDeletedError(error: unknown): boolean {
   const code = getErrorCode(error);
-  return code === 10008 || code === 404 || code === "10008" || code === "404";
+  // Discord REST error codes for "message not found":
+  //   10008 = Unknown Message, 10003 = Unknown Channel,
+  //   50001 = Missing Access (channel deleted/hidden), 404 = HTTP
+  if (
+    code === 10008 ||
+    code === 10003 ||
+    code === 50001 ||
+    code === 404 ||
+    code === "10008" ||
+    code === "10003" ||
+    code === "50001" ||
+    code === "404"
+  )
+    return true;
+  // Fallback: check the message text for the Discord "Unknown Message" string
+  const msg =
+    error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return msg.includes("Unknown Message") || msg.includes("Unknown Channel");
 }
 
 function hasChannelMessagesApi(channel: unknown): channel is {

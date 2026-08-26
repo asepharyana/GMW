@@ -233,6 +233,10 @@ export async function processBatch(
           // conversation cooldown instead of an immediate individual retry.
           apiFailedMessages.push(msg);
           break;
+        case "completed":
+          // Successfully analyzed — already broadcast + auto-delete scheduled
+          // above. Do NOT re-enqueue for individual fallback.
+          break;
         default:
           // incomplete / parse_failed / unexplained drops stay retryable via
           // the individual fallback queue (same semantics as before).
