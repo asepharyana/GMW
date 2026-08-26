@@ -3,7 +3,6 @@
 import {
   AudioWaveform,
   ChevronRight,
-  Flame,
   MessageSquare,
   Mic,
   Shield,
@@ -177,13 +176,17 @@ export function DashboardView({
             </div>
             <div className="grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3 text-center">
               <div>
-                <div className="font-mono text-[10px] text-[#8a8f98]">CLEAN</div>
+                <div className="font-mono text-[10px] text-[#8a8f98]">
+                  CLEAN
+                </div>
                 <div className="font-sans text-sm font-semibold text-[#10b981]">
                   {formatNumber(s.total_clean)}
                 </div>
               </div>
               <div>
-                <div className="font-mono text-[10px] text-[#8a8f98]">FLAGGED</div>
+                <div className="font-mono text-[10px] text-[#8a8f98]">
+                  FLAGGED
+                </div>
                 <div className="font-sans text-sm font-semibold text-[#f43f5e]">
                   {formatNumber(s.total_flagged)}
                 </div>
@@ -220,10 +223,7 @@ export function DashboardView({
 
           <GlassPanel className="linear-tile flex flex-col justify-between">
             <div>
-              <SectionHeader
-                eyebrow="Navigation"
-                title="Quick Diagnostics"
-              />
+              <SectionHeader eyebrow="Navigation" title="Quick Diagnostics" />
               <div className="mt-2 space-y-1.5">
                 <Link
                   href="/moderation"

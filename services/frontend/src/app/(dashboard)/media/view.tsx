@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  Disc,
-  ListMusic,
-  Play,
-  Repeat,
-  SkipForward,
-  Sliders,
-  Square,
-} from "lucide-react";
+import { Disc, Play, Repeat, SkipForward, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import { Equalizer } from "@/components/charts";
@@ -161,7 +153,9 @@ export function MediaView({ initialStatus }: { initialStatus?: MediaState }) {
                   variant="ghost"
                   size="sm"
                   onClick={() => loop.mutateAsync()}
-                  className={media?.loop ? "border-[#7170ff] text-[#7170ff]" : ""}
+                  className={
+                    media?.loop ? "border-[#7170ff] text-[#7170ff]" : ""
+                  }
                 >
                   <Repeat className="size-3.5" />
                 </Button>

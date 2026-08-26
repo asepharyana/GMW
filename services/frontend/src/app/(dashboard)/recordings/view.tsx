@@ -6,7 +6,6 @@ import { useAmbient } from "@/components/ambient/ambient-context";
 import {
   Avatar,
   Badge,
-  Button,
   GlassCard,
   GlassPanel,
   Skeleton,
@@ -40,8 +39,8 @@ export function RecordingsView({
   const [playingId, setPlayingId] = useState<string | null>(null);
 
   const deckRef = useStaggerReveal<HTMLDivElement>(".recording-deck-card", {
-    stagger: 0.05,
-    y: 14,
+    stagger: 0.04,
+    y: 10,
     dependencies: [items],
   });
 
@@ -88,129 +87,137 @@ export function RecordingsView({
       </GlassPanel>
     );
 
+  const totalRecordings = (items ?? []).length;
+
   return (
     <div className="space-y-4">
       {/* Tactical HUD Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
-        <div className="flex items-center gap-3">
-          <div className="relative flex size-3 items-center justify-center">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-signal opacity-75" />
-            <span className="relative inline-flex size-2 rounded-full bg-signal" />
-          </div>
-          <h1 className="font-mono text-xs font-semibold tracking-widest text-ink uppercase">
-            RECORDINGS · TAPE_DECK
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+        <div className="flex items-center gap-2.5">
+          <span className="h-2 w-2 rounded-full bg-[#7170ff] shadow-[0_0_8px_#7170ff]" />
+          <h1 className="font-mono text-xs font-semibold tracking-wide text-[#f7f8f8] uppercase">
+            Tape Deck · Captured Audio Archive
           </h1>
         </div>
-        <div className="inline-flex items-center gap-1.5 rounded-sm bg-surface px-2 py-0.5 font-mono text-[11px] text-ink-soft">
-          <span className="text-ink-faint">CLIPS:</span>
-          <span className="font-bold text-signal">{(items ?? []).length}</span>
+        <div className="flex items-center gap-2 font-mono text-[11px] text-[#8a8f98]">
+          <span>STATUS:</span>
+          <span className="rounded bg-white/[0.04] px-1.5 py-0.5 font-medium text-[#7170ff] border border-white/[0.06]">
+            {totalRecordings} CLIPS_ONLINE
+          </span>
         </div>
       </div>
 
       <GlassPanel>
         <SectionHeader
-          eyebrow="voice captures"
-          title="Recordings"
+          eyebrow="acoustic buffer"
+          title="Voice Capture Tape Deck"
           action={
-            <span className="mono text-xs text-ink-faint">
-              {(items ?? []).length} clips
+            <span className="mono text-xs text-[#8a8f98]">
+              {totalRecordings} clips archived
             </span>
           }
         />
-        {(items ?? []).length === 0 ? (
+        {totalRecordings === 0 ? (
           <EmptyState
             icon={<Headphones className="size-7" />}
-            title="No recordings"
-            description="Voice clips captured by the bot appear here."
+            title="Tape deck is empty"
+            description="Voice transmissions captured in connected channels will be archived here."
           />
         ) : (
           <div
             ref={deckRef}
-            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+            className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
           >
             {(items ?? []).map((r) => {
               const up = uploadStatus(r);
               const isPlaying = playingId === r.id;
               return (
-                <GlassCard
+                <div
                   key={r.id}
-                  className={`recording-deck-card flex flex-col gap-3 transition-colors hover:bg-white/[0.06] ${
+                  className={`recording-deck-card flex flex-col justify-between rounded-[8px] border bg-white/[0.02] p-4 transition-all duration-200 hover:border-white/[0.14] hover:bg-white/[0.04] ${
                     isPlaying
-                      ? "border-signal/40 shadow-[0_0_36px_-16px_var(--color-signal-glow)]"
-                      : ""
+                      ? "border-[#7170ff]/50 bg-[#7170ff]/5 shadow-[0_0_24px_-10px_rgba(113,112,255,0.3)]"
+                      : "border-white/[0.06]"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <Avatar src={r.avatar_url} name={r.username} size={38} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold text-ink">
-                        {r.username}
+                  <div>
+                    {/* Header info */}
+                    <div className="flex items-center gap-3 border-b border-white/[0.05] pb-3">
+                      <Avatar src={r.avatar_url} name={r.username} size={36} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-semibold text-ink">
+                          {r.username}
+                        </div>
+                        <div className="flex items-center gap-1.5 font-mono text-[10px] text-ink-faint">
+                          <Hash className="size-2.5 text-[#7170ff]" />
+                          <span className="truncate">
+                            {r.channel_name ?? "voice"}
+                          </span>
+                          <span>·</span>
+                          <span>{formatRelativeTime(r.created_at)}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 text-[0.65rem] text-ink-faint">
-                        <Hash className="size-3" />
-                        <span className="truncate">
-                          {r.channel_name ?? "voice"}
-                        </span>
-                        <span className="text-ink-faint/60">·</span>
-                        <span className="mono">
-                          {formatRelativeTime(r.created_at)}
-                        </span>
-                      </div>
+                      {isPlaying && <NowPlayingChip />}
+                      {up && !isPlaying && (
+                        <Badge tone={up.tone} className="font-mono text-[9px]">
+                          {up.label}
+                        </Badge>
+                      )}
                     </div>
-                    {isPlaying && <NowPlayingChip />}
-                    {up && !isPlaying && (
-                      <Badge tone={up.tone}>{up.label}</Badge>
-                    )}
-                    <span className="mono text-[0.65rem] text-ink-faint">
-                      {formatBytes(r.size_bytes)}
+
+                    {/* Audio Player Scrub */}
+                    <div className="my-3">
+                      {r.download_url ? (
+                        <RecordingAudioPlayer
+                          src={r.download_url}
+                          label={`Voice recording by ${r.username}`}
+                          onPlayStateChange={(active) =>
+                            setPlayingId((prev) => {
+                              if (active) return r.id;
+                              return prev === r.id ? null : prev;
+                            })
+                          }
+                        />
+                      ) : (
+                        <div className="flex items-center gap-1.5 rounded-[6px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 font-mono text-[11px] text-[#8a8f98]">
+                          <Loader2 className="size-3.5 animate-spin text-[#7170ff]" />
+                          {r.upload_status === "pending"
+                            ? "UPLOAD_PENDING..."
+                            : r.upload_error
+                              ? r.upload_error
+                              : "SYNTHESIZING_PCM..."}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions & File Stats */}
+                  <div className="flex items-center justify-between border-t border-white/[0.04] pt-2.5">
+                    <span className="font-mono text-[10px] text-ink-faint">
+                      SIZE: {formatBytes(r.size_bytes)}
                     </span>
-                  </div>
-
-                  {r.download_url ? (
-                    <RecordingAudioPlayer
-                      src={r.download_url}
-                      label={`Voice recording by ${r.username}`}
-                      onPlayStateChange={(active) =>
-                        setPlayingId((prev) => {
-                          if (active) return r.id;
-                          // Only clear if THIS card was the one playing.
-                          return prev === r.id ? null : prev;
-                        })
-                      }
-                    />
-                  ) : (
-                    <div className="flex items-center gap-1.5 rounded-[10px] border border-hairline bg-white/5 px-3 py-2 text-xs text-ink-faint">
-                      <Loader2 className="size-3.5 animate-spin" />
-                      {r.upload_status === "pending"
-                        ? "Upload pending…"
-                        : r.upload_error
-                          ? r.upload_error
-                          : "Processing…"}
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    {r.download_url && (
-                      <a
-                        href={r.download_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-[9px] border border-hairline px-2.5 py-1.5 text-xs text-ink-soft hover:text-ink hover:border-signal/40"
+                    <div className="flex items-center gap-2">
+                      {r.download_url && (
+                        <a
+                          href={r.download_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-[5px] border border-white/[0.08] bg-white/[0.02] px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-ink"
+                        >
+                          <Download className="size-3 text-[#7170ff]" /> RAW
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onDelete(r.id)}
+                        disabled={del.isPending}
+                        className="inline-flex items-center gap-1 rounded-[5px] border border-white/[0.08] bg-white/[0.02] px-2 py-1 font-mono text-[10px] text-[#f43f5e] transition-colors hover:border-[#f43f5e]/30 hover:bg-[#f43f5e]/10"
                       >
-                        <Download className="size-3.5" /> Download
-                      </a>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="ml-auto"
-                      onClick={() => onDelete(r.id)}
-                      disabled={del.isPending}
-                    >
-                      <Trash2 className="size-3.5" /> Delete
-                    </Button>
+                        <Trash2 className="size-3" /> PURGE
+                      </button>
+                    </div>
                   </div>
-                </GlassCard>
+                </div>
               );
             })}
           </div>

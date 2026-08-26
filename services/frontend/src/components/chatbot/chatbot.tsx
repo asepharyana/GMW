@@ -1,16 +1,10 @@
 "use client";
 
-import {
-  Bot,
-  MessageSquare,
-  Send,
-  Trash2,
-  X,
-} from "lucide-react";
-import { useEffect, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import { Avatar, Button, GlassPanel, toast } from "@/components/primitives";
+import { Bot, MessageSquare, Send, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Button, toast } from "@/components/primitives";
 import { MarkdownLite } from "@/components/shared";
 import { useChatbotUserId } from "@/hooks/use-chatbot-user";
 import { chatbotApi } from "@/lib/api";
@@ -86,7 +80,7 @@ export function Chatbot() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs, loading]);
+  }, []);
 
   const send = async (text: string) => {
     if (!text.trim() || loading || !userId) return;
@@ -132,7 +126,11 @@ export function Chatbot() {
         onClick={() => setOpen((o) => !o)}
         className="fixed right-4 bottom-5 z-50 flex size-10 items-center justify-center rounded-full border border-white/[0.12] bg-[#0f1011] text-[#f7f8f8] shadow-2xl transition-all duration-150 hover:scale-105 hover:border-[#7170ff] hover:bg-[#191a1b]"
       >
-        {open ? <X className="size-4" /> : <MessageSquare className="size-4 text-[#7170ff]" />}
+        {open ? (
+          <X className="size-4" />
+        ) : (
+          <MessageSquare className="size-4 text-[#7170ff]" />
+        )}
       </button>
 
       {open && (

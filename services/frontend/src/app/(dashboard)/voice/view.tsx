@@ -1,22 +1,10 @@
 "use client";
 
-import {
-  AudioWaveform,
-  Disc,
-  Headphones,
-  Mic,
-  MicOff,
-  PhoneOff,
-  Radio,
-  Volume2,
-  Waves,
-} from "lucide-react";
+import { Mic, PhoneOff, Radio, Volume2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
-import { Equalizer } from "@/components/charts";
 import { Button, GlassPanel, toast } from "@/components/primitives";
 import {
-  EmptyState,
   ErrorState,
   PageTransition,
   SectionHeader,
@@ -212,10 +200,7 @@ export function VoiceView({
 
           <GlassPanel className="voice-tile flex flex-col justify-between">
             <div>
-              <SectionHeader
-                eyebrow="Telemetry"
-                title="Input / Output Mix"
-              />
+              <SectionHeader eyebrow="Telemetry" title="Input / Output Mix" />
               <div className="mt-4 space-y-4">
                 <div>
                   <div className="flex justify-between text-xs font-medium text-[#d0d6e0]">

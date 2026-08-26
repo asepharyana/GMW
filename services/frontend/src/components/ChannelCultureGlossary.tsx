@@ -1,8 +1,8 @@
 "use client";
 
-import { Radio, Signal } from "lucide-react";
-import { useMemo } from "react";
-import { GlassPanel } from "@/components/primitives";
+import { Activity, Download, Hash } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Badge, GlassPanel } from "@/components/primitives";
 import { SectionHeader } from "@/components/shared";
 import { useStaggerReveal } from "@/hooks/use-gsap-animation";
 import { downloadCsv } from "@/lib/csv";
@@ -10,16 +10,16 @@ import { formatRelativeTime } from "@/lib/format";
 import type { ChannelCultureRow } from "@/lib/types";
 
 function deriveSignalStrength(c: ChannelCultureRow): number {
-  let score = 0.25;
+  let score = 0.3;
   if (c.culture_summary) {
-    score += Math.min(0.45, c.culture_summary.length / 400);
+    score += Math.min(0.45, c.culture_summary.length / 350);
   }
   if (c.last_analyzed_at) {
     const ageMs = Date.now() - c.last_analyzed_at;
     const days = ageMs / (1000 * 60 * 60 * 24);
-    score += Math.max(0, 0.3 - days * 0.02);
+    score += Math.max(0, 0.25 - days * 0.015);
   }
-  return Math.max(0.08, Math.min(1, score));
+  return Math.max(0.12, Math.min(1, score));
 }
 
 export function ChannelCultureGlossary({
@@ -27,27 +27,47 @@ export function ChannelCultureGlossary({
 }: {
   cultures: ChannelCultureRow[];
 }) {
-  const ranked = useMemo(
-    () =>
-      cultures
-        .map((c) => ({ c, signal: deriveSignalStrength(c) }))
-        .sort((a, b) => b.signal - a.signal),
-    [cultures],
-  );
+  const [filter, setFilter] = useState("");
 
-  const containerRef = useStaggerReveal<HTMLDivElement>(".channel-row", {
-    stagger: 0.025,
-    y: 6,
-    dependencies: [cultures],
+  const ranked = useMemo(() => {
+    return cultures
+      .map((c) => ({ c, signal: deriveSignalStrength(c) }))
+      .sort((a, b) => b.signal - a.signal);
+  }, [cultures]);
+
+  const filtered = useMemo(() => {
+    if (!filter.trim()) return ranked;
+    const q = filter.toLowerCase();
+    return ranked.filter(
+      ({ c }) =>
+        c.channel_name?.toLowerCase().includes(q) ||
+        c.channel_id.toLowerCase().includes(q) ||
+        c.culture_summary?.toLowerCase().includes(q),
+    );
+  }, [ranked, filter]);
+
+  const containerRef = useStaggerReveal<HTMLDivElement>(".channel-node-card", {
+    stagger: 0.03,
+    y: 10,
+    dependencies: [filtered.length, filter],
   });
 
   return (
-    <GlassPanel>
-      <SectionHeader
-        eyebrow="Roster Intelligence"
-        title="Channel Culture & Activity Roster"
-        action={
-          cultures.length > 0 ? (
+    <div className="space-y-4">
+      {/* Search and Quick Filters */}
+      <GlassPanel className="flex flex-wrap items-center justify-between gap-3 p-3">
+        <div className="relative flex-1 min-w-[220px]">
+          <Hash className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
+          <input
+            type="text"
+            placeholder="Filter channels or culture topics..."
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="w-full rounded-[6px] border border-white/[0.08] bg-white/[0.02] py-1.5 pl-9 pr-3 text-xs text-ink placeholder:text-ink-faint focus:border-[#7170ff] focus:outline-none"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          {cultures.length > 0 && (
             <button
               type="button"
               onClick={() =>
@@ -60,43 +80,103 @@ export function ChannelCultureGlossary({
                   })),
                 )
               }
-              className="font-mono text-[11px] text-[#8a8f98] transition-colors hover:text-[#f7f8f8]"
+              className="inline-flex items-center gap-1.5 rounded-[6px] border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 font-mono text-[11px] text-ink-soft transition-colors hover:border-white/[0.16] hover:bg-white/[0.04] hover:text-ink"
             >
+              <Download className="size-3.5 text-[#7170ff]" />
               EXPORT_CSV
             </button>
-          ) : null
-        }
-      />
-      {cultures.length === 0 ? (
-        <div className="py-8 text-center font-mono text-xs text-[#8a8f98]">
-          NO CHANNELS LOGGED
+          )}
         </div>
-      ) : (
-        <div ref={containerRef} className="space-y-2 mt-3">
-          {ranked.map(({ c }) => (
-            <div
-              key={c.channel_id}
-              className="channel-row flex flex-col gap-1 rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-3 transition-all hover:border-white/[0.12] hover:bg-white/[0.04]"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold text-[#f7f8f8]">
-                  #{c.channel_name ?? c.channel_id.slice(0, 8)}
-                </span>
-                {c.last_analyzed_at && (
-                  <span className="font-mono text-[10px] text-[#8a8f98]">
-                    {formatRelativeTime(c.last_analyzed_at)}
-                  </span>
-                )}
-              </div>
-              {c.culture_summary && (
-                <p className="font-sans text-xs text-[#8a8f98] leading-relaxed line-clamp-2">
-                  {c.culture_summary}
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </GlassPanel>
+      </GlassPanel>
+
+      {/* Channel Nodes Grid */}
+      <GlassPanel>
+        <SectionHeader
+          eyebrow="Roster Telemetry"
+          title="Channel Culture & Activity Spectrum"
+          action={
+            <span className="mono text-xs text-ink-faint">
+              {filtered.length} of {cultures.length} channels
+            </span>
+          }
+        />
+
+        {filtered.length === 0 ? (
+          <div className="py-12 text-center font-mono text-xs text-ink-faint">
+            NO MATCHING CHANNEL TELEMETRY FOUND
+          </div>
+        ) : (
+          <div
+            ref={containerRef}
+            className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            {filtered.map(({ c, signal }) => {
+              const pct = Math.round(signal * 100);
+              const isHighSignal = signal > 0.65;
+              return (
+                <div
+                  key={c.channel_id}
+                  className="channel-node-card group relative flex flex-col justify-between overflow-hidden rounded-[8px] border border-white/[0.06] bg-white/[0.02] p-4 transition-all duration-200 hover:border-white/[0.14] hover:bg-white/[0.04] hover:shadow-lg"
+                >
+                  <div>
+                    {/* Channel Card Header */}
+                    <div className="flex items-center justify-between gap-2 border-b border-white/[0.05] pb-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="flex size-6 items-center justify-center rounded bg-white/[0.04] text-[#7170ff]">
+                          <Hash className="size-3.5" />
+                        </span>
+                        <span className="truncate font-mono text-xs font-semibold text-ink">
+                          {c.channel_name ?? c.channel_id.slice(0, 10)}
+                        </span>
+                      </div>
+                      <Badge
+                        tone={isHighSignal ? "signal" : "neutral"}
+                        className="font-mono text-[10px]"
+                      >
+                        {pct}% SIGNAL
+                      </Badge>
+                    </div>
+
+                    {/* Culture Summary */}
+                    <div className="mt-3">
+                      {c.culture_summary ? (
+                        <p className="font-sans text-xs text-ink-soft leading-relaxed line-clamp-3">
+                          {c.culture_summary}
+                        </p>
+                      ) : (
+                        <p className="font-mono text-[11px] text-ink-faint italic">
+                          Awaiting AI culture profile synthesis...
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Signal Strength Bar & Timestamp */}
+                  <div className="mt-4 pt-3 border-t border-white/[0.04]">
+                    <div className="flex items-center justify-between font-mono text-[10px] text-ink-faint mb-1.5">
+                      <span className="flex items-center gap-1">
+                        <Activity className="size-3 text-[#7170ff]" />
+                        INTEL RATIO
+                      </span>
+                      <span>
+                        {c.last_analyzed_at
+                          ? formatRelativeTime(c.last_analyzed_at)
+                          : "NEVER"}
+                      </span>
+                    </div>
+                    <div className="h-1 w-full overflow-hidden rounded-full bg-white/[0.06]">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-[#5e6ad2] to-[#7170ff] transition-all duration-500"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </GlassPanel>
+    </div>
   );
 }

@@ -10,6 +10,7 @@ import {
   Paperclip,
   Search,
   ShieldAlert,
+  Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityHeatmap } from "@/components/ActivityHeatmap";
@@ -42,6 +43,7 @@ import {
   useReviewWsSync,
   useSemanticSearch,
 } from "@/hooks";
+import { useStaggerReveal } from "@/hooks/use-gsap-animation";
 import { aiTone } from "@/lib/ai-status";
 import {
   formatBytes,
@@ -57,7 +59,6 @@ import type {
   Guild,
   MessageRecord,
 } from "@/lib/types";
-import { staggerDelay } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
 export function MessagesView({
@@ -217,28 +218,32 @@ export function MessagesView({
     prevLen.current = list.length;
   }, [list.length, searching]);
 
+  const streamRef = useStaggerReveal<HTMLDivElement>(".msg-feed-card", {
+    stagger: 0.02,
+    y: 6,
+    dependencies: [display.length, viewMode],
+  });
+
   return (
     <div className="space-y-4">
       {/* Tactical HUD Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
-        <div className="flex items-center gap-3">
-          <div className="relative flex size-3 items-center justify-center">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-signal opacity-75" />
-            <span className="relative inline-flex size-2 rounded-full bg-signal" />
-          </div>
-          <h1 className="font-mono text-xs font-semibold tracking-widest text-ink uppercase">
-            CHAT LOG STREAM · SCAN_01
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+        <div className="flex items-center gap-2.5">
+          <span className="h-2 w-2 rounded-full bg-[#7170ff] shadow-[0_0_8px_#7170ff]" />
+          <h1 className="font-mono text-xs font-semibold tracking-wide text-[#f7f8f8] uppercase">
+            Chat Log Stream · Ingestion Stream
           </h1>
         </div>
-        <div className="inline-flex items-center gap-1.5 rounded-sm bg-surface px-2 py-0.5 font-mono text-[11px] text-ink-soft">
-          <span className="text-ink-faint">FEED:</span>
-          <span className="font-bold text-signal">
-            {searching ? "SEARCH" : viewMode.toUpperCase()}
+        <div className="flex items-center gap-2 font-mono text-[11px] text-[#8a8f98]">
+          <span>MODE:</span>
+          <span className="rounded bg-white/[0.04] px-1.5 py-0.5 font-medium text-[#7170ff] border border-white/[0.06]">
+            {searching ? "SEARCH_ACTIVE" : viewMode.toUpperCase()}
           </span>
         </div>
       </div>
 
-      <GlassPanel className="flex flex-wrap items-center gap-3">
+      {/* Filter and Mode Bar */}
+      <GlassPanel className="flex flex-wrap items-center gap-3 p-3">
         <GuildChannelPicker
           mode="text"
           guildsInitial={initialGuilds}
@@ -255,48 +260,72 @@ export function MessagesView({
         <div className="relative ml-auto w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
           <Input
-            className="pl-9"
-            placeholder="Search messages…"
+            className="pl-9 text-xs"
+            placeholder="Search captured logs..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setSemanticMode((v) => !v)}
-          className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-            semanticMode
-              ? "border-signal/40 bg-signal/10 text-signal"
-              : "border-hairline bg-white/[0.03] text-ink-soft hover:bg-white/[0.06]"
-          }`}
-          title="Toggle semantic (vector) search over the message archive"
-        >
-          {semanticMode ? "Semantic" : "Exact"}
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            setViewMode((v) => (v === "feed" ? "timeline" : "feed"))
-          }
-          className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-            viewMode === "timeline"
-              ? "border-signal/40 bg-signal/10 text-signal"
-              : "border-hairline bg-white/[0.03] text-ink-soft hover:bg-white/[0.06]"
-          }`}
-          title="Toggle timeline (date-grouped) view"
-        >
-          {viewMode === "timeline" ? "Timeline" : "Feed"}
-        </button>
+        <div className="flex items-center gap-1.5 rounded-[6px] border border-white/[0.08] bg-white/[0.02] p-0.5">
+          <button
+            type="button"
+            onClick={() => setSemanticMode(false)}
+            className={`rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
+              !semanticMode
+                ? "bg-white/[0.08] text-white border border-white/[0.12]"
+                : "text-[#8a8f98] hover:text-[#d0d6e0]"
+            }`}
+          >
+            EXACT
+          </button>
+          <button
+            type="button"
+            onClick={() => setSemanticMode(true)}
+            className={`flex items-center gap-1 rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
+              semanticMode
+                ? "bg-[#7170ff]/20 text-[#7170ff] border border-[#7170ff]/30"
+                : "text-[#8a8f98] hover:text-[#d0d6e0]"
+            }`}
+          >
+            <Sparkles className="size-3" />
+            SEMANTIC
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5 rounded-[6px] border border-white/[0.08] bg-white/[0.02] p-0.5">
+          <button
+            type="button"
+            onClick={() => setViewMode("feed")}
+            className={`rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
+              viewMode === "feed"
+                ? "bg-white/[0.08] text-white border border-white/[0.12]"
+                : "text-[#8a8f98] hover:text-[#d0d6e0]"
+            }`}
+          >
+            FEED
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("timeline")}
+            className={`rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
+              viewMode === "timeline"
+                ? "bg-white/[0.08] text-white border border-white/[0.12]"
+                : "text-[#8a8f98] hover:text-[#d0d6e0]"
+            }`}
+          >
+            TIMELINE
+          </button>
+        </div>
       </GlassPanel>
 
-      <div className="grid gap-4 lg:grid-cols-5">
+      <div className="grid gap-3 lg:grid-cols-5">
         {semanticSearching && (
           <GlassPanel className="lg:col-span-5">
             <SectionHeader
-              eyebrow="semantic"
-              title={`“${query}”`}
+              eyebrow="semantic archive"
+              title={`Vector Matches for “${query}”`}
               action={
-                <span className="mono text-xs text-ink-faint">
+                <span className="mono text-xs text-[#8a8f98]">
                   {semantic.data?.length ?? 0} matches
                 </span>
               }
@@ -308,19 +337,18 @@ export function MessagesView({
                 {semantic.data.map((r, i) => (
                   <div
                     key={r.message_id ?? i}
-                    className="animate-stagger flex items-start gap-3 rounded-[10px] border border-hairline bg-white/[0.03] p-3"
-                    style={staggerDelay(i)}
+                    className="flex items-start gap-3 rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-3 hover:border-white/[0.12] hover:bg-white/[0.04]"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="mono text-[0.6rem] text-signal">
-                          {(r.score * 100).toFixed(0)}%
+                        <span className="font-mono text-[10px] font-semibold text-[#7170ff]">
+                          {(r.score * 100).toFixed(0)}% RELEVANCE
                         </span>
-                        <span className="mono ml-auto text-[0.6rem] text-ink-faint">
+                        <span className="ml-auto font-mono text-[10px] text-[#8a8f98]">
                           {formatRelativeTime(r.created_at)}
                         </span>
                       </div>
-                      <div className="mt-0.5 line-clamp-3 text-sm text-ink-soft">
+                      <div className="mt-1 text-xs text-[#d0d6e0] leading-relaxed">
                         {r.content}
                       </div>
                     </div>
@@ -331,19 +359,20 @@ export function MessagesView({
               <EmptyState
                 icon={<Search className="size-7" />}
                 title="No semantic matches"
-                description="Try different wording — semantic search finds meaning, not exact text."
+                description="Try different phrasing — vector search inspects contextual semantics."
               />
             )}
           </GlassPanel>
         )}
 
+        {/* Message Stream Deck */}
         <GlassPanel className="lg:col-span-3">
           <SectionHeader
-            eyebrow={searching ? "results" : "live feed"}
-            title={searching ? `“${query}”` : "Messages"}
+            eyebrow={searching ? "query results" : "realtime log"}
+            title={searching ? `Matches for “${query}”` : "Message Stream"}
             action={
-              <span className="mono text-xs text-ink-faint">
-                {list.length} shown
+              <span className="mono text-xs text-[#8a8f98]">
+                {list.length} messages
               </span>
             }
           />
@@ -354,48 +383,40 @@ export function MessagesView({
           ) : list.length === 0 ? (
             <EmptyState
               icon={<MessageSquare className="size-7" />}
-              title="No messages"
-              description="Pick a guild to begin, or run a search."
+              title="No messages captured"
+              description="Select a channel or verify discord bridge is active."
             />
           ) : (
             <div>
               {!searching && (
                 <div className="mb-2 flex items-center justify-center gap-2">
                   {loadMore.isPending ? (
-                    <span className="flex items-center gap-1.5 text-xs text-ink-soft">
+                    <span className="flex items-center gap-1.5 font-mono text-xs text-[#8a8f98]">
                       <Loader2 className="size-3.5 animate-spin" />
-                      Loading older…
+                      FETCHING EARLIER PACKETS...
                     </span>
                   ) : hasMore && loadedPages < MAX_OLDER_PAGES ? (
                     <button
                       type="button"
                       onClick={loadOlder}
-                      className="rounded-full border border-hairline bg-white/[0.03] px-3 py-1 text-xs text-ink-soft transition-colors hover:bg-white/[0.06]"
+                      className="rounded-[5px] border border-white/[0.08] bg-white/[0.02] px-3 py-1 font-mono text-[10px] text-[#8a8f98] transition-colors hover:bg-white/[0.05] hover:text-[#f7f8f8]"
                     >
-                      ↑ Load older messages
+                      ↑ LOAD PREVIOUS BATCH
                     </button>
-                  ) : loadedPages >= MAX_OLDER_PAGES ? (
-                    <span className="mono text-[0.65rem] text-ink-faint">
-                      capped at {MAX_OLDER_PAGES} older pages · use search for
-                      more
-                    </span>
                   ) : (
-                    messages &&
-                    messages.length > 0 && (
-                      <span className="mono text-[0.65rem] text-ink-faint">
-                        beginning of history
-                      </span>
-                    )
+                    <span className="font-mono text-[10px] text-[#62666d]">
+                      {loadedPages >= MAX_OLDER_PAGES
+                        ? `CAPPED AT ${MAX_OLDER_PAGES} PAGES`
+                        : "STREAM ROOT REACHED"}
+                    </span>
                   )}
                 </div>
               )}
               <div
                 ref={scrollRef}
-                className="scan-line max-h-[60vh] space-y-1.5 overflow-y-auto pr-1"
+                className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1"
                 onScroll={(e) => {
                   const el = e.currentTarget;
-                  // Track whether the user is near the bottom (to follow live
-                  // messages) and auto-load older messages when scrolled to top.
                   nearBottomRef.current =
                     el.scrollHeight - el.scrollTop - el.clientHeight < 120;
                   if (searching || !hasMore || loadMore.isPending) return;
@@ -405,44 +426,47 @@ export function MessagesView({
                   }
                 }}
               >
-                {viewMode === "timeline" && timelineNodes
-                  ? timelineNodes.map((node, _i) =>
-                      node.type === "date" ? (
-                        <div
-                          key={`date-${node.iso}`}
-                          className="flex items-center gap-2 px-1 text-[0.65rem] text-ink-faint"
-                        >
-                          <Calendar className="size-3" />
-                          {node.label}
-                        </div>
-                      ) : (
+                <div ref={streamRef} className="space-y-1.5">
+                  {viewMode === "timeline" && timelineNodes
+                    ? timelineNodes.map((node) =>
+                        node.type === "date" ? (
+                          <div
+                            key={`date-${node.iso}`}
+                            className="flex items-center gap-2 py-1 font-mono text-[10px] text-[#8a8f98]"
+                          >
+                            <Calendar className="size-3 text-[#7170ff]" />
+                            {node.label}
+                          </div>
+                        ) : (
+                          <MessageRow
+                            key={node.m.id}
+                            m={node.m}
+                            selected={selected}
+                            onSelect={setSelected}
+                          />
+                        ),
+                      )
+                    : display.map((m) => (
                         <MessageRow
-                          key={node.m.id}
-                          m={node.m}
+                          key={m.id}
+                          m={m}
                           selected={selected}
                           onSelect={setSelected}
                         />
-                      ),
-                    )
-                  : display.map((m, _i) => (
-                      <MessageRow
-                        key={m.id}
-                        m={m}
-                        selected={selected}
-                        onSelect={setSelected}
-                      />
-                    ))}
+                      ))}
+                </div>
               </div>
             </div>
           )}
         </GlassPanel>
 
+        {/* Message Inspector Detail Panel */}
         <GlassPanel className="lg:col-span-2">
-          <SectionHeader eyebrow="inspect" title="Detail" />
+          <SectionHeader eyebrow="telemetry analysis" title="Inspector Deck" />
           {!selected ? (
             <EmptyState
               title="Select a message"
-              description="Click any message to inspect AI analysis, attachments and edit history."
+              description="Click any packet in the stream to inspect AI flags, moderation heuristics, and attachments."
             />
           ) : detail.loading ? (
             <div className="space-y-2">
@@ -455,7 +479,7 @@ export function MessagesView({
               attachments={detail.attachments}
             />
           ) : (
-            <EmptyState title="Not found" />
+            <EmptyState title="Packet not found" />
           )}
         </GlassPanel>
       </div>
@@ -530,15 +554,15 @@ function MessageDetail({
         </div>
       </div>
 
-      <div className="rounded-[10px] border border-hairline bg-white/[0.03] p-3 text-ink-soft">
+      <div className="rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-3 text-xs text-[#d0d6e0] leading-relaxed">
         {renderMessageContent(m.edited_content ?? m.content, m.metadata) ||
-          "(no text)"}
+          "(no text content)"}
       </div>
 
       {m.ai_analysis && (
         <div>
-          <div className="eyebrow mb-1">AI analysis</div>
-          <div className="rounded-[10px] border border-hairline bg-white/[0.03] p-3 text-ink-soft">
+          <div className="eyebrow mb-1">AI heuristic reasoning</div>
+          <div className="rounded-[6px] border border-white/[0.06] bg-white/[0.02] p-3 text-xs text-[#8a8f98] leading-relaxed">
             {m.ai_analysis}
           </div>
         </div>
@@ -571,11 +595,11 @@ function MessageDetail({
                 href={a.discord_url ?? a.uploaded_url ?? "#"}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-2 rounded-[10px] border border-hairline bg-white/5 px-3 py-2 text-xs text-ink-soft hover:text-ink"
+                className="flex items-center gap-2 rounded-[6px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-[#d0d6e0] hover:border-white/[0.12] hover:text-[#f7f8f8]"
               >
-                <ImageIcon className="size-3.5 text-signal" />
+                <ImageIcon className="size-3.5 text-[#7170ff]" />
                 <span className="flex-1 truncate">{a.filename}</span>
-                <span className="mono text-ink-faint">
+                <span className="mono text-[10px] text-[#8a8f98]">
                   {formatBytes(a.size)}
                 </span>
               </a>
@@ -602,28 +626,28 @@ function MessageRow({
       key={m.id}
       type="button"
       onClick={() => onSelect(m.id)}
-      className={`animate-stagger flex w-full items-start gap-3 rounded-[12px] border p-3 text-left transition-colors ${
+      className={`msg-feed-card flex w-full items-start gap-3 rounded-[6px] border p-2.5 text-left transition-all ${
         selected === m.id
-          ? "border-signal/40 bg-signal/8"
-          : "border-hairline bg-white/[0.03] hover:bg-white/[0.06]"
+          ? "border-[#7170ff]/40 bg-[#7170ff]/10"
+          : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]"
       }`}
     >
-      <Avatar src={m.avatar_url} name={m.username} size={34} />
+      <Avatar src={m.avatar_url} name={m.username} size={32} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-semibold text-ink">
+          <span className="truncate text-xs font-semibold text-[#f7f8f8]">
             {m.username}
           </span>
-          <span className="mono text-[0.65rem] text-ink-faint">
+          <span className="font-mono text-[10px] text-[#8a8f98]">
             {getMessageChannelLabel(m)}
           </span>
-          <span className="mono ml-auto text-[0.6rem] text-ink-faint">
+          <span className="ml-auto font-mono text-[10px] text-[#8a8f98]">
             {formatRelativeTime(m.created_at)}
           </span>
         </div>
-        <div className="mt-0.5 line-clamp-2 text-sm text-ink-soft">
+        <div className="mt-0.5 line-clamp-2 text-xs text-[#d0d6e0]">
           {renderMessageContent(m.content, m.metadata) || (
-            <span className="italic text-ink-faint">(empty / embed)</span>
+            <span className="italic text-[#8a8f98]">(empty / embed)</span>
           )}
         </div>
       </div>

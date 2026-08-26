@@ -16,13 +16,11 @@ function NavItem({
   label,
   active,
   Icon,
-  index,
 }: {
   href: string;
   label: string;
   active: boolean;
   Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  index: number;
 }) {
   return (
     <a
@@ -36,10 +34,7 @@ function NavItem({
           : "text-[#8a8f98] hover:bg-white/[0.04] hover:text-[#d0d6e0]",
       )}
     >
-      <Icon
-        className="relative z-10 size-4"
-        strokeWidth={active ? 2.2 : 1.8}
-      />
+      <Icon className="relative z-10 size-4" strokeWidth={active ? 2.2 : 1.8} />
       {/* Precision Micro-Indicator */}
       {active && (
         <span className="absolute -left-[5px] h-3.5 w-[2px] rounded-full bg-[#7170ff]" />
@@ -83,12 +78,11 @@ export function NavRail() {
       className="mb-[calc(0.75rem+env(safe-area-inset-bottom))] ml-[calc(0.75rem+env(safe-area-inset-left))] mt-[calc(0.75rem+env(safe-area-inset-top))] hidden w-[54px] flex-col items-center gap-1 rounded-[10px] border border-white/[0.08] bg-[#0f1011]/80 py-3 shadow-xl backdrop-blur-md md:flex"
     >
       <div className="flex flex-1 flex-col gap-1">
-        {navItems.map((item, i) => (
+        {navItems.map((item) => (
           <NavItem
             key={item.href}
             href={item.href}
             label={item.label}
-            index={i}
             active={isActivePath(path, item.matchPrefix)}
             Icon={item.icon}
           />

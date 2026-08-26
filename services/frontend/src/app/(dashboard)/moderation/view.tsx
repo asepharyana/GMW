@@ -1,19 +1,13 @@
 "use client";
 
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Filter,
-  Shield,
-  ShieldAlert,
-} from "lucide-react";
-import { useEffect, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
+import { AlertTriangle, CheckCircle2, Shield } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import { LiveModerationFeed } from "@/components/LiveModerationFeed";
 import { ModerationHeatmap } from "@/components/ModerationHeatmap";
-import { Button, GlassPanel } from "@/components/primitives";
+import { GlassPanel } from "@/components/primitives";
 import {
   ErrorState,
   MetricTile,
@@ -25,9 +19,7 @@ import {
 import {
   useHourlyModeration,
   useModerationActions,
-  useModerationCoverage,
   useModerationStats,
-  useModerationTrends,
 } from "@/hooks";
 import { useStaggerReveal } from "@/hooks/use-gsap-animation";
 import { formatNumber } from "@/lib/format";
@@ -44,7 +36,7 @@ if (typeof window !== "undefined") {
 export function ModerationView({
   initialStats,
   initialActions,
-  initialCoverage,
+  initialCoverage: _initialCoverage,
 }: {
   initialStats?: ModerationStats;
   initialActions?: ModerationAction[];
@@ -62,8 +54,6 @@ export function ModerationView({
     initialActions,
   );
   const { data: hourly } = useHourlyModeration();
-  const { data: trends } = useModerationTrends(14);
-  const { data: coverage } = useModerationCoverage(30);
   const ambient = useAmbient();
 
   const [filterMode, setFilterMode] = useState<"all" | "flagged" | "clean">(
