@@ -1,7 +1,7 @@
 "use client";
 
 import { Download, Hash, Headphones, Loader2, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import {
   Avatar,
@@ -18,35 +18,85 @@ import {
 } from "@/components/voice/recording-audio-player";
 import {
   useDeleteRecording,
+  useLoadMoreRecordings,
   useRecordings,
   useRecordingsWsSync,
 } from "@/hooks";
 import { useStaggerReveal } from "@/hooks/use-gsap-animation";
 import { formatBytes, formatRelativeTime } from "@/lib/format";
-import type { VoiceRecording } from "@/lib/types";
+import type { PaginatedRecordings, VoiceRecording } from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
 
 export function RecordingsView({
-  initialItems,
+  initialPage,
 }: {
-  initialItems?: VoiceRecording[];
+  initialPage?: PaginatedRecordings;
 }) {
   const ws = useWebSocket();
-  const { data: items, isLoading, error, mutate } = useRecordings(initialItems);
+  const {
+    data: items,
+    isLoading,
+    error,
+    nextCursor,
+    hasMore,
+    mutate,
+  } = useRecordings(initialPage);
+  const loadMore = useLoadMoreRecordings();
   const del = useDeleteRecording();
   useRecordingsWsSync(ws);
   const ambient = useAmbient();
   const [playingId, setPlayingId] = useState<string | null>(null);
 
+  // Maximum older pages to prevent infinite runaway memory usage
+  const MAX_OLDER_PAGES = 10;
+  const [loadedPages, setLoadedPages] = useState(0);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
   const deckRef = useStaggerReveal<HTMLDivElement>(".recording-deck-card", {
     stagger: 0.04,
     y: 10,
-    dependencies: [items],
+    dependencies: [items?.length === 0],
   });
 
   useEffect(() => {
     ambient.set("signal", 0.3, "recordings");
   }, [ambient]);
+
+  const loadOlder = useCallback(async () => {
+    if (
+      !hasMore ||
+      !nextCursor ||
+      loadMore.isPending ||
+      loadedPages >= MAX_OLDER_PAGES
+    )
+      return;
+    try {
+      await loadMore.mutateAsync({ cursor: nextCursor });
+      setLoadedPages((n) => n + 1);
+    } catch {
+      // client error handling in hook/action
+    }
+  }, [hasMore, nextCursor, loadMore, loadedPages]);
+
+  // Infinite scroll trigger via IntersectionObserver on sentinel at the bottom of the list
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          void loadOlder();
+        }
+      },
+      { root: scrollRef.current, rootMargin: "200px" },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadOlder]);
 
   const onDelete = async (id: string) => {
     try {
@@ -102,7 +152,7 @@ export function RecordingsView({
         <div className="flex items-center gap-2 font-mono text-[11px] text-ink-muted">
           <span>STATUS:</span>
           <span className="rounded bg-signal/15 px-2 py-0.5 font-medium text-signal border border-signal/30">
-            {totalRecordings} CLIPS_ONLINE
+            {totalRecordings} CLIPS_LOADED
           </span>
         </div>
       </div>
@@ -113,7 +163,7 @@ export function RecordingsView({
           title="Voice Capture Tape Deck"
           action={
             <span className="mono text-xs text-[#8a8f98]">
-              {totalRecordings} clips archived
+              {totalRecordings} clips loaded {hasMore ? "· more available" : ""}
             </span>
           }
         />
@@ -125,101 +175,137 @@ export function RecordingsView({
           />
         ) : (
           <div
-            ref={deckRef}
-            className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+            ref={scrollRef}
+            className="mt-4 max-h-[calc(100vh-220px)] overflow-y-auto pr-1"
           >
-            {(items ?? []).map((r) => {
-              const up = uploadStatus(r);
-              const isPlaying = playingId === r.id;
-              return (
-                <div
-                  key={r.id}
-                  className={`recording-deck-card hud-card flex flex-col justify-between p-4 transition-all duration-200 ${
-                    isPlaying
-                      ? "border-signal/50 bg-signal/10 shadow-[0_0_24px_-10px_var(--color-signal-glow)]"
-                      : ""
-                  }`}
-                >
-                  <div>
-                    {/* Header info */}
-                    <div className="flex items-center gap-3 border-b border-hairline pb-3">
-                      <Avatar src={r.avatar_url} name={r.username} size={36} />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-semibold text-ink">
-                          {r.username}
-                        </div>
-                        <div className="flex items-center gap-1.5 font-mono text-[10px] text-ink-faint">
-                          <Hash className="size-2.5 text-signal" />
-                          <span className="truncate">
-                            {r.channel_name ?? "voice"}
-                          </span>
-                          <span>·</span>
-                          <span>{formatRelativeTime(r.created_at)}</span>
-                        </div>
-                      </div>
-                      {isPlaying && <NowPlayingChip />}
-                      {up && !isPlaying && (
-                        <Badge tone={up.tone} className="font-mono text-[9px]">
-                          {up.label}
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Audio Player Scrub */}
-                    <div className="my-3">
-                      {r.download_url ? (
-                        <RecordingAudioPlayer
-                          src={r.download_url}
-                          label={`Voice recording by ${r.username}`}
-                          onPlayStateChange={(active) =>
-                            setPlayingId((prev) => {
-                              if (active) return r.id;
-                              return prev === r.id ? null : prev;
-                            })
-                          }
+            <div
+              ref={deckRef}
+              className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+            >
+              {(items ?? []).map((r) => {
+                const up = uploadStatus(r);
+                const isPlaying = playingId === r.id;
+                return (
+                  <div
+                    key={r.id}
+                    className={`recording-deck-card hud-card flex flex-col justify-between p-4 transition-all duration-200 ${
+                      isPlaying
+                        ? "border-signal/50 bg-signal/10 shadow-[0_0_24px_-10px_var(--color-signal-glow)]"
+                        : ""
+                    }`}
+                  >
+                    <div>
+                      {/* Header info */}
+                      <div className="flex items-center gap-3 border-b border-hairline pb-3">
+                        <Avatar
+                          src={r.avatar_url}
+                          name={r.username}
+                          size={36}
                         />
-                      ) : (
-                        <div className="flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 px-3 py-2 font-mono text-[11px] text-ink-muted">
-                          <Loader2 className="size-3.5 animate-spin text-signal" />
-                          {r.upload_status === "pending"
-                            ? "UPLOAD_PENDING..."
-                            : r.upload_error
-                              ? r.upload_error
-                              : "SYNTHESIZING_PCM..."}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-xs font-semibold text-ink">
+                            {r.username}
+                          </div>
+                          <div className="flex items-center gap-1.5 font-mono text-[10px] text-ink-faint">
+                            <Hash className="size-2.5 text-signal" />
+                            <span className="truncate">
+                              {r.channel_name ?? "voice"}
+                            </span>
+                            <span>·</span>
+                            <span>{formatRelativeTime(r.created_at)}</span>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
+                        {isPlaying && <NowPlayingChip />}
+                        {up && !isPlaying && (
+                          <Badge
+                            tone={up.tone}
+                            className="font-mono text-[9px]"
+                          >
+                            {up.label}
+                          </Badge>
+                        )}
+                      </div>
 
-                  {/* Actions & File Stats */}
-                  <div className="flex items-center justify-between border-t border-hairline pt-2.5">
-                    <span className="font-mono text-[10px] text-ink-faint">
-                      SIZE: {formatBytes(r.size_bytes)}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {r.download_url && (
-                        <a
-                          href={r.download_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded-md border border-hairline bg-surface-2 px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
+                      {/* Audio Player Scrub */}
+                      <div className="my-3">
+                        {r.download_url ? (
+                          <RecordingAudioPlayer
+                            src={r.download_url}
+                            label={`Voice recording by ${r.username}`}
+                            onPlayStateChange={(active) =>
+                              setPlayingId((prev) => {
+                                if (active) return r.id;
+                                return prev === r.id ? null : prev;
+                              })
+                            }
+                          />
+                        ) : (
+                          <div className="flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 px-3 py-2 font-mono text-[11px] text-ink-muted">
+                            <Loader2 className="size-3.5 animate-spin text-signal" />
+                            {r.upload_status === "pending"
+                              ? "UPLOAD_PENDING..."
+                              : r.upload_error
+                                ? r.upload_error
+                                : "SYNTHESIZING_PCM..."}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions & File Stats */}
+                    <div className="flex items-center justify-between border-t border-hairline pt-2.5">
+                      <span className="font-mono text-[10px] text-ink-faint">
+                        SIZE: {formatBytes(r.size_bytes)}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {r.download_url && (
+                          <a
+                            href={r.download_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border border-hairline bg-surface-2 px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
+                          >
+                            <Download className="size-3 text-signal" /> RAW
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => onDelete(r.id)}
+                          disabled={del.isPending}
+                          className="inline-flex items-center gap-1 rounded-md border border-vermilion/30 bg-vermilion/10 px-2 py-1 font-mono text-[10px] text-vermilion transition-colors hover:bg-vermilion/20"
                         >
-                          <Download className="size-3 text-signal" /> RAW
-                        </a>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => onDelete(r.id)}
-                        disabled={del.isPending}
-                        className="inline-flex items-center gap-1 rounded-md border border-vermilion/30 bg-vermilion/10 px-2 py-1 font-mono text-[10px] text-vermilion transition-colors hover:bg-vermilion/20"
-                      >
-                        <Trash2 className="size-3" /> PURGE
-                      </button>
+                          <Trash2 className="size-3" /> PURGE
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+
+            {/* Infinite scroll sentinel & status footer */}
+            <div ref={sentinelRef} className="py-4 text-center">
+              {loadMore.isPending ? (
+                <span className="flex items-center justify-center gap-2 font-mono text-xs text-ink-muted">
+                  <Loader2 className="size-4 animate-spin text-signal" />
+                  LOADING EARLIER RECORDINGS...
+                </span>
+              ) : hasMore && loadedPages < MAX_OLDER_PAGES ? (
+                <button
+                  type="button"
+                  onClick={loadOlder}
+                  className="rounded-md border border-hairline bg-surface-2 px-3 py-1.5 font-mono text-xs text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+                >
+                  ↓ LOAD MORE RECORDINGS
+                </button>
+              ) : (
+                <span className="font-mono text-[10px] text-ink-faint">
+                  {loadedPages >= MAX_OLDER_PAGES
+                    ? `CAPPED AT ${MAX_OLDER_PAGES} PAGES`
+                    : "ARCHIVE END REACHED"}
+                </span>
+              )}
+            </div>
           </div>
         )}
       </GlassPanel>

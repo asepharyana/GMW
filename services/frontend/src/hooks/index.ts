@@ -48,6 +48,7 @@ export {
 } from "./use-moderation";
 export {
   useDeleteRecording,
+  useLoadMoreRecordings,
   useRecordings,
   useRecordingsWsSync,
 } from "./use-recordings";
