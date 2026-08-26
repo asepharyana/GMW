@@ -24,4 +24,6 @@ export interface ActiveSpeaker {
   username: string;
   avatar?: string | null;
   speaking: boolean;
+  /** Epoch ms of most recent activity. Stale speakers are auto-expired. */
+  lastActiveAt?: number;
 }

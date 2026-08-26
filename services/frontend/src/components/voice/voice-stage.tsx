@@ -7,9 +7,11 @@ import type { ActiveSpeaker } from "@/lib/types";
 
 export function VoiceStage({ speakers }: { speakers: ActiveSpeaker[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const n = speakers.length;
-  const speaking = speakers.filter((s) => s.speaking).length;
-  const live = speaking > 0;
+  // Only show actively speaking users on the stage orbit
+  const activeSpeakers = speakers.filter((s) => s.speaking);
+  const n = activeSpeakers.length;
+  const totalConnected = speakers.length;
+  const live = n > 0;
 
   // CSS stagger reveal for speaker nodes
   useEffect(() => {
@@ -92,11 +94,11 @@ export function VoiceStage({ speakers }: { speakers: ActiveSpeaker[] }) {
           className={`size-7 transition-colors ${live ? "text-signal animate-breathe" : "text-ink-faint"}`}
         />
         <span className="font-mono mt-1 text-[11px] font-bold tracking-wider text-ink uppercase">
-          {live ? `${speaking} SPEAKING` : `${n} CONNECTED`}
+          {live ? `${n} SPEAKING` : `${totalConnected} CONNECTED`}
         </span>
       </div>
 
-      {speakers.map((s, i) => {
+      {activeSpeakers.map((s, i) => {
         const angle = (i / Math.max(n, 1)) * Math.PI * 2 - Math.PI / 2;
         const radius = 44;
         const x = 50 + radius * Math.cos(angle);

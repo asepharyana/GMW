@@ -1,10 +1,11 @@
 import Redis from "ioredis";
-import { recordSpeaker } from "../modules/voice/live-speaker.js";
+import { clearAllSpeakers, recordSpeaker } from "../modules/voice/live-speaker.js";
 import { config } from "../shared/config/index.js";
 import {
   DISCORD_CHANNEL_TO_WS_EVENT,
   DISCORD_VOICE_ACTIVE_USER,
   DISCORD_VOICE_PCM,
+  DISCORD_VOICE_STOPPED,
 } from "../shared/index.js";
 import { createChildLogger } from "../shared/logger/index.js";
 import { broadcastBinary, broadcastEvent } from "./broadcast.js";
@@ -82,6 +83,14 @@ function handleSubscriptionMessage(channel: string, message: string): void {
         speaking: Boolean(speaker.speaking),
       });
     }
+  }
+
+  // When the gateway stops voice recording (disconnects from voice channel),
+  // clear all speakers from the authoritative snapshot so frontends don't
+  // show ghost participants.
+  if (channel === DISCORD_VOICE_STOPPED) {
+    clearAllSpeakers();
+    logger.info("Voice recording stopped — cleared all live speakers");
   }
 
   logger.debug({ channel, eventType }, "Broadcasting Redis event");

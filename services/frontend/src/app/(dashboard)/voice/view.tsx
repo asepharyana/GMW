@@ -53,6 +53,32 @@ export function VoiceView({
   );
   const [micVol, setMicVol] = useState(100);
   const [listenVol, setListenVol] = useState(75);
+  const [micActive, setMicActive] = useState(false);
+  const [listenActive, setListenActive] = useState(false);
+
+  const toggleMic = async () => {
+    const next = !micActive;
+    try {
+      await mic.mutateAsync(next);
+      setMicActive(next);
+      toast({
+        title: next ? "Mic activated" : "Mic deactivated",
+        tone: next ? "signal" : "neutral",
+      });
+    } catch (e) {
+      toast({ title: "Mic toggle failed", description: String(e), tone: "vermilion" });
+    }
+  };
+
+  const toggleListen = () => {
+    const next = !listenActive;
+    listen.toggle(next);
+    setListenActive(next);
+    toast({
+      title: next ? "Monitor activated" : "Monitor deactivated",
+      tone: next ? "signal" : "neutral",
+    });
+  };
 
   const containerRef = useStaggerReveal<HTMLDivElement>(".voice-tile", {
     stagger: 0.04,
@@ -202,12 +228,21 @@ export function VoiceView({
             <div>
               <SectionHeader eyebrow="Telemetry" title="Input / Output Mix" />
               <div className="mt-4 space-y-4">
+                {/* Mic Toggle */}
                 <div>
-                  <div className="flex justify-between text-xs font-medium text-ink-soft">
-                    <span className="flex items-center gap-1.5">
-                      <Mic className="size-3.5 text-signal" />
-                      Mic Sensitivity
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={toggleMic}
+                      className={`flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-xs font-medium transition-all ${
+                        micActive
+                          ? "bg-signal/15 text-signal border border-signal/40 glow-pulse"
+                          : "bg-surface-2 text-ink-muted border border-hairline hover:border-signal/30 hover:text-ink"
+                      }`}
+                    >
+                      <Mic className="size-3.5" />
+                      {micActive ? "MIC LIVE" : "MIC OFF"}
+                    </button>
                     <span className="font-mono text-[11px] text-ink-muted">
                       {micVol}%
                     </span>
@@ -224,14 +259,32 @@ export function VoiceView({
                     }}
                     className="mt-2 h-1.5 w-full appearance-none rounded-full bg-surface-2 accent-signal"
                   />
+                  {/* Live mic level meter */}
+                  {micActive && (
+                    <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-surface-2">
+                      <div
+                        className="h-full rounded-full bg-signal transition-all duration-100"
+                        style={{ width: `${Math.min(100, mic.micLevel * 100)}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
 
+                {/* Listen Toggle */}
                 <div>
-                  <div className="flex justify-between text-xs font-medium text-ink-soft">
-                    <span className="flex items-center gap-1.5">
-                      <Volume2 className="size-3.5 text-success" />
-                      Monitor Output
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={toggleListen}
+                      className={`flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-xs font-medium transition-all ${
+                        listenActive
+                          ? "bg-success/15 text-success border border-success/40 glow-pulse"
+                          : "bg-surface-2 text-ink-muted border border-hairline hover:border-success/30 hover:text-ink"
+                      }`}
+                    >
+                      <Volume2 className="size-3.5" />
+                      {listenActive ? "MONITOR LIVE" : "MONITOR OFF"}
+                    </button>
                     <span className="font-mono text-[11px] text-ink-muted">
                       {listenVol}%
                     </span>
@@ -248,6 +301,24 @@ export function VoiceView({
                     }}
                     className="mt-2 h-1.5 w-full appearance-none rounded-full bg-surface-2 accent-success"
                   />
+                  {/* Per-speaker level meters */}
+                  {listenActive && listen.levels.size > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {Array.from(listen.levels.entries()).map(([hash, level]) => (
+                        <div key={hash} className="flex items-center gap-2">
+                          <span className="font-mono text-[9px] text-ink-faint w-8">
+                            #{hash.toString(16).slice(-3)}
+                          </span>
+                          <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2">
+                            <div
+                              className="h-full rounded-full bg-success transition-all duration-100"
+                              style={{ width: `${Math.min(100, level * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -50,6 +50,21 @@ export function finalizeSegment(input: SegmentFinalizerInput): void {
   } = input;
 
   const endTime = currentSegment.endTime ?? Date.now();
+  const durationMs = endTime - currentSegment.startTime;
+
+  // Discard segments shorter than 1 second — not useful as a recording,
+  // would just be a blip of ambient noise or a mic click.
+  const MIN_DURATION_MS = 1000;
+  if (durationMs < MIN_DURATION_MS) {
+    logger.debug(
+      { filename: currentSegment.filename, durationMs },
+      "Segment too short, discarding",
+    );
+    // Clean up the OGG file
+    fsPromises.unlink(currentSegment.filename).catch(() => {});
+    fsPromises.unlink(currentSegment.jsonFilename).catch(() => {});
+    return;
+  }
 
   if (config.VERBOSE) {
     logger.info({ filename: currentSegment.filename }, "Segment saved");

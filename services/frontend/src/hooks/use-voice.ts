@@ -47,6 +47,18 @@ const SPEAKERS_KEY = ["voice-speakers"] as const;
  * This replaces the old per-browser model where each tab accumulated speakers
  * only from events it happened to receive while mounted.
  */
+const SPEAKER_TTL_MS = 30_000;
+
+/** Remove speakers that haven't been active recently. */
+function filterStale(speakers: ActiveSpeaker[]): ActiveSpeaker[] {
+  const now = Date.now();
+  return speakers.filter((s) => {
+    if (s.speaking) return true;
+    if (s.lastActiveAt && now - s.lastActiveAt > SPEAKER_TTL_MS) return false;
+    return true;
+  });
+}
+
 export function useSpeakers(initialStatusActive?: ActiveSpeaker[]) {
   const {
     data: speakers,
@@ -65,7 +77,7 @@ export function useSpeakers(initialStatusActive?: ActiveSpeaker[]) {
       const unsubSnapshot = ws.on("voice_state", (data) => {
         const state = data as { activeSpeakers?: ActiveSpeaker[] };
         if (Array.isArray(state?.activeSpeakers)) {
-          void mutate(state.activeSpeakers, { revalidate: false });
+          void mutate(filterStale(state.activeSpeakers), { revalidate: false });
         }
       });
       const unsub = ws.on("voice_active_user", (data) => {
@@ -74,12 +86,13 @@ export function useSpeakers(initialStatusActive?: ActiveSpeaker[]) {
           (prev: ActiveSpeaker[] | undefined) => {
             const arr = prev ?? [];
             const idx = arr.findIndex((s) => s.userId === speaker.userId);
+            const next = [...arr];
             if (idx >= 0) {
-              const next = [...arr];
               next[idx] = speaker;
-              return next;
+            } else {
+              next.push(speaker);
             }
-            return [...arr, speaker];
+            return filterStale(next);
           },
           { revalidate: false },
         );
@@ -91,6 +104,16 @@ export function useSpeakers(initialStatusActive?: ActiveSpeaker[]) {
     },
     [mutate],
   );
+
+  // Periodic stale speaker cleanup (every 10s)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void mutate((prev) => (prev ? filterStale(prev) : prev), {
+        revalidate: false,
+      });
+    }, 10_000);
+    return () => clearInterval(timer);
+  }, [mutate]);
 
   return { speakers: speakers ?? [], subscribe, error, isValidating };
 }

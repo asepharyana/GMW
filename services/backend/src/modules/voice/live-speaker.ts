@@ -23,14 +23,26 @@ const speakers = new Map<string, LiveSpeaker>();
 const MAX_SPEAKERS = 200;
 
 /**
- * Record a voice_active_user event. `speaking: true` upserts the speaker as
- * active; `speaking: false` marks them inactive while keeping them for the
- * activity timeline.
+ * Speakers inactive for longer than this are auto-expired from the snapshot.
+ * This handles the case where the gateway disconnects abruptly and never
+ * sends `speaking: false` for active users.
  */
+const SPEAKER_TTL_MS = 30_000;
+
+/** Purge speakers that haven't been active recently. */
+function purgeStale(): void {
+  const cutoff = Date.now() - SPEAKER_TTL_MS;
+  for (const [id, s] of speakers) {
+    if (!s.speaking && s.lastActiveAt < cutoff) {
+      speakers.delete(id);
+    }
+  }
+}
+
 /**
- * recordSpeaker(data) — apply a `voice_active_user` event. `speaking: true`
- * upserts the speaker as ACTIVE; `speaking: false` marks them inactive while
- * keeping them for the activity timeline.
+ * Record a voice_active_user event. `speaking: true` upserts the speaker as
+ * active; `speaking: false` marks them inactive while keeping them briefly
+ * for the activity timeline (until TTL expiry).
  */
 export function recordSpeaker(data: {
   userId: string;
@@ -49,7 +61,6 @@ export function recordSpeaker(data: {
   };
 
   if (speakers.size >= MAX_SPEAKERS && !existing) {
-    // Drop the least-recently-active non-speaking speaker to stay bounded.
     let oldestId: string | null = null;
     let oldestTs = Infinity;
     for (const [id, s] of speakers) {
@@ -65,16 +76,33 @@ export function recordSpeaker(data: {
   speakers.set(userId, speaker);
 }
 
-/** All known speakers, most recently active first. */
+/**
+ * All recently-active speakers, most recently active first.
+ * Stale (non-speaking + old) entries are auto-purged.
+ */
 export function getActiveSpeakers(): LiveSpeaker[] {
+  purgeStale();
   return [...speakers.values()].sort((a, b) => b.lastActiveAt - a.lastActiveAt);
 }
 
 /** Only speakers currently flagged as speaking. */
 export function getSpeakingSpeakers(): LiveSpeaker[] {
+  purgeStale();
   return [...speakers.values()]
     .filter((s) => s.speaking)
     .sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+}
+
+/**
+ * Mark ALL tracked speakers as not-speaking and purge stale ones.
+ * Called when the gateway disconnects from voice — ensures the authoritative
+ * snapshot doesn't carry ghost speakers.
+ */
+export function clearAllSpeakers(): void {
+  for (const [id, s] of speakers) {
+    s.speaking = false;
+  }
+  purgeStale();
 }
 
 /** Drop all tracked speakers (used on backend restart). */
