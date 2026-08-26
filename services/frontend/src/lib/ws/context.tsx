@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useSWRConfig } from "swr";
 import { toast } from "@/components/primitives";
 import { WsConnection } from "./connection";
 import type { PcmChunk, WsEventHandler, WsEventType, WsStatus } from "./types";
@@ -39,6 +40,7 @@ export function WsProvider({
 }) {
   const connRef = useRef<WsConnection | null>(null);
   const [status, setStatus] = useState<WsStatus>("disconnected");
+  const { mutate } = useSWRConfig();
   // Tracks whether we've ever been connected — used to suppress the
   // "reconnecting" toast on initial page load.
   const wasConnected = useRef(false);
@@ -95,6 +97,9 @@ export function WsProvider({
         wasConnected.current = false;
       } else if (s === "connected") {
         wasConnected.current = true;
+        // After reconnect, force-refetch voice status immediately so
+        // the UI converges faster instead of waiting up to 4s for SWR poll.
+        void mutate(["voice-status"]);
       } else if (s === "error" && !wasConnected.current) {
         toast({
           title: "Connection error",
@@ -121,7 +126,7 @@ export function WsProvider({
       unsubEvent();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, handleBinaryEvent, handleJsonEvent]);
+  }, [url, handleBinaryEvent, handleJsonEvent, mutate]);
 
   const subscribe = useCallback(
     <E extends WsEventType>(_eventType: E, handler: WsEventHandler<E>) => {

@@ -29,6 +29,12 @@ export class VoiceTransmitter {
   private gate = Promise.resolve();
   /** Set true before sending SIGTERM so exit handler knows it's intentional */
   private _expectedExit = false;
+  /** Auto-stop timer: if no PCM received for this long, stop transmitter */
+  private _activityTimer: ReturnType<typeof setTimeout> | null = null;
+  /** How long to wait without PCM before auto-stopping (10s) */
+  private static readonly ACTIVITY_TIMEOUT_MS = 10_000;
+  /** Max stderr bytes to retain for error reporting */
+  private static readonly MAX_STDERR_BYTES = 4096;
 
   /**
    * Start listening for PCM audio data from Redis and stream to Discord
@@ -116,10 +122,14 @@ export class VoiceTransmitter {
         this.pcmStream.pipe(this.ffmpegProcess.stdin);
       }
 
-      // Log FFmpeg stderr for debugging
+      // Log FFmpeg stderr for debugging (cap to prevent unbounded growth)
       const stderrChunks: Buffer[] = [];
+      let stderrLen = 0;
       this.ffmpegProcess.stderr?.on("data", (chunk: Buffer) => {
-        stderrChunks.push(chunk);
+        stderrLen += chunk.length;
+        if (stderrLen <= VoiceTransmitter.MAX_STDERR_BYTES) {
+          stderrChunks.push(chunk);
+        }
       });
 
       this.ffmpegProcess.on("error", (err) => {
@@ -136,8 +146,11 @@ export class VoiceTransmitter {
           const stderr = Buffer.concat(stderrChunks).toString();
           logger.error(
             { code, stderr: stderr.slice(-500) },
-            "FFmpeg exited with error",
+            "FFmpeg exited with error — auto-stopping transmitter",
           );
+          // FFmpeg crashed — auto-stop to prevent silent audio loss.
+          // Fire-and-forget; stop() serialises with the gate.
+          void this.stop();
         } else {
           logger.debug({ code }, "FFmpeg process exited");
         }
@@ -163,6 +176,8 @@ export class VoiceTransmitter {
         { channel: this.TRANSMIT_CHANNEL },
         "Subscribed to transmit channel",
       );
+      // Start activity timer — will auto-stop if no PCM arrives within timeout
+      this.resetActivityTimer();
 
       this.redisSub.on("message", (channel, message) => {
         if (
@@ -178,6 +193,8 @@ export class VoiceTransmitter {
             const pcmBuffer = Buffer.from(data.buffer, "base64");
             const stream = this.pcmStream;
             const canContinue = stream.write(pcmBuffer);
+            // Reset activity timer — PCM is flowing
+            this.resetActivityTimer();
             // Backpressure: queue until drain (cap to prevent memory leak)
             if (!canContinue) {
               if (this.backpressureQueue.length >= VoiceTransmitter.MAX_QUEUE) {
@@ -225,6 +242,30 @@ export class VoiceTransmitter {
   }
 
   /**
+   * Reset the voice activity timer. Called on every PCM chunk received.
+   * If no chunks arrive for ACTIVITY_TIMEOUT_MS, auto-stop the transmitter
+   * to prevent dead air and wasted resources.
+   */
+  private resetActivityTimer(): void {
+    this.clearActivityTimer();
+    this._activityTimer = setTimeout(() => {
+      if (!this.isActive) return;
+      logger.warn(
+        { timeoutMs: VoiceTransmitter.ACTIVITY_TIMEOUT_MS },
+        "Voice activity timeout — no PCM received, auto-stopping transmitter",
+      );
+      void this.stop();
+    }, VoiceTransmitter.ACTIVITY_TIMEOUT_MS);
+  }
+
+  private clearActivityTimer(): void {
+    if (this._activityTimer !== null) {
+      clearTimeout(this._activityTimer);
+      this._activityTimer = null;
+    }
+  }
+
+  /**
    * Stop transmitting and clean up resources
    */
   async stop(): Promise<void> {
@@ -246,6 +287,7 @@ export class VoiceTransmitter {
 
       this.isActive = false;
 
+      this.clearActivityTimer();
       this.backpressureQueue = [];
 
       if (this.pcmStream) {

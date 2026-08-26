@@ -80,6 +80,7 @@ export class PcmPlayer {
       ring.write++;
     }
     // Overflow guard: never let the ring lag more than RING_LEN behind.
+    // This handles both normal drift and extreme backpressure scenarios.
     const lag = ring.write - ring.readPos;
     if (lag > RING_LEN - 4096) {
       ring.readPos = ring.write - RING_LEN + 4096;

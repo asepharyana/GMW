@@ -153,6 +153,22 @@ export class VoiceHandler {
       };
     }
 
+    // Double-check: verify the voice controller also reports connected
+    if (this.voiceController) {
+      const vcStatus = this.voiceController.getStatus();
+      if (!vcStatus.connected) {
+        this.logger.warn(
+          "Player reports connected but voice controller says disconnected — stale state",
+        );
+        return {
+          id: cmd.id,
+          success: false,
+          data: null,
+          error: "Voice channel connection is stale — reconnect first",
+        };
+      }
+    }
+
     try {
       // IMPORTANT: transmitter needs its OWN Redis client because it calls
       // .subscribe() which converts the connection to subscriber mode.  Reusing
