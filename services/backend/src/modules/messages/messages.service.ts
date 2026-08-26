@@ -39,12 +39,15 @@ export class MessagesService {
       throw new ValidationError("message ID is required");
     }
 
-    const message = await messagesRepository.findById(id);
+    const [message, editHistory] = await Promise.all([
+      messagesRepository.findById(id),
+      messagesRepository.getEditHistory(id),
+    ]);
+
     if (!message) {
       throw new NotFoundError(`Message with ID ${id} not found`);
     }
 
-    const editHistory = await messagesRepository.getEditHistory(id);
     return {
       ...message,
       edit_count: editHistory.length,
