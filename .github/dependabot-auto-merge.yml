@@ -1,24 +1,17 @@
-name: dependabot-auto-merge
+name: Dependabot Auto-Merge
+on: pull_request
 
-on:
-  pull_request:
-    branches:
-      - main
-      - master
-
-# Auto-merge Dependabot PRs with passing CI
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  dependabot:
+  auto-merge:
     runs-on: ubuntu-latest
-    # Only for Dependabot PRs
     if: github.actor == 'dependabot[bot]'
     steps:
-      - name: Auto-merge
-        run: gh pr merge --auto --merge "$PR_NUMBER"
+      - name: Enable auto-merge for Dependabot PR
+        run: gh pr merge --auto --merge "$PR_URL"
         env:
-          PR_NUMBER: ${{ github.event.number }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
