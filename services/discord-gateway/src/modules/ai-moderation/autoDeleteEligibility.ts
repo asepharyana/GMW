@@ -39,7 +39,7 @@ export function deriveRecommendedAction(msg: MessageRecord): string {
   const severity = deriveSeverity(msg);
   if (
     msg.ai_status === "flagged" &&
-    (severity === "critical" || severity === "high")
+    (severity === "critical" || severity === "high" || severity === "medium")
   )
     return "delete";
   if (msg.ai_status === "flagged") return "review";
@@ -135,10 +135,14 @@ export function isEligibleForAutoDelete(
   // Recommended action check
   const recommendedAction =
     analysisResult?.recommendedAction ?? deriveRecommendedAction(message);
-  if (recommendedAction !== "delete" && recommendedAction !== "escalate") {
+  if (
+    recommendedAction !== "delete" &&
+    recommendedAction !== "escalate" &&
+    recommendedAction !== "warn"
+  ) {
     logger.debug(
       { messageId: message.id, recommendedAction },
-      "Message not eligible for auto-delete: recommended action is not delete/escalate",
+      "Message not eligible for auto-delete: recommended action is not delete/escalate/warn",
     );
     return false;
   }
