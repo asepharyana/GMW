@@ -144,10 +144,13 @@ export function useMicTransmit(ws: {
 }) {
   const transmitterRef = useRef<MicTransmitter | null>(null);
   const [micLevel, setMicLevel] = useState(0);
+  const [noiseSuppression, setNoiseSuppressionState] = useState(true);
 
   const action = useAction(async (active: boolean) => {
     if (active) {
-      const transmitter = new MicTransmitter((frame) => ws.sendBinary(frame));
+      const transmitter = new MicTransmitter((frame) => ws.sendBinary(frame), {
+        noiseSuppression,
+      });
       transmitterRef.current = transmitter;
       await transmitter.start();
       await voiceApi.sendCommand("voice:transmit:start");
@@ -163,6 +166,14 @@ export function useMicTransmit(ws: {
     transmitterRef.current?.setVolume(volume / 100);
   }, []);
 
+  const toggleNoiseSuppression = useCallback((enabled: boolean) => {
+    setNoiseSuppressionState(enabled);
+    // If mic is already active, toggling NS requires restart
+    if (transmitterRef.current?.isActive) {
+      transmitterRef.current.setNoiseSuppression(enabled);
+    }
+  }, []);
+
   // Poll the analyser RMS so the UI can render a live input meter.
   useEffect(() => {
     const timer = setInterval(() => {
@@ -171,7 +182,21 @@ export function useMicTransmit(ws: {
     return () => clearInterval(timer);
   }, []);
 
-  return { ...action, setVolume, micLevel };
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      transmitterRef.current?.stop();
+      transmitterRef.current = null;
+    };
+  }, []);
+
+  return {
+    ...action,
+    setVolume,
+    micLevel,
+    noiseSuppression,
+    toggleNoiseSuppression,
+  };
 }
 
 /**

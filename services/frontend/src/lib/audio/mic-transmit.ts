@@ -62,6 +62,31 @@ class PcmDownsampler extends AudioWorkletProcessor {
 registerProcessor('pcm-downsampler', PcmDownsampler);
 `;
 
+/** Mic access error with user-actionable detail. */
+export class MicAccessError extends Error {
+  constructor(
+    message: string,
+    public readonly reason:
+      | "not-supported"
+      | "permission-denied"
+      | "no-mic"
+      | "timeout"
+      | "unknown",
+  ) {
+    super(message);
+    this.name = "MicAccessError";
+  }
+}
+
+export interface MicTransmitterOptions {
+  /** Enable browser-level noise suppression (default: true). */
+  noiseSuppression?: boolean;
+  /** Enable echo cancellation (default: true). */
+  echoCancellation?: boolean;
+  /** Enable auto gain control (default: true). */
+  autoGainControl?: boolean;
+}
+
 export class MicTransmitter {
   private ctx: AudioContext | null = null;
   private stream: MediaStream | null = null;
@@ -70,28 +95,82 @@ export class MicTransmitter {
   private levelBuf: Float32Array<ArrayBuffer> | null = null;
   private active = false;
   private volume = 1;
+  private noiseSuppression = true;
 
-  constructor(private readonly onChunk: (frame: ArrayBuffer) => void) {}
+  constructor(
+    private readonly onChunk: (frame: ArrayBuffer) => void,
+    private readonly options: MicTransmitterOptions = {},
+  ) {
+    this.noiseSuppression = options.noiseSuppression ?? true;
+  }
 
   get isActive(): boolean {
     return this.active;
+  }
+
+  get isNoiseSuppressionEnabled(): boolean {
+    return this.noiseSuppression;
   }
 
   async start(volume = 1): Promise<void> {
     if (this.active) return;
     this.volume = volume;
 
+    // ── Check getUserMedia support ───────────────────────────────────────
     if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error("getUserMedia is not available (insecure context?)");
+      throw new MicAccessError(
+        "getUserMedia is not available — are you on HTTPS or localhost?",
+        "not-supported",
+      );
     }
 
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    });
+    // ── Request mic with noise suppression constraints ───────────────────
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: this.options.echoCancellation ?? true,
+          noiseSuppression: this.noiseSuppression,
+          autoGainControl: this.options.autoGainControl ?? true,
+        },
+      });
+    } catch (err) {
+      if (err instanceof DOMException) {
+        if (
+          err.name === "NotAllowedError" ||
+          err.name === "PermissionDeniedError"
+        ) {
+          throw new MicAccessError(
+            "Microphone access denied — allow mic permission in your browser",
+            "permission-denied",
+          );
+        }
+        if (
+          err.name === "NotFoundError" ||
+          err.name === "DevicesNotFoundError"
+        ) {
+          throw new MicAccessError(
+            "No microphone found — connect a mic and try again",
+            "no-mic",
+          );
+        }
+        if (err.name === "OverconstrainedError") {
+          throw new MicAccessError(
+            "Microphone does not support the requested constraints",
+            "unknown",
+          );
+        }
+        if (err.name === "AbortError" || err.name === "TimeoutError") {
+          throw new MicAccessError(
+            "Microphone access timed out — try again",
+            "timeout",
+          );
+        }
+      }
+      throw new MicAccessError(
+        `Failed to access microphone: ${err instanceof Error ? err.message : String(err)}`,
+        "unknown",
+      );
+    }
 
     this.ctx = new AudioContext({ sampleRate: 48000 });
 
@@ -151,6 +230,11 @@ export class MicTransmitter {
   setVolume(volume: number): void {
     this.volume = volume;
     this.node?.port.postMessage({ type: "volume", value: volume });
+  }
+
+  /** Toggle noise suppression. Requires restart to take effect. */
+  setNoiseSuppression(enabled: boolean): void {
+    this.noiseSuppression = enabled;
   }
 
   stop(): void {

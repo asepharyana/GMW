@@ -23,6 +23,8 @@ export class VoiceTransmitter {
   private readonly TRANSMIT_CHANNEL = BACKEND_VOICE_TRANSMIT;
   /** Queue for PCM chunks when backpressure is active */
   private backpressureQueue: Buffer[] = [];
+  /** Max queued chunks before dropping oldest (prevents unbounded memory growth) */
+  private static readonly MAX_QUEUE = 500;
   /** Serialise start/stop to prevent races between rapid toggle commands */
   private gate = Promise.resolve();
   /** Set true before sending SIGTERM so exit handler knows it's intentional */
@@ -48,7 +50,6 @@ export class VoiceTransmitter {
         return;
       }
 
-      this.redisSub = redis;
       this.isActive = true;
 
       // Create PCM input stream
@@ -155,7 +156,9 @@ export class VoiceTransmitter {
       );
 
       // Subscribe to Redis channel for PCM data
-      await this.redisSub.subscribe(this.TRANSMIT_CHANNEL);
+      await redis.subscribe(this.TRANSMIT_CHANNEL);
+      // Assign AFTER subscription succeeds — prevents race with stop()
+      this.redisSub = redis;
       logger.info(
         { channel: this.TRANSMIT_CHANNEL },
         "Subscribed to transmit channel",
@@ -175,8 +178,19 @@ export class VoiceTransmitter {
             const pcmBuffer = Buffer.from(data.buffer, "base64");
             const stream = this.pcmStream;
             const canContinue = stream.write(pcmBuffer);
-            // Backpressure: queue until drain
+            // Backpressure: queue until drain (cap to prevent memory leak)
             if (!canContinue) {
+              if (this.backpressureQueue.length >= VoiceTransmitter.MAX_QUEUE) {
+                // Drop oldest chunks to free memory — real-time audio,
+                // stale data is useless
+                const dropCount = Math.floor(VoiceTransmitter.MAX_QUEUE * 0.25);
+                this.backpressureQueue.splice(0, dropCount);
+                logger.debug(
+                  { dropped: dropCount },
+                  "Backpressure overflow — dropping oldest PCM chunks",
+                );
+              }
+              this.backpressureQueue.push(pcmBuffer);
               stream.once("drain", () => {
                 const currentStream = this.pcmStream;
                 if (!currentStream || !this.isActive) return;

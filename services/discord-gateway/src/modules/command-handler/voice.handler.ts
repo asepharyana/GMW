@@ -1,4 +1,5 @@
 import type { Client } from "discord.js-selfbot-v13";
+import Redis from "ioredis";
 import { config } from "../../shared/config/config.js";
 import type { CommandMessage, CommandReply } from "../../shared/index.js";
 import { createChildLogger } from "../../shared/logger/index.js";
@@ -157,8 +158,7 @@ export class VoiceHandler {
       // .subscribe() which converts the connection to subscriber mode.  Reusing
       // the publish connection from CommandHandler would corrupt it and break
       // every command reply + status update.
-      const { default: IORedis } = await import("ioredis");
-      const transmitRedis = new IORedis(config.REDIS_URL);
+      const transmitRedis = new Redis(config.REDIS_URL);
       await voiceTransmitter.start(transmitRedis);
 
       const status = voiceTransmitter.getStatus();

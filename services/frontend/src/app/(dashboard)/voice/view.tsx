@@ -1,6 +1,13 @@
 "use client";
 
-import { Mic, PhoneOff, Radio, Volume2 } from "lucide-react";
+import {
+  Mic,
+  PhoneOff,
+  Radio,
+  ShieldCheck,
+  ShieldOff,
+  Volume2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import { Button, GlassPanel, toast } from "@/components/primitives";
@@ -66,7 +73,19 @@ export function VoiceView({
         tone: next ? "signal" : "neutral",
       });
     } catch (e) {
-      toast({ title: "Mic toggle failed", description: String(e), tone: "vermilion" });
+      // MicAccessError from mic-transmit.ts has specific reasons
+      const msg = e instanceof Error ? e.message : String(e);
+      const isPermDenied = msg.includes("denied") || msg.includes("Permission");
+      const isNoMic = msg.includes("No microphone");
+      toast({
+        title: isPermDenied
+          ? "Mic permission denied"
+          : isNoMic
+            ? "No microphone found"
+            : "Mic toggle failed",
+        description: msg,
+        tone: "vermilion",
+      });
     }
   };
 
@@ -264,10 +283,46 @@ export function VoiceView({
                     <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-surface-2">
                       <div
                         className="h-full rounded-full bg-signal transition-all duration-100"
-                        style={{ width: `${Math.min(100, mic.micLevel * 100)}%` }}
+                        style={{
+                          width: `${Math.min(100, mic.micLevel * 100)}%`,
+                        }}
                       />
                     </div>
                   )}
+
+                  {/* Noise Suppression Toggle */}
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !mic.noiseSuppression;
+                        mic.toggleNoiseSuppression(next);
+                        toast({
+                          title: next
+                            ? "Noise suppression ON"
+                            : "Noise suppression OFF",
+                          tone: next ? "signal" : "neutral",
+                        });
+                      }}
+                      className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all ${
+                        mic.noiseSuppression
+                          ? "bg-success/15 text-success border border-success/30"
+                          : "bg-surface-2 text-ink-faint border border-hairline hover:border-ink-muted/30"
+                      }`}
+                    >
+                      {mic.noiseSuppression ? (
+                        <ShieldCheck className="size-3" />
+                      ) : (
+                        <ShieldOff className="size-3" />
+                      )}
+                      NS {mic.noiseSuppression ? "ON" : "OFF"}
+                    </button>
+                    {micActive && (
+                      <span className="font-mono text-[9px] text-ink-faint">
+                        {mic.noiseSuppression ? "noise gated" : "raw audio"}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Listen Toggle */}
@@ -304,19 +359,23 @@ export function VoiceView({
                   {/* Per-speaker level meters */}
                   {listenActive && listen.levels.size > 0 && (
                     <div className="mt-2 space-y-1">
-                      {Array.from(listen.levels.entries()).map(([hash, level]) => (
-                        <div key={hash} className="flex items-center gap-2">
-                          <span className="font-mono text-[9px] text-ink-faint w-8">
-                            #{hash.toString(16).slice(-3)}
-                          </span>
-                          <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2">
-                            <div
-                              className="h-full rounded-full bg-success transition-all duration-100"
-                              style={{ width: `${Math.min(100, level * 100)}%` }}
-                            />
+                      {Array.from(listen.levels.entries()).map(
+                        ([hash, level]) => (
+                          <div key={hash} className="flex items-center gap-2">
+                            <span className="font-mono text-[9px] text-ink-faint w-8">
+                              #{hash.toString(16).slice(-3)}
+                            </span>
+                            <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2">
+                              <div
+                                className="h-full rounded-full bg-success transition-all duration-100"
+                                style={{
+                                  width: `${Math.min(100, level * 100)}%`,
+                                }}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ),
+                      )}
                     </div>
                   )}
                 </div>
@@ -326,6 +385,7 @@ export function VoiceView({
             <div className="mt-6 border-t border-hairline pt-3">
               <div className="font-mono text-[10px] text-ink-muted">
                 CODEC: OPUS 48KHZ · LOW_LATENCY
+                {mic.noiseSuppression ? " · NS_ACTIVE" : ""}
               </div>
             </div>
           </GlassPanel>
