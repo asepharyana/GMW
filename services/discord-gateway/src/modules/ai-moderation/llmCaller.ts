@@ -80,7 +80,8 @@ export async function callModerationLLM(
                 ];
           const completion = await llmChat({
             messages,
-            max_tokens: maxTokens ?? config.AI_LLM_MAX_COMPLETION_TOKENS ?? 16384,
+            max_tokens:
+              maxTokens ?? config.AI_LLM_MAX_COMPLETION_TOKENS ?? 16384,
             jsonResponse: { type: "json_object" },
             retries: 0,
             signal,

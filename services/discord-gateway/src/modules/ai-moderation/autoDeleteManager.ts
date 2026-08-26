@@ -146,7 +146,11 @@ function isAlreadyDeletedError(error: unknown): boolean {
     return true;
   // Fallback: check the message text for the Discord "Unknown Message" string
   const msg =
-    error instanceof Error ? error.message : typeof error === "string" ? error : "";
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
   return msg.includes("Unknown Message") || msg.includes("Unknown Channel");
 }
 

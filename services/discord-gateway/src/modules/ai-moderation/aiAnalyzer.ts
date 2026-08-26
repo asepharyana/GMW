@@ -166,12 +166,14 @@ export function startPendingAIAnalysisWorker(
     // Only revert stuck processing messages if there's active processing.
     // Avoids a DB query every recovery interval when the pipeline is idle.
     if (conversationProcessing.size > 0) {
-      messageStore.revertStuckProcessingMessages(300000).catch((err: unknown) => {
-        logger.error(
-          { error: String(err) },
-          "Failed to run stuck processing recovery",
-        );
-      });
+      messageStore
+        .revertStuckProcessingMessages(300000)
+        .catch((err: unknown) => {
+          logger.error(
+            { error: String(err) },
+            "Failed to run stuck processing recovery",
+          );
+        });
     }
 
     Promise.all([
