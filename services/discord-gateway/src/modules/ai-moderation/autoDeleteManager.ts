@@ -10,6 +10,7 @@ import {
 } from "./autoDeleteEligibility.js";
 import { logDeletionToChannel } from "./autoDeleteLogger.js";
 import { sendDeletionNotification } from "./autoDeleteNotify.js";
+import { llmChat } from "./llmClient.js";
 import { verdictToActionFields } from "./verdictToActionFields.js";
 
 const logger = createChildLogger("auto-delete-manager");
@@ -102,7 +103,7 @@ export async function resetOffensiveNickname(
     // having an offensive global username.
     const refreshedMember = await guild.members.fetch(userId);
     const globalUsername = refreshedMember.user?.username ?? "";
-    if (isGlobalUsernameOffensive(globalUsername)) {
+    if (await isGlobalUsernameOffensiveAI(globalUsername)) {
       const randomName = generateRandomUsername();
       await refreshedMember.setNickname(
         randomName,
@@ -139,42 +140,58 @@ export async function resetOffensiveNickname(
   }
 }
 
-// ─── Offensive Username Detection (global username check) ─────────────
-
-/** Keywords that indicate a gambling/scam/spam username (case-insensitive). */
-const OFFENSIVE_USERNAME_KEYWORDS = [
-  "bandar",
-  "togel",
-  "slot",
-  "casino",
-  "judi",
-  "poker",
-  "bet",
-  "jackpot",
-  "pragmatic",
-  "deposit",
-  "withdraw",
-  "agen",
-  "bo",
-  "bocoran",
-  "rtp",
-  "maxwin",
-  "scatter",
-  "gacor",
-  "apk",
-  "situs",
-  "link",
-  "klik",
-  "daftar",
-];
+// ─── AI-Based Global Username Check ──────────────────────────────────
 
 /**
- * Check if a global username contains known gambling/scam keywords.
- * Uses simple substring matching — fast and deterministic, no LLM call.
+ * Ask the AI moderation LLM whether a global username is offensive
+ * (gambling, scam, spam, NSFW, etc.). Returns `true` if the LLM
+ * judges the username as violating server rules.
+ *
+ * Fail-open: if the LLM call fails or times out, returns `false`
+ * so the nickname reset still completes — we don't want a broken LLM
+ * to block enforcement.
  */
-function isGlobalUsernameOffensive(username: string): boolean {
-  const lower = username.toLowerCase();
-  return OFFENSIVE_USERNAME_KEYWORDS.some((kw) => lower.includes(kw));
+async function isGlobalUsernameOffensiveAI(username: string): Promise<boolean> {
+  try {
+    const completion = await llmChat({
+      messages: [
+        {
+          role: "system",
+          content:
+            'Kamu adalah moderator Discord. Tentukan apakah username berikut melanggar aturan server (judi, togel, scam, spam, NSFW, SARA, atau ofensif). Jawab HANYA dengan JSON: {"offensive": true} atau {"offensive": false}. Jangan penjelasan tambahan.',
+        },
+        {
+          role: "user",
+          content: `Username: "${username}"`,
+        },
+      ],
+      max_tokens: 50,
+      temperature: 0,
+      stream: false,
+      timeout: 10_000,
+    });
+
+    const content = completion?.choices?.[0]?.message?.content?.trim() ?? "";
+    // Parse JSON response — handle both strict JSON and markdown-wrapped
+    const jsonMatch = content.match(
+      /\{[^}]*"offensive"\s*:\s*(true|false)[^}]*\}/,
+    );
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]) as { offensive: boolean };
+      return parsed.offensive === true;
+    }
+    // Fallback: if response contains "true" anywhere, treat as offensive
+    return content.toLowerCase().includes("true");
+  } catch (error) {
+    logger.warn(
+      {
+        username,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "AI username check failed — failing open (not offensive)",
+    );
+    return false;
+  }
 }
 
 /**
