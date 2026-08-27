@@ -1,5 +1,22 @@
 // Shared message row mapper for backend repository modules
 
+function resolveServerNick(row: Record<string, unknown>): string | null {
+  const metadata = row.metadata;
+  if (!metadata || typeof metadata !== "string") {
+    return (row.username as string | null) ?? null;
+  }
+  try {
+    const parsed = JSON.parse(metadata) as {
+      member?: { displayName?: string | null } | null;
+    };
+    return (
+      parsed?.member?.displayName ?? (row.username as string | null) ?? null
+    );
+  } catch {
+    return (row.username as string | null) ?? null;
+  }
+}
+
 export interface MappedMessage {
   id: string;
   guild_id: string;
@@ -7,6 +24,8 @@ export interface MappedMessage {
   thread_id: string | null;
   user_id: string;
   username: string;
+  /** Member's server-specific display name (nickname), from metadata.member.displayName. Falls back to username when absent. */
+  server_nick: string | null;
   avatar_url: string | null;
   content: string;
   edited_content: string | null;
@@ -42,6 +61,7 @@ export function mapMessageRow(row: Record<string, unknown>): MappedMessage {
     thread_id: (row.thread_id as string | null) ?? null,
     user_id: String(row.user_id ?? ""),
     username: String(row.username ?? ""),
+    server_nick: resolveServerNick(row),
     avatar_url: (row.avatar_url as string | null) ?? null,
     content: String(row.content ?? ""),
     edited_content: (row.edited_content as string | null) ?? null,

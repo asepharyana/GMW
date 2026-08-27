@@ -109,6 +109,8 @@ export interface MessageRecord {
   reference_guild_id?: string | null;
   user_id: string;
   username: string;
+  /** Member's server-specific display name (nickname), from metadata.member.displayName. Falls back to username. */
+  server_nick?: string | null;
   avatar_url?: string | null;
   content: string;
   edited_content?: string | null;

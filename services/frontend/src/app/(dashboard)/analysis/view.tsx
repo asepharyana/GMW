@@ -193,12 +193,21 @@ export function AnalysisView() {
                   key={m.id}
                   className="search-result-card hud-card flex items-start gap-3 p-3 transition-all"
                 >
-                  <Avatar src={m.avatar_url} name={m.username} size={32} />
+                  <Avatar
+                    src={m.avatar_url}
+                    name={m.server_nick ?? m.username}
+                    size={32}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-ink">
-                        {m.username}
+                        {m.server_nick ?? m.username}
                       </span>
+                      {m.server_nick && m.server_nick !== m.username && (
+                        <span className="font-mono text-[10px] text-ink-muted">
+                          @{m.username}
+                        </span>
+                      )}
                       <span className="font-mono text-[10px] text-ink-faint">
                         {getMessageChannelLabel(m)}
                       </span>
