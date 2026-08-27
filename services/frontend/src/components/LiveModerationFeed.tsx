@@ -149,14 +149,15 @@ export function LiveModerationFeed({
                   <div className="mt-1.5 flex items-center gap-2 font-mono text-[10px] text-ink-faint">
                     <span>TARGET:</span>
                     <span className="text-ink-soft">
-                      {a.username ?? a.user_id ?? "UNKNOWN_SUBJECT"}
+                      {a.server_nick ??
+                        a.username ??
+                        a.user_id ??
+                        "UNKNOWN_SUBJECT"}
                     </span>
-                    {a.server_name && (
+                    {a.username && a.username !== a.server_nick && (
                       <>
                         <span>·</span>
-                        <span className="text-ink-soft">
-                          {a.server_name}
-                        </span>
+                        <span className="text-ink-soft">@{a.username}</span>
                       </>
                     )}
                   </div>

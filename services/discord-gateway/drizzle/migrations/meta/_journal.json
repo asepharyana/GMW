@@ -134,6 +134,13 @@
       "when": 1787820000000,
       "tag": "0018_add_server_name_to_moderation_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787830000000,
+      "tag": "0019_rename_server_name_to_server_nick",
+      "breakpoints": true
     }
   ]
 }

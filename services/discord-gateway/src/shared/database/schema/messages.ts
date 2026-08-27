@@ -60,7 +60,7 @@ export const pgModerationActionsTable = pgTable(
     evidence: pgText("evidence"), // JSON array of short quoted snippets
     policy_version: pgText("policy_version"), // rules.ts policy version string
     username: pgText("username"), // denormalized from messages table for retention safety
-    server_name: pgText("server_name"), // denormalized guild name for retention safety
+    server_nick: pgText("server_nick"), // member's server-specific display name (nickname), from metadata.member.displayName
   },
   (table) => ({
     messageIdIdx: pgIndex("idx_moderation_actions_message_id").on(

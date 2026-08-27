@@ -2,6 +2,7 @@ import type { Client, PermissionString } from "discord.js-selfbot-v13";
 import { LRUCache } from "lru-cache";
 import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
+import { parseRichMessageMetadata } from "../message-capture/messageMetadata.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
 import {
@@ -269,10 +270,24 @@ function hasPermissionApi(channel: unknown): channel is {
 
 // ─── Database Action Log ─────────────────────────────────────────────
 
+/**
+ * Extract the member's server-specific display name (nickname) from a
+ * captured message's metadata. Falls back to the global username when no
+ * server nickname exists (member.displayName defaults to the guild nickname
+ * when set, otherwise the global username).
+ */
+function resolveServerNick(message: MessageRecord): string | null {
+  try {
+    const parsed = parseRichMessageMetadata(message.metadata);
+    return parsed?.member?.displayName ?? message.username ?? null;
+  } catch {
+    return message.username ?? null;
+  }
+}
+
 async function logAutoDeleteAttempt(
   message: MessageRecord,
   result: AutoDeleteResult,
-  serverName?: string | null,
 ): Promise<void> {
   try {
     await messageStore.createModerationAction({
@@ -283,7 +298,7 @@ async function logAutoDeleteAttempt(
       reason: result.reason,
       ...verdictToActionFields(message),
       username: message.username,
-      server_name: serverName ?? null,
+      server_nick: resolveServerNick(message),
       executed_by: "auto-delete-manager",
       status: result.deleted
         ? "executed"
@@ -350,7 +365,7 @@ export async function attemptAutoDeleteFlaggedMessage(
               "nickname melanggar aturan server (offensive_username); pesan dibiarkan",
             ...verdictToActionFields(message),
             username: message.username,
-            server_name: null,
+            server_nick: resolveServerNick(message),
             executed_by: "auto-delete-manager",
             status: resetOk ? "executed" : "failed",
             error: resetOk ? null : "nickname_reset_failed",
@@ -471,7 +486,7 @@ export async function attemptAutoDeleteFlaggedMessage(
         skipped: true,
         reason: "dry_run",
       };
-      await logAutoDeleteAttempt(message, result, guild.name);
+      await logAutoDeleteAttempt(message, result);
       logger.info(
         { messageId: message.id, channelId },
         "Auto-delete dry-run: would delete flagged message",
@@ -503,7 +518,7 @@ export async function attemptAutoDeleteFlaggedMessage(
       skipped: false,
       reason: "deleted",
     };
-    await logAutoDeleteAttempt(message, result, guild.name);
+    await logAutoDeleteAttempt(message, result);
     logger.info(
       { messageId: message.id, channelId },
       "Auto-deleted AI-flagged message",

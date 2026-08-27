@@ -20,7 +20,7 @@ export interface ModerationAction {
   created_at: number | null;
   executed_at: number | null;
   username: string | null;
-  server_name: string | null;
+  server_nick: string | null;
   content: string | null;
   // ── Explainability (structured verdict, surfaced read-only to public web) ──
   flags: string[] | null;
@@ -81,7 +81,7 @@ export interface CategoryAction {
   confidence: number | null;
   score: number | null;
   username: string | null;
-  server_name: string | null;
+  server_nick: string | null;
   content: string | null;
 }
 
