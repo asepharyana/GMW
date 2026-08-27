@@ -197,6 +197,7 @@ async function logAutoDeleteAttempt(
       action_type: "delete_message",
       reason: result.reason,
       ...verdictToActionFields(message),
+      username: message.username,
       executed_by: "auto-delete-manager",
       status: result.deleted
         ? "executed"
@@ -262,6 +263,7 @@ export async function attemptAutoDeleteFlaggedMessage(
             reason:
               "nickname melanggar aturan server (offensive_username); pesan dibiarkan",
             ...verdictToActionFields(message),
+            username: message.username,
             executed_by: "auto-delete-manager",
             status: resetOk ? "executed" : "failed",
             error: resetOk ? null : "nickname_reset_failed",

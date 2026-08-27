@@ -103,6 +103,7 @@ export class ModerationHandler {
           | "kick_user"
           | "ban_user",
         reason: payload.reason ?? null,
+        username: null,
         executed_by: payload.executed_by ?? "command-handler",
         status: "executed",
         error: null,

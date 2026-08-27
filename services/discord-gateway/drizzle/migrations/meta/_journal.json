@@ -120,6 +120,13 @@
       "when": 1787185000000,
       "tag": "0016_drop_user_reputations",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1787810000000,
+      "tag": "0017_add_username_to_moderation_actions",
+      "breakpoints": true
     }
   ]
 }

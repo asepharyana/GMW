@@ -208,6 +208,7 @@ export interface ModerationAction {
   guild_id: string;
   action_type: ModerationActionType;
   reason: string | null;
+  username: string | null;
   executed_by: string | null;
   status: "pending" | "executed" | "failed";
   error: string | null;

@@ -124,7 +124,7 @@ export class ModerationRepository {
         a.score,
         a.evidence,
         a.policy_version,
-        m.username,
+        a.username,
         LEFT(m.content, 300) AS content
       FROM moderation_actions a
       LEFT JOIN messages m ON m.id = a.message_id
@@ -314,7 +314,7 @@ export class ModerationRepository {
       SELECT
         a.id, a.message_id, a.user_id, a.guild_id, a.action_type,
         a.reason, a.status, a.created_at, a.severity, a.confidence, a.score,
-        m.username, LEFT(m.content, 300) AS content
+        a.username, LEFT(m.content, 300) AS content
       FROM moderation_actions a
       LEFT JOIN messages m ON m.id = a.message_id
       WHERE a.created_at >= ${since}
