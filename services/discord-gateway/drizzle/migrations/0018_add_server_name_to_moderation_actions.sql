@@ -1,1 +1,1 @@
-ALTER TABLE "moderation_actions" ADD COLUMN "server_name" text;
+ALTER TABLE "moderation_actions" ADD COLUMN IF NOT EXISTS "server_name" text;

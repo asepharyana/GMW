@@ -57,24 +57,55 @@ async function getFirstMigrationTag(): Promise<string> {
 }
 
 /**
+ * Read the Drizzle migration journal and return the `when` (folderMillis)
+ * timestamp of the LAST migration entry. Drizzle's PG migrator applies a
+ * migration only when `tracked_max_created_at < migration.when`, so seeding
+ * the tracking table with this value marks every existing journal migration
+ * as already applied.
+ */
+async function getLastMigrationWhen(): Promise<number> {
+  const journalPath = join(
+    process.cwd(),
+    "drizzle/migrations/meta/_journal.json",
+  );
+  const raw = await readFile(journalPath, "utf-8");
+  const journal: MigrationJournal = JSON.parse(raw);
+
+  if (!journal.entries || journal.entries.length === 0) {
+    throw new Error(
+      "Migration journal is empty — cannot determine last migration timestamp",
+    );
+  }
+
+  const last = journal.entries.reduce((newest, entry) =>
+    entry.when > newest.when ? entry : newest,
+  );
+  return last.when;
+}
+
+/**
  * Seed Drizzle's __drizzle_migrations tracking table for pre-existing databases
  * that were created manually or by an earlier migration system (e.g., the old
  * checkSchemaExists short-circuit). Without this, Drizzle attempts to re-create
  * all tables from 0000 and fails with "relation already exists".
+ *
+ * The Drizzle PG migrator (drizzle-orm 0.45.x) only reads the LAST tracked
+ * migration (`SELECT ... ORDER BY created_at DESC LIMIT 1` from
+ * <migrationsSchema>.__drizzle_migrations) and re-applies every journal
+ * migration whose `when` is newer than that value. If the tracking table is
+ * empty or missing the latest entries while the DB schema is already up to
+ * date, re-running the migrations crashes with "column/relation already
+ * exists" — putting the gateway into an infinite restart loop.
+ *
+ * So instead of early-returning when the table exists (which left it empty /
+ * partial and caused this exact crash), we RECONCILE: when the DB is a
+ * pre-existing one (app tables already present) and the schema already
+ * reflects the latest migration, we seed the tracking table up to the latest
+ * journal `when` so Drizzle skips everything instead of re-applying it.
  */
 async function seedDrizzleHistory(client: PoolClient): Promise<void> {
-  const exists = await client.query(`
-    SELECT EXISTS (
-      SELECT FROM information_schema.tables
-      WHERE table_name = '__drizzle_migrations'
-    )
-  `);
-  const drizzleTableExists = exists.rows[0]?.exists === true;
-  if (drizzleTableExists) {
-    return; // already seeded, nothing to do
-  }
-
-  // Check whether the app tables pre-exist (old ./migrations/ SQL or manual creation).
+  // Check whether the app tables pre-exist (old ./migrations/ SQL or manual
+  // creation). If not, this is a brand-new database — let Drizzle handle it.
   const hasTextCache = await client.query(`
     SELECT EXISTS (
       SELECT FROM information_schema.columns
@@ -85,12 +116,19 @@ async function seedDrizzleHistory(client: PoolClient): Promise<void> {
     return; // brand-new database, let Drizzle handle everything
   }
 
-  const firstMigrationTag = await getFirstMigrationTag();
+  // Final schema "at latest migration" sentinel: the moderation_actions
+  // table at 0019 has a server_nick column. If present, the schema is at (or
+  // past) migration 0019, so any journal entries not yet tracked are safe to
+  // mark as applied rather than re-running (which would fail).
+  const atLatest = await client.query(`
+    SELECT EXISTS (
+      SELECT FROM information_schema.columns
+      WHERE table_name = 'moderation_actions' AND column_name = 'server_nick'
+    )
+  `);
+  const schemaAtLatest = atLatest.rows[0]?.exists === true;
 
-  logger.info(
-    { firstMigrationTag },
-    "Seeding Drizzle migration history — marking first migration as already applied on this pre-existing database",
-  );
+  const lastMigrationWhen = await getLastMigrationWhen();
 
   // Create the Drizzle tracking table if it does not exist.
   // PG15+ locks down CREATE on the public schema for non-owner roles,
@@ -128,21 +166,43 @@ async function seedDrizzleHistory(client: PoolClient): Promise<void> {
       throw createErr;
     }
   }
-  // Drizzle's __drizzle_migrations table has no UNIQUE(hash)
-  // constraint, so check manually before inserting.
-  const alreadySeeded = await client.query(
-    `SELECT 1 FROM "__drizzle_migrations" WHERE hash = $1 LIMIT 1`,
-    [firstMigrationTag],
-  );
-  if (alreadySeeded.rows.length === 0) {
-    await client.query(
-      `INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES ($1, $2)`,
-      [firstMigrationTag, Date.now()],
-    );
+
+  // Current max tracked created_at. Drizzle only re-applies migrations newer
+  // than this, so if it already reaches the journal's last `when`, nothing to do.
+  const tracked = await client.query(`
+    SELECT COALESCE(MAX(created_at), 0) AS max_created FROM "__drizzle_migrations"
+  `);
+  const trackedMax = Number(tracked.rows[0]?.max_created ?? 0);
+
+  if (trackedMax >= lastMigrationWhen) {
+    return; // already fully tracked — Drizzle will apply only genuinely-pending ones
   }
-  logger.info(
-    { firstMigrationTag },
-    "Drizzle history seeded — first migration marked applied",
+
+  if (!schemaAtLatest) {
+    // Schema is NOT yet at the latest journal migration — this is a genuinely
+    // old DB that needs the pending migrations to run for real. Let Drizzle
+    // apply them. (Idempotent migration SQL guards legacy partial states.)
+    logger.info(
+      { trackedMax, lastMigrationWhen },
+      "DB schema behind latest journal migration — leaving pending migrations to run",
+    );
+    return;
+  }
+
+  // Schema already reflects the latest migration but the tracking table is
+  // behind (e.g. migrations applied manually/out-of-band without being
+  // recorded). Seed up to the last journal `when` so Drizzle skips them
+  // instead of re-running already-applied DDL and crashing. This is the
+  // recovery that broke the gateway's infinite-restart loop.
+  const journalTag =
+    (await getFirstMigrationTag()) + `@${lastMigrationWhen}-reconciled`;
+  await client.query(
+    `INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES ($1, $2)`,
+    [journalTag, lastMigrationWhen],
+  );
+  logger.warn(
+    { lastMigrationWhen },
+    "Reconciled Drizzle migration history — marked schema-at-latest migrations as applied (preventing re-run of already-applied DDL)",
   );
 }
 
