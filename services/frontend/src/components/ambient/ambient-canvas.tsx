@@ -35,15 +35,18 @@ export function AmbientCanvas({
     let raf = 0;
     let last = performance.now();
 
-    // Lerp state
+    // Lerp state (start values match the inline style defaults on the element).
     let r = 45,
       g = 212,
       b = 191;
-    let targetR = 45,
-      targetG = 212,
-      targetB = 191;
     let intensity = 0.35;
-    let targetIntensity = 0.35;
+    // Last values actually written to the DOM — lets us skip `setProperty`
+    // entirely once a channel settles, so the continuous loop stops invalidating
+    // style/layout every frame when the ambient is static.
+    let lastR = -1,
+      lastG = -1,
+      lastB = -1,
+      lastAlpha = "-1";
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -53,21 +56,34 @@ export function AmbientCanvas({
 
       const tgt = targetRef.current;
       const [tr, tg, tb] = TONE_css[tgt.tone].split(",").map(Number);
-      targetR = tr;
-      targetG = tg;
-      targetB = tb;
-      targetIntensity = 0.15 + tgt.intensity * 0.85;
+      const targetIntensity = 0.15 + tgt.intensity * 0.85;
 
-      r = lerp(r, targetR, 0.03);
-      g = lerp(g, targetG, 0.03);
-      b = lerp(b, targetB, 0.03);
+      r = lerp(r, tr, 0.03);
+      g = lerp(g, tg, 0.03);
+      b = lerp(b, tb, 0.03);
       intensity = lerp(intensity, targetIntensity, 0.03);
 
       const root = mount;
-      root.style.setProperty("--ab-r", String(Math.round(r)));
-      root.style.setProperty("--ab-g", String(Math.round(g)));
-      root.style.setProperty("--ab-b", String(Math.round(b)));
-      root.style.setProperty("--ab-alpha", intensity.toFixed(3));
+      const R = Math.round(r);
+      const G = Math.round(g);
+      const B = Math.round(b);
+      const A = intensity.toFixed(3);
+      if (R !== lastR) {
+        root.style.setProperty("--ab-r", String(R));
+        lastR = R;
+      }
+      if (G !== lastG) {
+        root.style.setProperty("--ab-g", String(G));
+        lastG = G;
+      }
+      if (B !== lastB) {
+        root.style.setProperty("--ab-b", String(B));
+        lastB = B;
+      }
+      if (A !== lastAlpha) {
+        root.style.setProperty("--ab-alpha", A);
+        lastAlpha = A;
+      }
 
       raf = requestAnimationFrame(frame);
     };

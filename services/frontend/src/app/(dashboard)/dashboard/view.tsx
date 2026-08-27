@@ -58,7 +58,7 @@ export function DashboardView({
     error,
     mutate: mutateStats,
   } = useStats(initialStats);
-  const { data: activity } = useActivity(14, initialActivity as never);
+  const { data: activity } = useActivity(14, initialActivity);
   const { data: reactions } = useTopReactions();
   const ambient = useAmbient();
 

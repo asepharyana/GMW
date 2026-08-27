@@ -101,6 +101,9 @@ export function Select({
           ref={triggerRef}
           type="button"
           onClick={() => setOpen((o) => !o)}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-label={selected?.label ?? placeholder}
           className={cn(
             "flex w-full items-center justify-between gap-2 rounded-[8px] border border-hairline bg-surface-2 text-left text-ink transition-colors hover:border-signal/40",
             "focus:outline-none focus:border-signal/60",
@@ -123,6 +126,7 @@ export function Select({
         createPortal(
           <div
             ref={dropdownRef}
+            role="listbox"
             className="glass fixed z-[9999] max-h-72 overflow-auto p-1.5"
             style={{
               top: pos.top,
@@ -138,6 +142,8 @@ export function Select({
               <button
                 key={o.value}
                 type="button"
+                role="option"
+                aria-selected={o.value === value}
                 onClick={() => {
                   onChange(o.value);
                   setOpen(false);
