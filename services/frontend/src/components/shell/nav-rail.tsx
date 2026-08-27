@@ -18,7 +18,9 @@ function NavItem({
   Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 }) {
   const itemRef = useRef<HTMLAnchorElement>(null);
-  const [tipPos, setTipPos] = useState<{ top: number; left: number } | null>(null);
+  const [tipPos, setTipPos] = useState<{ top: number; left: number } | null>(
+    null,
+  );
   const [hovering, setHovering] = useState(false);
 
   // Measure the item and position the tooltip via a Portal on document.body

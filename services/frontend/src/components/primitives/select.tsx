@@ -46,11 +46,17 @@ export function Select({
     width: 0,
   });
 
-  // Measure trigger to position the portalled dropdown
+  // Measure trigger to position the portalled dropdown.
+  // Clamp horizontally inside the viewport so it never overflows on narrow
+  // (mobile) screens — a trigger near the right edge would otherwise render the
+  // dropdown partly off-screen and un-clickable.
   const measure = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    setPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+    const w = Math.max(rect.width, 160); // never narrower than a comfortable minimum
+    const vw = window.innerWidth;
+    const left = Math.min(Math.max(rect.left, 8), vw - w - 8);
+    setPos({ top: rect.bottom + 6, left, width: w });
   }, []);
 
   useLayoutEffect(() => {
@@ -149,7 +155,7 @@ export function Select({
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center justify-between gap-2 rounded-[8px] px-3 py-2 text-left text-sm transition-colors",
+                  "flex w-full min-h-[38px] items-center justify-between gap-2 rounded-[8px] px-3 py-2 text-left text-sm transition-colors sm:min-h-0 sm:py-2",
                   o.value === value
                     ? "bg-signal/15 text-signal"
                     : "text-ink hover:bg-surface",

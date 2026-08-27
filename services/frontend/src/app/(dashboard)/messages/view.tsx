@@ -738,11 +738,7 @@ function MessageRow({
           : "border-hairline bg-surface-2 hover:border-hairline-focus hover:bg-surface"
       }`}
     >
-      <Avatar
-        src={m.avatar_url}
-        name={m.server_nick ?? m.username}
-        size={32}
-      />
+      <Avatar src={m.avatar_url} name={m.server_nick ?? m.username} size={32} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-xs font-semibold text-ink">

@@ -66,11 +66,11 @@ export const navItems: NavItem[] = [
 ];
 
 /**
- * Mobile bottom bar items (subset of primary nav).
+ * Mobile bottom bar items. Mirrors the FULL desktop sidebar (all primary nav
+ * items) so every page is reachable on mobile; the bar scrolls horizontally on
+ * narrow screens (see MobileNav).
  */
-export const mobileNavItems: NavItem[] = navItems.filter((item) =>
-  ["/dashboard", "/messages", "/voice", "/media"].includes(item.href),
-);
+export const mobileNavItems: NavItem[] = navItems;
 
 export type NavItemId = (typeof navItems)[number]["href"];
 

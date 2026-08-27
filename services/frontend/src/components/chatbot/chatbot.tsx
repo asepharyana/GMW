@@ -122,7 +122,7 @@ export function Chatbot() {
           type="button"
           aria-label="Open neural HUD assistant"
           onClick={() => setOpen(true)}
-          className="fixed right-4 bottom-5 z-50 flex size-11 items-center justify-center rounded-full border border-signal/40 bg-surface text-signal shadow-[0_0_20px_var(--color-signal-glow)] transition-all duration-200 hover:scale-105 hover:border-signal hover:bg-signal hover:text-white"
+          className="fixed right-4 z-50 flex size-11 items-center justify-center rounded-full border border-signal/40 bg-surface text-signal shadow-[0_0_20px_var(--color-signal-glow)] transition-all duration-200 hover:scale-105 hover:border-signal hover:bg-signal hover:text-white bottom-[calc(4.75rem+env(safe-area-inset-bottom))] md:bottom-5"
         >
           <Sparkles className="size-5 animate-breathe" />
         </button>
@@ -234,7 +234,7 @@ export function Chatbot() {
               placeholder="Transmit instruction to core..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="flex-1 rounded-[6px] border border-hairline bg-surface-2 px-3 py-1.5 font-mono text-xs text-ink placeholder:text-ink-faint focus:border-signal focus:outline-none"
+              className="min-h-[38px] flex-1 rounded-[6px] border border-hairline bg-surface-2 px-3 py-1.5 font-mono text-xs text-ink placeholder:text-ink-faint focus:border-signal focus:outline-none"
             />
             <Button
               variant="primary"
