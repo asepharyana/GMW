@@ -503,7 +503,7 @@ export class MessagesRepository {
         m.channel_id,
         COALESCE(NULLIF((m.metadata::jsonb -> 'channel' ->> 'channelName'), ''), m.channel_id) AS channel_name,
         m.username,
-        m.content AS new_content
+        COALESCE(m.edited_content, m.content) AS new_content
       FROM message_edits e
       JOIN messages m ON m.id = e.message_id
       ${channelId ? sql`WHERE m.channel_id = ${channelId}` : sql``}
