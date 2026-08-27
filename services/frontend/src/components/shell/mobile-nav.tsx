@@ -45,7 +45,7 @@ export function MobileNav() {
               aria-label={item.label}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "game-nav-item relative flex min-h-[44px] min-w-[60px] flex-1 snap-center flex-col items-center justify-center rounded-t-[20px] px-2 pt-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] sm:flex-none",
+                "game-nav-item relative flex min-h-[44px] w-[72px] shrink-0 snap-center flex-col items-center justify-center rounded-t-[20px] px-1 pt-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] sm:flex-none",
                 active
                   ? "is-active text-signal"
                   : "text-ink-faint hover:text-ink-soft",
@@ -64,7 +64,9 @@ export function MobileNav() {
                 className="relative z-10 size-[20px]"
                 strokeWidth={active ? 2.4 : 2}
               />
-              {item.label}
+              <span className="relative z-10 mt-0.5 max-w-full truncate text-[10px] leading-tight sm:text-xs">
+                {item.label}
+              </span>
             </Link>
           );
         })}
