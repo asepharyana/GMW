@@ -151,6 +151,14 @@ export function LiveModerationFeed({
                     <span className="text-ink-soft">
                       {a.username ?? a.user_id ?? "UNKNOWN_SUBJECT"}
                     </span>
+                    {a.server_name && (
+                      <>
+                        <span>·</span>
+                        <span className="text-ink-soft">
+                          {a.server_name}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

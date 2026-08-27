@@ -188,6 +188,7 @@ function hasPermissionApi(channel: unknown): channel is {
 async function logAutoDeleteAttempt(
   message: MessageRecord,
   result: AutoDeleteResult,
+  serverName?: string | null,
 ): Promise<void> {
   try {
     await messageStore.createModerationAction({
@@ -198,6 +199,7 @@ async function logAutoDeleteAttempt(
       reason: result.reason,
       ...verdictToActionFields(message),
       username: message.username,
+      server_name: serverName ?? null,
       executed_by: "auto-delete-manager",
       status: result.deleted
         ? "executed"
@@ -264,6 +266,7 @@ export async function attemptAutoDeleteFlaggedMessage(
               "nickname melanggar aturan server (offensive_username); pesan dibiarkan",
             ...verdictToActionFields(message),
             username: message.username,
+            server_name: null,
             executed_by: "auto-delete-manager",
             status: resetOk ? "executed" : "failed",
             error: resetOk ? null : "nickname_reset_failed",
@@ -384,7 +387,7 @@ export async function attemptAutoDeleteFlaggedMessage(
         skipped: true,
         reason: "dry_run",
       };
-      await logAutoDeleteAttempt(message, result);
+      await logAutoDeleteAttempt(message, result, guild.name);
       logger.info(
         { messageId: message.id, channelId },
         "Auto-delete dry-run: would delete flagged message",
@@ -416,7 +419,7 @@ export async function attemptAutoDeleteFlaggedMessage(
       skipped: false,
       reason: "deleted",
     };
-    await logAutoDeleteAttempt(message, result);
+    await logAutoDeleteAttempt(message, result, guild.name);
     logger.info(
       { messageId: message.id, channelId },
       "Auto-deleted AI-flagged message",

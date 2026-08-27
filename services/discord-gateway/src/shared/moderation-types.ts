@@ -209,6 +209,7 @@ export interface ModerationAction {
   action_type: ModerationActionType;
   reason: string | null;
   username: string | null;
+  server_name: string | null;
   executed_by: string | null;
   status: "pending" | "executed" | "failed";
   error: string | null;

@@ -125,6 +125,7 @@ export class ModerationRepository {
         a.evidence,
         a.policy_version,
         a.username,
+        a.server_name,
         LEFT(m.content, 300) AS content
       FROM moderation_actions a
       LEFT JOIN messages m ON m.id = a.message_id
@@ -155,6 +156,7 @@ export class ModerationRepository {
       evidence: parseJsonArray(r.evidence),
       policy_version: r.policy_version ? String(r.policy_version) : null,
       username: r.username ? String(r.username) : null,
+      server_name: r.server_name ? String(r.server_name) : null,
       content: r.content ? String(r.content) : null,
     }));
 
@@ -338,6 +340,7 @@ export class ModerationRepository {
       confidence: r.confidence != null ? Number(r.confidence) : null,
       score: r.score != null ? Number(r.score) : null,
       username: r.username ? String(r.username) : null,
+      server_name: r.server_name ? String(r.server_name) : null,
       content: r.content ? String(r.content) : null,
     }));
   }

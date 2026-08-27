@@ -104,6 +104,7 @@ export class ModerationHandler {
           | "ban_user",
         reason: payload.reason ?? null,
         username: null,
+        server_name: null,
         executed_by: payload.executed_by ?? "command-handler",
         status: "executed",
         error: null,
