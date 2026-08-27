@@ -292,7 +292,11 @@ export function RecordingsView({
                 <span className="flex items-center justify-center gap-2 font-mono text-xs text-ink-muted">
                   <Loader2 className="size-4 animate-spin text-signal" />
                   LOADING EARLIER RECORDINGS...
-                  <span className="typing-dots"><span /><span /><span /></span>
+                  <span className="typing-dots">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
                 </span>
               ) : hasMore && loadedPages < MAX_OLDER_PAGES ? (
                 <button

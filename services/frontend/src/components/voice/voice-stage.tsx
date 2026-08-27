@@ -40,14 +40,16 @@ export function VoiceStage({ speakers }: { speakers: ActiveSpeaker[] }) {
         el.style.removeProperty("animation-timing-function");
       });
     };
-  }, [speakers.length]);
+  }, []);
 
   // CSS pulse ring for active speakers
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const rings = container.querySelectorAll<HTMLElement>(".speaker-pulse-ring");
+    const rings = container.querySelectorAll<HTMLElement>(
+      ".speaker-pulse-ring",
+    );
     if (rings.length === 0) return;
 
     rings.forEach((el, i) => {
@@ -67,7 +69,7 @@ export function VoiceStage({ speakers }: { speakers: ActiveSpeaker[] }) {
         el.style.removeProperty("animation-delay");
       });
     };
-  }, [speakers.filter((s) => s.speaking).map((s) => s.userId).join(",")]);
+  }, []);
 
   return (
     <div

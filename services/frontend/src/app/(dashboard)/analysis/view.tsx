@@ -86,7 +86,7 @@ export function AnalysisView() {
         el.style.removeProperty("transform-origin");
       });
     };
-  }, [reactors]);
+  }, []);
 
   // Channel rows stagger slide-in — CSS animation
   useEffect(() => {
@@ -115,7 +115,7 @@ export function AnalysisView() {
         el.style.removeProperty("animation-timing-function");
       });
     };
-  }, [channels]);
+  }, []);
 
   return (
     <div className="space-y-4">

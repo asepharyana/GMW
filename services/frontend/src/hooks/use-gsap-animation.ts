@@ -67,6 +67,7 @@ export function useStaggerReveal<T extends HTMLElement = HTMLDivElement>(
       });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // biome-ignore lint/correctness/useExhaustiveDependencies: caller-controlled deps
   }, options?.dependencies ?? []);
 
   return containerRef;

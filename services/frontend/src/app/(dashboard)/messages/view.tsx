@@ -410,7 +410,11 @@ export function MessagesView({
                     <span className="flex items-center gap-1.5 font-mono text-xs text-ink-muted">
                       <Loader2 className="size-3.5 animate-spin text-signal" />
                       FETCHING EARLIER PACKETS...
-                      <span className="typing-dots"><span /><span /><span /></span>
+                      <span className="typing-dots">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
                     </span>
                   ) : hasMore && loadedPages < MAX_OLDER_PAGES ? (
                     <button

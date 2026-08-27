@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, ShieldAlert, UserX, VolumeX } from "lucide-react";
-import { useRef, useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Badge } from "@/components/primitives";
 import { formatRelativeTime } from "@/lib/format";
 import type { ModerationAction } from "@/lib/types";
@@ -81,7 +81,7 @@ export function LiveModerationFeed({
         el.style.removeProperty("animation-timing-function");
       });
     };
-  }, [actions.length]);
+  }, []);
 
   return (
     <div className="flex max-h-[460px] flex-col">

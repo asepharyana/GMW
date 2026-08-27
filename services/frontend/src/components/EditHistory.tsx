@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Download, History } from "lucide-react";
+import { Download, History } from "lucide-react";
 import { GlassPanel } from "@/components/primitives";
 import { SectionHeader } from "@/components/shared";
 import { downloadCsv } from "@/lib/csv";
@@ -10,7 +10,7 @@ import type { EditHistoryRow } from "@/lib/types";
 function DiffBlock({ oldText, newText }: { oldText: string; newText: string }) {
   const oldLines = oldText.split("\n");
   const newLines = newText.split("\n");
-  const maxLen = Math.max(oldLines.length, newLines.length);
+  const _maxLen = Math.max(oldLines.length, newLines.length);
 
   return (
     <div className="grid grid-cols-2 gap-2 rounded-[6px] border border-hairline bg-surface-2/50 text-[11px] leading-relaxed">

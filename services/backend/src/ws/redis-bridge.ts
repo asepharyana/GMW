@@ -1,5 +1,8 @@
 import Redis from "ioredis";
-import { clearAllSpeakers, recordSpeaker } from "../modules/voice/live-speaker.js";
+import {
+  clearAllSpeakers,
+  recordSpeaker,
+} from "../modules/voice/live-speaker.js";
 import { config } from "../shared/config/index.js";
 import {
   DISCORD_CHANNEL_TO_WS_EVENT,

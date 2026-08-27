@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { SIGNAL_RGB, type SignalTone } from "./ambient-context";
+import type { SignalTone } from "./ambient-context";
 
 /**
  * Pure CSS ambient background — no WebGL, no three.js.
@@ -36,15 +36,19 @@ export function AmbientCanvas({
     let last = performance.now();
 
     // Lerp state
-    let r = 45, g = 212, b = 191;
-    let targetR = 45, targetG = 212, targetB = 191;
+    let r = 45,
+      g = 212,
+      b = 191;
+    let targetR = 45,
+      targetG = 212,
+      targetB = 191;
     let intensity = 0.35;
     let targetIntensity = 0.35;
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
     const frame = (now: number) => {
-      const dt = Math.min((now - last) / 1000, 0.05);
+      const _dt = Math.min((now - last) / 1000, 0.05);
       last = now;
 
       const tgt = targetRef.current;
@@ -111,11 +115,15 @@ export function AmbientCanvas({
       {/* Floating motes — tiny dots drifting upward */}
       <div className="ambient-motes">
         {Array.from({ length: 30 }, (_, i) => (
-          <span key={i} className="ambient-mote" style={{
-            left: `${(i * 3.33) % 100}%`,
-            animationDelay: `${(i * 0.7) % 8}s`,
-            animationDuration: `${6 + (i % 5) * 2}s`,
-          }} />
+          <span
+            key={i}
+            className="ambient-mote"
+            style={{
+              left: `${(i * 3.33) % 100}%`,
+              animationDelay: `${(i * 0.7) % 8}s`,
+              animationDuration: `${6 + (i % 5) * 2}s`,
+            }}
+          />
         ))}
       </div>
 
