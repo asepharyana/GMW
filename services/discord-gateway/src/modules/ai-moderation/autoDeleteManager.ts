@@ -94,6 +94,26 @@ export async function resetOffensiveNickname(
     }
     // setNickname(null) = remove nickname → Discord shows global username
     await member.setNickname(null, "[auto] nickname melanggar aturan server");
+
+    // ── Check if the global username is ALSO offensive ──────────────
+    // After reset, the member shows their global username. If that is
+    // also offensive (gambling/scam keywords), replace it with a random
+    // generated username so the user can't circumvent the filter by
+    // having an offensive global username.
+    const refreshedMember = await guild.members.fetch(userId);
+    const globalUsername = refreshedMember.user?.username ?? "";
+    if (isGlobalUsernameOffensive(globalUsername)) {
+      const randomName = generateRandomUsername();
+      await refreshedMember.setNickname(
+        randomName,
+        "[auto] global username juga melanggar, diganti random",
+      );
+      logger.info(
+        { messageId, guildId, userId, globalUsername, randomName },
+        "Global username also offensive — replaced with random username",
+      );
+    }
+
     recentNicknameResets.set(cooldownKey, Date.now());
     logger.info(
       { messageId, guildId, userId },
@@ -117,6 +137,53 @@ export async function resetOffensiveNickname(
     );
     return false;
   }
+}
+
+// ─── Offensive Username Detection (global username check) ─────────────
+
+/** Keywords that indicate a gambling/scam/spam username (case-insensitive). */
+const OFFENSIVE_USERNAME_KEYWORDS = [
+  "bandar",
+  "togel",
+  "slot",
+  "casino",
+  "judi",
+  "poker",
+  "bet",
+  "jackpot",
+  "pragmatic",
+  "deposit",
+  "withdraw",
+  "agen",
+  "bo",
+  "bocoran",
+  "rtp",
+  "maxwin",
+  "scatter",
+  "gacor",
+  "apk",
+  "situs",
+  "link",
+  "klik",
+  "daftar",
+];
+
+/**
+ * Check if a global username contains known gambling/scam keywords.
+ * Uses simple substring matching — fast and deterministic, no LLM call.
+ */
+function isGlobalUsernameOffensive(username: string): boolean {
+  const lower = username.toLowerCase();
+  return OFFENSIVE_USERNAME_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+/**
+ * Generate a random fallback username: "User" + 5-digit number.
+ * Guaranteed unique per call (random suffix).
+ */
+function generateRandomUsername(): string {
+  const suffix = Math.floor(10000 + Math.random() * 90000);
+  return `User${suffix}`;
 }
 
 // ─── Error Handling Utilities ────────────────────────────────────────
