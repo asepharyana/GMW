@@ -103,7 +103,10 @@ export function CategoryDrilldown({
                   {a.username && (
                     <span className="text-ink-soft">@{a.username}</span>
                   )}
-                  <span className="text-ink-faint mono text-xs">
+                  <span
+                    className="text-ink-faint mono text-xs"
+                    suppressHydrationWarning
+                  >
                     {a.created_at ? formatRelativeTime(a.created_at) : ""}
                   </span>
                 </div>

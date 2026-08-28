@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { isActivePath, mobileNavItems } from "@/lib/navigation";
@@ -12,6 +11,12 @@ import { cn } from "@/lib/utils";
  * every page is reachable on mobile. On narrow screens the bar scrolls
  * horizontally (snap) — the active item snaps into view on navigation. Safe-area
  * aware for notched devices.
+ *
+ * NOTE: uses a plain `<a href>` (NOT Next `<Link>`) — deliberately identical to
+ * the working NavRail. Next's client-side router is unreliable here (a hydration
+ * mismatch in the SSR-seeded live feeds leaves `router.push` a no-op), so client
+ * `<Link>` navigation dead-ends (the "navbar mobile tak bisa pindah halaman"
+ * bug). A plain anchor does a full browser navigation and always works.
  */
 export function MobileNav() {
   const path = usePathname() ?? "/";
@@ -39,7 +44,7 @@ export function MobileNav() {
         {mobileNavItems.map((item) => {
           const active = isActivePath(path, item.matchPrefix);
           return (
-            <Link
+            <a
               key={item.href}
               href={item.href}
               aria-label={item.label}
@@ -67,7 +72,7 @@ export function MobileNav() {
               <span className="relative z-10 mt-0.5 max-w-full truncate text-[10px] leading-tight sm:text-xs">
                 {item.label}
               </span>
-            </Link>
+            </a>
           );
         })}
       </div>

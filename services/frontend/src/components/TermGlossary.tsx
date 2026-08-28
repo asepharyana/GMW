@@ -30,7 +30,9 @@ function GlossaryEntry({ t }: { t: GlossaryRow }) {
           </Badge>
         </div>
         <div className="flex shrink-0 items-center gap-2.5 font-mono text-[10px] text-ink-faint">
-          <span>{formatRelativeTime(t.resolved_at)}</span>
+          <span suppressHydrationWarning>
+            {formatRelativeTime(t.resolved_at)}
+          </span>
           <ChevronDown
             className={`size-3.5 text-ink-muted transition-transform duration-200 ${open ? "rotate-180 text-ink" : ""}`}
           />

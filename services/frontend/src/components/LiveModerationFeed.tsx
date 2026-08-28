@@ -135,7 +135,10 @@ export function LiveModerationFeed({
                         [{a.categories.slice(0, 2).join(", ")}]
                       </span>
                     ) : null}
-                    <span className="ml-auto font-mono text-[10px] text-ink-faint">
+                    <span
+                      className="ml-auto font-mono text-[10px] text-ink-faint"
+                      suppressHydrationWarning
+                    >
                       {formatRelativeTime(a.created_at)}
                     </span>
                   </div>

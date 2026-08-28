@@ -158,7 +158,7 @@ export function ChannelCultureGlossary({
                         <Activity className="size-3 text-signal" />
                         INTEL RATIO
                       </span>
-                      <span>
+                      <span suppressHydrationWarning>
                         {c.last_analyzed_at
                           ? formatRelativeTime(c.last_analyzed_at)
                           : "NEVER"}

@@ -360,7 +360,10 @@ export function MessagesView({
                         <span className="font-mono text-[10px] font-semibold text-signal">
                           {(r.score * 100).toFixed(0)}% RELEVANCE
                         </span>
-                        <span className="ml-auto font-mono text-[10px] text-ink-muted">
+                        <span
+                          className="ml-auto font-mono text-[10px] text-ink-muted"
+                          suppressHydrationWarning
+                        >
                           {formatRelativeTime(r.created_at)}
                         </span>
                       </div>
@@ -576,7 +579,10 @@ function MessageDetail({
           {m.server_nick && m.server_nick !== m.username && (
             <div className="text-[11px] text-ink-muted">@{m.username}</div>
           )}
-          <div className="mono text-[0.65rem] text-ink-faint">
+          <div
+            className="mono text-[0.65rem] text-ink-faint"
+            suppressHydrationWarning
+          >
             {getMessageChannelLabel(m)} · {formatRelativeTime(m.created_at)}
           </div>
         </div>
@@ -752,7 +758,10 @@ function MessageRow({
           <span className="font-mono text-[10px] text-ink-muted">
             {getMessageChannelLabel(m)}
           </span>
-          <span className="ml-auto font-mono text-[10px] text-ink-muted">
+          <span
+            className="ml-auto font-mono text-[10px] text-ink-muted"
+            suppressHydrationWarning
+          >
             {formatRelativeTime(m.created_at)}
           </span>
         </div>

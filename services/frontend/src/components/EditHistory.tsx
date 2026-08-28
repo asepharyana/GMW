@@ -106,7 +106,10 @@ export function EditHistory({ edits }: { edits: EditHistoryRow[] }) {
                 <span className="text-xs font-semibold text-ink">
                   {e.username ?? "unknown"}
                 </span>
-                <span className="flex items-center gap-1 text-[10px] text-ink-muted">
+                <span
+                  className="flex items-center gap-1 text-[10px] text-ink-muted"
+                  suppressHydrationWarning
+                >
                   <History className="size-3 text-ink-faint/50" />
                   edited {formatRelativeTime(e.edited_at)}
                 </span>

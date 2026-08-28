@@ -215,7 +215,9 @@ export function RecordingsView({
                               {r.channel_name ?? "voice"}
                             </span>
                             <span>·</span>
-                            <span>{formatRelativeTime(r.created_at)}</span>
+                            <span suppressHydrationWarning>
+                              {formatRelativeTime(r.created_at)}
+                            </span>
                           </div>
                         </div>
                         {isPlaying && <NowPlayingChip />}
