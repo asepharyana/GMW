@@ -158,7 +158,7 @@ Gaya ngobrol:
             tool_choice: "auto",
             max_tokens: 600,
             temperature: 0.4,
-            // Non-streaming: request a single complete response. 9router may
+            // Non-streaming: request a single complete response. omniroute may
             // still emit SSE even with stream:false, so the parser below
             // handle both raw-JSON and SSE bodies.
             stream: false,
@@ -176,7 +176,7 @@ Gaya ngobrol:
           },
         );
 
-        // Parse the body into content + tool_calls. 9router may return either
+        // Parse the body into content + tool_calls. omniroute may return either
         // a single JSON object (stream:false honored) or SSE text (stream
         // implied) — parseResponse handles both.
         const { content, toolCalls } = this.parseResponse(
@@ -252,7 +252,7 @@ Gaya ngobrol:
 
   /**
    * Parse an LLM HTTP body into content + tool_calls. Handles both shapes
-   * 9router can return: a single JSON object (stream:false honored) or SSE
+   * omniroute can return: a single JSON object (stream:false honored) or SSE
    * text (stream implied). For SSE we delegate to parseSse.
    */
   private parseResponse(body: string): {
@@ -306,7 +306,7 @@ Gaya ngobrol:
 
   /**
    * Parse an SSE stream body into accumulated content + any tool_calls.
-   * 9router (and most OpenAI-compatible routers) emit `data: {json}` lines
+   * omniroute (and most OpenAI-compatible routers) emit `data: {json}` lines
    * even when stream is only implied; we must collect deltas manually.
    */
   private parseSse(body: string): {

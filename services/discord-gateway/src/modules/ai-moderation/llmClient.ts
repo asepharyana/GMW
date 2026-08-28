@@ -94,7 +94,7 @@ type LLMResponseChunk = {
  * `delta.content`; falls back to reasoning fields so reasoning-only models
  * still produce usable aggregated text. Providers differ in the field name:
  * - DeepSeek-style / Cloudflare gemma → `delta.reasoning_content`
- * - mimo (via 9router) streams reasoning in `delta.reasoning` +
+ * - mimo (via omniroute) streams reasoning in `delta.reasoning` +
  *   `delta.reasoning_details[].text` (content:"") — without these fallbacks
  *   vision aggregation came back empty ("Vision API null response").
  * Exported for unit tests.
@@ -225,7 +225,7 @@ export function buildLlmParams(
       reasoning: { enabled: false },
       // vLLM / Qwen / litellm
       chat_template_kwargs: { enable_thinking: false },
-      // Anthropic / Claude-format (9router exposes thinkingFormat
+      // Anthropic / Claude-format (omniroute exposes thinkingFormat
       // "claude-adaptive" / "claude-budget" on its reasoning models)
       thinking: { type: "disabled" },
     } as Record<string, unknown>);

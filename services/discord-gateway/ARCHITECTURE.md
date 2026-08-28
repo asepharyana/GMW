@@ -139,5 +139,5 @@ pipeline gauges — `ai_analysis_queued_conversations`,
   numeric snowflake IDs never trigger false positives.
 - **Semantic cache is batched** (one embed call + one Qdrant batch search),
   not N sequential round-trips. `ensureQdrantCollection` is memoized.
-- **Streaming is mandatory** against the 9router base URL (non-stream waits for
+- **Streaming is mandatory** against the omniroute base URL (non-stream waits for
   the full body and times out). `llmClient` aggregates SSE chunks.

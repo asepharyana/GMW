@@ -6,7 +6,7 @@
 // a VALID vision_llm result. Every later analysis of the same image (same
 // hash / phash) then hit the poisoned cache and the moderation LLM wrote
 // "lampiran yang gagal terbaca" — image analysis seemed permanently broken
-// even though 9router was responding fine.
+// even though omniroute was responding fine.
 import { describe, expect, it } from "vitest";
 import { isNoImageSeenText } from "../src/modules/ai-moderation/visionAnalyzer.js";
 

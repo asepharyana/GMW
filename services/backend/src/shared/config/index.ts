@@ -131,7 +131,7 @@ export const configSchema = z
     AI_LLM_BASE_URL: z
       .string()
       .url()
-      .default("https://9router.asepharyana.my.id/v1"),
+      .default("http://100.121.180.82:20128/api/v1"),
     AI_LLM_MODEL: z.string().default("text"),
     AI_LLM_VISION_MODEL: z.string().optional(),
     AI_LLM_EMBEDDING_MODEL: z.string().optional(),
