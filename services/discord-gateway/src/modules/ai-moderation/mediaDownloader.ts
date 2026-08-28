@@ -296,14 +296,13 @@ export async function downloadAndExtractFrame(
   imageMap: Map<string, MessageImagePart[]>,
 ): Promise<void> {
   const log = createChildLogger("mediaAnalysis");
-  // Prefer the upload proxy (uploaded_url); the Discord CDN link can expire
-  // or be purged (404), and a non-OK response used to silently drop the image
-  // from vision analysis (no log, empty image map → text-only verdict). Try
-  // each candidate URL in order and surface failures.
+  // Analysis now uses the Discord CDN URL directly (uploaded_url is archive-only).
+  // Try discord_url first; fall back to uploaded_url (Tele proxy) if the CDN
+  // link returns a non-OK response (expired/purged).
   const urlCandidates = [
-    att.uploaded_url,
-    att.discord_url && att.discord_url !== att.uploaded_url
-      ? att.discord_url
+    att.discord_url,
+    att.uploaded_url && att.uploaded_url !== att.discord_url
+      ? att.uploaded_url
       : null,
   ].filter((u): u is string => Boolean(u));
   if (urlCandidates.length === 0) return;

@@ -1,23 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// classifyIndividualWorkerResult — upload-pending vs success vs incomplete vs error
-// ═══════════════════════════════════════════════════════════════════════════
-// Bug (2026-08-24): the worker's upload-pending race guard returned
-// {ok:true, results:[]}; the processor treated it as a completed moderation,
-// leaving messages stuck in `processing` until the 300s cleanup reverted them.
+// classifyIndividualWorkerResult — success vs incomplete vs error
+//
+// Upload-pending race guard removed (2026-08-28): analysis no longer
+// depends on the Tele uploader, so there is no upload_pending signal.
 import { describe, expect, it } from "vitest";
 import { classifyIndividualWorkerResult } from "../src/modules/ai-moderation/fallbackResultClassifier.js";
 
 describe("classifyIndividualWorkerResult", () => {
-  it("classifies the upload-pending race guard signal FIRST", () => {
-    expect(
-      classifyIndividualWorkerResult({
-        ok: true,
-        results: [],
-        uploadPending: true,
-      }),
-    ).toBe("upload_pending");
-  });
-
   it("classifies a normal verdict as success", () => {
     expect(
       classifyIndividualWorkerResult({

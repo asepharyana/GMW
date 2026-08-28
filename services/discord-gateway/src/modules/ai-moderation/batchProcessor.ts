@@ -4,10 +4,7 @@ import { isAgeRestrictedMetadata } from "../message-capture/messageMetadata.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
 import { pickBatchWithinBudget as pickBatchWithinBudgetPure } from "./batchBudget.js";
-import {
-  computeUploadPollDelayMs,
-  partitionBatchOutcome,
-} from "./batchOutcomeClassifier.js";
+import { partitionBatchOutcome } from "./batchOutcomeClassifier.js";
 import { workerPool } from "./circuitBreaker.js";
 import { estimateTokens } from "./conversationContext.js";
 import {
@@ -25,20 +22,11 @@ import {
 
 const logger = createChildLogger("batch-processor");
 
-/**
- * Consecutive upload-pending poll counter per conversation (2026-08-25).
- * Drives the linear backoff ramp while attachments are still uploading;
- * cleared as soon as a batch comes back with no upload-pending targets.
- */
-const conversationUploadPolls = new Map<string, number>();
-
 export interface AnalysisWorkerResponse {
   ok: boolean;
   conversationKey: string;
   rows: MessageRecord[];
   error?: string;
-  /** Explicit upload-in-flight signal from the batch race guard (2026-08-25). */
-  uploadPendingIds?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -154,8 +142,6 @@ export async function processBatch(
 
   activeRequests++;
   let shouldScheduleNext = false;
-  /** Set when upload-pending targets defer the next cycle by this many ms. */
-  let deferredUploadRescheduleMs: number | null = null;
   try {
     const result = (await workerPool.run({
       type: "batch",
@@ -208,28 +194,21 @@ export async function processBatch(
       return;
     }
 
-    // Batch succeeded -- partition per-message outcome explicitly (2026-08-25).
-    // upload_pending targets are DEFERRED (never fanned out): the old code
-    // treated them as incomplete -> individual queue -> requeue+250ms
-    // reschedule -> hot ~300ms loop for the whole upload duration.
+    // Batch succeeded -- partition per-message outcome (2026-08-25).
     const outcomeById = partitionBatchOutcome(messages, result);
     const messagesForIndividualQueue: MessageRecord[] = [];
     const apiFailedMessages: MessageRecord[] = [];
-    const uploadPendingMessages: MessageRecord[] = [];
 
     for (const msg of messages) {
       switch (outcomeById.get(msg.id)) {
-        case "upload_pending":
-          uploadPendingMessages.push(msg);
+        case "completed":
+          // Successfully analyzed — already broadcast + auto-delete scheduled
+          // above. Do NOT re-enqueue for individual fallback.
           break;
         case "api_failed":
           // Preserve the dedicated api-failure semantics below: revert +
           // conversation cooldown instead of an immediate individual retry.
           apiFailedMessages.push(msg);
-          break;
-        case "completed":
-          // Successfully analyzed — already broadcast + auto-delete scheduled
-          // above. Do NOT re-enqueue for individual fallback.
           break;
         default:
           // incomplete / parse_failed / unexplained drops stay retryable via
@@ -237,59 +216,6 @@ export async function processBatch(
           messagesForIndividualQueue.push(msg);
           break;
       }
-    }
-
-    if (uploadPendingMessages.length > 0) {
-      const polls = (conversationUploadPolls.get(conversationKey) ?? 0) + 1;
-      conversationUploadPolls.set(conversationKey, polls);
-      const delayMs = computeUploadPollDelayMs(
-        polls,
-        config.AI_ANALYSIS_UPLOAD_POLL_MS,
-        config.AI_ANALYSIS_MAX_UPLOAD_POLL_MS,
-      );
-      logger.debug(
-        {
-          conversationKey,
-          count: uploadPendingMessages.length,
-          ids: uploadPendingMessages.map((m) => m.id),
-          pollAttempt: polls,
-          delayMs,
-        },
-        "Attachment upload in-flight for batch targets — deferring with poll backoff",
-      );
-
-      // Put the rows back to `pending` so the scheduler owns them again.
-      await messageStore
-        .updateMessagesAIAnalysisBulk(
-          uploadPendingMessages.map((msg) => ({
-            messageId: msg.id,
-            result: {
-              status: "pending",
-              flags: null,
-              score: null,
-              analysis: null,
-              categories: null,
-              severity: null,
-              confidence: null,
-              recommendedAction: null,
-              analyzedAt: null,
-              error: null,
-            },
-          })),
-        )
-        .catch((err: unknown) => {
-          logger.error(
-            { error: String(err), ids: uploadPendingMessages.map((m) => m.id) },
-            "Failed to revert upload-pending batch targets to pending",
-          );
-          return [] as MessageRecord[];
-        });
-
-      // Poll backoff instead of the 250ms debounce: the finally-block
-      // schedules the next cycle after this delay instead of immediately.
-      deferredUploadRescheduleMs = delayMs;
-    } else {
-      conversationUploadPolls.delete(conversationKey);
     }
 
     if (messagesForIndividualQueue.length > 0) {
@@ -368,11 +294,7 @@ export async function processBatch(
       resetConversationBatchFailures(conversationKey);
       conversationErrorCooldown.delete(conversationKey);
     }
-    // Upload-pending defer owns the next-cycle timing; don't let the default
-    // immediate schedule override it.
-    if (deferredUploadRescheduleMs === null) {
-      shouldScheduleNext = true;
-    }
+    shouldScheduleNext = true;
   } catch (error) {
     recordConversationBatchFailure(conversationKey);
 
@@ -409,17 +331,7 @@ export async function processBatch(
     if (conversationProcessing.get(conversationKey) === processingStartedAt) {
       conversationProcessing.delete(conversationKey);
     }
-    if (deferredUploadRescheduleMs !== null) {
-      // Upload still in-flight: re-schedule after the backoff delay instead of
-      // immediately (the old path hot-looped at ~250-300ms per cycle).
-      const delayMs = deferredUploadRescheduleMs;
-      setTimeout(() => {
-        // Dynamic import to avoid circular dependency at module scope
-        import("./batchScheduler.js").then((m) =>
-          m.scheduleConversationAnalysis(conversationKey),
-        );
-      }, delayMs).unref();
-    } else if (shouldScheduleNext) {
+    if (shouldScheduleNext) {
       setImmediate(() => {
         // Dynamic import to avoid circular dependency at module scope
         import("./batchScheduler.js").then((m) =>

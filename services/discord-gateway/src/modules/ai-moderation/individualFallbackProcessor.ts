@@ -79,75 +79,21 @@ async function processIndividualFallback(
       message,
       skipNormalAnalysis: false,
     } as unknown)) as
-      | { ok: true; results: AnalysisResult[]; uploadPending?: boolean }
+      | { ok: true; results: AnalysisResult[] }
       | { ok: false; results: AnalysisResult[]; error: string };
 
-    // Explicit outcome classification (2026-08-24): the old code treated any
-    // ok:true as a completed moderation, so the upload-pending race guard's
-    // empty results left messages stuck in `processing` until the 300s
-    // cleanup reverted them — the root cause of the ~330s attachment delays.
+    // Explicit outcome classification: the old code treated any
+    // ok:true as a completed moderation, so empty or unexplainable
+    // results left messages stuck in `processing` until the 300s
+    // cleanup reverted them.
     const kind = classifyIndividualWorkerResult(workerResult);
 
-    if (kind === "upload_pending") {
-      // Attachment still uploading — put the row back to `pending` and
-      // re-schedule this conversation immediately. The next scheduler cycle
-      // (~debounce 250ms) re-fetches; once upload_status flips to done the
-      // race guard passes and analysis proceeds. NOT an error: never touches
-      // the circuit breaker counters.
-      const revertedRows = await messageStore
-        .updateMessagesAIAnalysisBulk([
-          {
-            messageId,
-            result: {
-              status: "pending",
-              flags: null,
-              score: null,
-              analysis: null,
-              categories: null,
-              severity: null,
-              confidence: null,
-              recommendedAction: null,
-              analyzedAt: null,
-              error: null,
-            },
-          },
-        ])
-        .catch((dbErr: unknown) => {
-          logger.error(
-            { messageId, error: String(dbErr) },
-            "Failed to revert upload-pending message to pending",
-          );
-          return [] as MessageRecord[];
-        });
-      for (const row of revertedRows) {
-        broadcastAnalysisCompleted(row);
-      }
-      logger.debug(
-        { messageId, conversationKey },
-        "Individual fallback: attachment upload in-flight — requeued as pending + rescheduled",
-      );
-      setImmediate(() => {
-        import("./batchScheduler.js")
-          .then((m) => m.scheduleConversationAnalysis(conversationKey))
-          .catch(() => {});
-      });
-      return;
-    }
-
     let analysisResult: { results: AnalysisResult[] } | null = null;
-
     if (kind === "success") {
       analysisResult = workerResult;
-    } else if (kind === "incomplete") {
-      exhaustedOnIncomplete = true;
-      analysisResult = null;
     } else {
-      // "error" — includes ok:true with unexplainable empty results (the old
-      // silent-success bug). Throw so it is treated as a transient failure.
-      throw new Error(
-        (workerResult as { error?: string }).error ??
-          "Individual worker returned no explainable results",
-      );
+      exhaustedOnIncomplete = kind === "incomplete";
+      analysisResult = null;
     }
 
     // No heuristic fallback: an incomplete/errored LLM result stays a

@@ -13,16 +13,10 @@
  * has an explicit, testable owner.
  */
 
-export type WorkerResultKind =
-  | "success"
-  | "upload_pending"
-  | "incomplete"
-  | "error";
+export type WorkerResultKind = "success" | "incomplete" | "error";
 
 export interface ClassifiableWorkerResult {
   ok?: boolean;
-  /** Upload-pending marker set by ai-analysis-worker's race guard. */
-  uploadPending?: boolean;
   results?: Array<{ status?: string; flags?: string[] | string } | undefined>;
   error?: string;
 }
@@ -40,7 +34,6 @@ function flagsOf(r: { flags?: string[] | string }): string[] {
 
 /**
  * Classify an individual-fallback worker response:
- * - "upload_pending": explicit race-guard signal — retry shortly, NOT an error.
  * - "success": at least one result and none is analysis_incomplete.
  * - "incomplete": LLM ran but dropped/failed this message after retries
  *   (analysis_incomplete flag) — terminal exhausted path.
@@ -50,7 +43,6 @@ function flagsOf(r: { flags?: string[] | string }): string[] {
 export function classifyIndividualWorkerResult(
   result: ClassifiableWorkerResult,
 ): WorkerResultKind {
-  if (result.uploadPending === true) return "upload_pending";
   const results = (result.results ?? []).filter(
     (r): r is NonNullable<typeof r> => Boolean(r),
   );
