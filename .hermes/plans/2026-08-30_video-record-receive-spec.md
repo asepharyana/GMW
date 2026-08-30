@@ -1,6 +1,6 @@
 # Spec: Record video (kamera/screenshare) orang lain — WebRTC receive (Request 2)
 
-Date: 2026-08-30. Status: IN PROGRESS (Phase A).
+Date: 2026-08-30. Status: Phase A + B DONE (capture → playable MP4); Phase C (UI) open.
 
 ## Why this is hard (ground truth, verified from @discordjs/voice 0.19.2 source)
 `VoiceReceiver.onUdpMessage` (dist/index.mjs:2059) drops EVERY non-opus RTP
@@ -42,10 +42,15 @@ Dependencies: NO new npm deps for Phase A (only crypto already in
 @discordjs/voice via parsePacket + Buffer). ffmpeg-headless (already in Nix
 buildInputs) used in Phase B for decode+mux.
 
-## Phase B — decode + mux to playable MP4/WebM (follow-up)
-- Pipe AnnexB h264 → `ffmpeg -f h264 -i pipe:0 -c copy out.mp4` (or transcode).
-- Reuse muxer patterns from voice (muxer.ts) + session recording.
-- Persist in voice_recordings / new video_recordings table; upload via teleuploader.
+## Phase B — decode + mux to playable MP4/WebM (DONE, commit 999c054b)
+- `closeBurst` waits for the WriteStream `finish` (full flush/fd close), then
+  `muxToMp4(rawPath)`: `ffmpeg -f h264 -i raw.h264 -c copy -movflags +faststart
+  out.mp4`, deletes raw on success (>=1B mp4), keeps it on failure.
+- Output: `<RECORDINGS_DIR>/<uid>/video-<ssrc>-<ts>.mp4`.
+- ffmpeg is on the gateway runtime PATH (pkgs.ffmpeg-headless, already in the
+  Nix buildInputs for the music/GoLive players).
+- Test: `tests/videoReceiver.test.ts` muxToMp4 case (real ffmpeg, generates a
+  tiny baseline h264, asserts mp4 non-empty + raw deleted; skipped if no ffmpeg).
 
 ## Phase C — frontend playback + session grouping (follow-up)
 - Backend oRPC list video files; FE video player, group by call session like audio.
