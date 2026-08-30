@@ -277,6 +277,22 @@ export const pgVoiceRecordingsTable = pgTable(
 
 export const voiceRecordingsTable = pgVoiceRecordingsTable;
 
+/**
+ * Voice Auto-Reconnect Table (PostgreSQL)
+ * Persists the desired voice state per guild so the gateway can rejoin the
+ * same channel after a restart/reboot, or after an unexpected drop (kick /
+ * server move / voice server restart).
+ */
+export const pgVoiceAutoReconnectTable = pgTable("voice_auto_reconnect", {
+  guild_id: pgText("guild_id").primaryKey(),
+  channel_id: pgText("channel_id").notNull(),
+  channel_name: pgText("channel_name"),
+  connected_at: pgBigint("connected_at", { mode: "number" }).notNull(),
+  updated_at: pgBigint("updated_at", { mode: "number" }).notNull(),
+});
+
+export const voiceAutoReconnectTable = pgVoiceAutoReconnectTable;
+
 // =============================================================================
 // AI Analysis / Analytics
 // =============================================================================
@@ -557,6 +573,11 @@ export type CorrectedModerationInsert =
 // Voice Recordings
 export type VoiceRecording = typeof voiceRecordingsTable.$inferSelect;
 export type VoiceRecordingInsert = typeof voiceRecordingsTable.$inferInsert;
+
+// Voice Auto-Reconnect
+export type VoiceAutoReconnect = typeof voiceAutoReconnectTable.$inferSelect;
+export type VoiceAutoReconnectInsert =
+  typeof voiceAutoReconnectTable.$inferInsert;
 
 // AI Analysis Runs
 export type AIAnalysisRun = typeof aiAnalysisRunsTable.$inferSelect;

@@ -274,6 +274,17 @@ export async function initializeDiscordGateway() {
     commandHandler.start(client, voiceController);
     logger.info("Command handler started");
 
+    // Rejoin persisted voice channels (auto-reconnect on restart/reboot).
+    // Non-fatal: failures are logged inside autoReconnect.
+    void voiceController
+      .autoReconnect()
+      .catch((err) =>
+        logger.warn(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Voice auto-reconnect on startup failed",
+        ),
+      );
+
     // Start retention cleanup scheduler
     startRetentionCleanup();
     // Start weekly moderation digest (public, automated)

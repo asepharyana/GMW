@@ -1,5 +1,11 @@
 import type { VoiceConnection } from "@discordjs/voice";
+import { VoiceConnectionStatus } from "@discordjs/voice";
 import type { Client, Guild, VoiceChannel } from "discord.js-selfbot-v13";
+import {
+  deleteVoiceAutoReconnect,
+  listVoiceAutoReconnects,
+  upsertVoiceAutoReconnect,
+} from "@/shared/database/voiceAutoReconnectRepo.js";
 import { AppError } from "@/shared/errors/index";
 import { createChildLogger } from "@/shared/logger/index";
 import { discordPlayer } from "./player.js";
@@ -26,18 +32,37 @@ export interface VoiceStatus {
   connections: GuildVoiceState[];
 }
 
+export interface DisconnectOptions {
+  /** Clear the persisted auto-reconnect row (explicit user leave). */
+  clearPersisted?: boolean;
+  /** Mark the disconnect as intentional so the rejoin monitor stops. */
+  intentional?: boolean;
+}
+
+const REJOIN_MAX_ATTEMPTS = 5;
+const REJOIN_BASE_DELAY_MS = 2_000;
+const REJOIN_MAX_DELAY_MS = 30_000;
+
 // ─── VoiceController ─────────────────────────────────────────────────────
 
 export class VoiceController {
   private connections = new Map<string, GuildVoiceState>();
   private connecting = new Set<string>();
+  /** Guilds whose disconnect was intentional (user leave / shutdown). */
+  private intentionalGuilds = new Set<string>();
+  /** Last known desired voice state, kept independent of live connection map. */
+  private rejoinState = new Map<string, GuildVoiceState>();
+  /** Current live connection per guild — for stale-callback invalidation. */
+  private liveConnections = new Map<string, VoiceConnection>();
+  /** Per-guild rejoin attempt counters + timers. */
+  private rejoinAttempts = new Map<string, number>();
+  private rejoinTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(private readonly client: Client) {}
 
   getStatus(): VoiceStatus {
     logger.debug("getStatus called");
 
-    // Primary connection (legacy compat — first entry or explicitly set)
     const primaryGuildId = this.connections.keys().next().value ?? null;
     const primary = primaryGuildId
       ? this.connections.get(primaryGuildId)
@@ -76,8 +101,12 @@ export class VoiceController {
     try {
       // Disconnect existing connection for this guild first
       if (this.connections.has(guildId)) {
-        await this.disconnectGuild(guildId);
+        await this.disconnectGuild(guildId, { intentional: true });
       }
+
+      // Clear any outstanding rejoin work for this guild — we are (re)joining now.
+      this.clearRejoin(guildId);
+      this.intentionalGuilds.delete(guildId);
 
       const guild = this.getGuild(guildId);
       const channel =
@@ -85,6 +114,8 @@ export class VoiceController {
         (await guild.channels.fetch(channelId).catch(() => null));
 
       if (!channel) {
+        // Channel no longer exists — drop the persisted row so we don't retry forever.
+        await deleteVoiceAutoReconnect(guildId).catch(() => {});
         throw new AppError(
           "Voice channel not found",
           "VOICE_CHANNEL_NOT_FOUND",
@@ -124,6 +155,25 @@ export class VoiceController {
         connectedAt: Date.now(),
       };
       this.connections.set(guildId, state);
+      this.rejoinState.set(guildId, state);
+      this.liveConnections.set(guildId, connection as VoiceConnection);
+
+      // Persist desired voice state for auto-reconnect (restart/reboot/kick).
+      const now = Date.now();
+      await upsertVoiceAutoReconnect({
+        guild_id: guildId,
+        channel_id: channelId,
+        channel_name: channel.name,
+        connected_at: now,
+        updated_at: now,
+      }).catch((err) => {
+        logger.warn(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Failed to persist voice auto-reconnect state",
+        );
+      });
+
+      this.monitorConnection(guildId, connection);
 
       logger.info(
         { guildId, channelId, channelName: channel.name },
@@ -136,25 +186,198 @@ export class VoiceController {
     }
   }
 
-  async disconnect(): Promise<VoiceStatus> {
-    logger.info("disconnect called");
+  /**
+   * Auto-reconnect on startup/restart: rejoin every persisted voice channel.
+   * Called from the client `ready` handler. Non-fatal per-guild.
+   */
+  async autoReconnect(): Promise<void> {
+    let states: Array<{
+      guild_id: string;
+      channel_id: string;
+      channel_name: string | null;
+    }> = [];
+    try {
+      states = await listVoiceAutoReconnects();
+    } catch (err) {
+      logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Failed to load voice auto-reconnect states",
+      );
+      return;
+    }
 
-    // Disconnect all guilds
+    if (states.length === 0) {
+      logger.info("No persisted voice state — skipping auto-reconnect");
+      return;
+    }
+
+    logger.info(
+      { count: states.length },
+      "Auto-reconnecting to persisted voice channels",
+    );
+
+    // Fire in parallel; each failure is logged but doesn't block the others.
+    await Promise.allSettled(
+      states.map(async (s) => {
+        try {
+          await this.connect(s.guild_id, s.channel_id);
+        } catch (err) {
+          logger.error(
+            {
+              guildId: s.guild_id,
+              channelId: s.channel_id,
+              channelName: s.channel_name,
+              err: err instanceof Error ? err.message : String(err),
+            },
+            "Auto-reconnect failed for guild",
+          );
+        }
+      }),
+    );
+  }
+
+  async disconnect(opts?: DisconnectOptions): Promise<VoiceStatus> {
+    // Default semantics for graceful shutdown: intentional (no rejoin during
+    // teardown) but keep the persisted row so we rejoin on next boot.
+    const effective = opts ?? { intentional: true };
+    logger.info({ opts: effective }, "disconnect called");
+
     const guildIds = Array.from(this.connections.keys());
     for (const gid of guildIds) {
-      await this.disconnectGuild(gid);
+      await this.disconnectGuild(gid, effective);
     }
 
     discordPlayer.stop();
     return this.getStatus();
   }
 
-  async disconnectGuild(guildId: string): Promise<void> {
-    logger.info({ guildId }, "disconnectGuild called");
+  async disconnectGuild(
+    guildId: string,
+    opts?: DisconnectOptions,
+  ): Promise<void> {
+    logger.info({ guildId, opts }, "disconnectGuild called");
+    if (opts?.intentional) {
+      this.intentionalGuilds.add(guildId);
+    }
+    if (opts?.clearPersisted) {
+      await deleteVoiceAutoReconnect(guildId).catch(() => {});
+      // Manual leave — forget the desired state entirely.
+      this.rejoinState.delete(guildId);
+      this.intentionalGuilds.add(guildId);
+    }
     if (this.connections.has(guildId)) {
       stopRecording(guildId);
       this.connections.delete(guildId);
     }
+    this.liveConnections.delete(guildId);
+    this.clearRejoin(guildId);
+  }
+
+  // ─── Rejoin monitor ───────────────────────────────────────────────────
+
+  /**
+   * Watch a live connection. If it drops WITHOUT us marking the guild as
+   * intentional (user leave / shutdown), schedule a full rejoin with backoff.
+   */
+  private monitorConnection(
+    guildId: string,
+    connection: VoiceConnection,
+  ): void {
+    const onDrop = () => {
+      // Ignore callbacks from a stale connection that has since been replaced.
+      if (this.liveConnections.get(guildId) !== connection) {
+        return;
+      }
+
+      // This connection object is dead.
+      this.liveConnections.delete(guildId);
+      if (this.connections.get(guildId)?.guildId === guildId) {
+        this.connections.delete(guildId);
+      }
+
+      if (this.intentionalGuilds.has(guildId)) {
+        logger.info({ guildId }, "Intentional disconnect — no auto-rejoin");
+        return;
+      }
+
+      logger.warn(
+        { guildId },
+        "Voice dropped unexpectedly — scheduling rejoin",
+      );
+      this.scheduleRejoin(guildId);
+    };
+
+    connection.on(VoiceConnectionStatus.Disconnected, onDrop);
+    connection.on(VoiceConnectionStatus.Destroyed, onDrop);
+  }
+
+  private scheduleRejoin(guildId: string): void {
+    if (this.rejoinTimers.has(guildId)) {
+      return; // already scheduled
+    }
+    if (this.intentionalGuilds.has(guildId)) {
+      return;
+    }
+
+    const attempt = (this.rejoinAttempts.get(guildId) ?? 0) + 1;
+    this.rejoinAttempts.set(guildId, attempt);
+
+    const persisted = this.rejoinState.get(guildId);
+    if (!persisted) {
+      // Desired state was cleared — nothing to rejoin.
+      this.clearRejoin(guildId);
+      return;
+    }
+
+    if (attempt > REJOIN_MAX_ATTEMPTS) {
+      logger.error(
+        { guildId, channelId: persisted.channelId, attempt },
+        "Rejoin attempts exhausted — keeping persisted state for next restart",
+      );
+      this.clearRejoin(guildId);
+      return;
+    }
+
+    const delay = Math.min(
+      REJOIN_BASE_DELAY_MS * 2 ** (attempt - 1),
+      REJOIN_MAX_DELAY_MS,
+    );
+    logger.info(
+      { guildId, channelId: persisted.channelId, attempt, delay },
+      "Scheduling voice rejoin",
+    );
+
+    const timer = setTimeout(() => {
+      this.rejoinTimers.delete(guildId);
+      this.connect(guildId, persisted.channelId)
+        .then(() => {
+          this.rejoinAttempts.delete(guildId);
+          logger.info({ guildId }, "Auto-rejoin succeeded");
+        })
+        .catch((err) => {
+          logger.warn(
+            {
+              guildId,
+              err: err instanceof Error ? err.message : String(err),
+              attempt,
+            },
+            "Auto-rejoin attempt failed",
+          );
+          // Schedule the next attempt (the monitor is gone, so drive it here).
+          this.scheduleRejoin(guildId);
+        });
+    }, delay);
+
+    this.rejoinTimers.set(guildId, timer);
+  }
+
+  private clearRejoin(guildId: string): void {
+    const timer = this.rejoinTimers.get(guildId);
+    if (timer) {
+      clearTimeout(timer);
+      this.rejoinTimers.delete(guildId);
+    }
+    this.rejoinAttempts.delete(guildId);
   }
 
   private getGuild(guildId: string): Guild {

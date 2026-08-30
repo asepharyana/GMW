@@ -67,7 +67,10 @@ export class VoiceHandler {
       };
     }
 
-    const status = await this.voiceController.disconnect();
+    const status = await this.voiceController.disconnect({
+      clearPersisted: true,
+      intentional: true,
+    });
     return { id: cmd.id, success: true, data: status };
   }
 
@@ -93,7 +96,10 @@ export class VoiceHandler {
       };
     }
 
-    await this.voiceController.disconnectGuild(guildId);
+    await this.voiceController.disconnectGuild(guildId, {
+      clearPersisted: true,
+      intentional: true,
+    });
     const status = this.voiceController.getStatus();
     return { id: cmd.id, success: true, data: status };
   }
