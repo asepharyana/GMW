@@ -31,7 +31,7 @@ export async function transcribeRecording(
     const response = await openai.audio.transcriptions.create({
       file: createReadStream(oggPath),
       model: "whisper-1",
-      language: "en",
+      // No `language` param → Whisper auto-detects (handles id/en mixed).
       response_format: "text",
     });
 
