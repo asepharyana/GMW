@@ -251,6 +251,16 @@ export function hookVideoReceiver(
     }
 
     const payloadType = msg[1] & 127;
+    // DIAGNOSTIC: log any RTP packet whose payload type isn't Opus (120) so we
+    // can confirm whether Discord actually delivers video RTP to the bot.
+    // (Non-opus = video/experimental; if we see these, video IS arriving and the
+    // attribution/signaling below is the only gap.)
+    if (payloadType !== 120) {
+      logger.warn(
+        { payloadType, ssrc: msg.readUInt32BE(8) },
+        "DIAG: non-opus RTP packet on voice socket",
+      );
+    }
     if (!VIDEO_PAYLOAD_TYPES.has(payloadType)) {
       // Not video — let the existing handler (audio + screen-share audio) take it.
       original.call(receiver, msg);
