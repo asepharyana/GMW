@@ -52,9 +52,10 @@ export function finalizeSegment(input: SegmentFinalizerInput): void {
   const endTime = currentSegment.endTime ?? Date.now();
   const durationMs = endTime - currentSegment.startTime;
 
-  // Discard segments shorter than 1 second — not useful as a recording,
-  // would just be a blip of ambient noise or a mic click.
-  const MIN_DURATION_MS = 1000;
+  // Discard only very short segments — a blip of ambient noise or a mic
+  // click. At 300ms, brief acknowledgements ("ya", "siap", "ok") are still
+  // kept while true artifacts are dropped.
+  const MIN_DURATION_MS = 300;
   if (durationMs < MIN_DURATION_MS) {
     logger.debug(
       { filename: currentSegment.filename, durationMs },

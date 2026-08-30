@@ -4,6 +4,10 @@ import type { VoiceConnection } from "@discordjs/voice";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
 import { createChildLogger } from "@/shared/logger/index";
 import type { EventBroadcaster } from "../../event-broadcaster/eventBroadcaster.js";
+import type {
+  SegmentState,
+  UserMetadata,
+} from "../../message-capture/types.js";
 import { collectUserMetadata } from "./metadata.js";
 import { finalizeSegment } from "./segmentFinalizer.js";
 import type { RecordingSession } from "./sessionRecording.js";
@@ -25,13 +29,21 @@ export interface SpeakingHandlerContext {
 /**
  * Creates the event handler for `receiver.speaking.on("start", handler)`.
  *
- * The returned handler manages the full lifecycle for a user who starts speaking:
- * 1. Validates the user (skip bot self, skip already-subscribed)
- * 2. Collects user metadata and notifies the event broadcaster
- * 3. Sets up the audio stream, decoder, packet filter, and segment manager
- * 4. Attaches stream event handlers (data, end, error) BEFORE piping
- * 5. Pipes audio through the packet filter for OGG recording
- * 6. Handles segment completion (metadata write, upload trigger)
+ * # Why this is structured the way it is (recording-completeness)
+ *
+ * `receiver.speaking"start"` fires from `onUdpMessage` the moment the FIRST
+ * Opus packet for a user arrives, and the opus bytes are forwarded to the
+ * subscription stream **only if a subscription already exists** — otherwise
+ * they are dropped (`subscriptions.get(userId)` is undefined → `return`).
+ *
+ * That means the subscription MUST be created synchronously (no `await` before
+ * it): every frame between "start" and the subscribe call is otherwise silently
+ * discarded → the START of a burst is MISSING (the user's core complaint).
+ * The previous code `await`ed `collectUserMetadata` (a Discord REST roundtrip,
+ * slow on cache miss) BEFORE subscribing — that was the main source of misses.
+ *
+ * Metadata is now fetched in the background. If the speaker turns out to be a
+ * bot, the just-started burst is discarded (unlinked, never uploaded).
  */
 export function createSpeakingHandler(
   ctx: SpeakingHandlerContext,
@@ -47,110 +59,176 @@ export function createSpeakingHandler(
   } = ctx;
 
   return async (userId: string) => {
-    // Skip the bot's own audio
+    // Skip the bot's own audio.
     if (userId === client.user?.id) return;
 
-    const userMetadata = await collectUserMetadata(client, userId, channel);
-    if (userMetadata.bot) return;
-
-    logger.debug(
-      { userId, username: userMetadata.username },
-      "Voice activity detected",
-    );
-
-    // Skip if user already has an active stream subscription
-    // (check BEFORE broadcast to avoid false positive events)
+    // Synchronous guard BEFORE any await. Two "start" events can race during a
+    // subscription; guard here so we never create a second subscription.
     if (receiver.subscriptions.has(userId)) return;
 
-    // Notify webserver / WebSocket clients
+    logger.debug({ userId }, "Voice activity detected");
+
+    // Optimistic speaking:true (real metadata arrives async).
     eventBroadcaster?.voiceActiveUser(userId, {
-      username: userMetadata.username,
-      avatar: userMetadata.avatarUrl,
+      username: userId,
+      avatar: "",
       speaking: true,
     });
 
-    // Ensure per-user recording directory
+    // Subscribe IMMEDIATELY (synchronously — guard is already done above, no
+    // `await` since then), so the subscription exists before any Opus frame
+    // arrives. Frames are then buffered by the AudioReceiveStream while we
+    // finish setup below (mkdir is non-network and fast).
     const userDir = path.join(recordingsDir, userId);
+    const { audioStream, packetFilter, segmentManager, decoder } =
+      setupUserStream({
+        userId,
+        receiver,
+        userDir,
+        onPcmData: (pcm) => {
+          if (pcmSender) {
+            pcmSender(pcm, userId);
+          } else {
+            eventBroadcaster?.voicePcmData(pcm, userId);
+          }
+        },
+      });
+
+    // Ensure per-user recording directory (subscription is already live, so
+    // this await does NOT drop audio — frames buffer in the subscription).
     await fsPromises.mkdir(userDir, { recursive: true }).catch(() => {
-      // Directory already exists, ignore
+      // Directory already exists, ignore.
     });
 
-    try {
-      // Step 1: Set up stream components (subscribe, decoder, filter, segment
-      // manager). NOTE: pipe() is NOT called here — we attach event handlers
-      // first to prevent data loss from race conditions.
-      const { audioStream, packetFilter, segmentManager, decoder } =
-        setupUserStream({
-          userId,
-          receiver,
-          userDir,
-          onPcmData: (pcm) => {
-            if (pcmSender) {
-              pcmSender(pcm, userId);
-            } else {
-              eventBroadcaster?.voicePcmData(pcm, userId);
+    const activeSession = activeSessions.get(channel.guild.id);
+
+    // Mutable per-burst state.
+    let userMetadata: UserMetadata | null = null;
+    let accepted = true; // false once we learn it's a bot → discard burst
+    let finalized = false;
+
+    /** Unlink the given segment's files (bot/error discard path). */
+    const discardSegmentFiles = (seg: SegmentState | null): void => {
+      if (!seg) return;
+      fsPromises.unlink(seg.filename).catch(() => {});
+      fsPromises.unlink(seg.jsonFilename).catch(() => {});
+    };
+
+    const emitSpeakingFalse = (): void => {
+      eventBroadcaster?.voiceActiveUser(userId, {
+        username: userMetadata?.username ?? userId,
+        avatar: userMetadata?.avatarUrl ?? "",
+        speaking: false,
+      });
+    };
+
+    /**
+     * Close the current (per-burst) segment and — once the underlying file has
+     * finished flushing to disk — finalize it (or discard it if bot/error).
+     * Safe to call multiple times (guarded by `finalized`).
+     */
+    const finishBurst = (): void => {
+      if (finalized) return;
+      finalized = true;
+      const seg = segmentManager.close(oggPacketStream);
+      decoder.destroy();
+
+      const doFinalize = (): void => {
+        Promise.resolve(userMetadata).then((meta) => {
+          if (meta && accepted && seg) {
+            try {
+              finalizeSegment({
+                currentSegment: seg,
+                userMetadata: meta,
+                activeSession,
+                guildId: channel.guild.id,
+                channelId: channel.id,
+                channelName: channel.name,
+              });
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              logger.error({ userId, error: msg }, "Segment finalize failed");
             }
-          },
+          } else {
+            // Bot audio, metadata failure, or no segment opened — discard.
+            discardSegmentFiles(seg);
+          }
         });
+      };
 
-      // Step 2: Attach all audioStream event handlers BEFORE pipe()
-      audioStream.on("data", (chunk: Buffer) => {
-        if (chunk.length < 8) return;
-        segmentManager.rotateIfNeeded(packetFilter);
-        decoder.rotateIfNeeded();
-        decoder.write(chunk);
-      });
+      // finalizeSegment reads the OGG file, so wait for the write stream to
+      // flush before touching it.
+      if (seg?.out.writableFinished) {
+        doFinalize();
+      } else {
+        seg?.out.once("finish", doFinalize);
+      }
+    };
 
-      audioStream.on("end", () => {
-        segmentManager.close(packetFilter);
-        decoder.destroy();
+    // Attach audioStream handlers BEFORE pipe() (prevents data loss).
+    audioStream.on("data", (chunk: Buffer) => {
+      if (chunk.length < 8) return;
+      // One segment per burst — no time-based rotation here. Only rotate the
+      // web-PCM broadcast decoder to bound its memory.
+      decoder.rotateIfNeeded();
+      decoder.write(chunk);
+    });
+
+    audioStream.on("end", () => {
+      finishBurst();
+      emitSpeakingFalse();
+    });
+
+    audioStream.on("error", (error: Error) => {
+      logger.error({ userId, error: error.message }, "Audio stream error");
+      finishBurst();
+      emitSpeakingFalse();
+    });
+
+    // Pipe for OGG recording (handlers already attached).
+    const oggPacketStream = audioStream.pipe(packetFilter);
+
+    // Open the (single, per-burst) segment.
+    const currentSegment = segmentManager.open(oggPacketStream);
+
+    // Handle file-write errors on the underlying write stream.
+    currentSegment.out.on("error", (err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error({ userId, error: msg }, "File write error");
+    });
+
+    // Handle packet-filter errors (rare) by closing the burst.
+    packetFilter.on("error", (err: Error) => {
+      logger.error({ userId, error: err.message }, "PacketFilter error");
+      finishBurst();
+      emitSpeakingFalse();
+    });
+
+    // Fetch user metadata in the background; reject bots by discarding burst.
+    collectUserMetadata(client, userId, channel)
+      .then((meta) => {
+        if (meta.bot) {
+          accepted = false;
+          finishBurst();
+          emitSpeakingFalse();
+          return;
+        }
+        userMetadata = meta;
         eventBroadcaster?.voiceActiveUser(userId, {
-          username: userMetadata.username,
-          avatar: userMetadata.avatarUrl,
-          speaking: false,
+          username: meta.username,
+          avatar: meta.avatarUrl,
+          speaking: true,
         });
-      });
-
-      audioStream.on("error", (error: Error) => {
-        segmentManager.close(packetFilter);
-        decoder.destroy();
-        logger.error({ userId, error: error.message }, "Audio stream error");
-      });
-
-      // Step 3: Now pipe for OGG recording (safe — event handlers attached)
-      const oggPacketStream = audioStream.pipe(packetFilter);
-
-      // Step 4: Open the first segment
-      const activeSession = activeSessions.get(channel.guild.id);
-      const currentSegment = segmentManager.open(oggPacketStream);
-
-      // Step 5: Handle segment file completion
-      currentSegment.out.on("finish", () => {
-        finalizeSegment({
-          currentSegment,
-          userMetadata,
-          activeSession,
-          guildId: channel.guild.id,
-          channelId: channel.id,
-          channelName: channel.name,
-        });
-      });
-
-      currentSegment.out.on("error", (err: unknown) => {
+      })
+      .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
-        logger.error({ userId, error: msg }, "File write error");
+        logger.warn(
+          { userId, error: msg },
+          "Metadata fetch failed, dropping burst",
+        );
+        accepted = false;
+        finishBurst();
+        emitSpeakingFalse();
       });
-
-      // Step 6: Handle packet filter errors
-      packetFilter.on("error", (err) => {
-        segmentManager.close(oggPacketStream);
-        logger.error({ userId, error: err.message }, "PacketFilter error");
-      });
-    } catch (e) {
-      logger.error(
-        { userId, error: e instanceof Error ? e.message : String(e) },
-        "Failed to create stream",
-      );
-    }
   };
 }

@@ -53,10 +53,15 @@ export const configSchema = z
     DECODER_COOLDOWN_MS: z.coerce.number().positive().default(30000),
 
     // ── Audio ────────────────────────────────────────────────────────────
+    // AfterSilence: how long a voice burst may stay silent before the receive
+    // stream ends the segment. Raised 3000→4000 so natural pauses in speech
+    // (thinking gaps, interruptions) don't split one utterance into multiple
+    // segments ("terpotong"). Tunable via env; larger = fewer splits but a
+    // longer silent tail on each recording.
     AUDIO_STREAM_SILENCE_DURATION_MS: z.coerce
       .number()
       .positive()
-      .default(3000),
+      .default(4000),
     PACKET_FILTER_MIN_SIZE: z.coerce.number().positive().default(8),
     OPUS_FRAME_SIZE: z.coerce.number().positive().default(960),
     AUDIO_SAMPLE_RATE: z.coerce.number().positive().default(48000),
