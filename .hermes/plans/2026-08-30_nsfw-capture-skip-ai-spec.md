@@ -45,6 +45,10 @@ di dashboard), tetapi **tidak dianalisis AI** (tidak dipanggil LLM).
   dengan flag age_restricted, dan TIDAK ada panggilan LLM (log llm-caller tidak
   menampilkan id pesan NSFW).
 
+## Status
+- Request 1: DONE & DEPLOYED (commit 50967f64, CI green, gateway restart 20:17 WIB).
+- Request 2 (video): dicatat, belum dikerjakan — lihat section di bawah.
+
 ## Request 2 (video) — NOT in this change
 Fitur record video kamera/screenshare orang lain. @discordjs/voice hanya
 mendukung **audio** receive. Video orang lain butuh WebRTC viewer baru
