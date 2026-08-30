@@ -7,7 +7,7 @@ import {
   type VoiceConnection,
   VoiceConnectionStatus,
 } from "@discordjs/voice";
-import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
+import type { Client, Guild, VoiceChannel } from "discord.js-selfbot-v13";
 import { createChildLogger } from "@/shared/logger/index";
 import { retryWithBackoff } from "@/shared/utils/index";
 import { config } from "../../shared/config/config.js";
@@ -29,6 +29,39 @@ export { _eventBroadcaster };
 
 export function setEventBroadcaster(broadcaster: EventBroadcaster | undefined) {
   _eventBroadcaster = broadcaster;
+}
+
+/**
+ * Force the bot (self member) to be unmuted + undeafened at the SERVER level.
+ *
+ * Why: a server-muted / server-deafened bot cannot receive/record other
+ * members' audio properly (and definitely cannot receive their video/screen
+ * share). The bot's own voice state may be server-muted/deafened by an admin
+ * or by a prior state. This issues a REST guild-members PATCH with
+ * `mute:false, deaf:false`.
+ *
+ * Requires the `MUTE_MEMBERS` + `DEAFEN_MEMBERS` permissions on the bot
+ * (user has granted them). Failures are logged, never fatal — an unmute
+ * failure must not break the voice join/recording.
+ */
+async function forceSelfServerUnmuteUndeafen(
+  client: Client,
+  guild: Guild,
+): Promise<void> {
+  try {
+    const selfId = client.user?.id;
+    if (!selfId) return;
+    await guild.members.edit(selfId, { mute: false, deaf: false });
+    logger.info({ guildId: guild.id }, "Forced bot server unmute + undeafen");
+  } catch (err) {
+    logger.warn(
+      {
+        guildId: guild.id,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      "Could not force server unmute/undeafen (permissions not granted?)",
+    );
+  }
 }
 
 let _pcmWsClient: VoicePcmWsClient | undefined;
@@ -114,6 +147,11 @@ export async function startRecording(
       },
     );
     logger.info("Connected to voice channel. Recording started");
+
+    // Auto undeafen + unmute the bot itself at the server level (MUTE_MEMBERS /
+    // DEAFEN_MEMBERS permission granted). Server-muted/deafened bot can't
+    // receive others' audio/video. Fire-and-forget — never blocks recording.
+    void forceSelfServerUnmuteUndeafen(client, channel.guild);
 
     // Create recording session after connection is ready
     const sessionStartTime = Date.now();
