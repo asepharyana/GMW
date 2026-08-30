@@ -9,6 +9,8 @@ import {
   Loader2,
   MessagesSquare,
   Mic,
+  Pause,
+  Play,
   Search,
   Trash2,
   Users,
@@ -99,6 +101,9 @@ export function RecordingsView({
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [exportingIds, setExportingIds] = useState<Set<string>>(new Set());
   const [exportingAll, setExportingAll] = useState(false);
+  const [exportingSessions, setExportingSessions] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Maximum older pages to prevent infinite runaway memory usage
   const MAX_OLDER_PAGES = 10;
@@ -140,6 +145,8 @@ export function RecordingsView({
       ...[...map.entries()].map(([value, label]) => ({ value, label })),
     ];
   }, [items]);
+
+  const sessions = useMemo(() => groupSessions(items ?? []), [items]);
 
   const loadOlder = useCallback(async () => {
     if (
@@ -246,6 +253,46 @@ export function RecordingsView({
       });
     } finally {
       setExportingAll(false);
+    }
+  };
+
+  const onExportSession = async (session: Session) => {
+    if (exportingSessions.has(session.key)) return;
+    const target = session.clips.filter(
+      (r): r is VoiceRecording & { download_url: string } =>
+        Boolean(r.download_url),
+    );
+    if (target.length === 0) return;
+    setExportingSessions((prev) => new Set(prev).add(session.key));
+    try {
+      const buffers = [];
+      for (const r of target) {
+        buffers.push(await decodeAudio(r.download_url));
+      }
+      const merged = concatAudioBuffers(buffers);
+      if (!merged) throw new Error("No audio decoded");
+      const wav = audioBufferToWav(merged);
+      const safeChannel = (session.channelName ?? "session").replace(
+        /[^\w.-]+/g,
+        "_",
+      );
+      downloadBlob(wav, `gmw-session-${safeChannel}-${target.length}clips.wav`);
+      toast({
+        title: `Session exported: ${target.length} clips as one WAV`,
+        tone: "signal",
+      });
+    } catch (e) {
+      toast({
+        title: "Session export failed",
+        description: String(e),
+        tone: "vermilion",
+      });
+    } finally {
+      setExportingSessions((prev) => {
+        const next = new Set(prev);
+        next.delete(session.key);
+        return next;
+      });
     }
   };
 
@@ -439,128 +486,144 @@ export function RecordingsView({
                   ref={deckRef}
                   className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
                 >
-                  {(items ?? []).map((r) => {
-                    const up = uploadStatus(r);
-                    const isPlaying = playingId === r.id;
-                    const isExporting = exportingIds.has(r.id);
-                    return (
-                      <div
-                        key={r.id}
-                        className={`recording-deck-card hud-card flex flex-col justify-between p-4 transition-all duration-200 ${
-                          isPlaying
-                            ? "border-signal/50 bg-signal/10 shadow-[0_0_24px_-10px_var(--color-signal-glow)]"
-                            : ""
-                        }`}
-                      >
-                        <div>
-                          {/* Header info */}
-                          <div className="flex items-center gap-3 border-b border-hairline pb-3">
-                            <Avatar
-                              src={r.avatar_url}
-                              name={r.username}
-                              size={36}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-xs font-semibold text-ink">
-                                {r.username}
-                              </div>
-                              <div className="flex items-center gap-1.5 font-mono text-[10px] text-ink-faint">
-                                <Hash className="size-2.5 text-signal" />
-                                <span className="truncate">
-                                  {r.channel_name ?? "voice"}
-                                </span>
-                                <span>·</span>
-                                <span suppressHydrationWarning>
-                                  {formatRelativeTime(r.created_at)}
-                                </span>
-                              </div>
-                            </div>
-                            {isPlaying && <NowPlayingChip />}
-                            {up && !isPlaying && (
-                              <Badge
-                                tone={up.tone}
-                                className="font-mono text-[9px]"
-                              >
-                                {up.label}
-                              </Badge>
-                            )}
-                          </div>
-
-                          {/* Transcription snippet */}
-                          <div className="py-2">
-                            <TranscriptionSnippet text={r.transcription} />
-                          </div>
-
-                          {/* Audio Player Scrub */}
-                          <div className="my-1">
-                            {r.download_url ? (
-                              <RecordingAudioPlayer
-                                src={r.download_url}
-                                label={`Voice recording by ${r.username}`}
-                                onPlayStateChange={(active) =>
-                                  setPlayingId((prev) => {
-                                    if (active) return r.id;
-                                    return prev === r.id ? null : prev;
-                                  })
-                                }
-                              />
-                            ) : (
-                              <div className="flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 px-3 py-2 font-mono text-[11px] text-ink-muted">
-                                <Loader2 className="size-3.5 animate-spin text-signal" />
-                                {r.upload_status === "pending"
-                                  ? "UPLOAD_PENDING..."
-                                  : r.upload_error
-                                    ? r.upload_error
-                                    : "SYNTHESIZING_PCM..."}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Actions & File Stats */}
-                        <div className="flex items-center justify-between border-t border-hairline pt-2.5">
-                          <span className="font-mono text-[10px] text-ink-faint">
-                            SIZE: {formatBytes(r.size_bytes)}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            {r.download_url && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => onExportOne(r)}
-                                  disabled={isExporting}
-                                  className="inline-flex items-center gap-1 rounded-md border border-signal/40 bg-signal/10 px-2 py-1 font-mono text-[10px] text-signal transition-colors hover:bg-signal/20"
-                                >
-                                  {isExporting ? (
-                                    <Loader2 className="size-3 animate-spin" />
-                                  ) : (
-                                    <FileAudio className="size-3" />
-                                  )}
-                                  {isExporting ? "WAV..." : "WAV"}
-                                </button>
-                                <a
-                                  href={r.download_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 rounded-md border border-hairline bg-surface-2 px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
-                                >
-                                  <Download className="size-3 text-signal" />{" "}
-                                  RAW
-                                </a>
-                              </>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => onDelete(r.id)}
-                              disabled={del.isPending}
-                              className="inline-flex items-center gap-1 rounded-md border border-vermilion/30 bg-vermilion/10 px-2 py-1 font-mono text-[10px] text-vermilion transition-colors hover:bg-vermilion/20"
-                            >
-                              <Trash2 className="size-3" /> PURGE
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                  {sessions.flatMap((session) => {
+                    const sessionPlayable = session.clips.some((c) =>
+                      Boolean(c.download_url),
                     );
+                    const sessionExporting = exportingSessions.has(session.key);
+                    const header = (
+                      <SessionHeader
+                        key={`session-${session.key}`}
+                        session={session}
+                        playable={sessionPlayable}
+                        exporting={sessionExporting}
+                        onExport={() => void onExportSession(session)}
+                      />
+                    );
+                    const cards = session.clips.map((r) => {
+                      const up = uploadStatus(r);
+                      const isPlaying = playingId === r.id;
+                      const isExporting = exportingIds.has(r.id);
+                      return (
+                        <div
+                          key={r.id}
+                          className={`recording-deck-card hud-card flex flex-col justify-between p-4 transition-all duration-200 ${
+                            isPlaying
+                              ? "border-signal/50 bg-signal/10 shadow-[0_0_24px_-10px_var(--color-signal-glow)]"
+                              : ""
+                          }`}
+                        >
+                          <div>
+                            {/* Header info */}
+                            <div className="flex items-center gap-3 border-b border-hairline pb-3">
+                              <Avatar
+                                src={r.avatar_url}
+                                name={r.username}
+                                size={36}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-xs font-semibold text-ink">
+                                  {r.username}
+                                </div>
+                                <div className="flex items-center gap-1.5 font-mono text-[10px] text-ink-faint">
+                                  <Hash className="size-2.5 text-signal" />
+                                  <span className="truncate">
+                                    {r.channel_name ?? "voice"}
+                                  </span>
+                                  <span>·</span>
+                                  <span suppressHydrationWarning>
+                                    {formatRelativeTime(r.created_at)}
+                                  </span>
+                                </div>
+                              </div>
+                              {isPlaying && <NowPlayingChip />}
+                              {up && !isPlaying && (
+                                <Badge
+                                  tone={up.tone}
+                                  className="font-mono text-[9px]"
+                                >
+                                  {up.label}
+                                </Badge>
+                              )}
+                            </div>
+
+                            {/* Transcription snippet */}
+                            <div className="py-2">
+                              <TranscriptionSnippet text={r.transcription} />
+                            </div>
+
+                            {/* Audio Player Scrub */}
+                            <div className="my-1">
+                              {r.download_url ? (
+                                <RecordingAudioPlayer
+                                  src={r.download_url}
+                                  label={`Voice recording by ${r.username}`}
+                                  onPlayStateChange={(active) =>
+                                    setPlayingId((prev) => {
+                                      if (active) return r.id;
+                                      return prev === r.id ? null : prev;
+                                    })
+                                  }
+                                />
+                              ) : (
+                                <div className="flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 px-3 py-2 font-mono text-[11px] text-ink-muted">
+                                  <Loader2 className="size-3.5 animate-spin text-signal" />
+                                  {r.upload_status === "pending"
+                                    ? "UPLOAD_PENDING..."
+                                    : r.upload_error
+                                      ? r.upload_error
+                                      : "SYNTHESIZING_PCM..."}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Actions & File Stats */}
+                          <div className="flex items-center justify-between border-t border-hairline pt-2.5">
+                            <span className="font-mono text-[10px] text-ink-faint">
+                              SIZE: {formatBytes(r.size_bytes)}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {r.download_url && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => onExportOne(r)}
+                                    disabled={isExporting}
+                                    className="inline-flex items-center gap-1 rounded-md border border-signal/40 bg-signal/10 px-2 py-1 font-mono text-[10px] text-signal transition-colors hover:bg-signal/20"
+                                  >
+                                    {isExporting ? (
+                                      <Loader2 className="size-3 animate-spin" />
+                                    ) : (
+                                      <FileAudio className="size-3" />
+                                    )}
+                                    {isExporting ? "WAV..." : "WAV"}
+                                  </button>
+                                  <a
+                                    href={r.download_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 rounded-md border border-hairline bg-surface-2 px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
+                                  >
+                                    <Download className="size-3 text-signal" />{" "}
+                                    RAW
+                                  </a>
+                                </>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => onDelete(r.id)}
+                                disabled={del.isPending}
+                                className="inline-flex items-center gap-1 rounded-md border border-vermilion/30 bg-vermilion/10 px-2 py-1 font-mono text-[10px] text-vermilion transition-colors hover:bg-vermilion/20"
+                              >
+                                <Trash2 className="size-3" /> PURGE
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                    return [header, ...cards];
                   })}
                 </div>
 
@@ -748,4 +811,172 @@ function uploadStatus(
     return { tone: "vermilion", label: "failed" };
   if (r.upload_status === "pending") return { tone: "amber", label: "pending" };
   return { tone: "amber", label: "processing" };
+}
+
+// ── Session grouping ──────────────────────────────────────────────────────
+// Clips become one "meeting session" when they share a channel and the gap
+// between consecutive clips is within SESSION_GAP_MS. items arrive newest-first,
+// so sessions are produced most-recent-first and each keeps its clips in that
+// order (newest → oldest).
+const SESSION_GAP_MS = 120_000;
+
+interface Session {
+  key: string;
+  channelId: string;
+  channelName: string;
+  startTs: number;
+  endTs: number;
+  clips: VoiceRecording[];
+}
+
+function groupSessions(items: VoiceRecording[]): Session[] {
+  const sessions: Session[] = [];
+  for (const r of items) {
+    const last = sessions[sessions.length - 1];
+    if (
+      last &&
+      last.channelId === (r.channel_id ?? "") &&
+      last.startTs - r.created_at <= SESSION_GAP_MS
+    ) {
+      last.clips.push(r);
+      last.startTs = r.created_at;
+    } else {
+      sessions.push({
+        key: r.id,
+        channelId: r.channel_id ?? "",
+        channelName: r.channel_name ?? "voice",
+        startTs: r.created_at,
+        endTs: r.created_at,
+        clips: [r],
+      });
+    }
+  }
+  return sessions;
+}
+
+function sessionEstDurationSec(session: Session): number {
+  const bytes = session.clips.reduce((acc, c) => acc + c.size_bytes, 0);
+  return Math.round((bytes * 8) / 128000);
+}
+
+function sessionTimestamp(session: Session): string {
+  const d = new Date(session.endTs);
+  const s = new Date(session.startTs);
+  const sameDay = d.toDateString() === s.toDateString();
+  const fmt = (x: Date) =>
+    `${x.getMonth() + 1}/${x.getDate()} ${String(x.getHours()).padStart(2, "0")}:${String(
+      x.getMinutes(),
+    ).padStart(2, "0")}`;
+  return sameDay ? fmt(d) : `${fmt(d)} – ${fmt(s)}`;
+}
+
+/** Sequential playback of a session's clips via one <audio> element. */
+function SessionPlayer({
+  clips,
+}: {
+  clips: Array<VoiceRecording & { download_url: string }>;
+}) {
+  const [idx, setIdx] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = "metadata";
+    audioRef.current = audio;
+    const onEnded = () => {
+      setIdx((i) => {
+        const next = i + 1;
+        if (next < clips.length) {
+          audio.src = clips[next].download_url;
+          void audio.play().catch(() => setPlaying(false));
+          return next;
+        }
+        setPlaying(false);
+        return 0;
+      });
+    };
+    audio.addEventListener("ended", onEnded);
+    return () => {
+      audio.removeEventListener("ended", onEnded);
+      audio.pause();
+      audio.src = "";
+    };
+  }, [clips]);
+
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) {
+      audio.pause();
+      setPlaying(false);
+    } else {
+      if (idx >= clips.length || audio.src === "")
+        audio.src = clips[0].download_url;
+      void audio.play().catch(() => setPlaying(false));
+      setPlaying(true);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={
+        playing ? "Pause session playback" : "Play all clips in this session"
+      }
+      className="inline-flex items-center gap-1 rounded-md border border-signal/40 bg-signal/10 px-2 py-1 font-mono text-[10px] text-signal transition-colors hover:bg-signal/20"
+    >
+      {playing ? <Pause className="size-3" /> : <Play className="size-3" />}
+      {playing ? `PAUSE ${idx + 1}/${clips.length}` : "PLAY SESSION"}
+    </button>
+  );
+}
+
+function SessionHeader({
+  session,
+  playable,
+  exporting,
+  onExport,
+}: {
+  session: Session;
+  playable: boolean;
+  exporting: boolean;
+  onExport: () => void;
+}) {
+  return (
+    <div className="col-span-full -mx-1 mb-1 mt-2 flex items-center gap-3 rounded-lg border border-hairline bg-surface px-3 py-2 first:mt-0">
+      <Hash className="size-3.5 shrink-0 text-signal" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-mono text-[11px] font-semibold uppercase tracking-wide text-ink">
+          {session.channelName}
+        </div>
+        <div className="font-mono text-[10px] text-ink-faint">
+          {sessionTimestamp(session)} · {session.clips.length} clips ·{" "}
+          {formatDuration(sessionEstDurationSec(session) * 1000)}
+        </div>
+      </div>
+      {playable && (
+        <SessionPlayer
+          clips={session.clips.filter(
+            (c): c is VoiceRecording & { download_url: string } =>
+              Boolean(c.download_url),
+          )}
+        />
+      )}
+      <button
+        type="button"
+        onClick={onExport}
+        disabled={exporting || !playable}
+        className="inline-flex items-center gap-1 rounded-md border border-hairline bg-surface-2 px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
+      >
+        {exporting ? (
+          <Loader2 className="size-3 animate-spin" />
+        ) : (
+          <Files className="size-3" />
+        )}
+        {exporting ? "WAV..." : "EXPORT SESSION"}
+      </button>
+    </div>
+  );
 }
