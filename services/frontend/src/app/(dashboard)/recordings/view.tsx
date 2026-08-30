@@ -7,6 +7,9 @@ import {
   Hash,
   Headphones,
   Loader2,
+  MessagesSquare,
+  Mic,
+  Search,
   Trash2,
   Users,
 } from "lucide-react";
@@ -18,6 +21,7 @@ import {
   Button,
   GlassCard,
   GlassPanel,
+  Input,
   Select,
   type SelectOption,
   Skeleton,
@@ -29,9 +33,11 @@ import {
   RecordingAudioPlayer,
 } from "@/components/voice/recording-audio-player";
 import {
+  type RecordingsFilter,
   useDeleteRecording,
   useLoadMoreRecordings,
   useRecordings,
+  useRecordingsSummary,
   useRecordingsWsSync,
 } from "@/hooks";
 import { useStaggerReveal } from "@/hooks/use-gsap-animation";
@@ -41,11 +47,17 @@ import {
   decodeAudio,
   downloadBlob,
 } from "@/lib/audio/wav";
-import { formatBytes, formatRelativeTime } from "@/lib/format";
-import type { PaginatedRecordings, VoiceRecording } from "@/lib/types";
+import { formatBytes, formatDuration, formatRelativeTime } from "@/lib/format";
+import type {
+  PaginatedRecordings,
+  SpeakerSummary,
+  VoiceRecording,
+} from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
 
-const ALL_USERS = "__all__";
+const ALL = "__all__";
+
+type Tab = "deck" | "leaderboard";
 
 export function RecordingsView({
   initialPage,
@@ -53,7 +65,24 @@ export function RecordingsView({
   initialPage?: PaginatedRecordings;
 }) {
   const ws = useWebSocket();
-  const [filterUserId, setFilterUserId] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("deck");
+  const [q, setQ] = useState("");
+  const [channelId, setChannelId] = useState(ALL);
+  const [userId, setUserId] = useState(ALL);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  const activeFilter: RecordingsFilter = useMemo(() => {
+    const f: RecordingsFilter = {};
+    if (channelId !== ALL) f.channelId = channelId;
+    if (userId !== ALL) f.userId = userId;
+    const sq = q.trim();
+    if (sq) f.q = sq;
+    if (startDate) f.startDate = new Date(`${startDate}T00:00:00`).getTime();
+    if (endDate) f.endDate = new Date(`${endDate}T23:59:59`).getTime();
+    return f;
+  }, [channelId, userId, q, startDate, endDate]);
+
   const {
     data: items,
     isLoading,
@@ -61,9 +90,10 @@ export function RecordingsView({
     nextCursor,
     hasMore,
     mutate,
-  } = useRecordings(initialPage, filterUserId ?? undefined);
-  const loadMore = useLoadMoreRecordings(filterUserId ?? undefined);
+  } = useRecordings(initialPage, activeFilter);
+  const loadMore = useLoadMoreRecordings(activeFilter);
   const del = useDeleteRecording();
+  const summary = useRecordingsSummary();
   useRecordingsWsSync(ws);
   const ambient = useAmbient();
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -87,17 +117,28 @@ export function RecordingsView({
     ambient.set("signal", 0.3, "recordings");
   }, [ambient]);
 
-  // Distinct speakers visible in the current (filtered) list, for the dropdown.
+  // Distinct speakers/channels across the current (filtered) list.
   const userOptions = useMemo<SelectOption[]>(() => {
     const map = new Map<string, string>();
     for (const r of items ?? []) {
       if (r.user_id && !map.has(r.user_id)) map.set(r.user_id, r.username);
     }
-    const opts: SelectOption[] = [
-      { value: ALL_USERS, label: "All speakers" },
+    return [
+      { value: ALL, label: "All speakers" },
       ...[...map.entries()].map(([value, label]) => ({ value, label })),
     ];
-    return opts;
+  }, [items]);
+
+  const channelOptions = useMemo<SelectOption[]>(() => {
+    const map = new Map<string, string>();
+    for (const r of items ?? []) {
+      if (r.channel_id && !map.has(r.channel_id))
+        map.set(r.channel_id, r.channel_name ?? r.channel_id);
+    }
+    return [
+      { value: ALL, label: "All channels" },
+      ...[...map.entries()].map(([value, label]) => ({ value, label })),
+    ];
   }, [items]);
 
   const loadOlder = useCallback(async () => {
@@ -188,9 +229,10 @@ export function RecordingsView({
       const merged = concatAudioBuffers(buffers);
       if (!merged) throw new Error("No audio decoded");
       const wav = audioBufferToWav(merged);
-      const who = filterUserId
-        ? (target[0]?.username ?? "speaker").replace(/[^\w.-]+/g, "_")
-        : "all";
+      const who =
+        userId !== ALL
+          ? (target[0]?.username ?? "speaker").replace(/[^\w.-]+/g, "_")
+          : "all";
       downloadBlob(wav, `gmw-rec-${who}-${target.length}clips.wav`);
       toast({
         title: `Exported ${target.length} clips as one WAV`,
@@ -246,6 +288,17 @@ export function RecordingsView({
             Tape Deck · Captured Audio Archive
           </h1>
         </div>
+        <div className="flex items-center gap-1.5">
+          <TabButton active={tab === "deck"} onClick={() => setTab("deck")}>
+            <MessagesSquare className="size-3.5" /> DECK
+          </TabButton>
+          <TabButton
+            active={tab === "leaderboard"}
+            onClick={() => setTab("leaderboard")}
+          >
+            <Users className="size-3.5" /> LEADERBOARD
+          </TabButton>
+        </div>
         <div className="flex items-center gap-2 font-mono text-[11px] text-ink-muted">
           <span>STATUS:</span>
           <span
@@ -257,231 +310,433 @@ export function RecordingsView({
         </div>
       </div>
 
-      {/* Filter + Export toolbar */}
-      <div className="flex flex-wrap items-center gap-2.5">
-        <div className="flex items-center gap-2">
-          <Users className="size-3.5 text-ink-faint" />
-          <Select
-            value={filterUserId ?? ALL_USERS}
-            onChange={(v) => {
-              setFilterUserId(v === ALL_USERS ? null : v);
-              setLoadedPages(0);
-            }}
-            options={userOptions}
-            placeholder="Filter by speaker"
-            size="sm"
-            className="w-48"
-          />
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onExportAll}
-          disabled={exportingAll || exportableCount === 0}
-          title="Concatenate the visible (filtered) recordings into one WAV for Audacity"
-        >
-          {exportingAll ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Files className="size-3.5" />
-          )}
-          {exportingAll ? "RENDERING..." : `EXPORT WAV (${exportableCount})`}
-        </Button>
-        {filterUserId && (
-          <Button
-            variant="subtle"
-            size="sm"
-            onClick={() => setFilterUserId(null)}
-          >
-            CLEAR FILTER
-          </Button>
-        )}
-      </div>
-
-      <GlassPanel>
-        <SectionHeader
-          eyebrow="acoustic buffer"
-          title="Voice Capture Tape Deck"
-          action={
-            <span className="mono text-xs text-[#8a8f98]">
-              {totalRecordings} clips loaded {hasMore ? "· more available" : ""}
-            </span>
-          }
+      {tab === "leaderboard" ? (
+        <Leaderboard
+          summary={summary.data}
+          isLoading={summary.isLoading}
+          onShowSpeaker={(uid) => {
+            setUserId(uid);
+            setTab("deck");
+            setLoadedPages(0);
+          }}
         />
-        {totalRecordings === 0 ? (
-          <EmptyState
-            icon={<Headphones className="size-7" />}
-            title={
-              filterUserId
-                ? "No recordings for this speaker"
-                : "Tape deck is empty"
-            }
-            description={
-              filterUserId
-                ? "This speaker has no captured transmissions (or the filter is stale)."
-                : "Voice transmissions captured in connected channels will be archived here."
-            }
-          />
-        ) : (
-          <div
-            ref={scrollRef}
-            className="mt-4 max-h-[calc(100vh-220px)] overflow-y-auto pr-1"
-          >
-            <div
-              ref={deckRef}
-              className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+      ) : (
+        <>
+          {/* Filter + Search + Export toolbar */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative min-w-0 flex-1 basis-56">
+              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-faint" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search transcriptions / speakers…"
+                className="pl-8"
+              />
+            </div>
+            <Select
+              value={userId}
+              onChange={(v) => {
+                setUserId(v);
+                setLoadedPages(0);
+              }}
+              options={userOptions}
+              placeholder="Speaker"
+              size="sm"
+              className="w-40"
+            />
+            <Select
+              value={channelId}
+              onChange={(v) => {
+                setChannelId(v);
+                setLoadedPages(0);
+              }}
+              options={channelOptions}
+              placeholder="Channel"
+              size="sm"
+              className="w-40"
+            />
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              aria-label="From date"
+              className="w-36"
+            />
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              aria-label="To date"
+              className="w-36"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onExportAll}
+              disabled={exportingAll || exportableCount === 0}
+              title="Concatenate the visible (filtered) recordings into one WAV for Audacity"
             >
-              {(items ?? []).map((r) => {
-                const up = uploadStatus(r);
-                const isPlaying = playingId === r.id;
-                const isExporting = exportingIds.has(r.id);
-                return (
-                  <div
-                    key={r.id}
-                    className={`recording-deck-card hud-card flex flex-col justify-between p-4 transition-all duration-200 ${
-                      isPlaying
-                        ? "border-signal/50 bg-signal/10 shadow-[0_0_24px_-10px_var(--color-signal-glow)]"
-                        : ""
-                    }`}
-                  >
-                    <div>
-                      {/* Header info */}
-                      <div className="flex items-center gap-3 border-b border-hairline pb-3">
-                        <Avatar
-                          src={r.avatar_url}
-                          name={r.username}
-                          size={36}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-xs font-semibold text-ink">
-                            {r.username}
+              {exportingAll ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Files className="size-3.5" />
+              )}
+              {exportingAll
+                ? "RENDERING..."
+                : `EXPORT WAV (${exportableCount})`}
+            </Button>
+            {(Object.keys(activeFilter).length > 0 ||
+              channelId !== ALL ||
+              userId !== ALL) && (
+              <Button
+                variant="subtle"
+                size="sm"
+                onClick={() => {
+                  setQ("");
+                  setChannelId(ALL);
+                  setUserId(ALL);
+                  setStartDate("");
+                  setEndDate("");
+                  setLoadedPages(0);
+                }}
+              >
+                RESET
+              </Button>
+            )}
+          </div>
+
+          <GlassPanel>
+            <SectionHeader
+              eyebrow="acoustic buffer"
+              title="Voice Capture Tape Deck"
+              action={
+                <span className="mono text-xs text-[#8a8f98]">
+                  {totalRecordings} clips loaded{" "}
+                  {hasMore ? "· more available" : ""}
+                </span>
+              }
+            />
+            {totalRecordings === 0 ? (
+              <EmptyState
+                icon={<Headphones className="size-7" />}
+                title={
+                  Object.keys(activeFilter).length > 0
+                    ? "No recordings match these filters"
+                    : "Tape deck is empty"
+                }
+                description={
+                  Object.keys(activeFilter).length > 0
+                    ? "Try clearing the search or filters, or pick a different speaker/channel."
+                    : "Voice transmissions captured in connected channels will be archived here."
+                }
+              />
+            ) : (
+              <div
+                ref={scrollRef}
+                className="mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1"
+              >
+                <div
+                  ref={deckRef}
+                  className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+                >
+                  {(items ?? []).map((r) => {
+                    const up = uploadStatus(r);
+                    const isPlaying = playingId === r.id;
+                    const isExporting = exportingIds.has(r.id);
+                    return (
+                      <div
+                        key={r.id}
+                        className={`recording-deck-card hud-card flex flex-col justify-between p-4 transition-all duration-200 ${
+                          isPlaying
+                            ? "border-signal/50 bg-signal/10 shadow-[0_0_24px_-10px_var(--color-signal-glow)]"
+                            : ""
+                        }`}
+                      >
+                        <div>
+                          {/* Header info */}
+                          <div className="flex items-center gap-3 border-b border-hairline pb-3">
+                            <Avatar
+                              src={r.avatar_url}
+                              name={r.username}
+                              size={36}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-xs font-semibold text-ink">
+                                {r.username}
+                              </div>
+                              <div className="flex items-center gap-1.5 font-mono text-[10px] text-ink-faint">
+                                <Hash className="size-2.5 text-signal" />
+                                <span className="truncate">
+                                  {r.channel_name ?? "voice"}
+                                </span>
+                                <span>·</span>
+                                <span suppressHydrationWarning>
+                                  {formatRelativeTime(r.created_at)}
+                                </span>
+                              </div>
+                            </div>
+                            {isPlaying && <NowPlayingChip />}
+                            {up && !isPlaying && (
+                              <Badge
+                                tone={up.tone}
+                                className="font-mono text-[9px]"
+                              >
+                                {up.label}
+                              </Badge>
+                            )}
                           </div>
-                          <div className="flex items-center gap-1.5 font-mono text-[10px] text-ink-faint">
-                            <Hash className="size-2.5 text-signal" />
-                            <span className="truncate">
-                              {r.channel_name ?? "voice"}
-                            </span>
-                            <span>·</span>
-                            <span suppressHydrationWarning>
-                              {formatRelativeTime(r.created_at)}
-                            </span>
+
+                          {/* Transcription snippet */}
+                          <div className="py-2">
+                            <TranscriptionSnippet text={r.transcription} />
+                          </div>
+
+                          {/* Audio Player Scrub */}
+                          <div className="my-1">
+                            {r.download_url ? (
+                              <RecordingAudioPlayer
+                                src={r.download_url}
+                                label={`Voice recording by ${r.username}`}
+                                onPlayStateChange={(active) =>
+                                  setPlayingId((prev) => {
+                                    if (active) return r.id;
+                                    return prev === r.id ? null : prev;
+                                  })
+                                }
+                              />
+                            ) : (
+                              <div className="flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 px-3 py-2 font-mono text-[11px] text-ink-muted">
+                                <Loader2 className="size-3.5 animate-spin text-signal" />
+                                {r.upload_status === "pending"
+                                  ? "UPLOAD_PENDING..."
+                                  : r.upload_error
+                                    ? r.upload_error
+                                    : "SYNTHESIZING_PCM..."}
+                              </div>
+                            )}
                           </div>
                         </div>
-                        {isPlaying && <NowPlayingChip />}
-                        {up && !isPlaying && (
-                          <Badge
-                            tone={up.tone}
-                            className="font-mono text-[9px]"
-                          >
-                            {up.label}
-                          </Badge>
-                        )}
-                      </div>
 
-                      {/* Audio Player Scrub */}
-                      <div className="my-3">
-                        {r.download_url ? (
-                          <RecordingAudioPlayer
-                            src={r.download_url}
-                            label={`Voice recording by ${r.username}`}
-                            onPlayStateChange={(active) =>
-                              setPlayingId((prev) => {
-                                if (active) return r.id;
-                                return prev === r.id ? null : prev;
-                              })
-                            }
-                          />
-                        ) : (
-                          <div className="flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 px-3 py-2 font-mono text-[11px] text-ink-muted">
-                            <Loader2 className="size-3.5 animate-spin text-signal" />
-                            {r.upload_status === "pending"
-                              ? "UPLOAD_PENDING..."
-                              : r.upload_error
-                                ? r.upload_error
-                                : "SYNTHESIZING_PCM..."}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions & File Stats */}
-                    <div className="flex items-center justify-between border-t border-hairline pt-2.5">
-                      <span className="font-mono text-[10px] text-ink-faint">
-                        SIZE: {formatBytes(r.size_bytes)}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        {r.download_url && (
-                          <>
+                        {/* Actions & File Stats */}
+                        <div className="flex items-center justify-between border-t border-hairline pt-2.5">
+                          <span className="font-mono text-[10px] text-ink-faint">
+                            SIZE: {formatBytes(r.size_bytes)}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {r.download_url && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => onExportOne(r)}
+                                  disabled={isExporting}
+                                  className="inline-flex items-center gap-1 rounded-md border border-signal/40 bg-signal/10 px-2 py-1 font-mono text-[10px] text-signal transition-colors hover:bg-signal/20"
+                                >
+                                  {isExporting ? (
+                                    <Loader2 className="size-3 animate-spin" />
+                                  ) : (
+                                    <FileAudio className="size-3" />
+                                  )}
+                                  {isExporting ? "WAV..." : "WAV"}
+                                </button>
+                                <a
+                                  href={r.download_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 rounded-md border border-hairline bg-surface-2 px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
+                                >
+                                  <Download className="size-3 text-signal" />{" "}
+                                  RAW
+                                </a>
+                              </>
+                            )}
                             <button
                               type="button"
-                              onClick={() => onExportOne(r)}
-                              disabled={isExporting}
-                              className="inline-flex items-center gap-1 rounded-md border border-signal/40 bg-signal/10 px-2 py-1 font-mono text-[10px] text-signal transition-colors hover:bg-signal/20"
+                              onClick={() => onDelete(r.id)}
+                              disabled={del.isPending}
+                              className="inline-flex items-center gap-1 rounded-md border border-vermilion/30 bg-vermilion/10 px-2 py-1 font-mono text-[10px] text-vermilion transition-colors hover:bg-vermilion/20"
                             >
-                              {isExporting ? (
-                                <Loader2 className="size-3 animate-spin" />
-                              ) : (
-                                <FileAudio className="size-3" />
-                              )}
-                              {isExporting ? "WAV..." : "WAV"}
+                              <Trash2 className="size-3" /> PURGE
                             </button>
-                            <a
-                              href={r.download_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 rounded-md border border-hairline bg-surface-2 px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
-                            >
-                              <Download className="size-3 text-signal" /> RAW
-                            </a>
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => onDelete(r.id)}
-                          disabled={del.isPending}
-                          className="inline-flex items-center gap-1 rounded-md border border-vermilion/30 bg-vermilion/10 px-2 py-1 font-mono text-[10px] text-vermilion transition-colors hover:bg-vermilion/20"
-                        >
-                          <Trash2 className="size-3" /> PURGE
-                        </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
 
-            {/* Infinite scroll sentinel & status footer */}
-            <div ref={sentinelRef} className="py-4 text-center">
-              {loadMore.isPending ? (
-                <span className="flex items-center justify-center gap-2 font-mono text-xs text-ink-muted">
-                  <Loader2 className="size-4 animate-spin text-signal" />
-                  LOADING EARLIER RECORDINGS...
-                  <span className="typing-dots">
-                    <span />
-                    <span />
-                    <span />
-                  </span>
-                </span>
-              ) : hasMore && loadedPages < MAX_OLDER_PAGES ? (
-                <button
-                  type="button"
-                  onClick={loadOlder}
-                  className="rounded-md border border-hairline bg-surface-2 px-3 py-1.5 font-mono text-xs text-ink-muted transition-colors hover:bg-surface hover:text-ink"
-                >
-                  ↓ LOAD MORE RECORDINGS
-                </button>
-              ) : (
-                <span className="font-mono text-[10px] text-ink-faint">
-                  {loadedPages >= MAX_OLDER_PAGES
-                    ? `CAPPED AT ${MAX_OLDER_PAGES} PAGES`
-                    : "ARCHIVE END REACHED"}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-      </GlassPanel>
+                {/* Infinite scroll sentinel & status footer */}
+                <div ref={sentinelRef} className="py-4 text-center">
+                  {loadMore.isPending ? (
+                    <span className="flex items-center justify-center gap-2 font-mono text-xs text-ink-muted">
+                      <Loader2 className="size-4 animate-spin text-signal" />
+                      LOADING EARLIER RECORDINGS...
+                      <span className="typing-dots">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                    </span>
+                  ) : hasMore && loadedPages < MAX_OLDER_PAGES ? (
+                    <button
+                      type="button"
+                      onClick={loadOlder}
+                      className="rounded-md border border-hairline bg-surface-2 px-3 py-1.5 font-mono text-xs text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+                    >
+                      ↓ LOAD MORE RECORDINGS
+                    </button>
+                  ) : (
+                    <span className="font-mono text-[10px] text-ink-faint">
+                      {loadedPages >= MAX_OLDER_PAGES
+                        ? `CAPPED AT ${MAX_OLDER_PAGES} PAGES`
+                        : "ARCHIVE END REACHED"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </GlassPanel>
+        </>
+      )}
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[10px] transition-colors ${
+        active
+          ? "border-signal/40 bg-signal/15 text-signal"
+          : "border-hairline bg-surface-2 text-ink-soft hover:bg-surface hover:text-ink"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TranscriptionSnippet({ text }: { text?: string | null }) {
+  const [open, setOpen] = useState(false);
+  if (!text) {
+    return (
+      <div className="h-10 rounded-[6px] border border-dashed border-hairline bg-surface-2/40 px-3 py-2 font-mono text-[10px] text-ink-faint">
+        no transcription
+      </div>
+    );
+  }
+  const collapsed = !open && text.length > 160;
+  return (
+    <div className="rounded-[6px] border border-hairline bg-surface-2 px-3 py-2">
+      <p
+        className={`font-mono text-[11px] leading-relaxed text-ink-soft ${
+          collapsed ? "line-clamp-3" : ""
+        }`}
+      >
+        {text}
+      </p>
+      {collapsed && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="mt-1 font-mono text-[10px] text-signal hover:underline"
+        >
+          READ FULL TRANSCRIPT
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Leaderboard({
+  summary,
+  isLoading,
+  onShowSpeaker,
+}: {
+  summary: SpeakerSummary[] | undefined;
+  isLoading: boolean;
+  onShowSpeaker: (userId: string, username: string) => void;
+}) {
+  if (isLoading && !summary)
+    return (
+      <GlassPanel>
+        <Skeleton className="h-4 w-40" />
+        <div className="mt-3 space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      </GlassPanel>
+    );
+  if (!summary || summary.length === 0)
+    return (
+      <GlassPanel>
+        <EmptyState
+          icon={<Mic className="size-7" />}
+          title="No speakers yet"
+          description="Leaderboard populates as voice is captured and transcribed."
+        />
+      </GlassPanel>
+    );
+
+  const maxClips = Math.max(...summary.map((s) => s.clips), 1);
+
+  return (
+    <GlassPanel>
+      <SectionHeader
+        eyebrow="speech analytics"
+        title="Speaker Leaderboard"
+        action={
+          <span className="mono text-xs text-[#8a8f98]">
+            {summary.length} speakers
+          </span>
+        }
+      />
+      <div className="mt-4 space-y-1.5">
+        {summary.map((s, idx) => (
+          <button
+            key={s.user_id}
+            type="button"
+            onClick={() => onShowSpeaker(s.user_id, s.username)}
+            className="group flex w-full items-center gap-3 rounded-lg border border-hairline bg-surface-2/50 px-3 py-2.5 text-left transition-colors hover:border-signal/40 hover:bg-surface"
+          >
+            <span className="w-6 shrink-0 text-center font-mono text-xs text-ink-faint">
+              {idx + 1}
+            </span>
+            <Avatar src={s.avatar_url} name={s.username} size={32} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-xs font-semibold text-ink">
+                {s.username}
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface">
+                <div
+                  className="h-full rounded-full bg-signal"
+                  style={{ width: `${(s.clips / maxClips) * 100}%` }}
+                />
+              </div>
+            </div>
+            <div className="shrink-0 text-right font-mono text-[10px] text-ink-soft">
+              <div className="flex items-center justify-end gap-1">
+                <Mic className="size-3 text-signal" /> {s.clips}
+              </div>
+              <div>{formatDuration(s.est_duration_s * 1000)}</div>
+              <div className="text-ink-faint">
+                {s.transcribed > 0 ? `${s.words} words` : "no transcript"}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </GlassPanel>
   );
 }
 

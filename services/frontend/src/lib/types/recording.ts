@@ -13,10 +13,23 @@ export interface VoiceRecording {
   upload_error?: string | null;
   created_at: number;
   uploaded_at?: number | null;
+  transcription?: string | null;
 }
 
 export interface PaginatedRecordings {
   items: VoiceRecording[];
   nextCursor: string | null;
   hasMore: boolean;
+}
+
+/** recordings.summary — per-speaker leaderboard. */
+export interface SpeakerSummary {
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  clips: number;
+  est_duration_s: number;
+  words: number;
+  transcribed: number;
+  last_at: number;
 }

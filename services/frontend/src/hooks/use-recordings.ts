@@ -1,44 +1,85 @@
 import { useEffect } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useAction } from "@/hooks/use-action";
-import { recordingsApi } from "@/lib/api";
-import type { PaginatedRecordings, VoiceRecording } from "@/lib/types";
+import { type RecordingListParams, recordingsApi } from "@/lib/api/recordings";
+import type {
+  PaginatedRecordings,
+  SpeakerSummary,
+  VoiceRecording,
+} from "@/lib/types";
 import type { WsHook } from "@/lib/ws-hook";
 
 const RECORDINGS_PREFIX = "recordings";
+const RECORDINGS_SUMMARY_KEY = ["recordings", "summary"] as const;
 
-function recordingsKey(userId?: string): [string, string] {
-  return [RECORDINGS_PREFIX, userId ?? "all"];
+export interface RecordingsFilter {
+  channelId?: string;
+  userId?: string;
+  /** keyword search */
+  q?: string;
+  startDate?: number;
+  endDate?: number;
 }
 
-/** Revalidate/mutate every recording cache (all filters + global list). */
-function isRecordingsKey(key: unknown): boolean {
+function recordingsKey(filter: RecordingsFilter = {}): unknown[] {
+  return [
+    RECORDINGS_PREFIX,
+    "list",
+    filter.channelId ?? "",
+    filter.userId ?? "",
+    filter.q ?? "",
+    filter.startDate ?? "",
+    filter.endDate ?? "",
+  ];
+}
+
+/** Match every recordings-list cache key so mutation/sync hits all filters. */
+function isRecordingsListKey(key: unknown): boolean {
   return (
     Array.isArray(key) &&
-    key.length === 2 &&
+    key.length === 7 &&
     key[0] === RECORDINGS_PREFIX &&
-    typeof key[1] === "string"
+    key[1] === "list"
   );
+}
+
+function baseParams(filter: RecordingsFilter = {}): RecordingListParams {
+  return {
+    channelId: filter.channelId,
+    userId: filter.userId,
+    q: filter.q,
+    startDate: filter.startDate,
+    endDate: filter.endDate,
+  };
 }
 
 export function useRecordingsPage(
   initialPage?: PaginatedRecordings,
-  userId?: string,
+  filter: RecordingsFilter = {},
 ) {
   return useSWR<PaginatedRecordings>(
-    recordingsKey(userId),
-    () => recordingsApi.list(50, undefined, userId),
+    recordingsKey(filter),
+    () => recordingsApi.list({ ...baseParams(filter), limit: 50 }),
     // fallbackData only applies to the unfiltered "all" view; a filtered cache
     // must not be pre-seeded with unfiltered rows (would flash wrong data).
-    { fallbackData: userId ? undefined : initialPage },
+    {
+      fallbackData:
+        filter.channelId ||
+        filter.userId ||
+        filter.q ||
+        filter.startDate ||
+        filter.endDate
+          ? undefined
+          : initialPage,
+    },
   );
 }
 
 export function useRecordings(
   initialPage?: PaginatedRecordings,
-  userId?: string,
+  filter: RecordingsFilter = {},
 ) {
-  const page = useRecordingsPage(initialPage, userId);
+  const page = useRecordingsPage(initialPage, filter);
   return {
     ...page,
     data: page.data?.items,
@@ -48,28 +89,30 @@ export function useRecordings(
   };
 }
 
-export function useLoadMoreRecordings(userId?: string) {
+export function useLoadMoreRecordings(filter: RecordingsFilter = {}) {
   const { mutate } = useSWRConfig();
-  return useAction(
-    async ({ channelId, cursor }: { channelId?: string; cursor: string }) => {
-      const result = await recordingsApi.list(50, channelId, userId, cursor);
-      await mutate(
-        recordingsKey(userId),
-        (old: PaginatedRecordings | undefined): PaginatedRecordings => {
-          if (!old) return result;
-          const existingIds = new Set(old.items.map((r) => r.id));
-          const newUnique = result.items.filter((r) => !existingIds.has(r.id));
-          return {
-            items: [...old.items, ...newUnique],
-            nextCursor: result.nextCursor,
-            hasMore: result.hasMore,
-          };
-        },
-        { revalidate: false },
-      );
-      return result;
-    },
-  );
+  return useAction(async ({ cursor }: { cursor: string }) => {
+    const result = await recordingsApi.list({
+      ...baseParams(filter),
+      limit: 50,
+      cursor,
+    });
+    await mutate(
+      recordingsKey(filter),
+      (old: PaginatedRecordings | undefined): PaginatedRecordings => {
+        if (!old) return result;
+        const existingIds = new Set(old.items.map((r) => r.id));
+        const newUnique = result.items.filter((r) => !existingIds.has(r.id));
+        return {
+          items: [...old.items, ...newUnique],
+          nextCursor: result.nextCursor,
+          hasMore: result.hasMore,
+        };
+      },
+      { revalidate: false },
+    );
+    return result;
+  });
 }
 
 export function useDeleteRecording() {
@@ -78,7 +121,7 @@ export function useDeleteRecording() {
     onSuccess: (_, id) => {
       // A deleted recording disappears from every filter view.
       void mutate(
-        (key: unknown) => isRecordingsKey(key),
+        (key: unknown) => isRecordingsListKey(key),
         (
           old: PaginatedRecordings | undefined,
         ): PaginatedRecordings | undefined => {
@@ -90,6 +133,8 @@ export function useDeleteRecording() {
         },
         { revalidate: false },
       );
+      // Leaderboard totals shifted — refresh.
+      void mutate(RECORDINGS_SUMMARY_KEY);
     },
   });
 }
@@ -101,7 +146,7 @@ export function useRecordingsWsSync(ws: WsHook) {
       const rec = data as VoiceRecording;
       // A fresh recording should appear in every filter view it belongs to.
       void mutate(
-        (key: unknown) => isRecordingsKey(key),
+        (key: unknown) => isRecordingsListKey(key),
         (old: PaginatedRecordings | undefined): PaginatedRecordings => {
           if (!old) return { items: [rec], nextCursor: null, hasMore: false };
           if (old.items.some((r) => r.id === rec.id)) return old;
@@ -112,7 +157,14 @@ export function useRecordingsWsSync(ws: WsHook) {
         },
         { revalidate: false },
       );
+      void mutate(RECORDINGS_SUMMARY_KEY);
     });
     return unsub;
   }, [ws, mutate]);
+}
+
+export function useRecordingsSummary() {
+  return useSWR<SpeakerSummary[]>(RECORDINGS_SUMMARY_KEY, () =>
+    recordingsApi.summary(),
+  );
 }

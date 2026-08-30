@@ -47,9 +47,11 @@ export {
   useTopFlaggedDomains,
 } from "./use-moderation";
 export {
+  type RecordingsFilter,
   useDeleteRecording,
   useLoadMoreRecordings,
   useRecordings,
+  useRecordingsSummary,
   useRecordingsWsSync,
 } from "./use-recordings";
 export {
