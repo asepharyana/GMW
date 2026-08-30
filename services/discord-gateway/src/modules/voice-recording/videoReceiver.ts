@@ -19,7 +19,6 @@ const NAL_PPS = 8;
 const NAL_IDR = 5;
 
 // RTP H264 packet types (byte 0 of the payload)
-const _H264_SINGLE_NAL = 1; // 0-23 → single NAL unit, type = nal_unit_type
 const H264_STAP_A = 24;
 const H264_FU_A = 28;
 
