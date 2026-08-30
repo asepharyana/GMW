@@ -5,18 +5,40 @@ import { recordingsApi } from "@/lib/api";
 import type { PaginatedRecordings, VoiceRecording } from "@/lib/types";
 import type { WsHook } from "@/lib/ws-hook";
 
-const RECORDINGS_KEY = ["recordings"] as const;
+const RECORDINGS_PREFIX = "recordings";
 
-export function useRecordingsPage(initialPage?: PaginatedRecordings) {
-  return useSWR<PaginatedRecordings>(
-    RECORDINGS_KEY,
-    () => recordingsApi.list(50),
-    { fallbackData: initialPage },
+function recordingsKey(userId?: string): [string, string] {
+  return [RECORDINGS_PREFIX, userId ?? "all"];
+}
+
+/** Revalidate/mutate every recording cache (all filters + global list). */
+function isRecordingsKey(key: unknown): boolean {
+  return (
+    Array.isArray(key) &&
+    key.length === 2 &&
+    key[0] === RECORDINGS_PREFIX &&
+    typeof key[1] === "string"
   );
 }
 
-export function useRecordings(initialPage?: PaginatedRecordings) {
-  const page = useRecordingsPage(initialPage);
+export function useRecordingsPage(
+  initialPage?: PaginatedRecordings,
+  userId?: string,
+) {
+  return useSWR<PaginatedRecordings>(
+    recordingsKey(userId),
+    () => recordingsApi.list(50, undefined, userId),
+    // fallbackData only applies to the unfiltered "all" view; a filtered cache
+    // must not be pre-seeded with unfiltered rows (would flash wrong data).
+    { fallbackData: userId ? undefined : initialPage },
+  );
+}
+
+export function useRecordings(
+  initialPage?: PaginatedRecordings,
+  userId?: string,
+) {
+  const page = useRecordingsPage(initialPage, userId);
   return {
     ...page,
     data: page.data?.items,
@@ -26,21 +48,13 @@ export function useRecordings(initialPage?: PaginatedRecordings) {
   };
 }
 
-export function useLoadMoreRecordings() {
+export function useLoadMoreRecordings(userId?: string) {
   const { mutate } = useSWRConfig();
   return useAction(
-    async ({
-      channelId,
-      userId,
-      cursor,
-    }: {
-      channelId?: string;
-      userId?: string;
-      cursor: string;
-    }) => {
+    async ({ channelId, cursor }: { channelId?: string; cursor: string }) => {
       const result = await recordingsApi.list(50, channelId, userId, cursor);
       await mutate(
-        RECORDINGS_KEY,
+        recordingsKey(userId),
         (old: PaginatedRecordings | undefined): PaginatedRecordings => {
           if (!old) return result;
           const existingIds = new Set(old.items.map((r) => r.id));
@@ -62,8 +76,9 @@ export function useDeleteRecording() {
   const { mutate } = useSWRConfig();
   return useAction((id: string) => recordingsApi.delete(id), {
     onSuccess: (_, id) => {
+      // A deleted recording disappears from every filter view.
       void mutate(
-        RECORDINGS_KEY,
+        (key: unknown) => isRecordingsKey(key),
         (
           old: PaginatedRecordings | undefined,
         ): PaginatedRecordings | undefined => {
@@ -84,8 +99,9 @@ export function useRecordingsWsSync(ws: WsHook) {
   useEffect(() => {
     const unsub = ws.on("voice_recording_uploaded", (data) => {
       const rec = data as VoiceRecording;
+      // A fresh recording should appear in every filter view it belongs to.
       void mutate(
-        RECORDINGS_KEY,
+        (key: unknown) => isRecordingsKey(key),
         (old: PaginatedRecordings | undefined): PaginatedRecordings => {
           if (!old) return { items: [rec], nextCursor: null, hasMore: false };
           if (old.items.some((r) => r.id === rec.id)) return old;

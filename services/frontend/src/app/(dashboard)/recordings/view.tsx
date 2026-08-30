@@ -1,13 +1,25 @@
 "use client";
 
-import { Download, Hash, Headphones, Loader2, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Download,
+  FileAudio,
+  Files,
+  Hash,
+  Headphones,
+  Loader2,
+  Trash2,
+  Users,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import {
   Avatar,
   Badge,
+  Button,
   GlassCard,
   GlassPanel,
+  Select,
+  type SelectOption,
   Skeleton,
   toast,
 } from "@/components/primitives";
@@ -23,9 +35,17 @@ import {
   useRecordingsWsSync,
 } from "@/hooks";
 import { useStaggerReveal } from "@/hooks/use-gsap-animation";
+import {
+  audioBufferToWav,
+  concatAudioBuffers,
+  decodeAudio,
+  downloadBlob,
+} from "@/lib/audio/wav";
 import { formatBytes, formatRelativeTime } from "@/lib/format";
 import type { PaginatedRecordings, VoiceRecording } from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
+
+const ALL_USERS = "__all__";
 
 export function RecordingsView({
   initialPage,
@@ -33,6 +53,7 @@ export function RecordingsView({
   initialPage?: PaginatedRecordings;
 }) {
   const ws = useWebSocket();
+  const [filterUserId, setFilterUserId] = useState<string | null>(null);
   const {
     data: items,
     isLoading,
@@ -40,12 +61,14 @@ export function RecordingsView({
     nextCursor,
     hasMore,
     mutate,
-  } = useRecordings(initialPage);
-  const loadMore = useLoadMoreRecordings();
+  } = useRecordings(initialPage, filterUserId ?? undefined);
+  const loadMore = useLoadMoreRecordings(filterUserId ?? undefined);
   const del = useDeleteRecording();
   useRecordingsWsSync(ws);
   const ambient = useAmbient();
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [exportingIds, setExportingIds] = useState<Set<string>>(new Set());
+  const [exportingAll, setExportingAll] = useState(false);
 
   // Maximum older pages to prevent infinite runaway memory usage
   const MAX_OLDER_PAGES = 10;
@@ -63,6 +86,19 @@ export function RecordingsView({
   useEffect(() => {
     ambient.set("signal", 0.3, "recordings");
   }, [ambient]);
+
+  // Distinct speakers visible in the current (filtered) list, for the dropdown.
+  const userOptions = useMemo<SelectOption[]>(() => {
+    const map = new Map<string, string>();
+    for (const r of items ?? []) {
+      if (r.user_id && !map.has(r.user_id)) map.set(r.user_id, r.username);
+    }
+    const opts: SelectOption[] = [
+      { value: ALL_USERS, label: "All speakers" },
+      ...[...map.entries()].map(([value, label]) => ({ value, label })),
+    ];
+    return opts;
+  }, [items]);
 
   const loadOlder = useCallback(async () => {
     if (
@@ -111,6 +147,66 @@ export function RecordingsView({
     }
   };
 
+  const onExportOne = async (r: VoiceRecording) => {
+    if (!r.download_url) return;
+    if (exportingIds.has(r.id)) return;
+    setExportingIds((prev) => new Set(prev).add(r.id));
+    try {
+      const buf = await decodeAudio(r.download_url);
+      const wav = audioBufferToWav(buf);
+      const safeName = (r.username ?? "speaker").replace(/[^\w.-]+/g, "_");
+      downloadBlob(wav, `gmw-rec-${safeName}-${r.id.slice(0, 8)}.wav`);
+      toast({ title: "WAV exported (Audacity-ready)", tone: "signal" });
+    } catch (e) {
+      toast({
+        title: "Export failed",
+        description: String(e),
+        tone: "vermilion",
+      });
+    } finally {
+      setExportingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(r.id);
+        return next;
+      });
+    }
+  };
+
+  const onExportAll = async () => {
+    if (exportingAll) return;
+    const target = (items ?? []).filter(
+      (r): r is VoiceRecording & { download_url: string } =>
+        Boolean(r.download_url),
+    );
+    if (target.length === 0) return;
+    setExportingAll(true);
+    try {
+      const buffers = [];
+      for (const r of target) {
+        buffers.push(await decodeAudio(r.download_url));
+      }
+      const merged = concatAudioBuffers(buffers);
+      if (!merged) throw new Error("No audio decoded");
+      const wav = audioBufferToWav(merged);
+      const who = filterUserId
+        ? (target[0]?.username ?? "speaker").replace(/[^\w.-]+/g, "_")
+        : "all";
+      downloadBlob(wav, `gmw-rec-${who}-${target.length}clips.wav`);
+      toast({
+        title: `Exported ${target.length} clips as one WAV`,
+        tone: "signal",
+      });
+    } catch (e) {
+      toast({
+        title: "Export failed",
+        description: String(e),
+        tone: "vermilion",
+      });
+    } finally {
+      setExportingAll(false);
+    }
+  };
+
   if (error && !items)
     return <ErrorState error={error} onRetry={() => void mutate()} />;
   if (!items && isLoading)
@@ -138,6 +234,7 @@ export function RecordingsView({
     );
 
   const totalRecordings = (items ?? []).length;
+  const exportableCount = (items ?? []).filter((r) => r.download_url).length;
 
   return (
     <div className="space-y-4">
@@ -160,6 +257,47 @@ export function RecordingsView({
         </div>
       </div>
 
+      {/* Filter + Export toolbar */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex items-center gap-2">
+          <Users className="size-3.5 text-ink-faint" />
+          <Select
+            value={filterUserId ?? ALL_USERS}
+            onChange={(v) => {
+              setFilterUserId(v === ALL_USERS ? null : v);
+              setLoadedPages(0);
+            }}
+            options={userOptions}
+            placeholder="Filter by speaker"
+            size="sm"
+            className="w-48"
+          />
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onExportAll}
+          disabled={exportingAll || exportableCount === 0}
+          title="Concatenate the visible (filtered) recordings into one WAV for Audacity"
+        >
+          {exportingAll ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Files className="size-3.5" />
+          )}
+          {exportingAll ? "RENDERING..." : `EXPORT WAV (${exportableCount})`}
+        </Button>
+        {filterUserId && (
+          <Button
+            variant="subtle"
+            size="sm"
+            onClick={() => setFilterUserId(null)}
+          >
+            CLEAR FILTER
+          </Button>
+        )}
+      </div>
+
       <GlassPanel>
         <SectionHeader
           eyebrow="acoustic buffer"
@@ -173,8 +311,16 @@ export function RecordingsView({
         {totalRecordings === 0 ? (
           <EmptyState
             icon={<Headphones className="size-7" />}
-            title="Tape deck is empty"
-            description="Voice transmissions captured in connected channels will be archived here."
+            title={
+              filterUserId
+                ? "No recordings for this speaker"
+                : "Tape deck is empty"
+            }
+            description={
+              filterUserId
+                ? "This speaker has no captured transmissions (or the filter is stale)."
+                : "Voice transmissions captured in connected channels will be archived here."
+            }
           />
         ) : (
           <div
@@ -188,6 +334,7 @@ export function RecordingsView({
               {(items ?? []).map((r) => {
                 const up = uploadStatus(r);
                 const isPlaying = playingId === r.id;
+                const isExporting = exportingIds.has(r.id);
                 return (
                   <div
                     key={r.id}
@@ -264,14 +411,29 @@ export function RecordingsView({
                       </span>
                       <div className="flex items-center gap-2">
                         {r.download_url && (
-                          <a
-                            href={r.download_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 rounded-md border border-hairline bg-surface-2 px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
-                          >
-                            <Download className="size-3 text-signal" /> RAW
-                          </a>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onExportOne(r)}
+                              disabled={isExporting}
+                              className="inline-flex items-center gap-1 rounded-md border border-signal/40 bg-signal/10 px-2 py-1 font-mono text-[10px] text-signal transition-colors hover:bg-signal/20"
+                            >
+                              {isExporting ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                <FileAudio className="size-3" />
+                              )}
+                              {isExporting ? "WAV..." : "WAV"}
+                            </button>
+                            <a
+                              href={r.download_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 rounded-md border border-hairline bg-surface-2 px-2 py-1 font-mono text-[10px] text-ink-soft transition-colors hover:bg-surface hover:text-ink"
+                            >
+                              <Download className="size-3 text-signal" /> RAW
+                            </a>
+                          </>
                         )}
                         <button
                           type="button"
