@@ -16,6 +16,10 @@ export interface ArchiveMessage {
   channel_id: string;
   guild_id: string;
   created_at: number;
+  /** True when the message came from an age-restricted (NSFW) channel. NSFW
+   *  content is deliberately NOT embedded into the public archive so it can't
+   *  be found via public semantic search. Defaults to false. */
+  isAgeRestricted?: boolean;
 }
 
 /**
@@ -25,8 +29,12 @@ export interface ArchiveMessage {
  * Failures are swallowed — searching is a nice-to-have, never a precondition
  * for capture or moderation. The message text is kept in the payload so the
  * search endpoint can return results even for deleted messages.
+ *
+ * NSFW/age-restricted messages are skipped (never embedded) — they are stored
+ * in the database for the dashboard but kept out of the public search archive.
  */
 export function archiveMessageEmbedded(message: ArchiveMessage): void {
+  if (message.isAgeRestricted) return; // never surface NSFW in public archive
   if (!config.AI_LLM_EMBEDDING_MODEL) return; // embeddings disabled → skip
   const text = message.content?.trim();
   if (!text || text.length < 3) return;

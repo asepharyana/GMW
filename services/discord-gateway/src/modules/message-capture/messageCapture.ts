@@ -215,8 +215,12 @@ export async function captureMessage(
 
   // Fire-and-forget: make the captured message searchable in the persistent
   // archive (public semantic search). Never blocks capture/moderation.
+  // NSFW/age-restricted messages are kept OUT of the public archive.
   if (!isBacklog && messageRecord.content) {
-    archiveMessageEmbedded(messageRecord);
+    archiveMessageEmbedded({
+      ...messageRecord,
+      isAgeRestricted: isAgeRestrictedMessage(message),
+    });
   }
 
   if (_eventBroadcaster && !isBacklog) {
@@ -288,7 +292,6 @@ export function registerMessageCapture(client: Client): void {
   client.on("messageCreate", async (message) => {
     if (!shouldCaptureForAnyTarget(message, targets)) return;
     if (isBotExcludedChannel(message)) return;
-    if (isAgeRestrictedMessage(message)) return;
     if (isExcludedThread(message)) return;
 
     try {
@@ -307,7 +310,6 @@ export function registerMessageCapture(client: Client): void {
   client.on("messageUpdate", async (_oldMessage, newMessage) => {
     if (!shouldCaptureForAnyTarget(newMessage, targets)) return;
     if (isBotExcludedChannel(newMessage as Message)) return;
-    if (isAgeRestrictedMessage(newMessage as Message)) return;
     if (isExcludedThread(newMessage)) return;
 
     try {
