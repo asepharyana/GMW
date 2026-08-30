@@ -296,6 +296,9 @@ const recordingsRouter = {
         channelId: z.string().optional(),
         userId: z.string().optional(),
         cursor: z.string().optional(),
+        q: z.string().optional(),
+        startDate: z.coerce.number().int().optional(),
+        endDate: z.coerce.number().int().optional(),
       }),
     )
     .handler(({ input }) =>
@@ -303,12 +306,16 @@ const recordingsRouter = {
         channelId: input.channelId,
         userId: input.userId,
         cursor: input.cursor,
+        q: input.q,
+        startDate: input.startDate,
+        endDate: input.endDate,
       }),
     ),
   delete: os.input(z.object({ id: z.string() })).handler(async ({ input }) => {
     await recordingsService.deleteById(input.id);
     return { ok: true };
   }),
+  summary: os.handler(async () => recordingsService.getSummary()),
 };
 
 // ── Analysis (search) ──────────────────────────────────────────────
