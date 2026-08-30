@@ -82,6 +82,17 @@
                    [ "$d" = "node_modules" ] && continue; \
                    grep -qF ".pnpm/$d" $TMPDIR/prod-pnms.txt || rm -rf "$d"; \
                  done ) || true
+          # Drop runtime-dead packages that still land in the prod graph:
+          #   - `@types/*` (pure TypeScript declarations) get pulled in as
+          #     REAL dependencies by type-aware deps (discord-api-types ->
+          #     @types/node, pg-protocol -> @types/pg, ...) even though nothing
+          #     ever `require`s them at runtime. Safe to strip.
+          #   - `opusscript` is only a pure-JS fallback Opus engine that
+          #     prism-media's loader uses IF `@discordjs/opus` (native, always
+          #     present/prebuilt) fails to load. Since the native engine loads,
+          #     opusscript is never executed — dead weight pulled in via
+          #     discord.js-selfbot-v13's dependency. Strip it too.
+          ( cd node_modules/.pnpm && rm -rf @types+* opusscript@* 2>/dev/null ) || true
           # Drop symlinks whose .pnpm target was pruned (top-level, scoped dirs,
           # hoist, .bin — any depth). Mirrors stdenv's noBrokenSymlinks check,
           # which would otherwise fail the fixupPhase.
@@ -132,14 +143,17 @@ WRAPPER
 
           src = ./services/discord-gateway;
 
+          # cmake + rust/cargo were inherited for node-datachannel-style native
+          # deps — that's 9router/omniroute, NOT GMW. GMW's only native deps
+          # are @discordjs/opus + sharp, both PREBUILT (node-pre-gyp / @img
+          # libvips download), so no cmake or rust toolchain is needed.
+          # python3/gnumake/gcc stay as node-gyp fallback for @discordjs/opus.
           nativeBuildInputs = [
             nodejs pnpm
-            pkgs.python3 pkgs.gnumake pkgs.gcc pkgs.cmake
-            pkgs.rustc pkgs.cargo
+            pkgs.python3 pkgs.gnumake pkgs.gcc
             pkgs.pkg-config
             pkgs.openssl
             pkgs.openssl.dev
-            pkgs.git # for any FetchContent-based deps during native builds
             pkgs.cacert
           ];
 
