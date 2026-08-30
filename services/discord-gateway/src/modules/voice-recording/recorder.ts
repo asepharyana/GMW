@@ -19,6 +19,7 @@ import {
 } from "./recorder/sessionRecording.js";
 import { createSpeakingHandler } from "./recorder/speakingHandler.js";
 import { hookScreenShareAudio } from "./screenShareAudio.js";
+import { hookVideoReceiver } from "./videoReceiver.js";
 
 const logger = createChildLogger("recorder");
 
@@ -191,6 +192,16 @@ export async function startRecording(
   // so screen-share audio is silently dropped unless we hook the UDP receiver
   // to discover and register those SSRCs.
   hookScreenShareAudio(receiver, speakingHandler);
+
+  // ── Video capture (camera + screen share) ───────────────────────────
+  // @discordjs/voice only decrypts/forwards audio (opus). Video RTP (H264,
+  // VP8/VP9/AV1) arrives on the same UDP socket but is dropped by the opus
+  // gate. hookVideoReceiver wraps onUdpMessage, decrypts video payload types
+  // with the connection secret key (reusing receiver.parsePacket), then
+  // depacketizes H264 to AnnexB and writes a raw .h264 stream per user.
+  // Order matters: video hook must be installed AFTER the screen-share audio
+  // hook so non-video packets delegate down the existing wrapper chain.
+  hookVideoReceiver(receiver, client, recordingsDir);
 
   // Handle unexpected disconnection
   connection.on(VoiceConnectionStatus.Disconnected, async () => {

@@ -1,0 +1,62 @@
+import { describe, expect, it } from "vitest";
+import { H264Depacketizer } from "../src/modules/voice-recording/videoReceiver.js";
+
+// Build a single-NAL RTP payload: [NAL header, ...data]
+function singleNal(nalHeader: number, data: number[] = []): Buffer {
+  return Buffer.from([nalHeader, ...data]);
+}
+
+describe("H264Depacketizer", () => {
+  it("prefixes a single NAL with an AnnexB start code once config seen", () => {
+    const d = new H264Depacketizer();
+    // SPS first (0x67 = nal ref idc 3, type 7)
+    const sps = d.push(singleNal(0x67, [1, 2, 3]));
+    expect(sps.length).toBe(1);
+    expect(sps[0].subarray(0, 4)).toEqual(Buffer.from([0, 0, 0, 1]));
+    expect(sps[0][4]).toBe(0x67); // start code + original NAL
+  });
+
+  it("drops NALs before seeing SPS/PPS/IDR (waits for a keyframe)", () => {
+    const d = new H264Depacketizer();
+    // A non-IDR slice (type 1) before any config → dropped
+    const res = d.push(singleNal(0x21, [9, 9, 9]));
+    expect(res.length).toBe(0);
+  });
+
+  it("emits frames after config", () => {
+    const d = new H264Depacketizer();
+    d.push(singleNal(0x67, [])); // SPS
+    const slice = d.push(singleNal(0x65, [1, 2, 3, 4])); // IDR (type 5)
+    expect(slice.length).toBe(1);
+    expect(slice[0].equals(Buffer.from([0, 0, 0, 1, 0x65, 1, 2, 3, 4]))).toBe(
+      true,
+    );
+  });
+
+  it("reassembles FU-A fragments into one NAL", () => {
+    const d = new H264Depacketizer();
+    d.push(singleNal(0x67, [])); // SPS config
+    // FU-A: payload[0]=FU indicator (0x7C=type28), payload[1]=FU header
+    // start fragment: S=1 E=0, NAL type 5 => 0x85 ; data [10, 11]
+    const start = Buffer.from([0x7c, 0x85, 10, 11]);
+    const middle = Buffer.from([0x7c, 0x05, 12, 13]);
+    const end = Buffer.from([0x7c, 0x45, 14, 15]); // E=1
+
+    expect(d.push(start).length).toBe(0); // not complete yet
+    expect(d.push(middle).length).toBe(0);
+    const final = d.push(end);
+    expect(final.length).toBe(1);
+    // NAL header reconstructed as (0x7C & 0xE0) | 5 = 0x65, then data 10..15
+    expect(
+      final[0].equals(Buffer.from([0, 0, 0, 1, 0x65, 10, 11, 12, 13, 14, 15])),
+    ).toBe(true);
+  });
+
+  it("first fragment of a burst with unknown start is dropped gracefully", () => {
+    const d = new H264Depacketizer();
+    d.push(singleNal(0x67, [])); // SPS
+    // A continuation fragment with no buffer → ignored, no crash
+    const orphan = Buffer.from([0x7c, 0x05, 99]); // S=0
+    expect(d.push(orphan).length).toBe(0);
+  });
+});
