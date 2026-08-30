@@ -1,4 +1,6 @@
+import { spawn } from "node:child_process";
 import { createWriteStream, mkdirSync, type WriteStream } from "node:fs";
+import { stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { VoiceReceiver } from "@discordjs/voice";
 import type { Client } from "discord.js-selfbot-v13";
@@ -179,25 +181,39 @@ export function hookVideoReceiver(
     }
   });
 
-  /** Close a burst's file (flush + end). */
+  /** Close a burst's file (flush + end) then mux to a playable mp4. */
   const closeBurst = (userId: string): void => {
     const burst = bursts.get(userId);
     if (!burst) return;
     bursts.delete(userId);
-    try {
+    const { ssrc, bytesWritten, createdAt, filePath } = burst;
+    // Wait for the write stream to fully flush (file descriptor closed) before
+    // ffmpeg reads it — otherwise the mux can read a truncated tail.
+    const flushed = new Promise<void>((resolve) => {
+      burst.out.once("finish", () => resolve());
       burst.out.end();
-    } catch {
-      // ignore write errors on close
-    }
+    });
     logger.info(
-      {
-        userId,
-        ssrc: burst.ssrc,
-        bytes: burst.bytesWritten,
-        durationMs: Date.now() - burst.createdAt,
-      },
+      { userId, ssrc, bytes: bytesWritten, durationMs: Date.now() - createdAt },
       "Video burst closed",
     );
+    // Phase B: remux the raw H264 elementary stream into a self-contained,
+    // playable MP4 (fast `-c copy`, no re-encode) and drop the raw file.
+    void flushed
+      .then(() => muxToMp4(filePath))
+      .then((mp4) => {
+        logger.info({ userId, ssrc, mp4 }, "Video muxed to mp4");
+      })
+      .catch((err) => {
+        logger.warn(
+          {
+            userId,
+            ssrc,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          "Video mux to mp4 failed (keeping raw .h264)",
+        );
+      });
   };
 
   const openBurst = (userId: string, ssrc: number): VideoBurst | null => {
@@ -365,4 +381,52 @@ function getSsrcInternalMap(
   const m1 = asAny._map;
   if (m1 instanceof Map) return m1 as Map<number, never>;
   return undefined;
+}
+
+/**
+ * Remux a raw H264 elementary stream into a playable MP4 with `-c copy` (no
+ * re-encode, fast). On success the raw `.h264` is removed and the `.mp4` path
+ * returned. On any failure the raw file is LEFT in place (caller keeps it).
+ */
+export async function muxToMp4(rawPath: string): Promise<string> {
+  const mp4Path = rawPath.replace(/\.h264$/, ".mp4");
+
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn(
+      "ffmpeg",
+      [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "h264",
+        "-i",
+        rawPath,
+        "-c",
+        "copy",
+        "-movflags",
+        "+faststart",
+        "-y",
+        mp4Path,
+      ],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
+    let stderr = "";
+    proc.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    proc.on("error", (err) => reject(err));
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exit ${code ?? "?"}: ${stderr.trim()}`));
+    });
+  });
+
+  // Sanity check: only delete the raw file if the mp4 is non-empty.
+  const mp4Stat = await stat(mp4Path).catch(() => null);
+  if (!mp4Stat || mp4Stat.size === 0) {
+    throw new Error("mp4 mux produced an empty file");
+  }
+  await unlink(rawPath).catch(() => {});
+  return mp4Path;
 }

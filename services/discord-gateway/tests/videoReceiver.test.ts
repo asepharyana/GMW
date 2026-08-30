@@ -1,5 +1,13 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { access, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { H264Depacketizer } from "../src/modules/voice-recording/videoReceiver.js";
+import {
+  H264Depacketizer,
+  muxToMp4,
+} from "../src/modules/voice-recording/videoReceiver.js";
 
 // Build a single-NAL RTP payload: [NAL header, ...data]
 function singleNal(nalHeader: number, data: number[] = []): Buffer {
@@ -58,5 +66,59 @@ describe("H264Depacketizer", () => {
     // A continuation fragment with no buffer → ignored, no crash
     const orphan = Buffer.from([0x7c, 0x05, 99]); // S=0
     expect(d.push(orphan).length).toBe(0);
+  });
+});
+
+describe("muxToMp4", () => {
+  it("remuxes a raw h264 file into a playable mp4 and deletes the raw file", async () => {
+    // Skip if ffmpeg is unavailable (headless Nix-less CI).
+    let ffmpegOk = true;
+    try {
+      execFileSync("ffmpeg", ["-version"], { stdio: "ignore" });
+    } catch {
+      ffmpegOk = false;
+    }
+    if (!ffmpegOk) {
+      return;
+    }
+
+    const dir = mkdtempSync(path.join(tmpdir(), "gmw-video-"));
+    const raw = path.join(dir, "clip.h264");
+    try {
+      execFileSync(
+        "ffmpeg",
+        [
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-f",
+          "lavfi",
+          "-i",
+          "testsrc=duration=1:size=320x240:rate=10",
+          "-c:v",
+          "libx264",
+          "-preset",
+          "ultrafast",
+          "-profile:v",
+          "baseline",
+          "-pix_fmt",
+          "yuv420p",
+          "-f",
+          "h264",
+          "-y",
+          raw,
+        ],
+        { stdio: "ignore" },
+      );
+
+      const mp4 = await muxToMp4(raw);
+      expect(mp4).toBe(path.join(dir, "clip.mp4"));
+      // raw file deleted, mp4 exists and is non-empty
+      await expect(access(raw)).rejects.toThrow();
+      const s = await stat(mp4);
+      expect(s.size).toBeGreaterThan(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
