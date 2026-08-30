@@ -20,6 +20,7 @@ import {
 import { createSpeakingHandler } from "./recorder/speakingHandler.js";
 import { hookScreenShareAudio } from "./screenShareAudio.js";
 import { hookVideoReceiver } from "./videoReceiver.js";
+import { trackChannel, untrackChannel } from "./videoRecorder.js";
 
 const logger = createChildLogger("recorder");
 
@@ -163,6 +164,8 @@ export async function startRecording(
       startTime: sessionStartTime,
     });
     activeSessions.set(channel.guild.id, session);
+    // Register this channel for video recording (others' camera/screen share).
+    trackChannel(channel.guild.id, channel);
   } catch (err) {
     logger.error({ error: err }, "Failed to connect to voice channel");
     connection.destroy();
@@ -230,6 +233,7 @@ export async function startRecording(
 
   connection.on(VoiceConnectionStatus.Destroyed, () => {
     finalizeActiveRecordingSession(channel.guild.id);
+    untrackChannel(channel.guild.id);
     if (config.VERBOSE) {
       logger.info("Voice connection destroyed");
     }
@@ -251,6 +255,7 @@ export function stopRecording(guildId: string): void {
   } else {
     logger.warn("No active connection to stop");
   }
+  untrackChannel(guildId);
 
   const session = activeSessions.get(guildId);
   finalizeActiveRecordingSession(guildId);

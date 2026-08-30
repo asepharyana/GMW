@@ -36,6 +36,10 @@ import {
   setPcmWsClient,
   setEventBroadcaster as setRecorderEventBroadcaster,
 } from "../modules/voice-recording/recorder.js";
+import {
+  setVideoRecorderClient,
+  setVideoRecordingsDir,
+} from "../modules/voice-recording/videoRecorder.js";
 import { VoiceController } from "../modules/voice-recording/voiceController.js";
 import { config } from "../shared/config/config.js";
 import {
@@ -181,6 +185,12 @@ export async function initializeDiscordGateway() {
   logger.info("Creating Discord client");
   const client = new Client(createDiscordClientOptions());
   const voiceController = new VoiceController(client);
+
+  // Wire the video recorder (others' camera/screen share) to the selfbot's
+  // native watch/receive stack + its recordings dir. Best-effort: failures are
+  // logged inside, never fatal.
+  setVideoRecorderClient(client);
+  setVideoRecordingsDir(config.RECORDINGS_DIR);
 
   // Initialize Redis event broadcaster
   const redisPublisher = new RedisEventPublisher(config.REDIS_URL, logger);
