@@ -336,6 +336,14 @@ export function hookVideoReceiver(
 
   // If a user's video SSRC disappears, close their burst after a short grace so
   // the tail flushes.
+  receiver.ssrcMap.on("delete", (data) => {
+    // data = the deleted VoiceUserData (userId + audioSSRC). Close any open
+    // video burst for that user so the mux starts as soon as they stop sharing.
+    if (data?.userId) {
+      setTimeout(() => closeBurst(data.userId), 500);
+    }
+  });
+
   setInterval(() => {
     const now = Date.now();
     for (const [userId, burst] of bursts) {
