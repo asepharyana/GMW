@@ -319,11 +319,20 @@ export const configSchema = z
       .int()
       .positive()
       .default(50),
-    // Worker pool size. Default 4 (not availableParallelism) because each
-    // Piscina thread owns its own pLimit(5) semaphore — on big VPSes
-    // availableParallelism × 5 concurrent LLM calls would overwhelm the
-    // router. Keep threads modest; concurrency is capped per-thread anyway.
+    // Text-analysis worker pool size (2026-08-31: split from the media pool
+    // below so a slow image/vision batch can never occupy every thread and
+    // starve the far more common text-only batches). Default 4 (not
+    // availableParallelism) because each Piscina thread owns its own
+    // pLimit(5) semaphore — on big VPSes availableParallelism × 5 concurrent
+    // LLM calls would overwhelm the router. Keep threads modest; concurrency
+    // is capped per-thread anyway.
     PISCINA_MAX_THREADS: z.coerce.number().int().positive().default(4),
+    // Media-analysis worker pool size — dedicated threads for batches that
+    // contain images/stickers/embeds (download + vision + LLM, much slower
+    // than text). Kept small since media batches are less frequent and each
+    // one is long-running; sized independently from PISCINA_MAX_THREADS so
+    // tuning one never starves the other.
+    PISCINA_MEDIA_MAX_THREADS: z.coerce.number().int().positive().default(2),
 
     // ── Voice Transcription ────────────────────────────────────────────────
     AI_VOICE_TRANSCRIPTION_ENABLED: z

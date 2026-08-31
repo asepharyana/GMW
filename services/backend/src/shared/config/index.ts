@@ -193,6 +193,7 @@ export const configSchema = z
       .positive()
       .default(50),
     PISCINA_MAX_THREADS: z.coerce.number().int().positive().optional(),
+    PISCINA_MEDIA_MAX_THREADS: z.coerce.number().int().positive().optional(),
 
     // ── Voice Transcription ────────────────────────────────────────────────
     AI_VOICE_TRANSCRIPTION_ENABLED: z

@@ -6,9 +6,14 @@ import type {
   AnalysisResult,
   MessageRecord,
 } from "../message-capture/types.js";
-import { getConversationKey, workerPool } from "./circuitBreaker.js";
+import {
+  getConversationKey,
+  mediaWorkerPool,
+  textWorkerPool,
+} from "./circuitBreaker.js";
 import { fireAlert } from "./conversationState.js";
 import { classifyIndividualWorkerResult } from "./fallbackResultClassifier.js";
+import { hasMediaContent } from "./mediaAnalysisClient.js";
 import {
   broadcastAnalysisCompleted,
   LAST_ERROR,
@@ -73,8 +78,12 @@ async function processIndividualFallback(
   let exhaustedOnIncomplete = false;
 
   try {
-    // Run the LLM-heavy work in the worker thread
-    const workerResult = (await workerPool.run({
+    // Run the LLM-heavy work in the worker thread — same text/media pool
+    // split as the batch pipeline (see circuitBreaker.ts), so a single
+    // media message falling back to individual analysis can't queue behind
+    // (or block) text-only fallbacks, and vice versa.
+    const pool = hasMediaContent(message) ? mediaWorkerPool : textWorkerPool;
+    const workerResult = (await pool.run({
       type: "individual",
       message,
       skipNormalAnalysis: false,

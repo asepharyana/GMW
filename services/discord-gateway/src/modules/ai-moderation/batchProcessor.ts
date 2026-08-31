@@ -5,7 +5,7 @@ import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
 import { pickBatchWithinBudget as pickBatchWithinBudgetPure } from "./batchBudget.js";
 import { partitionBatchOutcome } from "./batchOutcomeClassifier.js";
-import { workerPool } from "./circuitBreaker.js";
+import { mediaWorkerPool, textWorkerPool } from "./circuitBreaker.js";
 import { estimateTokens } from "./conversationContext.js";
 import {
   conversationErrorCooldown,
@@ -14,6 +14,7 @@ import {
   resetConversationBatchFailures,
 } from "./conversationState.js";
 import { enqueueIndividualFallbacks } from "./individualFallbackProcessor.js";
+import { hasMediaContent } from "./mediaAnalysisClient.js";
 import {
   broadcastAnalysisCompleted,
   LAST_ERROR,
@@ -121,29 +122,31 @@ export async function skipAgeRestrictedMessages(
 // Batch pipeline
 // ---------------------------------------------------------------------------
 
-export async function processBatch(
+/**
+ * Runs one worker job (either the text-only or the media sub-batch of a
+ * conversation) end-to-end: dispatch → broadcast/save → fallback routing.
+ * Returns whether the *caller* should schedule the next debounce pass for
+ * this conversation (mirrors the old single-job semantics, now evaluated
+ * per queue).
+ *
+ * Broadcasting happens here, inside each queue's own call — NOT after
+ * waiting on the other queue. That's the actual fix for "text menunggu
+ * image": previously one mixed conversation batch made ONE worker call
+ * with both text and media targets, and `runModerationAnalysis` only
+ * resolves (so results only get saved/broadcast) once BOTH finish — so a
+ * fast text verdict sat unused until the slow vision/image verdict was
+ * ready too. Splitting into two independent jobs means the text queue
+ * saves+broadcasts its rows the moment IT finishes, regardless of how long
+ * the media queue takes.
+ */
+async function runQueueBatch(
+  pool: typeof textWorkerPool,
   conversationKey: string,
   messages: MessageRecord[],
-  processingStartedAt: number,
-): Promise<void> {
-  if (messages.length === 0) {
-    if (conversationProcessing.get(conversationKey) === processingStartedAt) {
-      conversationProcessing.delete(conversationKey);
-    }
-    return;
-  }
-  const cooldownUntil = conversationErrorCooldown.get(conversationKey) ?? 0;
-  if (Date.now() < cooldownUntil) {
-    if (conversationProcessing.get(conversationKey) === processingStartedAt) {
-      conversationProcessing.delete(conversationKey);
-    }
-    return;
-  }
-
+): Promise<boolean> {
   activeRequests++;
-  let shouldScheduleNext = false;
   try {
-    const result = (await workerPool.run({
+    const result = (await pool.run({
       type: "batch",
       conversationKey,
       messages,
@@ -191,7 +194,7 @@ export async function processBatch(
         },
         "Batch analysis failed, will retry after cooldown",
       );
-      return;
+      return false;
     }
 
     // Batch succeeded -- partition per-message outcome (2026-08-25).
@@ -281,20 +284,13 @@ export async function processBatch(
         conversationErrorCooldown.set(conversationKey, newCooldown);
       }
 
-      // Release the processing lock immediately so the cooldown timer controls retry
-      if (conversationProcessing.get(conversationKey) === processingStartedAt) {
-        conversationProcessing.delete(conversationKey);
-      }
-
       // Do NOT schedule next -- let the cooldown gate it
-      shouldScheduleNext = false;
+      return false;
     }
 
-    if (apiFailedMessages.length === 0) {
-      resetConversationBatchFailures(conversationKey);
-      conversationErrorCooldown.delete(conversationKey);
-    }
-    shouldScheduleNext = true;
+    resetConversationBatchFailures(conversationKey);
+    conversationErrorCooldown.delete(conversationKey);
+    return true;
   } catch (error) {
     recordConversationBatchFailure(conversationKey);
 
@@ -326,18 +322,63 @@ export async function processBatch(
       },
       "Analysis worker failed, will retry after cooldown",
     );
+    return false;
   } finally {
     activeRequests--;
+  }
+}
+
+export async function processBatch(
+  conversationKey: string,
+  messages: MessageRecord[],
+  processingStartedAt: number,
+): Promise<void> {
+  if (messages.length === 0) {
     if (conversationProcessing.get(conversationKey) === processingStartedAt) {
       conversationProcessing.delete(conversationKey);
     }
-    if (shouldScheduleNext) {
-      setImmediate(() => {
-        // Dynamic import to avoid circular dependency at module scope
-        import("./batchScheduler.js").then((m) =>
-          m.scheduleConversationAnalysis(conversationKey),
-        );
-      });
+    return;
+  }
+  const cooldownUntil = conversationErrorCooldown.get(conversationKey) ?? 0;
+  if (Date.now() < cooldownUntil) {
+    if (conversationProcessing.get(conversationKey) === processingStartedAt) {
+      conversationProcessing.delete(conversationKey);
     }
+    return;
+  }
+
+  // Split the batch itself — not just route it — so text and media never
+  // share one worker call. A conversation batch commonly mixes plain-text
+  // messages with an image/sticker from someone else; without this split,
+  // ALL of it (including the plain-text messages) would ride along on the
+  // media job and wait for vision analysis to finish. Each sub-batch is now
+  // dispatched to its own pool AND handled independently below, so the text
+  // queue's results land as soon as text analysis completes, full stop.
+  const textMessages = messages.filter((m) => !hasMediaContent(m));
+  const mediaMessages = messages.filter((m) => hasMediaContent(m));
+
+  const jobs: Promise<boolean>[] = [];
+  if (textMessages.length > 0) {
+    jobs.push(runQueueBatch(textWorkerPool, conversationKey, textMessages));
+  }
+  if (mediaMessages.length > 0) {
+    jobs.push(runQueueBatch(mediaWorkerPool, conversationKey, mediaMessages));
+  }
+
+  const outcomes = await Promise.allSettled(jobs);
+  const shouldScheduleNext = outcomes.every(
+    (o) => o.status === "fulfilled" && o.value,
+  );
+
+  if (conversationProcessing.get(conversationKey) === processingStartedAt) {
+    conversationProcessing.delete(conversationKey);
+  }
+  if (shouldScheduleNext) {
+    setImmediate(() => {
+      // Dynamic import to avoid circular dependency at module scope
+      import("./batchScheduler.js").then((m) =>
+        m.scheduleConversationAnalysis(conversationKey),
+      );
+    });
   }
 }

@@ -77,20 +77,26 @@ handles a whole batch (text + media split internally, parallel paths).
 
 - Main thread owns the LLM semaphore (`AI_LLM_MAX_CONCURRENT`, default 5) via
   `llmClient.withLlmConcurrency`.
-- Piscina pool (`PISCINA_MAX_THREADS`, default 4) runs the heavy LLM work off
-  the event loop; **each worker thread initializes its own pg Pool** (min 0,
-  grows to `POSTGRES_POOL_MAX`). See "Memory & connections" below.
+- Two Piscina pools run the heavy LLM work off the event loop: a text pool
+  (`PISCINA_MAX_THREADS`, default 4) and a dedicated media pool
+  (`PISCINA_MEDIA_MAX_THREADS`, default 2). A batch is routed to the media
+  pool if ANY of its messages carries an attachment/sticker/embed — this
+  keeps a slow image/vision batch from occupying every thread and blocking
+  unrelated text-only batches behind it. **Each worker thread (in either
+  pool) initializes its own pg Pool** (min 0, grows to `POSTGRES_POOL_MAX`).
+  See "Memory & connections" below.
 
 ## Memory & DB connections
 
 `MemoryMax=1G` (raised from 512M — live RSS sits at ~500 MiB, peak 508 MiB,
 so 512M left ~2% headroom and risked an OOM-kill restart). Host has 8 GB free.
 
-`POSTGRES_POOL_MIN=0` (default). The gateway = main process + up to 4 Piscina
-worker threads, each with its own pg Pool. With min:0 the pools stay empty
-until a query runs and drop idle clients afterward, instead of holding
-`(1 main + 4 workers) × 2 = 10` permanently-open idle connections against
-PgBouncer. The pool still grows on demand up to `POSTGRES_POOL_MAX`.
+`POSTGRES_POOL_MIN=0` (default). The gateway = main process + up to 4 text
+Piscina worker threads + up to 2 media Piscina worker threads, each with its
+own pg Pool. With min:0 the pools stay empty until a query runs and drop
+idle clients afterward, instead of holding `(1 main + 4 text + 2 media) × 2
+= 14` permanently-open idle connections against PgBouncer. The pool still
+grows on demand up to `POSTGRES_POOL_MAX`.
 
 ## Event channels (Redis pub/sub)
 

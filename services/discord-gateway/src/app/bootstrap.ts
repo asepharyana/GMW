@@ -7,7 +7,10 @@ import {
   getAnalysisQueueStatus,
   startPendingAIAnalysisWorker,
 } from "../modules/ai-moderation/aiAnalyzer.js";
-import { workerPool } from "../modules/ai-moderation/circuitBreaker.js";
+import {
+  mediaWorkerPool,
+  textWorkerPool,
+} from "../modules/ai-moderation/circuitBreaker.js";
 import { registerChannelTopicCapture } from "../modules/channel-topic/index.js";
 import { CommandHandler } from "../modules/command-handler/commandHandler.js";
 import {
@@ -396,12 +399,25 @@ export async function initializeDiscordGateway() {
       if (typeof status.lastError === "string") {
         setGauge("ai_analysis_last_error_present", status.lastError ? 1 : 0);
       }
-      const pool = workerPool as unknown as {
-        _poolState?: { size: number; active: number };
-      };
-      if (pool._poolState) {
-        setGauge("ai_analysis_worker_threads", pool._poolState.size);
-        setGauge("ai_analysis_worker_threads_active", pool._poolState.active);
+      type PoolState = { _poolState?: { size: number; active: number } };
+      const textPool = textWorkerPool as unknown as PoolState;
+      const mediaPool = mediaWorkerPool as unknown as PoolState;
+      // Reported per queue (2026-08-31 text/media pool split) so the text
+      // and media backlogs are distinguishable in dashboards/alerts instead
+      // of one combined "worker threads" number.
+      if (textPool._poolState) {
+        setGauge("ai_analysis_worker_threads_text", textPool._poolState.size);
+        setGauge(
+          "ai_analysis_worker_threads_active_text",
+          textPool._poolState.active,
+        );
+      }
+      if (mediaPool._poolState) {
+        setGauge("ai_analysis_worker_threads_media", mediaPool._poolState.size);
+        setGauge(
+          "ai_analysis_worker_threads_active_media",
+          mediaPool._poolState.active,
+        );
       }
     } catch (err) {
       logger.warn({ error: String(err) }, "AI metrics collector failed");
