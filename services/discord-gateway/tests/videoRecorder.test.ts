@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  __resetVideoRecorderState,
+  destroyGuildSelfbotVoice,
+  ensureSelfbotVoice,
   setVideoRecorderClient,
   setVideoRecordingsDir,
   startVideoRecording,
@@ -14,14 +17,17 @@ function makeVoiceManager() {
     on: vi.fn(),
     destroy: vi.fn(),
   };
+  const watchConn = { sendSignalScreenshare: vi.fn(async () => {}) };
   const voiceConn = {
+    status: 0, // VoiceStatus.CONNECTED
+    disconnect: vi.fn(),
     receiver: {
       createVideoStream: vi.fn(() => recorder),
     },
     joinStreamConnection: vi.fn(async () => watchConn),
   };
-  const watchConn = { sendSignalScreenshare: vi.fn(async () => {}) };
-  return { voiceConn, watchConn, recorder, joinChannel: async () => voiceConn };
+  const joinChannel = vi.fn(async () => voiceConn);
+  return { voiceConn, watchConn, recorder, joinChannel };
 }
 
 function makeChannel(guildId = "g1", channelId = "c1") {
@@ -46,6 +52,7 @@ function makeUser() {
 }
 
 beforeEach(() => {
+  __resetVideoRecorderState();
   setVideoRecordingsDir("/tmp/gmw-vidrec-test");
 });
 
@@ -116,5 +123,39 @@ describe("videoRecorder", () => {
     await startVideoRecording(ch, u);
     untrackChannel("g1");
     expect(client.voice.recorder.destroy).toHaveBeenCalled();
+  });
+
+  it("ensureSelfbotVoice establishes and caches the selfbot connection (join once)", async () => {
+    const client = makeClient();
+    setVideoRecorderClient(client);
+    const ch = makeChannel();
+    const r1 = await ensureSelfbotVoice(ch);
+    expect(r1?.status).toBe(0);
+    expect(client.voice.joinChannel).toHaveBeenCalledTimes(1);
+    // Second call reuses the cached CONNECTED connection — no re-join.
+    const r2 = await ensureSelfbotVoice(makeChannel());
+    expect(client.voice.joinChannel).toHaveBeenCalledTimes(1);
+    expect(r2?.status).toBe(0);
+  });
+
+  it("untrackChannel destroys the cached selfbot voice connection", async () => {
+    const client = makeClient();
+    setVideoRecorderClient(client);
+    await ensureSelfbotVoice(makeChannel("g1", "c1"));
+    const other = makeClient();
+    setVideoRecorderClient(other);
+    await ensureSelfbotVoice(makeChannel("g2", "c2"));
+    untrackChannel("g1");
+    expect(client.voice.voiceConn.disconnect).toHaveBeenCalled();
+    // g2 connection untouched by g1 teardown
+    expect(other.voice.voiceConn.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("destroyGuildSelfbotVoice disconnects the selfbot connection", async () => {
+    const client = makeClient();
+    setVideoRecorderClient(client);
+    await ensureSelfbotVoice(makeChannel());
+    destroyGuildSelfbotVoice("g1");
+    expect(client.voice.voiceConn.disconnect).toHaveBeenCalled();
   });
 });

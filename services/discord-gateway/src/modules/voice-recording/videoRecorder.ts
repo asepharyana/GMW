@@ -20,6 +20,14 @@
  *     member's H264+Opus RTP to a `Recorder` (ffmpeg over UDP) which muxes to
  *     Matroska (.mkv).
  *
+ * FAILURE FIX (2026-08-31): the selfbot `VoiceConnection` must be established
+ * EAGERLY at voice-join time. Calling `client.voice.joinChannel()` lazily —
+ * only when a member starts streaming — times out with VOICE_CONNECTION_TIMEOUT
+ * because the bot is already in the channel, so Discord never emits a fresh
+ * VOICE_SERVER_UPDATE and the Selfbot connection never gets token/endpoint.
+ * Establishing it alongside the @discordjs/voice join (on a FRESH join) makes
+ * Discord emit VOICE_SERVER_UPDATE → the selfbot connection authenticates.
+ *
  * All of this is best-effort: any failure is logged and NEVER breaks the
  * gateway's existing audio/voice recording.
  */
@@ -38,11 +46,21 @@ interface WatchHandle {
   path: string;
 }
 
+/** A connected (or in-progress) selfbot voice connection, keyed by guildId. */
+interface SelfbotVoice {
+  guildId: string;
+  conn: unknown; // selfbot VoiceConnection
+  connectedAt: number;
+}
+
 /** Recorders keyed by `${guildId}:${userId}`. */
 const activeRecorders = new Map<string, WatchHandle>();
 
 /** Channels currently under audio recording, keyed by guildId. */
 const watchedChannels = new Map<string, VoiceChannel>();
+
+/** Eagerly-established selfbot voice connection per guild (video receive). */
+const selfbotVoices = new Map<string, SelfbotVoice>();
 
 let _client: Client | undefined;
 let _listenerAttached = false;
@@ -52,6 +70,15 @@ let _recordingsDir = "/var/lib/gmw/recordings";
 
 export function setVideoRecordingsDir(dir: string) {
   _recordingsDir = dir;
+}
+
+/** Test-only: clear all module-level state (recorders, channels, selfbot conns). */
+export function __resetVideoRecorderState(): void {
+  activeRecorders.clear();
+  watchedChannels.clear();
+  selfbotVoices.clear();
+  _listenerAttached = false;
+  _client = undefined;
 }
 
 /**
@@ -79,6 +106,7 @@ export function trackChannel(guildId: string, channel: VoiceChannel) {
 export function untrackChannel(guildId: string) {
   watchedChannels.delete(guildId);
   stopAllVideoRecordings(guildId);
+  destroyGuildSelfbotVoice(guildId);
 }
 
 async function handleVoiceStateUpdate(
@@ -111,6 +139,115 @@ async function handleVoiceStateUpdate(
 }
 
 /**
+ * Resolve (or create) the selfbot `VoiceConnection` for a guild, best-effort.
+ *
+ * Establishes `client.voice.joinChannel(channel)` — the selfbot lib's own
+ * VoiceConnection, which has `.receiver.createVideoStream` and
+ * `.joinStreamConnection`. Cached per guild. Returns the connection's
+ * `{ conn, status }` or null on failure.
+ *
+ * IMPORTANT ordering: this MUST run while the bot is freshly joining the
+ * channel (alongside @discordjs/voice's join), so Discord emits VOICE_SERVER_UPDATE
+ * and the selfbot connection authenticates. Do NOT call it lazily after the bot
+ * is already connected — that times out (VOICE_CONNECTION_TIMEOUT).
+ */
+export async function ensureSelfbotVoice(
+  channel: VoiceChannel,
+): Promise<{ conn: unknown; status: number } | null> {
+  try {
+    if (!_client) {
+      logger.debug("ensureSelfbotVoice: no client set");
+      return null;
+    }
+    const guildId = channel.guild?.id;
+    if (!guildId) return null;
+
+    // Reuse an already-connected selfbot connection.
+    const existing = selfbotVoices.get(guildId);
+    if (existing && getVoiceStatus(existing.conn) === 0 /* CONNECTED */) {
+      return { conn: existing.conn, status: 0 };
+    }
+
+    const voiceManager = (_client as unknown as { voice?: unknown }).voice as
+      | {
+          joinChannel?: (
+            ch: unknown,
+            cfg?: {
+              selfMute?: boolean;
+              selfDeaf?: boolean;
+              selfVideo?: boolean;
+            },
+          ) => Promise<unknown>;
+        }
+      | undefined;
+
+    if (!voiceManager?.joinChannel) {
+      logger.warn(
+        { guildId },
+        "ensureSelfbotVoice: selfbot voice manager unavailable",
+      );
+      return null;
+    }
+
+    logger.info(
+      { guildId, channelId: channel.id },
+      "Establishing selfbot voice connection (video receive)",
+    );
+    const conn = await voiceManager.joinChannel(channel, {
+      selfMute: false,
+      selfDeaf: false,
+      selfVideo: false,
+    });
+    if (!conn) return null;
+
+    const status = getVoiceStatus(conn);
+    selfbotVoices.set(guildId, { guildId, conn, connectedAt: Date.now() });
+    logger.info(
+      { guildId, channelId: channel.id, status },
+      status === 0
+        ? "Selfbot voice connected (video receive ready)"
+        : "Selfbot voice connection pending",
+    );
+    return { conn, status };
+  } catch (err) {
+    logger.warn(
+      {
+        guildId: channel.guild?.id,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      "ensureSelfbotVoice failed (best-effort, ignoring)",
+    );
+    return null;
+  }
+}
+
+/** Tear down the cached selfbot voice connection for a guild. */
+export function destroyGuildSelfbotVoice(guildId: string): void {
+  const entry = selfbotVoices.get(guildId);
+  if (!entry) return;
+  selfbotVoices.delete(guildId);
+  try {
+    const conn = entry.conn as unknown as {
+      disconnect?: () => void;
+      destroy?: () => void;
+    };
+    conn.disconnect?.();
+    logger.info({ guildId }, "Destroyed selfbot voice connection");
+  } catch (err) {
+    logger.warn(
+      { guildId, err: err instanceof Error ? err.message : String(err) },
+      "Error destroying selfbot voice connection",
+    );
+  }
+}
+
+/** Read the VoiceStatus number off a selfbot VoiceConnection (0 = CONNECTED). */
+function getVoiceStatus(conn: unknown): number {
+  const status = (conn as { status?: number } | null)?.status;
+  return typeof status === "number" ? status : -1;
+}
+
+/**
  * Begin recording the video (camera / screen share) of `userId` in `channel`.
  * Returns the watch handle on success, or null on any failure.
  */
@@ -129,31 +266,10 @@ export async function startVideoRecording(
     const key = `${channel.guild.id}:${userId}`;
     if (activeRecorders.has(key)) return activeRecorders.get(key) ?? null;
 
-    const voiceManager = (_client as unknown as { voice?: unknown }).voice as
-      | {
-          joinChannel?: (
-            ch: unknown,
-            cfg?: {
-              selfMute?: boolean;
-              selfDeaf?: boolean;
-              selfVideo?: boolean;
-            },
-          ) => Promise<unknown>;
-        }
-      | undefined;
-
-    if (!voiceManager?.joinChannel) {
-      logger.warn("Video recorder: selfbot voice manager unavailable");
-      return null;
-    }
-
-    // 1. Selfbot voice connection — joinChannel is idempotent (reuses
-    //    ClientVoiceManager.connection, re-confirms the same session).
-    const voiceConn = await voiceManager.joinChannel(channel, {
-      selfMute: false,
-      selfDeaf: false,
-      selfVideo: false,
-    });
+    // Use the eagerly-established selfbot connection (falls back to a lazy
+    // joinChannel as a last resort — may time out if the bot already joined).
+    const eager = await ensureSelfbotVoice(channel);
+    const voiceConn: unknown | null = eager?.conn ?? null;
     if (!voiceConn) return null;
 
     // 2. STREAM_WATCH handshake.
