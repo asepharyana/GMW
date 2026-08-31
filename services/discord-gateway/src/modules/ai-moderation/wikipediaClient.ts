@@ -22,6 +22,12 @@ import { createChildLogger } from "@/shared/logger/index";
 import { createAbortControllerWithTimeout } from "@/shared/utils/index";
 import { config } from "../../shared/config/config.js";
 import { cacheGet, cacheSet, makeCacheKey } from "./cacheStore.js";
+import {
+  cleanContent,
+  isKnownTerm,
+  isMostlyStopwords,
+  scoreWord,
+} from "./textSignals.js";
 
 const log = createChildLogger("wikipedia-client");
 
@@ -206,73 +212,121 @@ export async function wikipediaSummary(
   }
 }
 
-/**
- * Extract meaningful search queries from message content.
- * Uses multiple strategies to find terms worth searching.
- * Returns up to 3 clean queries.
- */
-export function extractSearchQueries(content: string): string[] {
-  const queries = new Set<string>();
+export interface ExtractSearchQueryOptions {
+  maxQueries?: number;
+}
 
-  // 1. Quoted phrases (explicit user intent)
-  const quotedPhrases = content.match(/"([^"]+)"|'([^']+)'/g);
+/**
+ * Verbs that signal "find/watch/download X" — used only to find a phrase
+ * BOUNDARY. Unlike the old version, no trailing category word
+ * ("anime|film|series") is required, so coverage isn't capped by an
+ * enumerated category list. The capture stops at the first coordinating
+ * conjunction (or end of message) so "nonton X sama Y terus Z" yields the
+ * single entity X instead of swallowing the whole multi-entity tail into
+ * one unsearchable blob.
+ */
+const SEARCH_INTENT_VERBS =
+  /\b(?:nonton|tonton|rekomen(?:dasiin|dasikan)?|cari(?:in|kan)?|search|google|download|donlod|unduh|streaming|baca|dengerin|dengar(?:kan)?)\b\s+(.+?)(?=\s+(?:sama|dan|juga|terus|lalu|atau|and|or)\b|\s*[!?.]*$)/i;
+
+/** "apa itu X" / "arti X" / "what is X" — factual/definition intent. */
+const DEFINITION_INTENT =
+  /\b(?:apa\s+(?:itu|sih)|what\s+is|siapa\s+itu|who\s+is|arti(?:nya)?|meaning(?:\s+of)?|definisi(?:nya)?|definition(?:\s+of)?)\s+(.{3,80})/i;
+
+/** Multi-word capitalized runs — usually a title/named entity regardless of
+ *  surrounding verbs (e.g. "Attack on Titan", "One Piece"). No trigger word
+ *  needed at all. */
+const PROPER_NOUN_PHRASE = /\b([A-Z][\p{L}]*(?:\s+[A-Z][\p{L}]*){1,4})\b/gu;
+
+interface PhraseCandidate {
+  phrase: string;
+  score: number;
+}
+
+/**
+ * Scores a phrase with the SAME per-word signals as the term glossary
+ * (proper-noun casing, foreign spelling, hyphenation — see textSignals.ts),
+ * plus a bonus for the extraction strategy that surfaced it. Returns null
+ * for junk (mostly stopwords, or made entirely of known-safe terms like
+ * "Discord"/"Google" — those never need a Wikipedia lookup).
+ */
+function scorePhrase(rawPhrase: string, bonus: number): PhraseCandidate | null {
+  const clean = rawPhrase
+    .trim()
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+  if (clean.length < 2 || clean.length > 80) return null;
+  if (isMostlyStopwords(clean)) return null;
+
+  const words = clean.split(/\s+/);
+  let score = bonus;
+  let hasNonStopword = false;
+  for (const w of words) {
+    if (isKnownTerm(w.toLowerCase())) continue;
+    hasNonStopword = true;
+    score += scoreWord(w);
+  }
+  if (!hasNonStopword) return null;
+
+  return { phrase: clean, score };
+}
+
+/**
+ * Extracts candidate phrases worth searching on Wikipedia — scored by the
+ * same word-level signals as the term glossary, instead of requiring an
+ * exact match against a fixed, manually-maintained category/brand list.
+ * Pure CPU-side regex + scoring — no network or LLM call, so using this
+ * more broadly never adds AI requests.
+ *
+ * Returns up to `maxQueries` phrases (default 3), highest-scored first.
+ */
+export function extractSearchQueries(
+  content: string,
+  options: ExtractSearchQueryOptions = {},
+): string[] {
+  const maxQueries = options.maxQueries ?? 3;
+  const cleaned = cleanContent(content);
+  if (!cleaned) return [];
+
+  const candidates = new Map<string, PhraseCandidate>();
+  const addCandidate = (raw: string, bonus: number): void => {
+    const scored = scorePhrase(raw, bonus);
+    if (!scored) return;
+    const key = scored.phrase.toLowerCase();
+    const existing = candidates.get(key);
+    if (!existing || scored.score > existing.score) {
+      candidates.set(key, scored);
+    }
+  };
+
+  // 1. Quoted phrases — explicit user intent, strongest signal.
+  const quotedPhrases = cleaned.match(/"([^"]{2,80})"|'([^']{2,80})'/g);
   if (quotedPhrases) {
     for (const phrase of quotedPhrases) {
-      const clean = phrase.replace(/["']/g, "").trim();
-      if (clean.length >= 3) queries.add(clean);
+      addCandidate(phrase.replace(/["']/g, ""), 10);
     }
   }
 
-  // 2. "nonton X" pattern — extract the title
-  const nontonMatch = content.match(
-    /\b(nonton|tonton|rekomen|cari|search|google)\s+(.+?)(?:\s+(?:anime|kartun|film|movie|series|serial))?\s*[!?.]*$/i,
-  );
-  if (nontonMatch) {
-    const title = nontonMatch[2].trim();
-    if (title.length >= 2 && title.length <= 80) {
-      queries.add(title);
-    }
+  // 2. Definition/factual intent ("apa itu X", "arti X", "what is X").
+  const definitionMatch = cleaned.match(DEFINITION_INTENT);
+  if (definitionMatch) {
+    addCandidate(definitionMatch[1].replace(/[?!.]+$/, ""), 8);
   }
 
-  // 3. "X anime/film" pattern — title before category
-  const titleBeforeCategory = content.match(
-    /\b(\w[\w\s]{2,40})\s+(?:anime|kartun|film|movie|series|serial)\b/i,
-  );
-  if (titleBeforeCategory) {
-    const title = titleBeforeCategory[1].trim();
-    if (
-      title.length >= 3 &&
-      !/^(yang|yang|sama|dari|untuk|ini|itu|ada)$/i.test(title)
-    ) {
-      queries.add(title);
-    }
+  // 3. "nonton/cari/rekomen/... X" — phrase after an intent verb.
+  const intentMatch = cleaned.match(SEARCH_INTENT_VERBS);
+  if (intentMatch) {
+    addCandidate(intentMatch[1], 6);
   }
 
-  // 4. Standalone proper nouns (2+ words, capitalized) that look like titles
-  const properNouns = content.match(
-    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,4})\b/g,
-  );
-  if (properNouns) {
-    for (const noun of properNouns) {
-      // Skip common non-title proper nouns
-      const skip =
-        /^(Discord|YouTube|Google|Facebook|Instagram|Twitter|Github|ChatGPT|OpenAI|Claude|Telegram|WhatsApp|TikTok|Netflix|Spotify|Steam|Instagram)$/i;
-      if (!skip.test(noun) && noun.length >= 5) {
-        queries.add(noun);
-      }
-    }
+  // 4. Proper-noun phrases anywhere in the message — titles/named entities
+  //    surface here even with no trigger verb.
+  for (const m of cleaned.matchAll(PROPER_NOUN_PHRASE)) {
+    addCandidate(m[1], 0);
   }
 
-  // 5. Terms that suggest research intent
-  const researchTerms = content.match(
-    /\b(apa\s+(?:itu|sih)|what\s+is|siapa\s+itu|who\s+is|arti|meaning|definisi|definition)\s+(.{3,60})/i,
-  );
-  if (researchTerms) {
-    const term = researchTerms[2].trim().replace(/[?!.]+$/, "");
-    if (term.length >= 3) queries.add(term);
-  }
-
-  return Array.from(queries).slice(0, 3);
+  return Array.from(candidates.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxQueries)
+    .map((c) => c.phrase);
 }
 
 /**
