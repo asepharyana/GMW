@@ -1,6 +1,6 @@
 # Spec: Receive Others' Screen-Share/Camera Video Under DAVE — Build a DAVE-capable Stream-Watch Connection
 
-Status: **P1–P3 DONE (implemented + deployed); P4 in-progress — DAVE Ready + MLS handshake CONFIRMED live (15:51), only video-burst→mp4 remains**
+Status: **P1–P3 DONE + 4th CRITICAL FIX deployed (f1a7b0c2); DAVE Ready + MLS handshake CONFIRMED live; P4 = waiting on active streamer to confirm video-burst→mp4**
 Date: 2026-08-31
 Author: Hermes
 Related: `.hermes/plans/2026-08-31_video-receive-eager-selfbot-connection-spec.md` (superseded by this)
