@@ -271,7 +271,7 @@ function connectWatch(
     handleUdpMessage(watchKey, netAny, uidProps, msg);
   };
 
-  net.on("stateChange", (newState, oldState) => {
+  net.on("stateChange", (oldState, newState) => {
     const s = newState as { code?: number };
     const code = s?.code;
     const oldCode = (oldState as { code?: number })?.code;
