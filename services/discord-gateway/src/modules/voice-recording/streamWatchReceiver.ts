@@ -247,7 +247,7 @@ function connectWatch(
       token,
       channelId: daveChannelId,
     },
-    { daveEncryption: true },
+    { daveEncryption: true, debug: true },
   );
 
   const uidProps = uid;
@@ -293,6 +293,9 @@ function connectWatch(
       "watch Networking error",
     );
     closeWatchByKey(watchKey);
+  });
+  net.on("debug", (msg) => {
+    logger.info({ userId: uid, msg }, "watch-djs-debug");
   });
   net.on("close", () => {
     closeWatchByKey(watchKey);
