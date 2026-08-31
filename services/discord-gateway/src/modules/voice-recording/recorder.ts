@@ -20,11 +20,7 @@ import {
 import { createSpeakingHandler } from "./recorder/speakingHandler.js";
 import { hookScreenShareAudio } from "./screenShareAudio.js";
 import { hookVideoReceiver } from "./videoReceiver.js";
-import {
-  ensureSelfbotVoice,
-  trackChannel,
-  untrackChannel,
-} from "./videoRecorder.js";
+import { trackChannel, untrackChannel } from "./videoRecorder.js";
 
 const logger = createChildLogger("recorder");
 
@@ -115,13 +111,6 @@ export async function startRecording(
   client: Client,
   channel: VoiceChannel,
 ): Promise<VoiceConnection | null> {
-  // Establish the SELFbot voice connection FIRST (video receive). It MUST ride
-  // the bot's FRESH join so Discord emits VOICE_SERVER_UPDATE and the selfbot
-  // VoiceConnection authenticates. (Placing it after the @discordjs/voice join
-  // is Ready — a lazy re-join — times out and video capture fails.) Best-effort,
-  // fire-and-forget so it never blocks the audio join below.
-  void ensureSelfbotVoice(channel).catch(() => {});
-
   const connection = joinVoiceChannel({
     channelId: channel.id,
     guildId: channel.guild.id,

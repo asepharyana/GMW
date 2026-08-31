@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetVideoRecorderState,
-  destroyGuildSelfbotVoice,
-  ensureSelfbotVoice,
   setVideoRecorderClient,
   setVideoRecordingsDir,
   startVideoRecording,
@@ -10,26 +8,9 @@ import {
   trackChannel,
   untrackChannel,
 } from "../src/modules/voice-recording/videoRecorder.js";
+import * as streamWatch from "../src/modules/voice-recording/streamWatchReceiver.js";
 
-// ─── mock the selfbot VoiceConnection/watch/recorder surface ─────────────
-function makeVoiceManager() {
-  const recorder = {
-    on: vi.fn(),
-    destroy: vi.fn(),
-  };
-  const watchConn = { sendSignalScreenshare: vi.fn(async () => {}) };
-  const voiceConn = {
-    status: 0, // VoiceStatus.CONNECTED
-    disconnect: vi.fn(),
-    receiver: {
-      createVideoStream: vi.fn(() => recorder),
-    },
-    joinStreamConnection: vi.fn(async () => watchConn),
-  };
-  const joinChannel = vi.fn(async () => voiceConn);
-  return { voiceConn, watchConn, recorder, joinChannel };
-}
-
+// ─── mocks ─────────────────────────────────────────────────────────────
 function makeChannel(guildId = "g1", channelId = "c1") {
   return {
     id: channelId,
@@ -40,7 +21,6 @@ function makeChannel(guildId = "g1", channelId = "c1") {
 function makeClient() {
   return {
     user: { id: "bot1" },
-    voice: makeVoiceManager(),
     on: vi.fn(),
   };
 }
@@ -53,109 +33,72 @@ function makeUser() {
 
 beforeEach(() => {
   __resetVideoRecorderState();
+  vi.restoreAllMocks();
   setVideoRecordingsDir("/tmp/gmw-vidrec-test");
 });
 
-describe("videoRecorder", () => {
-  it("registers a single voiceStateUpdate listener on the client", () => {
+describe("videoRecorder (stream-watch orchestration)", () => {
+  it("registers a voiceStateUpdate + raw listener on the client (idempotent)", () => {
     const client = makeClient();
     setVideoRecorderClient(client);
-    setVideoRecorderClient(client); // idempotent
-    expect(client.on).toHaveBeenCalledTimes(1);
+    setVideoRecorderClient(client); // idempotent (videoRecorder + streamWatch)
+    // one raw (streamWatch) + one voiceStateUpdate (videoRecorder)
+    expect(client.on).toHaveBeenCalledTimes(2);
     expect(client.on).toHaveBeenCalledWith(
       "voiceStateUpdate",
       expect.any(Function),
     );
+    expect(client.on).toHaveBeenCalledWith("raw", expect.any(Function));
   });
 
-  it("startVideoRecording does watch handshake + createVideoStream to a .mkv path", async () => {
-    const client = makeClient();
-    const { watchConn } = client.voice;
+  it("startVideoRecording delegates to streamWatchReceiver.startStreamWatch", () => {
+    const spy = vi.spyOn(streamWatch, "startStreamWatch").mockImplementation(() => {});
+    const ch = makeChannel();
+    startVideoRecording(ch, makeUser());
+    expect(spy).toHaveBeenCalledWith(ch, expect.any(String));
+  });
+
+  it("refuses to record the bot's own video", () => {
+    setVideoRecorderClient(makeClient());
+    const spy = vi.spyOn(streamWatch, "startStreamWatch").mockImplementation(() => {});
+    startVideoRecording(makeChannel(), "bot1");
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("stopVideoRecording calls streamWatchReceiver.stopStreamWatch", () => {
+    const spy = vi.spyOn(streamWatch, "stopStreamWatch").mockImplementation(() => {});
+    const u = makeUser();
+    stopVideoRecording("g1", u);
+    expect(spy).toHaveBeenCalledWith("g1", u);
+  });
+
+  it("untrackChannel tears down all stream watches for the guild", () => {
+    const spy = vi.spyOn(streamWatch, "stopAllStreamWatches").mockImplementation(() => {});
+    untrackChannel("g1");
+    expect(spy).toHaveBeenCalledWith("g1");
+  });
+
+  it("the voiceStateUpdate handler starts a watch when a member starts streaming", () => {
+    const client = makeClient() as any;
     setVideoRecorderClient(client);
     trackChannel("g1", makeChannel());
-
-    const handle = await startVideoRecording(makeChannel(), makeUser());
-
-    expect(handle).not.toBeNull();
-    expect(handle?.path).toMatch(/video-c1-\d+\.mkv$/);
-    expect(client.voice.voiceConn.joinStreamConnection).toHaveBeenCalled();
-    expect(watchConn.sendSignalScreenshare).toHaveBeenCalled();
-    expect(
-      client.voice.voiceConn.receiver.createVideoStream,
-    ).toHaveBeenCalledWith(expect.any(String), expect.stringMatching(/\.mkv$/));
+    const startSpy = vi.spyOn(streamWatch, "startStreamWatch").mockImplementation(() => {});
+    const listener = client.on.mock.calls.find(
+      (c: unknown[]) => c[0] === "voiceStateUpdate",
+    )?.[1];
+    listener(null, { id: "u1", guild: { id: "g1" }, channelId: "c1", streaming: true });
+    expect(startSpy).toHaveBeenCalled();
   });
 
-  it("refuses to record the bot's own video", async () => {
-    const client = makeClient();
+  it("the voiceStateUpdate handler stops a watch when a member stops streaming", () => {
+    const client = makeClient() as any;
     setVideoRecorderClient(client);
-    const handle = await startVideoRecording(makeChannel(), "bot1");
-    expect(handle).toBeNull();
-    expect(client.voice.voiceConn.joinStreamConnection).not.toHaveBeenCalled();
-  });
-
-  it("is idempotent for the same guild:user (no duplicate recorder)", async () => {
-    const client = makeClient();
-    setVideoRecorderClient(client);
-    const ch = makeChannel();
-    const u = makeUser();
-    await startVideoRecording(ch, u);
-    await startVideoRecording(ch, u);
-    expect(
-      client.voice.voiceConn.receiver.createVideoStream,
-    ).toHaveBeenCalledTimes(1);
-  });
-
-  it("stopVideoRecording destroys the recorder", async () => {
-    const client = makeClient();
-    setVideoRecorderClient(client);
-    const ch = makeChannel();
-    const u = makeUser();
-    await startVideoRecording(ch, u);
-    stopVideoRecording("g1", u);
-    expect(client.voice.recorder.destroy).toHaveBeenCalled();
-  });
-
-  it("untrackChannel tears down active video recorders for the guild", async () => {
-    const client = makeClient();
-    setVideoRecorderClient(client);
-    const ch = makeChannel();
-    const u = makeUser();
-    await startVideoRecording(ch, u);
-    untrackChannel("g1");
-    expect(client.voice.recorder.destroy).toHaveBeenCalled();
-  });
-
-  it("ensureSelfbotVoice establishes and caches the selfbot connection (join once)", async () => {
-    const client = makeClient();
-    setVideoRecorderClient(client);
-    const ch = makeChannel();
-    const r1 = await ensureSelfbotVoice(ch);
-    expect(r1?.status).toBe(0);
-    expect(client.voice.joinChannel).toHaveBeenCalledTimes(1);
-    // Second call reuses the cached CONNECTED connection — no re-join.
-    const r2 = await ensureSelfbotVoice(makeChannel());
-    expect(client.voice.joinChannel).toHaveBeenCalledTimes(1);
-    expect(r2?.status).toBe(0);
-  });
-
-  it("untrackChannel destroys the cached selfbot voice connection", async () => {
-    const client = makeClient();
-    setVideoRecorderClient(client);
-    await ensureSelfbotVoice(makeChannel("g1", "c1"));
-    const other = makeClient();
-    setVideoRecorderClient(other);
-    await ensureSelfbotVoice(makeChannel("g2", "c2"));
-    untrackChannel("g1");
-    expect(client.voice.voiceConn.disconnect).toHaveBeenCalled();
-    // g2 connection untouched by g1 teardown
-    expect(other.voice.voiceConn.disconnect).not.toHaveBeenCalled();
-  });
-
-  it("destroyGuildSelfbotVoice disconnects the selfbot connection", async () => {
-    const client = makeClient();
-    setVideoRecorderClient(client);
-    await ensureSelfbotVoice(makeChannel());
-    destroyGuildSelfbotVoice("g1");
-    expect(client.voice.voiceConn.disconnect).toHaveBeenCalled();
+    trackChannel("g1", makeChannel());
+    const stopSpy = vi.spyOn(streamWatch, "stopStreamWatch").mockImplementation(() => {});
+    const listener = client.on.mock.calls.find(
+      (c: unknown[]) => c[0] === "voiceStateUpdate",
+    )?.[1];
+    listener(null, { id: "u1", guild: { id: "g1" }, channelId: "c1", streaming: false });
+    expect(stopSpy).toHaveBeenCalledWith("g1", "u1");
   });
 });
