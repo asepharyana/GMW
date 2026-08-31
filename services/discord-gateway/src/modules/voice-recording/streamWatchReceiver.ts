@@ -476,9 +476,12 @@ function handleUdpMessage(
   watch._diag = stat;
   const diagCount = stat.video;
   const dueAt = watch._diagNext ?? 0;
-  if (diagCount <= 3 || now >= dueAt) {
+  if (diagCount === 1 || now >= dueAt) {
     watch._diagNext = now + 20_000;
     const pts = [...stat.pts].join(",");
+    const ssrc = msg.readUInt32BE(8);
+    const first = msg[0];
+    const flags = msg[1];
     logger.info(
       {
         userId: uid,
@@ -488,9 +491,13 @@ function handleUdpMessage(
         haveKey,
         daveAttached: !!dave?.session,
         daveReady,
-        watchesSize: watches.size,
+        ssrc,
+        firstByte: first,
+        flagsByte: flags,
+        seq: msg.readUInt16BE(2),
+        hex: msg.subarray(0, 32).toString("hex"),
       },
-      `VIDEO-PKT diag video=${stat.video} maxLen=${stat.maxLen} pts=[${pts}] haveKey=${haveKey} dave=${!!dave?.session} ready=${daveReady}`,
+      `VIDEO-PKT diag video=${stat.video} maxLen=${stat.maxLen} pts=[${pts}] haveKey=${haveKey} dave=${!!dave?.session} ready=${daveReady} ssrc=${ssrc} first=${first} flags=${flags} hex=${msg.subarray(0, 32).toString("hex")}`,
     );
   }
   const decrypted = decryptVideoPacket(
