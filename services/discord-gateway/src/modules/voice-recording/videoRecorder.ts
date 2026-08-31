@@ -155,7 +155,7 @@ export function startVideoRecording(
   try {
     const selfId = _client?.user?.id;
     if (selfId && userId === selfId) return;
-    startStreamWatch(channel, userId);
+    void startStreamWatch(channel, userId);
   } catch (err) {
     logger.warn(
       {

@@ -159,13 +159,24 @@ function handleRaw(packet: unknown): void {
  * waits for STREAM_CREATE / STREAM_SERVER_UPDATE (handled by handleRaw) to
  * actually open the DAVE connection. Best-effort.
  */
-export function startStreamWatch(channel: VoiceChannel, userId: string): void {
+export async function startStreamWatch(
+  channel: VoiceChannel,
+  userId: string,
+): Promise<void> {
   if (!_client) {
     logger.warn("startStreamWatch: no client set");
     return;
   }
   const watchKey = `${channel.guild.id}:${userId}`;
   if (watches.has(watchKey)) return; // already watching
+  // Re-assert the bot is server-undeafened + unmuted BEFORE requesting video.
+  // A server-deafened bot is NOT sent the streamer's audiovisual RTP by
+  // Discord, so no video would arrive even though the DAVE watch reaches
+  // Ready. Server-deaf can silently revert on reconnect/restart, so this is
+  // re-invoked on every watch attempt. Dynamic import avoids a static module
+  // cycle (recorder ⇄ videoRecorder ⇄ streamWatchReceiver).
+  const { forceSelfServerUnmuteUndeafen } = await import("./recorder.js");
+  void forceSelfServerUnmuteUndeafen(_client, channel.guild);
   const sk = streamKeyFor(channel.id, channel.guild.id, userId);
   logger.info(
     { userId, guildId: channel.guild.id, channelId: channel.id, streamKey: sk },

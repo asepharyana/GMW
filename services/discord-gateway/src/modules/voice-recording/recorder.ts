@@ -45,8 +45,14 @@ export function setEventBroadcaster(broadcaster: EventBroadcaster | undefined) {
  * Requires the `MUTE_MEMBERS` + `DEAFEN_MEMBERS` permissions on the bot
  * (user has granted them). Failures are logged, never fatal — an unmute
  * failure must not break the voice join/recording.
+ *
+ * Exported so the video-receive path (videoRecorder.ts → streamWatch) can
+ * re-assert it right before requesting STREAM_WATCH — a server-deafened bot
+ * is NOT sent the streamer's audiovisual RTP, which is why no video arrives
+ * even when the DAVE watch reaches Ready. Server-deaf can silently revert on
+ * reconnect/restart, so this is re-invoked on every video watch attempt.
  */
-async function forceSelfServerUnmuteUndeafen(
+export async function forceSelfServerUnmuteUndeafen(
   client: Client,
   guild: Guild,
 ): Promise<void> {
@@ -54,7 +60,15 @@ async function forceSelfServerUnmuteUndeafen(
     const selfId = client.user?.id;
     if (!selfId) return;
     await guild.members.edit(selfId, { mute: false, deaf: false });
-    logger.info({ guildId: guild.id }, "Forced bot server unmute + undeafen");
+    // Verify the PATCH actually landed — read back the live member voice state.
+    const fresh = guild.members.cache.get(selfId);
+    const stillDeaf = fresh?.voice?.deaf ?? false;
+    logger.info(
+      { guildId: guild.id, stillDeaf },
+      stillDeaf
+        ? "Forced bot server unmute + undeafen (but guild reports still deaf — will retry on next video)"
+        : "Forced bot server unmute + undeafen",
+    );
   } catch (err) {
     logger.warn(
       {
@@ -225,6 +239,9 @@ export async function startRecording(
         ),
       ]);
       // Reconnected successfully
+      // Server-deaf can silently revert across a reconnect — re-assert the bot
+      // is undeafened + unmuted so video receive keeps working.
+      void forceSelfServerUnmuteUndeafen(client, channel.guild);
     } catch {
       logger.error("Could not reconnect. Destroying connection");
       connection.destroy();
