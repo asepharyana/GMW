@@ -22,6 +22,8 @@
  *
  * All failures are best-effort and NEVER break the gateway's audio recording.
  */
+
+import crypto from "node:crypto";
 import {
   createWriteStream,
   promises as fsPromises,
@@ -36,6 +38,13 @@ import { createChildLogger } from "@/shared/logger/index";
 import { H264Depacketizer, muxToMp4 } from "./videoReceiver.js";
 
 const logger = createChildLogger("stream-watch");
+
+// Faithful ports of @discordjs/voice receive constants (dist/index.mjs).
+const AUTH_TAG_LENGTH = 16;
+const UNPADDED_NONCE_LENGTH = 4;
+const HEADER_EXTENSION_BYTE = Buffer.from([190, 222]); // 0xBE 0xDE
+/** Opus RTP payload type (120). Video arrives on non-opus payload types. */
+const RTP_OPUS_PAYLOAD_TYPE = 120;
 
 /** A watched user's live DAVE stream connection + file state. */
 interface WatchState {
@@ -218,6 +227,12 @@ function connectWatch(
         off: (e: string, cb: (m: Buffer) => void) => void;
       };
       dave?: { session?: Davey.DAVESession };
+      connectionData?: {
+        encryptionMode?: string;
+        nonceBuffer?: Buffer;
+        secretKey?: Buffer | Uint8Array;
+        dave?: { session?: Davey.DAVESession };
+      };
     };
   };
 
@@ -266,33 +281,138 @@ function connectWatch(
   });
 }
 
+/**
+ * Faithful port of @discordjs/voice `VoiceReceiver.decrypt` (audio path), but
+ * applied to a VIDEO packet. Strips the RTP header (12 + CSRC/extension), then
+ * legacy-AES-decrypts the wrapped payload, returning the DAVE-encrypted payload
+ * (still E2EE — Davey removes the NEXT layer).
+ */
+function legacyDecryptLayer(
+  buffer: Buffer,
+  mode: string,
+  nonce2: Buffer,
+  secretKey: Buffer | Uint8Array,
+): Buffer {
+  buffer.copy(nonce2, 0, buffer.length - UNPADDED_NONCE_LENGTH);
+  let headerSize = 12;
+  const first = buffer.readUint8();
+  if ((first >> 4) & 1) headerSize += 4;
+  const header = buffer.subarray(0, headerSize);
+  const encrypted = buffer.subarray(
+    headerSize,
+    buffer.length - AUTH_TAG_LENGTH - UNPADDED_NONCE_LENGTH,
+  );
+  const authTag = buffer.subarray(
+    buffer.length - AUTH_TAG_LENGTH - UNPADDED_NONCE_LENGTH,
+    buffer.length - UNPADDED_NONCE_LENGTH,
+  );
+  switch (mode) {
+    case "aead_aes256_gcm_rtpsize": {
+      const decipheriv = crypto.createDecipheriv(
+        "aes-256-gcm",
+        secretKey,
+        nonce2,
+      );
+      decipheriv.setAAD(header);
+      decipheriv.setAuthTag(authTag);
+      return Buffer.concat([decipheriv.update(encrypted), decipheriv.final()]);
+    }
+    case "aead_xchacha20_poly1305_rtpsize": {
+      // Not statically importable (sodium-wrappers is an optional peer); the
+      // gateway negotiates aead_aes256_gcm_rtpsize in practice. If a server
+      // ever selects xchacha20 we log once and skip the burst rather than
+      // mis-decrypt.
+      return Buffer.alloc(0);
+    }
+    default: {
+      logger.warn(
+        { mode },
+        "Unsupported video decryption mode (skipping burst)",
+      );
+      return Buffer.alloc(0);
+    }
+  }
+}
+
+/**
+ * Replicates @discordjs/voice `VoiceReceiver.parsePacket` (audio), parameterized
+ * for VIDEO: strips header + padding + RTP header-extension, decrypts the legacy
+ * AES layer, then DAVE-decrypts with `MediaType.VIDEO` (audio's wrapper hardcodes
+ * AUDIO). Returns the clear H264 RTP payload, or null on any failure.
+ */
+function decryptVideoPacket(
+  buffer: Buffer,
+  connectionData: {
+    encryptionMode?: string;
+    nonceBuffer?: Buffer;
+    secretKey?: Buffer | Uint8Array;
+    dave?: { session?: Davey.DAVESession };
+  },
+  userId: string,
+): Buffer | null {
+  const { encryptionMode, nonceBuffer, secretKey, dave } = connectionData;
+  if (!encryptionMode || !nonceBuffer || !secretKey || !dave?.session)
+    return null;
+  if (buffer.length < AUTH_TAG_LENGTH + UNPADDED_NONCE_LENGTH + 12) return null;
+
+  let packet: Buffer;
+  try {
+    packet = legacyDecryptLayer(buffer, encryptionMode, nonceBuffer, secretKey);
+  } catch {
+    return null; // per-packet legacy decrypt failures are transient
+  }
+  if (!packet || packet.length === 0) return null;
+
+  // RTP padding (P bit) — strip trailing padding bytes (see parsePacket).
+  const hasPadding = buffer[0] !== 0 && Boolean(buffer[0] & 32);
+  if (hasPadding) {
+    const paddingAmount = packet[packet.length - 1];
+    if (paddingAmount < packet.length) {
+      packet = packet.subarray(0, packet.length - paddingAmount);
+    }
+  }
+  // RTP header extension (0xBE 0xDE at bytes 12-13) — skip extension words.
+  if (buffer.subarray(12, 14).compare(HEADER_EXTENSION_BYTE) === 0) {
+    const headerExtensionLength = buffer.subarray(14).readUInt16BE();
+    packet = packet.subarray(4 * headerExtensionLength);
+  }
+
+  // DAVE layer — decrypt as VIDEO (audio wrapper hardcodes MediaType.AUDIO).
+  try {
+    const decrypted = dave.session.decrypt(userId, MediaType.VIDEO, packet);
+    return decrypted && decrypted.length > 0 ? decrypted : null;
+  } catch {
+    return null; // per-packet DAVE decrypt failures are transient (recovery on next keyframe)
+  }
+}
+
 function handleUdpMessage(
   watchKey: string,
-  net: { state: { dave?: { session?: Davey.DAVESession } } },
+  net: {
+    state: {
+      connectionData?: {
+        encryptionMode?: string;
+        nonceBuffer?: Buffer;
+        secretKey?: Buffer | Uint8Array;
+        dave?: { session?: Davey.DAVESession };
+      };
+    };
+  },
   uid: string,
   msg: Buffer,
 ): void {
   if (msg.length <= 12) return;
   const payloadType = msg[1] & 127;
   // Opus = 120. Anything else on the video/watch socket is video (H264 etc.).
-  // (We only watch a stream, so deliver everything non-opus to the video path.)
-  if (payloadType === 120) return;
+  if (payloadType === RTP_OPUS_PAYLOAD_TYPE) return;
   const watch = watches.get(watchKey);
   if (!watch) return;
-  // RTP header (12 bytes) + optional CSRC/extensions. For DAVE video we pass the
-  // RTP payload (after the header) to the session, matching audio's parsePacket.
-  // Minimal header parse: assume 12-byte header (Discord video RTP uses no header
-  // extension for this stream, matching the Discord-RE reference SDP).
-  const rtpPayload = msg.subarray(12);
-  const dave = net.state.dave;
-  if (!dave?.session) return;
-  let decrypted: Buffer;
-  try {
-    decrypted = dave.session.decrypt(uid, MediaType.VIDEO, rtpPayload);
-  } catch {
-    return; // per-packet decrypt failures are transient; skip
-  }
-  if (!decrypted || decrypted.length === 0) return;
+  const decrypted = decryptVideoPacket(
+    msg,
+    net.state.connectionData ?? {},
+    uid,
+  );
+  if (!decrypted) return;
 
   if (!watch.out) {
     // First successful decrypt — open output file.
