@@ -224,6 +224,20 @@ function connectWatch(
     "Opening DAVE Networking to watch RTC",
   );
 
+  // CRITICAL: for a STREAM-WATCH RTC the DAVE MLS group is keyed to
+  // `rtc_server_id - 1` (see Discord-RE StreamConnection.daveChannelId =
+  // BigInt(serverId)-1n), NOT the guild voice channel id. Passing the guild
+  // voice channel id as `connectionOptions.channelId` makes the Davey session
+  // derive the wrong MLS group → "WrongGroupId" on proposals → never Ready.
+  // `serverId` stays the rtc_server_id (used in the voice identify server_id).
+  const daveChannelId = (() => {
+    try {
+      return (BigInt(serverId) - 1n).toString();
+    } catch {
+      return channelId; // fallback: non-numeric serverId — use channel id
+    }
+  })();
+
   const net = new Networking(
     {
       endpoint,
@@ -231,7 +245,7 @@ function connectWatch(
       userId: botId,
       sessionId: sessionId ?? "none",
       token,
-      channelId,
+      channelId: daveChannelId,
     },
     { daveEncryption: true },
   );
