@@ -271,9 +271,14 @@ function connectWatch(
     handleUdpMessage(watchKey, netAny, uidProps, msg);
   };
 
-  net.on("stateChange", (newState: unknown) => {
+  net.on("stateChange", (newState, oldState) => {
     const s = newState as { code?: number };
     const code = s?.code;
+    const oldCode = (oldState as { code?: number })?.code;
+    logger.info(
+      { userId: uid, code, oldCode, hasUdp: !!netAny.state.udp },
+      `watch-state ${oldCode}->${code}`,
+    );
     if (code === 4 /* Ready */) {
       const udp = netAny.state.udp;
       if (udp) {
