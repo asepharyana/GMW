@@ -385,12 +385,12 @@ function decryptVideoPacket(
     encryptionMode?: string;
     nonceBuffer?: Buffer;
     secretKey?: Buffer | Uint8Array;
-    dave?: { session?: Davey.DAVESession };
   },
+  daveSession: { session?: Davey.DAVESession } | undefined,
   userId: string,
 ): Buffer | null {
-  const { encryptionMode, nonceBuffer, secretKey, dave } = connectionData;
-  if (!encryptionMode || !nonceBuffer || !secretKey || !dave?.session)
+  const { encryptionMode, nonceBuffer, secretKey } = connectionData;
+  if (!encryptionMode || !nonceBuffer || !secretKey || !daveSession?.session)
     return null;
   if (buffer.length < AUTH_TAG_LENGTH + UNPADDED_NONCE_LENGTH + 12) return null;
 
@@ -418,7 +418,11 @@ function decryptVideoPacket(
 
   // DAVE layer — decrypt as VIDEO (audio wrapper hardcodes MediaType.AUDIO).
   try {
-    const decrypted = dave.session.decrypt(userId, MediaType.VIDEO, packet);
+    const decrypted = daveSession.session.decrypt(
+      userId,
+      MediaType.VIDEO,
+      packet,
+    );
     return decrypted && decrypted.length > 0 ? decrypted : null;
   } catch {
     return null; // per-packet DAVE decrypt failures are transient (recovery on next keyframe)
@@ -433,8 +437,8 @@ function handleUdpMessage(
         encryptionMode?: string;
         nonceBuffer?: Buffer;
         secretKey?: Buffer | Uint8Array;
-        dave?: { session?: Davey.DAVESession };
       };
+      dave?: { session?: Davey.DAVESession };
     };
   },
   uid: string,
@@ -449,6 +453,10 @@ function handleUdpMessage(
   const decrypted = decryptVideoPacket(
     msg,
     net.state.connectionData ?? {},
+    // djs/voice stores the DAVESession at net.state.dave (NOT inside
+    // connectionData) — look it up at the top-level state so DAVE layer
+    // decrypt (MediaType.VIDEO) actually runs.
+    net.state.dave,
     uid,
   );
   if (!decrypted) return;

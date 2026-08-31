@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as streamWatch from "../src/modules/voice-recording/streamWatchReceiver.js";
 import {
   __resetVideoRecorderState,
   setVideoRecorderClient,
@@ -8,7 +9,6 @@ import {
   trackChannel,
   untrackChannel,
 } from "../src/modules/voice-recording/videoRecorder.js";
-import * as streamWatch from "../src/modules/voice-recording/streamWatchReceiver.js";
 
 // ─── mocks ─────────────────────────────────────────────────────────────
 function makeChannel(guildId = "g1", channelId = "c1") {
@@ -52,7 +52,9 @@ describe("videoRecorder (stream-watch orchestration)", () => {
   });
 
   it("startVideoRecording delegates to streamWatchReceiver.startStreamWatch", () => {
-    const spy = vi.spyOn(streamWatch, "startStreamWatch").mockImplementation(() => {});
+    const spy = vi
+      .spyOn(streamWatch, "startStreamWatch")
+      .mockImplementation(() => {});
     const ch = makeChannel();
     startVideoRecording(ch, makeUser());
     expect(spy).toHaveBeenCalledWith(ch, expect.any(String));
@@ -60,20 +62,26 @@ describe("videoRecorder (stream-watch orchestration)", () => {
 
   it("refuses to record the bot's own video", () => {
     setVideoRecorderClient(makeClient());
-    const spy = vi.spyOn(streamWatch, "startStreamWatch").mockImplementation(() => {});
+    const spy = vi
+      .spyOn(streamWatch, "startStreamWatch")
+      .mockImplementation(() => {});
     startVideoRecording(makeChannel(), "bot1");
     expect(spy).not.toHaveBeenCalled();
   });
 
   it("stopVideoRecording calls streamWatchReceiver.stopStreamWatch", () => {
-    const spy = vi.spyOn(streamWatch, "stopStreamWatch").mockImplementation(() => {});
+    const spy = vi
+      .spyOn(streamWatch, "stopStreamWatch")
+      .mockImplementation(() => {});
     const u = makeUser();
     stopVideoRecording("g1", u);
     expect(spy).toHaveBeenCalledWith("g1", u);
   });
 
   it("untrackChannel tears down all stream watches for the guild", () => {
-    const spy = vi.spyOn(streamWatch, "stopAllStreamWatches").mockImplementation(() => {});
+    const spy = vi
+      .spyOn(streamWatch, "stopAllStreamWatches")
+      .mockImplementation(() => {});
     untrackChannel("g1");
     expect(spy).toHaveBeenCalledWith("g1");
   });
@@ -82,11 +90,18 @@ describe("videoRecorder (stream-watch orchestration)", () => {
     const client = makeClient() as any;
     setVideoRecorderClient(client);
     trackChannel("g1", makeChannel());
-    const startSpy = vi.spyOn(streamWatch, "startStreamWatch").mockImplementation(() => {});
+    const startSpy = vi
+      .spyOn(streamWatch, "startStreamWatch")
+      .mockImplementation(() => {});
     const listener = client.on.mock.calls.find(
       (c: unknown[]) => c[0] === "voiceStateUpdate",
     )?.[1];
-    listener(null, { id: "u1", guild: { id: "g1" }, channelId: "c1", streaming: true });
+    listener(null, {
+      id: "u1",
+      guild: { id: "g1" },
+      channelId: "c1",
+      streaming: true,
+    });
     expect(startSpy).toHaveBeenCalled();
   });
 
@@ -94,18 +109,27 @@ describe("videoRecorder (stream-watch orchestration)", () => {
     const client = makeClient() as any;
     setVideoRecorderClient(client);
     trackChannel("g1", makeChannel());
-    const stopSpy = vi.spyOn(streamWatch, "stopStreamWatch").mockImplementation(() => {});
+    const stopSpy = vi
+      .spyOn(streamWatch, "stopStreamWatch")
+      .mockImplementation(() => {});
     const listener = client.on.mock.calls.find(
       (c: unknown[]) => c[0] === "voiceStateUpdate",
     )?.[1];
-    listener(null, { id: "u1", guild: { id: "g1" }, channelId: "c1", streaming: false });
+    listener(null, {
+      id: "u1",
+      guild: { id: "g1" },
+      channelId: "c1",
+      streaming: false,
+    });
     expect(stopSpy).toHaveBeenCalledWith("g1", "u1");
   });
 
   it("trackChannel scans pre-existing streamers already in the channel (bot join case)", () => {
     const client = makeClient() as any;
     setVideoRecorderClient(client);
-    const spy = vi.spyOn(streamWatch, "startStreamWatch").mockImplementation(() => {});
+    const spy = vi
+      .spyOn(streamWatch, "startStreamWatch")
+      .mockImplementation(() => {});
     const ch = {
       id: "c1",
       guild: { id: "g1" },
@@ -122,7 +146,9 @@ describe("videoRecorder (stream-watch orchestration)", () => {
   });
 
   it("trackChannel is a no-op when the channel has no members (or none streaming)", () => {
-    const spy = vi.spyOn(streamWatch, "startStreamWatch").mockImplementation(() => {});
+    const spy = vi
+      .spyOn(streamWatch, "startStreamWatch")
+      .mockImplementation(() => {});
     trackChannel("g1", makeChannel()); // no members
     expect(spy).not.toHaveBeenCalled();
   });
