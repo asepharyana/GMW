@@ -78,6 +78,36 @@ export function setVideoRecorderClient(client: Client | undefined) {
 /** Register a channel whose audio recording is active (video should follow). */
 export function trackChannel(guildId: string, channel: VoiceChannel) {
   watchedChannels.set(guildId, channel);
+  // When the bot joins a channel that ALREADY has people streaming (screen
+  // share / camera on BEFORE the bot joined), no voiceStateUpdate with
+  // streaming:true fires for them. Scan every member now and start watching
+  // anyone already streaming, so we don't miss a live stream in progress.
+  scanExistingStreamers(channel);
+}
+
+/**
+ * Scan all members currently in `channel` and start watching anyone whose
+ * voice state has `streaming` set (screen share / camera already on when the
+ * bot joined). Fire-and-forget per member — idempotent (startStreamWatch is
+ * a no-op if a watch already exists for that user).
+ */
+export function scanExistingStreamers(channel: VoiceChannel): void {
+  const members = channel.members;
+  if (!members || members.size === 0) return;
+  let watched = 0;
+  for (const [, member] of members) {
+    const vs = member.voice?.streaming;
+    if (vs && member.id !== _client?.user?.id) {
+      startVideoRecording(channel, member.id);
+      watched++;
+    }
+  }
+  if (watched > 0) {
+    logger.info(
+      { guildId: channel.guild.id, watched },
+      "Scanned pre-existing streamers on join",
+    );
+  }
 }
 
 /** Unregister a channel (voice stopped). Tear down any video watches. */

@@ -101,4 +101,29 @@ describe("videoRecorder (stream-watch orchestration)", () => {
     listener(null, { id: "u1", guild: { id: "g1" }, channelId: "c1", streaming: false });
     expect(stopSpy).toHaveBeenCalledWith("g1", "u1");
   });
+
+  it("trackChannel scans pre-existing streamers already in the channel (bot join case)", () => {
+    const client = makeClient() as any;
+    setVideoRecorderClient(client);
+    const spy = vi.spyOn(streamWatch, "startStreamWatch").mockImplementation(() => {});
+    const ch = {
+      id: "c1",
+      guild: { id: "g1" },
+      members: new Map([
+        ["u1", { id: "u1", voice: { streaming: true } }], // already streaming
+        ["u2", { id: "u2", voice: { streaming: false } }], // not streaming
+        ["bot1", { id: "bot1", voice: { streaming: true } }], // bot itself
+      ]),
+    };
+    trackChannel("g1", ch as any);
+    // only the already-streaming non-bot member gets watched
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(ch, "u1");
+  });
+
+  it("trackChannel is a no-op when the channel has no members (or none streaming)", () => {
+    const spy = vi.spyOn(streamWatch, "startStreamWatch").mockImplementation(() => {});
+    trackChannel("g1", makeChannel()); // no members
+    expect(spy).not.toHaveBeenCalled();
+  });
 });
