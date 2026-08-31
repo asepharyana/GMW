@@ -62,7 +62,7 @@ interface WatchState {
   bytesWritten: number;
   lastPacketAt: number;
   startedAt: number;
-  _diagCount?: number;
+  _diag?: { video: number; maxLen: number; pts: Set<number> };
   _diagNext?: number;
 }
 
@@ -455,32 +455,42 @@ function handleUdpMessage(
   const conn = net.state.connectionData ?? {};
   // Diagnose: is a DAVE session actually attached, and is it ready to decrypt?
   const dave = net.state.dave;
-  const daveReady = Boolean(
-    dave &&
-      (dave as { session?: { ready?: boolean } }).session &&
-      (dave as unknown as { session?: { ready?: boolean } }).session?.ready,
-  );
+  const s = (dave as { session?: { ready?: boolean } } | undefined)?.session;
+  const daveReady = Boolean(s?.ready);
   const haveKey = Boolean(
     conn.encryptionMode && conn.nonceBuffer && conn.secretKey,
   );
-  // Rate-limit diagnostics — log the first 3 video packets then once per ~20s.
+  // Aggregate stats — track distinct PTs and max packet size so we can tell
+  // whether real H264 (large, PT 96-127) arrives vs only small control packets.
   const now = Date.now();
-  const diagCount = watch._diagCount ?? 0;
-  watch._diagCount = diagCount + 1;
+  const stat =
+    watch._diag ??
+    ({ video: 0, maxLen: 0, pts: new Set<number>() } as {
+      video: number;
+      maxLen: number;
+      pts: Set<number>;
+    });
+  stat.video += 1;
+  if (msg.length > stat.maxLen) stat.maxLen = msg.length;
+  stat.pts.add(payloadType);
+  watch._diag = stat;
+  const diagCount = stat.video;
   const dueAt = watch._diagNext ?? 0;
-  if (diagCount < 3 || now >= dueAt) {
+  if (diagCount <= 3 || now >= dueAt) {
     watch._diagNext = now + 20_000;
+    const pts = [...stat.pts].join(",");
     logger.info(
       {
         userId: uid,
-        payloadType,
-        len: msg.length,
+        video: stat.video,
+        maxLen: stat.maxLen,
+        pts,
         haveKey,
         daveAttached: !!dave?.session,
         daveReady,
         watchesSize: watches.size,
       },
-      `VIDEO-PKT diag video=${diagCount} haveKey=${haveKey} dave=${!!dave?.session} ready=${daveReady}`,
+      `VIDEO-PKT diag video=${stat.video} maxLen=${stat.maxLen} pts=[${pts}] haveKey=${haveKey} dave=${!!dave?.session} ready=${daveReady}`,
     );
   }
   const decrypted = decryptVideoPacket(
@@ -492,7 +502,10 @@ function handleUdpMessage(
     net.state.dave,
     uid,
   );
-  if (!decrypted) return;
+  if (!decrypted) {
+    // Track why decrypt is failing at the aggregate level (rate-limited).
+    return;
+  }
 
   if (!watch.out) {
     // First successful decrypt — open output file.
