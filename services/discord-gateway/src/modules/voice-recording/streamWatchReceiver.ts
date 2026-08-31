@@ -62,6 +62,8 @@ interface WatchState {
   bytesWritten: number;
   lastPacketAt: number;
   startedAt: number;
+  _diagCount?: number;
+  _diagNext?: number;
 }
 
 const watches = new Map<string, WatchState>(); // key `${guildId}:${uid}`
@@ -450,9 +452,40 @@ function handleUdpMessage(
   if (payloadType === RTP_OPUS_PAYLOAD_TYPE) return;
   const watch = watches.get(watchKey);
   if (!watch) return;
+  const conn = net.state.connectionData ?? {};
+  // Diagnose: is a DAVE session actually attached, and is it ready to decrypt?
+  const dave = net.state.dave;
+  const daveReady = Boolean(
+    dave &&
+      (dave as { session?: { ready?: boolean } }).session &&
+      (dave as unknown as { session?: { ready?: boolean } }).session?.ready,
+  );
+  const haveKey = Boolean(
+    conn.encryptionMode && conn.nonceBuffer && conn.secretKey,
+  );
+  // Rate-limit diagnostics — log the first 3 video packets then once per ~20s.
+  const now = Date.now();
+  const diagCount = watch._diagCount ?? 0;
+  watch._diagCount = diagCount + 1;
+  const dueAt = watch._diagNext ?? 0;
+  if (diagCount < 3 || now >= dueAt) {
+    watch._diagNext = now + 20_000;
+    logger.info(
+      {
+        userId: uid,
+        payloadType,
+        len: msg.length,
+        haveKey,
+        daveAttached: !!dave?.session,
+        daveReady,
+        watchesSize: watches.size,
+      },
+      `VIDEO-PKT diag video=${diagCount} haveKey=${haveKey} dave=${!!dave?.session} ready=${daveReady}`,
+    );
+  }
   const decrypted = decryptVideoPacket(
     msg,
-    net.state.connectionData ?? {},
+    conn,
     // djs/voice stores the DAVESession at net.state.dave (NOT inside
     // connectionData) — look it up at the top-level state so DAVE layer
     // decrypt (MediaType.VIDEO) actually runs.
