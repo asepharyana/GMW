@@ -30,7 +30,11 @@ import {
   type WriteStream,
 } from "node:fs";
 import path from "node:path";
-import { Networking, type NetworkingState } from "@discordjs/voice";
+import {
+  getVoiceConnection,
+  Networking,
+  type NetworkingState,
+} from "@discordjs/voice";
 import type Davey from "@snazzah/davey";
 import { MediaType } from "@snazzah/davey";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
@@ -193,14 +197,27 @@ function connectWatch(
   const botId = _client?.user?.id;
   if (!botId) return;
 
-  // The bot's ACTIVE voice-session id (from the selfbot client's voice manager —
-  // the same session the guild @discordjs/voice connection rides).
-  const voiceManager = (
-    _client as unknown as {
-      voice?: { connection?: { authentication?: { sessionId?: string } } };
-    }
-  ).voice;
-  const sessionId = voiceManager?.connection?.authentication?.sessionId;
+  // The bot's ACTIVE voice-session id, from the guild @discordjs/voice
+  // connection (the watch RTC identify must carry the SAME session the bot is
+  // joined in with). The gateway's audio connection is the voice session; the
+  // selfbot client's voice manager is NOT established anymore.
+  const guildConn = getVoiceConnection(guildId);
+  const sessionId =
+    (
+      guildConn as unknown as {
+        state?: {
+          networking?: {
+            state?: { connectionOptions?: { sessionId?: string } };
+          };
+          connectionOptions?: { sessionId?: string };
+        };
+      }
+    )?.state?.networking?.state?.connectionOptions?.sessionId ??
+    (
+      guildConn as unknown as {
+        state?: { connectionOptions?: { sessionId?: string } };
+      }
+    )?.state?.connectionOptions?.sessionId;
 
   logger.info(
     { userId: uid, endpoint, serverId, hasSession: !!sessionId },
