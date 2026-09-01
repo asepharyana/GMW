@@ -36,6 +36,7 @@ import { registerPresenceCapture } from "../modules/user-presence/index.js";
 import { VoicePcmWsClient } from "../modules/voice-pcm-ws/index.js";
 import { startMuxerWorker } from "../modules/voice-recording/muxer.js";
 import {
+  registerSelfVoiceStateGuard,
   setPcmWsClient,
   setEventBroadcaster as setRecorderEventBroadcaster,
 } from "../modules/voice-recording/recorder.js";
@@ -297,6 +298,12 @@ export async function initializeDiscordGateway() {
           "Voice auto-reconnect on startup failed",
         ),
       );
+
+    // Attach the immediate self-undeafen/self-unmute guard so the bot reacts
+    // INSTANTLY when an admin server-mutes or server-deafens it (previously
+    // only re-asserted on video-watch/reconnect, leaving the bot muted for
+    // minutes).
+    registerSelfVoiceStateGuard(client);
 
     // Start retention cleanup scheduler
     startRetentionCleanup();

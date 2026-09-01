@@ -7,7 +7,12 @@ import {
   type VoiceConnection,
   VoiceConnectionStatus,
 } from "@discordjs/voice";
-import type { Client, Guild, VoiceChannel } from "discord.js-selfbot-v13";
+import type {
+  Client,
+  Guild,
+  VoiceChannel,
+  VoiceState,
+} from "discord.js-selfbot-v13";
 import { createChildLogger } from "@/shared/logger/index";
 import { retryWithBackoff } from "@/shared/utils/index";
 import { config } from "../../shared/config/config.js";
@@ -78,6 +83,62 @@ export async function forceSelfServerUnmuteUndeafen(
       "Could not force server unmute/undeafen (permissions not granted?)",
     );
   }
+}
+
+/**
+ * Attach an IMMEDIATE self-undeafen / self-unmute guard on `voiceStateUpdate`.
+ *
+ * Previous behaviour only re-asserted unmute/undeafen on video-watch attempts
+ * and after voice reconnects — so when an admin server-muted or
+ * server-deafened the bot the bot stayed muted/deafened until the *next* video
+ * watch or reconnect cycle (could be minutes or never if no streamer came on).
+ *
+ * This listener fires on EVERY guild voice-state change. When it detects that
+ * the bot's OWN voice state transitioned to serverDeaf||serverMute === true,
+ * it immediately re-issues `mute:false, deaf:false` so the bot is unmuted/
+ * undeafened instantly (well within Discord's rate limit window for the bot's
+ * own member). Idempotent and best-effort — failures are logged, never fatal.
+ *
+ * Idempotent: safe to call multiple times; the listener is attached once.
+ */
+let _selfVoiceGuardAttached = false;
+export function registerSelfVoiceStateGuard(client: Client): void {
+  if (_selfVoiceGuardAttached) return;
+  _selfVoiceGuardAttached = true;
+  client.on(
+    "voiceStateUpdate",
+    (oldState: VoiceState, newState: VoiceState) => {
+      void handleSelfVoiceStateUpdate(client, oldState, newState);
+    },
+  );
+}
+
+async function handleSelfVoiceStateUpdate(
+  client: Client,
+  oldState: VoiceState,
+  newState: VoiceState,
+): Promise<void> {
+  // Only react to the bot's own voice state transitions.
+  const selfId = client.user?.id;
+  if (!selfId || newState.id !== selfId) return;
+
+  const justServerMuted = !oldState.serverMute && newState.serverMute === true;
+  const justServerDeafed = !oldState.serverDeaf && newState.serverDeaf === true;
+  if (!justServerMuted && !justServerDeafed) return;
+
+  const guild = newState.guild;
+  if (!guild) return;
+
+  logger.info(
+    {
+      guildId: guild.id,
+      serverMuted: justServerMuted,
+      serverDeafed: justServerDeafed,
+    },
+    "Bot was server-muted/deafened — immediately self-undeafening + unmuting",
+  );
+  // Fire-and-forget the corrective edit; forceSelfServerUnmuteUndeafen logs.
+  void forceSelfServerUnmuteUndeafen(client, guild);
 }
 
 let _pcmWsClient: VoicePcmWsClient | undefined;
