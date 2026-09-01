@@ -152,7 +152,7 @@ export const tools: ToolDef[] = [
     function: {
       name: "get_user_reputation",
       description:
-        "Ambil skor trust, jumlah infraction, dan streak pesan bersih seorang user dari user_reputations. Untuk 'berapa trust score si A?' / riwayat pelanggaran. Butuh user_id.",
+        "Cek status skor reputasi per-user. CATATAN: fitur trust score per-user telah dihapus dari sistem — tool ini menjawab 'unavailable' dan menyarankan rasio flag vs total sebagai pengganti.",
       parameters: {
         type: "object",
         properties: {

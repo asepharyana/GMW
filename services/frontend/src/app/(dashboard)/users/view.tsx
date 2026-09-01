@@ -38,20 +38,18 @@ import type {
 } from "@/lib/types";
 import { useWebSocket } from "@/lib/ws/context";
 
-function trustTone(score?: number | null) {
-  if (score == null) return "neutral";
-  if (score >= 70) return "signal";
-  if (score >= 45) return "amber";
-  return "vermilion";
+function trustTone(flagPct: number) {
+  if (flagPct >= 20) return "vermilion";
+  if (flagPct >= 8) return "amber";
+  if (flagPct >= 3) return "signal";
+  return "neutral";
 }
 
-function trustLabel(score?: number | null) {
-  if (score == null) return "UNKNOWN";
-  if (score >= 80) return "TRUSTED";
-  if (score >= 60) return "LOW RISK";
-  if (score >= 45) return "MONITOR";
-  if (score >= 30) return "WATCH";
-  return "HIGH RISK";
+function riskLabel(flagPct: number) {
+  if (flagPct >= 20) return "HIGH RISK";
+  if (flagPct >= 8) return "WATCH";
+  if (flagPct >= 3) return "MONITOR";
+  return "LOW RISK";
 }
 
 export function UsersView({ initialUsers }: { initialUsers?: PaginatedUsers }) {
@@ -191,7 +189,7 @@ function UserRow({
     user.total_messages > 0
       ? (user.flagged_count / user.total_messages) * 100
       : 0;
-  const tone = trustTone(user.trust_score);
+  const tone = trustTone(flagPct);
   return (
     <button
       type="button"
@@ -208,11 +206,9 @@ function UserRow({
           <span className="truncate text-xs font-semibold text-ink">
             {user.username ?? "unknown"}
           </span>
-          {user.trust_score != null && (
-            <Badge tone={tone} className="font-mono text-[9px]">
-              {Math.round(user.trust_score)} TRUST
-            </Badge>
-          )}
+          <Badge tone={tone} className="font-mono text-[9px]">
+            {riskLabel(flagPct)}
+          </Badge>
         </div>
         <div className="mt-0.5 flex items-center gap-2 font-mono text-[9px] text-ink-faint">
           <span className="truncate">#{user.user_id.slice(0, 10)}</span>
@@ -223,6 +219,11 @@ function UserRow({
           {user.flagged_count > 0 && (
             <span className="text-vermilion">
               {formatNumber(user.flagged_count)} flagged
+            </span>
+          )}
+          {!!user.warn_count && user.warn_count > 0 && (
+            <span className="text-amber">
+              {formatNumber(user.warn_count)} warn
             </span>
           )}
         </div>
@@ -259,32 +260,29 @@ function MemberDetail({ user }: { user: DashboardUserDetail }) {
             #{user.user_id}
           </div>
         </div>
-        <Badge
-          tone={trustTone(user.trust_score)}
-          className="font-mono text-[9px]"
-        >
-          {trustLabel(user.trust_score)}
+        <Badge tone={trustTone(flagPct)} className="font-mono text-[9px]">
+          {riskLabel(flagPct)}
         </Badge>
       </div>
 
-      {/* Trust Metrics */}
+      {/* Risk & Activity Metrics */}
       <div className="grid grid-cols-3 gap-2">
         <div className="hud-card px-2.5 py-2 text-center">
-          <div className="eyebrow">Trust</div>
-          <div className="font-mono text-sm font-semibold text-signal">
-            {user.trust_score ?? "—"}
+          <div className="eyebrow">Messages</div>
+          <div className="font-mono text-sm font-semibold text-ink">
+            {formatNumber(user.total_messages)}
           </div>
         </div>
         <div className="hud-card px-2.5 py-2 text-center">
-          <div className="eyebrow">Clean Streak</div>
-          <div className="font-mono text-sm font-semibold text-success">
-            {user.clean_message_streak ?? 0}
-          </div>
-        </div>
-        <div className="hud-card px-2.5 py-2 text-center">
-          <div className="eyebrow">Infractions</div>
+          <div className="eyebrow">Flag %</div>
           <div className="font-mono text-sm font-semibold text-vermilion">
-            {user.total_infractions ?? 0}
+            {flagPct.toFixed(1)}%
+          </div>
+        </div>
+        <div className="hud-card px-2.5 py-2 text-center">
+          <div className="eyebrow">Clean %</div>
+          <div className="font-mono text-sm font-semibold text-success">
+            {cleanPct.toFixed(1)}%
           </div>
         </div>
       </div>
@@ -304,6 +302,16 @@ function MemberDetail({ user }: { user: DashboardUserDetail }) {
             pct: flagPct,
             tone: "bg-vermilion",
           },
+          ...(user.warn_count
+            ? [
+                {
+                  label: "Warned",
+                  count: user.warn_count,
+                  pct: (user.warn_count / user.total_messages) * 100,
+                  tone: "bg-amber",
+                },
+              ]
+            : []),
         ].map((row) => (
           <div key={row.label} className="flex items-center gap-2 text-[10px]">
             <span className="w-14 shrink-0 font-mono text-ink-muted">

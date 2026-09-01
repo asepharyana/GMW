@@ -5,7 +5,6 @@ import {
   pgChannelCulturesTable,
   pgMessagesTable,
   pgUserProfilesTable,
-  pgUserReputationsTable,
   pgVoiceRecordingsTable,
 } from "../../shared/index.js";
 import type { ListUsersQuery } from "./dashboard.service.js";
@@ -154,10 +153,6 @@ export class DashboardRepository {
         m.username,
         m.avatar_url,
         p.profile_summary,
-        r.trust_score,
-        r.clean_message_streak,
-        r.total_infractions,
-        r.last_infraction_at,
         m.total_messages,
         m.flagged_count,
         m.clean_count,
@@ -177,7 +172,6 @@ export class DashboardRepository {
         GROUP BY user_id, username, avatar_url
       ) m
       LEFT JOIN ${pgUserProfilesTable} p ON p.user_id = m.user_id
-      LEFT JOIN ${pgUserReputationsTable} r ON r.user_id = m.user_id
       ${whereClause}
       ORDER BY m.last_message_at DESC NULLS LAST
       LIMIT ${limit + 1}
@@ -190,16 +184,6 @@ export class DashboardRepository {
         username: r.username as string | null,
         avatar_url: r.avatar_url as string | null,
         profile_summary: r.profile_summary as string | null,
-        trust_score: r.trust_score != null ? Number(r.trust_score) : null,
-        clean_message_streak:
-          r.clean_message_streak != null
-            ? Number(r.clean_message_streak)
-            : null,
-        total_infractions:
-          r.total_infractions != null ? Number(r.total_infractions) : null,
-        last_infraction_at: r.last_infraction_at
-          ? Number(r.last_infraction_at)
-          : null,
         total_messages: Number(r.total_messages),
         flagged_count: Number(r.flagged_count),
         clean_count: Number(r.clean_count),
@@ -453,11 +437,7 @@ export class DashboardRepository {
         m.clean_count,
         m.warn_count,
         p.profile_summary,
-        p.last_analyzed_at,
-        r.trust_score,
-        r.clean_message_streak,
-        r.total_infractions,
-        r.last_infraction_at
+        p.last_analyzed_at
       FROM (
         SELECT
           user_id,
@@ -472,7 +452,6 @@ export class DashboardRepository {
         GROUP BY user_id, username, avatar_url
       ) m
       LEFT JOIN ${pgUserProfilesTable} p ON p.user_id = m.user_id
-      LEFT JOIN ${pgUserReputationsTable} r ON r.user_id = m.user_id
     `);
 
     const row = userResult.rows[0] as Record<string, unknown> | undefined;
@@ -499,16 +478,6 @@ export class DashboardRepository {
       profile_summary: row.profile_summary as string | null,
       last_analyzed_at: row.last_analyzed_at
         ? Number(row.last_analyzed_at)
-        : null,
-      trust_score: row.trust_score != null ? Number(row.trust_score) : null,
-      clean_message_streak:
-        row.clean_message_streak != null
-          ? Number(row.clean_message_streak)
-          : null,
-      total_infractions:
-        row.total_infractions != null ? Number(row.total_infractions) : null,
-      last_infraction_at: row.last_infraction_at
-        ? Number(row.last_infraction_at)
         : null,
       recent_messages: (recent.rows as Record<string, unknown>[]).map((r) => ({
         id: String(r.id),

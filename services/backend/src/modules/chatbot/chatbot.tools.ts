@@ -6,7 +6,6 @@ import {
   pgMessageReviewsTable,
   pgMessagesTable,
   pgUserProfilesTable,
-  pgUserReputationsTable,
   pgVoiceRecordingsTable,
 } from "../../shared/index.js";
 
@@ -282,26 +281,18 @@ async function userProfile(userId?: string, guildId?: string): Promise<string> {
 }
 
 async function userReputation(
-  userId?: string,
-  guildId?: string,
+  _userId?: string,
+  _guildId?: string,
 ): Promise<string> {
-  const db = getDatabase();
-  if (!userId) return JSON.stringify({ error: "userId wajib" });
-  const conds = [eq(pgUserReputationsTable.user_id, userId)];
-  if (guildId) conds.push(eq(pgUserReputationsTable.guild_id, guildId));
-  const rows = await db
-    .select({
-      user_id: pgUserReputationsTable.user_id,
-      guild_id: pgUserReputationsTable.guild_id,
-      trust_score: pgUserReputationsTable.trust_score,
-      clean_message_streak: pgUserReputationsTable.clean_message_streak,
-      total_infractions: pgUserReputationsTable.total_infractions,
-      last_infraction_at: pgUserReputationsTable.last_infraction_at,
-    })
-    .from(pgUserReputationsTable)
-    .where(and(...conds))
-    .limit(1);
-  return JSON.stringify(rows[0] ?? { error: "reputasi tidak ditemukan" });
+  // The per-user reputation feature (trust scores, streaks, infractions) was
+  // removed from the gateway (migration 0016 drops user_reputations). Return
+  // an honest "unavailable" answer from the derived moderation signals instead
+  // of querying the now-dropped table.
+  return JSON.stringify({
+    available: false,
+    message:
+      "Skor trust/skala reputasi per-user telah dihapus dari sistem. Gunakan rasio pesan ter-flag vs total untuk menilai risiko (lihat dashboard Users).",
+  });
 }
 
 async function channelCulture(channelId?: string): Promise<string> {
