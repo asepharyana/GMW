@@ -132,6 +132,8 @@ function mapSearchHit(hit: {
     channel_id?: string;
     guild_id?: string;
     thread_id?: string | null;
+    channel_name?: string | null;
+    thread_name?: string | null;
     created_at?: number;
   };
 }) {
@@ -146,6 +148,8 @@ function mapSearchHit(hit: {
     channel_id: hit.payload.channel_id ?? null,
     guild_id: hit.payload.guild_id ?? null,
     thread_id: hit.payload.thread_id ?? null,
+    channel_name: hit.payload.channel_name ?? null,
+    thread_name: hit.payload.thread_name ?? null,
   };
 }
 

@@ -44,6 +44,8 @@ export interface QdrantVerdictPayload {
   channel_id?: string;
   guild_id?: string;
   thread_id?: string | null;
+  channel_name?: string | null;
+  thread_name?: string | null;
   created_at?: number;
 }
 

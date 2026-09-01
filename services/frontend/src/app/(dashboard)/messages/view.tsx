@@ -366,8 +366,18 @@ export function MessagesView({
                             {r.username}
                           </span>
                         )}
-                        {r.channel_id && (
+                        {r.thread_name && (
                           <span className="font-mono text-[10px] text-ink-muted">
+                            ▶ {r.thread_name}
+                          </span>
+                        )}
+                        {!r.thread_name && r.channel_name && (
+                          <span className="font-mono text-[10px] text-ink-muted">
+                            #{r.channel_name}
+                          </span>
+                        )}
+                        {!r.thread_name && !r.channel_name && r.channel_id && (
+                          <span className="font-mono text-[10px] text-ink-faint">
                             #{r.channel_id}
                           </span>
                         )}

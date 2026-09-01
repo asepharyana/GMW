@@ -177,6 +177,8 @@ export interface SemanticSearchResult {
   channel_id: string | null;
   guild_id: string | null;
   thread_id: string | null;
+  channel_name: string | null;
+  thread_name: string | null;
 }
 
 export interface MessageActivityBucket {

@@ -20,10 +20,40 @@ export interface ArchiveMessage {
   guild_id: string;
   thread_id: string | null;
   created_at: number;
+  /** JSON string of RichMessageMetadata (parsed for channel/thread names). */
+  metadata?: string | null;
   /** True when the message came from an age-restricted (NSFW) channel. NSFW
    *  content is deliberately NOT embedded into the public archive so it can't
    *  be found via public semantic search. Defaults to false. */
   isAgeRestricted?: boolean;
+}
+
+/**
+ * Extract a human-readable channel label from the message's metadata JSON.
+ * The gateway captures `metadata.channel.{channelName,threadName}` per message;
+ * prefer the thread name (thread messages read better by their thread title),
+ * then the channel name. Returns null when unavailable (old messages without
+ * the metadata field, or malformed JSON).
+ */
+export function extractChannelLabel(metadata: string | null | undefined): {
+  channel_name: string | null;
+  thread_name: string | null;
+} {
+  if (!metadata) return { channel_name: null, thread_name: null };
+  try {
+    const m = JSON.parse(metadata) as {
+      channel?: {
+        channelName?: string | null;
+        threadName?: string | null;
+      };
+    };
+    return {
+      channel_name: m?.channel?.channelName ?? null,
+      thread_name: m?.channel?.threadName ?? null,
+    };
+  } catch {
+    return { channel_name: null, thread_name: null };
+  }
 }
 
 /**
@@ -52,6 +82,9 @@ export function archiveMessageEmbedded(message: ArchiveMessage): void {
       if (!normalized) return; // nothing meaningful left after cleanup
       const vector = await embedText(normalized);
       if (!vector) return;
+      const { channel_name, thread_name } = extractChannelLabel(
+        message.metadata,
+      );
       const ok = await upsertQdrantPointV2(
         ARCHIVE_COLLECTION,
         qdrantPointId(`archive:${message.id}`),
@@ -65,6 +98,8 @@ export function archiveMessageEmbedded(message: ArchiveMessage): void {
           channel_id: message.channel_id ?? "",
           guild_id: message.guild_id ?? "",
           thread_id: message.thread_id ?? null,
+          channel_name: channel_name ?? null,
+          thread_name: thread_name ?? null,
           created_at: message.created_at ?? Date.now(),
           analyzed_at: Date.now(),
           // 5-year persistent window (archive is NOT a TTL cache).
