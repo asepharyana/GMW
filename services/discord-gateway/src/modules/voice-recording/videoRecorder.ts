@@ -101,7 +101,27 @@ export function setVideoRecorderClient(client: Client | undefined) {
       t?: string;
       d?: { voice_states?: unknown; id?: unknown };
     } | null;
-    if (!p?.t || p.t !== "GUILD_CREATE") return;
+    if (!p?.t) return;
+    // DIAG: log every raw event type once until we see GUILD_CREATE shape.
+    if (
+      p.t === "GUILD_CREATE" ||
+      p.t === "READY" ||
+      p.t === "GUILD_MEMBERS_CHUNK"
+    ) {
+      const d = p.d as Record<string, unknown>;
+      logger.info(
+        {
+          rawType: p.t,
+          hasVoiceStates: Array.isArray(d?.voice_states),
+          voiceStatesCount: Array.isArray(d?.voice_states)
+            ? (d.voice_states as unknown[]).length
+            : -1,
+          dKeys: Object.keys(d ?? {}).slice(0, 10),
+        },
+        "RAW diag: GUILD_CREATE/READY/GUILD_MEMBERS_CHUNK",
+      );
+    }
+    if (p.t !== "GUILD_CREATE") return;
     const vs = p.d?.voice_states;
     handleGuildCreateVoiceStates(p.d as Record<string, unknown>, vs);
   });
