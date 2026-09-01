@@ -37,6 +37,14 @@ export interface QdrantVerdictPayload {
   /** Bare content hash (16 hex chars) — enables content-based invalidation
    *  regardless of the (context-scoped) point id. */
   content_hash?: string;
+  // Archive metadata (archiveEmbedder writes these; moderation cache doesn't).
+  // Optional so the same payload shape serves both the moderation cache
+  // collection and the public message archive collection.
+  username?: string;
+  channel_id?: string;
+  guild_id?: string;
+  thread_id?: string | null;
+  created_at?: number;
 }
 
 function baseUrl(): string {

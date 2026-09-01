@@ -129,6 +129,7 @@ export function MessagesView({
   const semantic = useSemanticSearch(
     query,
     query.trim().length >= 2 && semanticMode,
+    guildId,
   );
   const activity = useMessageActivity(30);
   const edits = useRecentEdits(50, undefined, initialEdits);
@@ -360,6 +361,16 @@ export function MessagesView({
                         <span className="font-mono text-[10px] font-semibold text-signal">
                           {(r.score * 100).toFixed(0)}% RELEVANCE
                         </span>
+                        {r.username && (
+                          <span className="font-mono text-[10px] font-medium text-ink">
+                            {r.username}
+                          </span>
+                        )}
+                        {r.channel_id && (
+                          <span className="font-mono text-[10px] text-ink-muted">
+                            #{r.channel_id}
+                          </span>
+                        )}
                         <span
                           className="ml-auto font-mono text-[10px] text-ink-muted"
                           suppressHydrationWarning

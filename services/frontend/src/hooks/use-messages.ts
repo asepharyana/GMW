@@ -212,13 +212,21 @@ export function useMessageSearch(query: string, enabled: boolean) {
 
 // ── Semantic Search (public archive, Qdrant) ──────
 
-export function useSemanticSearch(query: string, enabled: boolean) {
+export function useSemanticSearch(
+  query: string,
+  enabled: boolean,
+  guildId?: string | null,
+) {
   return useSWR<SemanticSearchResult[]>(
     enabled && query.trim().length >= 2
-      ? ["semantic-search", query.trim()]
+      ? ["semantic-search", query.trim(), guildId ?? ""]
       : null,
     async () => {
-      const res = await messagesApi.semanticSearch(query.trim(), 10);
+      const res = await messagesApi.semanticSearch(
+        query.trim(),
+        10,
+        guildId ?? undefined,
+      );
       return res.results;
     },
     { keepPreviousData: true },

@@ -105,6 +105,7 @@ export class MessagesService {
       vector,
       input.limit,
       config.AI_LLM_EMBEDDING_ARCHIVE_MIN_SIMILARITY,
+      input.guildId,
     );
     const results = hits.map((h) => mapSearchHit(h));
     return { results, nextCursor: null };
@@ -120,16 +121,31 @@ export class MessagesService {
   }
 }
 
-/** Shape returned to the frontend (text + metadata from the archive payload). */
+/** Shape returned to the frontend (text + rich metadata from the archive payload). */
 function mapSearchHit(hit: {
   score: number;
-  payload: { text: string; content_hash?: string; analyzed_at: number };
+  payload: {
+    text: string;
+    content_hash?: string;
+    analyzed_at: number;
+    username?: string;
+    channel_id?: string;
+    guild_id?: string;
+    thread_id?: string | null;
+    created_at?: number;
+  };
 }) {
   return {
     message_id: hit.payload.content_hash ?? null,
     content: hit.payload.text,
     score: hit.score,
-    created_at: hit.payload.analyzed_at,
+    // Prefer the real message timestamp; fall back to embed time for old
+    // points that predate rich metadata.
+    created_at: hit.payload.created_at ?? hit.payload.analyzed_at,
+    username: hit.payload.username ?? null,
+    channel_id: hit.payload.channel_id ?? null,
+    guild_id: hit.payload.guild_id ?? null,
+    thread_id: hit.payload.thread_id ?? null,
   };
 }
 

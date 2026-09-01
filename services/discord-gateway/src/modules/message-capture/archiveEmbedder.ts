@@ -18,6 +18,7 @@ export interface ArchiveMessage {
   username: string;
   channel_id: string;
   guild_id: string;
+  thread_id: string | null;
   created_at: number;
   /** True when the message came from an age-restricted (NSFW) channel. NSFW
    *  content is deliberately NOT embedded into the public archive so it can't
@@ -58,6 +59,13 @@ export function archiveMessageEmbedded(message: ArchiveMessage): void {
         {
           text: normalized.slice(0, 4000),
           flags: "",
+          // Rich metadata so public semantic search results can be shown in
+          // context (who said it, where, when) instead of a bare text blob.
+          username: message.username ?? "",
+          channel_id: message.channel_id ?? "",
+          guild_id: message.guild_id ?? "",
+          thread_id: message.thread_id ?? null,
+          created_at: message.created_at ?? Date.now(),
           analyzed_at: Date.now(),
           // 5-year persistent window (archive is NOT a TTL cache).
           expires_at: Date.now() + 1000 * 60 * 60 * 24 * 365 * 5,

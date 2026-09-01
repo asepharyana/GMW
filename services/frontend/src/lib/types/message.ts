@@ -173,6 +173,10 @@ export interface SemanticSearchResult {
   content: string;
   score: number;
   created_at: number;
+  username: string | null;
+  channel_id: string | null;
+  guild_id: string | null;
+  thread_id: string | null;
 }
 
 export interface MessageActivityBucket {

@@ -10,6 +10,11 @@ export interface ArchiveHit {
     content_hash?: string;
     analyzed_at: number;
     expires_at: number;
+    username?: string;
+    channel_id?: string;
+    guild_id?: string;
+    thread_id?: string | null;
+    created_at?: number;
   };
 }
 
@@ -61,6 +66,7 @@ export async function searchArchive(
   vector: number[],
   limit: number,
   scoreThreshold: number,
+  guildId?: string,
 ): Promise<ArchiveHit[]> {
   if (!config.QDRANT_URL) return [];
   try {
@@ -72,6 +78,17 @@ export async function searchArchive(
         limit,
         score_threshold: scoreThreshold,
         with_payload: true,
+        // Optional scope: only return vectors from a specific guild's archive.
+        // Old points (embedded before rich metadata) have no guild_id payload —
+        // the `must` match simply excludes them, which is the correct behavior
+        // for a guild-scoped search.
+        ...(guildId
+          ? {
+              filter: {
+                must: [{ key: "guild_id", match: { value: guildId } }],
+              },
+            }
+          : {}),
       },
     )) as {
       result?: Array<{

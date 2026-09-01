@@ -70,8 +70,12 @@ export const messagesApi = {
     }>,
 
   // Public semantic search over the persistent message archive (Qdrant).
-  semanticSearch: (query: string, limit?: number) =>
-    orpc.messages.semanticSearch({ query, limit }) as unknown as Promise<{
+  semanticSearch: (query: string, limit?: number, guildId?: string) =>
+    orpc.messages.semanticSearch({
+      query,
+      limit,
+      ...(guildId ? { guildId } : {}),
+    }) as unknown as Promise<{
       results: SemanticSearchResult[];
       nextCursor: null;
     }>,
