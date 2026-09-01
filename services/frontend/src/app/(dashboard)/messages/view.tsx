@@ -572,6 +572,34 @@ function AiBadge({
   );
 }
 
+function severityTone(
+  sev: import("@/lib/types").AiSeverity | null | undefined,
+): "signal" | "amber" | "vermilion" | "neutral" {
+  if (sev === "critical" || sev === "high") return "vermilion";
+  if (sev === "medium") return "amber";
+  if (sev === "low") return "neutral";
+  return "neutral";
+}
+
+function severityWidth(
+  sev: import("@/lib/types").AiSeverity | null | undefined,
+): number {
+  if (sev === "critical") return 100;
+  if (sev === "high") return 75;
+  if (sev === "medium") return 50;
+  if (sev === "low") return 25;
+  return 0;
+}
+
+const RECOMMEND_LABELS: Record<string, string> = {
+  none: "No Action",
+  monitor: "Monitor",
+  warn: "Warn User",
+  review: "Manual Review",
+  delete: "Delete Message",
+  escalate: "Escalate",
+};
+
 function MessageDetail({
   m,
   attachments,
@@ -585,6 +613,14 @@ function MessageDetail({
     (m as { edit_history?: Array<{ old_content: string; edited_at: number }> })
       .edit_history ?? [];
   const editCount = (m as { edit_count?: number }).edit_count ?? 0;
+  const ref = parseMeta(m.metadata)?.reference;
+  const mentions = parseMeta(m.metadata)?.mentionedUsers ?? [];
+  const mentionRoles = parseMeta(m.metadata)?.mentionedRoles ?? [];
+  const sev = m.ai_severity;
+  const conf = m.ai_confidence;
+  const recAction = m.ai_recommended_action;
+  const score = m.ai_moderation_score;
+
   return (
     <div className="space-y-3 text-sm">
       <div className="flex items-center gap-3">
@@ -615,10 +651,88 @@ function MessageDetail({
         </div>
       </div>
 
+      {/* Reply context chain */}
+      {ref && (ref.content || ref.repliedUsername) && (
+        <div className="rounded-[6px] border-l-2 border-signal/40 bg-signal/5 px-3 py-2 text-[11px]">
+          <span className="font-semibold text-ink-muted">
+            Replying to {ref.repliedUsername ?? "message"}
+          </span>
+          {ref.content && (
+            <div className="mt-0.5 line-clamp-2 text-ink-faint">
+              {ref.content}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="hud-card p-3 text-xs text-ink-soft leading-relaxed">
         {renderMessageContent(m.edited_content ?? m.content, m.metadata) ||
           "(no text content)"}
       </div>
+
+      {/* AI Analysis Metrics — severity, confidence, score, recommended action */}
+      {(sev || conf != null || score != null || recAction) && (
+        <div className="grid grid-cols-2 gap-2">
+          {sev && sev !== "none" && (
+            <div className="hud-card px-2.5 py-2">
+              <div className="eyebrow mb-1">Severity</div>
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      severityTone(sev) === "vermilion"
+                        ? "bg-vermilion"
+                        : severityTone(sev) === "amber"
+                          ? "bg-amber"
+                          : "bg-signal"
+                    }`}
+                    style={{ width: `${severityWidth(sev)}%` }}
+                  />
+                </div>
+                <Badge
+                  tone={severityTone(sev)}
+                  className="font-mono text-[9px]"
+                >
+                  {sev.toUpperCase()}
+                </Badge>
+              </div>
+            </div>
+          )}
+          {conf != null && (
+            <div className="hud-card px-2.5 py-2">
+              <div className="eyebrow mb-1">Confidence</div>
+              <div className="font-mono text-xs font-semibold text-ink">
+                {Math.round(conf * 100)}%
+              </div>
+            </div>
+          )}
+          {score != null && (
+            <div className="hud-card px-2.5 py-2">
+              <div className="eyebrow mb-1">Risk Score</div>
+              <div className="font-mono text-xs font-semibold text-ink">
+                {score.toFixed(2)}
+              </div>
+            </div>
+          )}
+          {recAction && recAction !== "none" && (
+            <div className="hud-card px-2.5 py-2">
+              <div className="eyebrow mb-1">Recommended Action</div>
+              <Badge
+                tone={
+                  recAction === "delete" || recAction === "escalate"
+                    ? "vermilion"
+                    : recAction === "warn" || recAction === "review"
+                      ? "amber"
+                      : "neutral"
+                }
+                className="font-mono text-[9px]"
+              >
+                {RECOMMEND_LABELS[recAction] ?? recAction}
+              </Badge>
+            </div>
+          )}
+        </div>
+      )}
 
       {m.ai_analysis && (
         <div>
@@ -629,18 +743,52 @@ function MessageDetail({
         </div>
       )}
 
-      {(flags.length > 0 || cats.length > 0) && (
-        <div className="flex flex-wrap gap-1.5">
-          {flags.map((f) => (
-            <Badge key={f} tone="vermilion">
-              {f}
-            </Badge>
-          ))}
-          {cats.map((c) => (
-            <Badge key={c} tone="amber">
-              {c}
-            </Badge>
-          ))}
+      {/* Flags / Categories / Mentions */}
+      {(flags.length > 0 ||
+        cats.length > 0 ||
+        mentions.length > 0 ||
+        mentionRoles.length > 0) && (
+        <div className="space-y-1.5">
+          {(flags.length > 0 || cats.length > 0) && (
+            <div className="flex flex-wrap gap-1.5">
+              {flags.map((f) => (
+                <Badge key={f} tone="vermilion">
+                  {f}
+                </Badge>
+              ))}
+              {cats.map((c) => (
+                <Badge key={c} tone="amber">
+                  {c}
+                </Badge>
+              ))}
+            </div>
+          )}
+          {mentions.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              <span className="text-[10px] text-ink-muted">Mentions:</span>
+              {mentions.map((u) => (
+                <span
+                  key={u.id}
+                  className="rounded bg-signal/10 px-1.5 py-0.5 text-[10px] text-signal"
+                >
+                  @{u.username}
+                </span>
+              ))}
+            </div>
+          )}
+          {mentionRoles.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              <span className="text-[10px] text-ink-muted">Roles:</span>
+              {mentionRoles.map((r) => (
+                <span
+                  key={r.id}
+                  className="rounded bg-amber/10 px-1.5 py-0.5 text-[10px] text-amber"
+                >
+                  @{r.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
