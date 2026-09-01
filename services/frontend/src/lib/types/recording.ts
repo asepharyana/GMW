@@ -16,6 +16,11 @@ export interface VoiceRecording {
   transcription?: string | null;
 }
 
+/** True when the recording file is video (camera/screen-share MP4). */
+export function isVideoRecording(r: Pick<VoiceRecording, "filename">): boolean {
+  return /\.(mp4|webm|mov|h264)$/i.test(r.filename);
+}
+
 export interface PaginatedRecordings {
   items: VoiceRecording[];
   nextCursor: string | null;

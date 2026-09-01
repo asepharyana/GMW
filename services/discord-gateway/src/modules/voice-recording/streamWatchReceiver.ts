@@ -29,6 +29,7 @@ import {
   promises as fsPromises,
   type WriteStream,
 } from "node:fs";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import {
   getVoiceConnection,
@@ -50,6 +51,19 @@ const HEADER_EXTENSION_BYTE = Buffer.from([190, 222]); // 0xBE 0xDE
 /** Opus RTP payload type (120). Video arrives on non-opus payload types. */
 const RTP_OPUS_PAYLOAD_TYPE = 120;
 
+/**
+ * Video silence threshold — matches voice recording AfterSilence (4000ms).
+ * When no H264 video RTP packets arrive for this long, the current segment
+ * is closed and muxed to MP4 (like voice's "end of burst"). A new segment
+ * opens when packets resume.
+ */
+const VIDEO_SILENCE_MS = 4000;
+/**
+ * Minimum segment duration — skip registering segments shorter than this
+ * (avoids creating tiny MP4 files from brief camera flashes).
+ */
+const VIDEO_MIN_SEGMENT_MS = 1000;
+
 /** A watched user's live DAVE stream connection + file state. */
 interface WatchState {
   uid: string;
@@ -62,6 +76,12 @@ interface WatchState {
   bytesWritten: number;
   lastPacketAt: number;
   startedAt: number;
+  /** Timestamp of the current segment's first packet (for silence detection). */
+  segmentStartAt: number;
+  /** Per-watch segment counter — makes each segment's filename unique. */
+  segmentSeq: number;
+  /** True while a segment close is in-flight (rejects new packet writes). */
+  closing: boolean;
   _diag?: { video: number; maxLen: number; pts: Set<number> };
   _diagNext?: number;
 }
@@ -76,6 +96,37 @@ let _recordingsDir = "/var/lib/gmw/recordings";
 export function setStreamWatchRecordingsDir(dir: string): void {
   _recordingsDir = dir;
 }
+
+/**
+ * Silence detection interval — runs every 2s and checks each active watch for
+ * VIDEO_SILENCE_MS of inactivity (no H264 packets). On silence, the current
+ * segment is closed, muxed to MP4, registered in the DB, and uploaded.
+ * Matches voice recording's AfterSilence behavior.
+ */
+const _silenceInterval = setInterval(() => {
+  const now = Date.now();
+  for (const [watchKey, watch] of watches) {
+    if (!watch.out || !watch.segmentStartAt) continue;
+    const silenceDuration = now - watch.lastPacketAt;
+    if (silenceDuration < VIDEO_SILENCE_MS) continue;
+
+    const segmentDuration = now - watch.segmentStartAt;
+    logger.info(
+      {
+        userId: watch.uid,
+        watchKey,
+        segmentDurationMs: segmentDuration,
+        bytes: watch.bytesWritten,
+      },
+      `Video silence detected (${silenceDuration}ms) — closing segment`,
+    );
+
+    // Fire-and-forget: close + finalize the segment.
+    void closeCurrentSegment(watch, watchKey);
+  }
+}, 2_000);
+// Prevent the interval from keeping the process alive.
+if (_silenceInterval.unref) _silenceInterval.unref();
 
 /** Test-only reset. */
 export function __resetStreamWatchState(): void {
@@ -330,6 +381,9 @@ function connectWatch(
     bytesWritten: 0,
     lastPacketAt: Date.now(),
     startedAt: Date.now(),
+    segmentStartAt: 0,
+    segmentSeq: 0,
+    closing: false,
   });
 }
 
@@ -530,6 +584,8 @@ function handleUdpMessage(
     void openOutput(watchKey, watch, decrypted);
     return;
   }
+  // Reject writes while a segment close is in-flight (silence detected).
+  if (watch.closing) return;
   watch.lastPacketAt = Date.now();
   let nals: Buffer[];
   try {
@@ -553,16 +609,201 @@ async function openOutput(
   if (watch.out) return;
   const dir = path.join(_recordingsDir, watch.uid);
   await fsPromises.mkdir(dir, { recursive: true });
+  // Filename includes the per-watch segment counter so a new segment after
+  // silence never collides with the (possibly still in-flight) previous one.
+  const seq = watch.segmentSeq++;
   const filePath = path.join(
     dir,
-    `video-${watch.channelId}-${watch.startedAt}.h264`,
+    `video-${watch.channelId}-${watch.startedAt}-${seq}.h264`,
   );
   watch.filePath = filePath;
   watch.out = createWriteStream(filePath);
+  // Swallow EPIPE / ERR_STREAM_WRITE_AFTER_END on the segment file when a
+  // close races an in-flight UDP write — an unhandled stream 'error' here
+  // would crash the gateway (same class as the media EPIPE incidents).
+  watch.out.on("error", () => {});
+  watch.segmentStartAt = Date.now();
   logger.info(
     { userId: watch.uid, path: filePath },
-    "Video burst opened (DAVE video RTP received)",
+    "Video segment opened (DAVE video RTP received)",
   );
+}
+
+/**
+ * Close the current segment's write stream, mux the H264 to MP4, and
+ * register the recording in the DB + upload. After this, the watch is
+ * ready for a new segment (silence ended → packets resume).
+ * Mirrors voice recording's finalizeSegment + uploadRecordingSegment flow.
+ */
+async function closeCurrentSegment(
+  watch: WatchState,
+  watchKey: string,
+): Promise<void> {
+  if (!watch.out || watch.out.destroyed || watch.closing) return;
+  // Mark closing FIRST (synchronously) so the UDP handler stops writing.
+  watch.closing = true;
+  const filePath = watch.filePath;
+  const segmentStart = watch.segmentStartAt;
+  const bytes = watch.bytesWritten;
+
+  // Flush the write stream to disk.
+  const flushed = new Promise<void>((resolve) => {
+    if (!watch.out || watch.out.destroyed) {
+      resolve();
+      return;
+    }
+    watch.out.once("finish", () => resolve());
+    watch.out.end();
+  });
+  await flushed;
+
+  // Reset watch state for the next segment.
+  watch.out = undefined as unknown as WriteStream;
+  watch.filePath = "";
+  watch.bytesWritten = 0;
+  watch.segmentStartAt = 0;
+  watch.closing = false;
+  // Reset the depacketizer so a partial FU-A fragment from this segment
+  // doesn't bleed into the next segment (it only writes complete NALs).
+  watch.depacketizer.reset();
+
+  if (!filePath) return;
+
+  // Discard very short segments (<1s) — avoids creating tiny MP4 files.
+  const durationMs = Date.now() - segmentStart;
+  if (durationMs < VIDEO_MIN_SEGMENT_MS) {
+    logger.debug(
+      { userId: watch.uid, durationMs },
+      "Video segment too short, discarding",
+    );
+    fsPromises.unlink(filePath).catch(() => {});
+    return;
+  }
+
+  // Mux H264 to MP4 and register in DB + upload.
+  try {
+    const mp4 = await muxToMp4(filePath);
+    await finalizeVideoSegment({
+      mp4Path: mp4,
+      userId: watch.uid,
+      guildId: watch.guildId,
+      channelId: watch.channelId,
+      startTime: segmentStart,
+      durationMs,
+      bytes,
+    });
+    logger.info(
+      { userId: watch.uid, mp4, durationMs, bytes },
+      "Video segment finalized + uploaded",
+    );
+  } catch (err) {
+    logger.warn(
+      {
+        userId: watch.uid,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      "Video segment finalize failed (raw .h264 kept)",
+    );
+  }
+}
+
+/**
+ * Register a completed video MP4 segment in the DB and upload it.
+ * Reuses the voice_recordings table (filename indicates video).
+ */
+async function finalizeVideoSegment(input: {
+  mp4Path: string;
+  userId: string;
+  guildId: string;
+  channelId: string;
+  startTime: number;
+  durationMs: number;
+  bytes: number;
+}): Promise<void> {
+  const { mp4Path, userId, guildId, channelId, startTime, durationMs, bytes } =
+    input;
+  const segmentId = `video-${userId}-${startTime}`;
+  const fileName = path.basename(mp4Path);
+
+  try {
+    // Get file size and register in DB.
+    const fileStats = await stat(mp4Path);
+    const { insertVoiceRecording } = await import(
+      "../../shared/database/voiceRecordingRepo.js"
+    );
+    await insertVoiceRecording({
+      id: segmentId,
+      user_id: userId,
+      username: userId, // Will be enriched by frontend from user_profiles
+      avatar_url: null,
+      guild_id: guildId,
+      channel_id: channelId,
+      channel_name: null,
+      filename: fileName,
+      size_bytes: fileStats.size,
+      upload_status: "pending",
+      created_at: Date.now(),
+    });
+
+    // Upload MP4 to TeleUploader.
+    const { uploadToTele } = await import("../../shared/uploader.js");
+    const { config } = await import("../../shared/config/config.js");
+    const fileBuffer = await fsPromises.readFile(mp4Path);
+    const uploadResult = await uploadToTele({
+      buffer: fileBuffer,
+      filename: fileName,
+      contentType: "video/mp4",
+      uploadUrl: config.TELE_UPLOAD_URL,
+      retries: 3,
+    });
+
+    // Update DB with upload URL.
+    const { updateVoiceRecordingAsUploaded } = await import(
+      "../../shared/database/voiceRecordingRepo.js"
+    );
+    await updateVoiceRecordingAsUploaded(
+      segmentId,
+      uploadResult.url,
+      Date.now(),
+    );
+    logger.info(
+      { segmentId, url: uploadResult.url, durationMs, bytes },
+      "Video segment uploaded successfully",
+    );
+
+    // Broadcast via EventBroadcaster.
+    const { _eventBroadcaster } = await import("./recorder.js");
+    if (_eventBroadcaster) {
+      _eventBroadcaster
+        .voiceRecordingUploaded({
+          id: segmentId,
+          user_id: userId,
+          username: userId,
+          avatar_url: null,
+          guild_id: guildId,
+          channel_id: channelId,
+          channel_name: null,
+          filename: fileName,
+          size_bytes: fileStats.size,
+          download_url: uploadResult.url,
+          upload_status: "uploaded",
+          created_at: Date.now(),
+          uploaded_at: Date.now(),
+        })
+        .catch(() => {});
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.error(
+      { segmentId, error: errorMsg },
+      "Failed to upload video segment",
+    );
+    // Mark as failed in DB (best-effort).
+    const { updateVoiceRecordingAsFailed } = await import(
+      "../../shared/database/voiceRecordingRepo.js"
+    );
+    await updateVoiceRecordingAsFailed(segmentId, errorMsg).catch(() => {});
+  }
 }
 
 function closeWatch(watch: WatchState): void {
@@ -572,28 +813,9 @@ function closeWatch(watch: WatchState): void {
   } catch {
     /* ignore */
   }
+  // Finalize any open segment (mux to MP4 + DB + upload).
   if (watch.out && !watch.out.destroyed) {
-    const flushed = new Promise<void>((resolve) => {
-      watch.out.once("finish", () => resolve());
-      watch.out.end();
-    });
-    void flushed
-      .then(() => muxToMp4(watch.filePath))
-      .then((mp4) =>
-        logger.info(
-          { userId: watch.uid, mp4, bytes: watch.bytesWritten },
-          "Video muxed to mp4",
-        ),
-      )
-      .catch((err) =>
-        logger.warn(
-          {
-            userId: watch.uid,
-            err: err instanceof Error ? err.message : String(err),
-          },
-          "Video mux failed (raw .h264 kept)",
-        ),
-      );
+    void closeCurrentSegment(watch, `${watch.guildId}:${watch.uid}`);
   }
 }
 
