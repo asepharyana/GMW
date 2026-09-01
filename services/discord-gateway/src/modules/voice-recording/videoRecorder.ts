@@ -82,30 +82,90 @@ export function trackChannel(guildId: string, channel: VoiceChannel) {
   // share / camera on BEFORE the bot joined), no voiceStateUpdate with
   // streaming:true fires for them. Scan every member now and start watching
   // anyone already streaming, so we don't miss a live stream in progress.
-  scanExistingStreamers(channel);
+  // Fire-and-forget: REST fallback may be needed if guild cache is cold.
+  void scanExistingStreamers(channel);
 }
 
 /**
  * Scan all members currently in `channel` and start watching anyone whose
- * voice state has `streaming` set (screen share / camera already on when the
- * bot joined). Fire-and-forget per member — idempotent (startStreamWatch is
- * a no-op if a watch already exists for that user).
+ * voice state has `streaming` or `self_video` set (screen share / camera
+ * already on when the bot joined). Fire-and-forget per member — idempotent
+ * (startVideoRecording is a no-op if a watch already exists for that user).
+ *
+ * BUG FIX (2026-09-02): `channel.members` is often EMPTY after a gateway
+ * restart because the selfbot's guild member cache hasn't been populated yet.
+ * When that happens, fall back to the Discord REST voice-states endpoint which
+ * returns all users currently in the voice channel with their live voice state
+ * (self_video, self_stream, etc.).  This ensures we detect pre-existing
+ * camera/screen-share users even on a cold start.
  */
-export function scanExistingStreamers(channel: VoiceChannel): void {
+export async function scanExistingStreamers(
+  channel: VoiceChannel,
+): Promise<void> {
+  const selfId = _client?.user?.id;
+  const videoUsers: { userId: string; source: string }[] = [];
+
+  // ── Path A: guild cache has members ────────────────────────────────────
   const members = channel.members;
-  if (!members || members.size === 0) return;
-  let watched = 0;
-  for (const [, member] of members) {
-    // Watch anyone with video ACTIVE: screen share (streaming) OR camera
-    // (selfVideo). Camera on Discord (mobile/desktop "video") is reported via
-    // self_video:true, NOT self_stream — previously only streaming was checked
-    // so camera-only users were never watched.
-    const vs = member.voice;
-    const hasVideo = Boolean(vs?.streaming || vs?.selfVideo);
-    if (hasVideo && member.id !== _client?.user?.id) {
-      startVideoRecording(channel, member.id);
-      watched++;
+  if (members && members.size > 0) {
+    for (const [, member] of members) {
+      if (member.id === selfId) continue;
+      const vs = member.voice;
+      const hasVideo = Boolean(vs?.streaming || vs?.selfVideo);
+      if (hasVideo) {
+        videoUsers.push({ userId: member.id, source: "cache" });
+      }
     }
+  }
+
+  // ── Path B: cache empty → fetch guild members via REST ────────────────
+  // GET /channels/{id}/voice-states is BOT-ONLY since 2023 — user tokens get
+  // 404. The user-token-compatible way to discover who is in the voice
+  // channel: fetch the guild member list (GET /guilds/{id}/members — used
+  // elsewhere by the selfbot) which populates member.voice states, then scan
+  // `channel.members` again.  Fire-and-forget retry: if it still looks empty
+  // after one fetch, we give up quietly (voiceStateUpdate will catch anyone
+  // who toggles later).
+  if (videoUsers.length === 0 && members && members.size === 0 && _client) {
+    try {
+      await channel.guild.members.fetch();
+      // Re-read members now that cache is warm.
+      const warmMembers = channel.members;
+      if (warmMembers && warmMembers.size > 0) {
+        for (const [, member] of warmMembers) {
+          if (member.id === selfId) continue;
+          const vs = member.voice;
+          const hasVideo = Boolean(vs?.streaming || vs?.selfVideo);
+          if (hasVideo) {
+            videoUsers.push({ userId: member.id, source: "rest-members" });
+          }
+        }
+      }
+      logger.info(
+        {
+          channelId: channel.id,
+          fetchedMembers: warmMembers?.size ?? 0,
+          foundVideo: videoUsers.length,
+        },
+        "Fetched guild members via REST for pre-existing video detection",
+      );
+    } catch (err) {
+      logger.warn(
+        {
+          channelId: channel.id,
+          err: err instanceof Error ? err.message : String(err),
+        },
+        "Failed to fetch guild members via REST — video detection may miss pre-existing users",
+      );
+    }
+  }
+
+  // ── Start watching detected video users ────────────────────────────────
+  let watched = 0;
+  for (const { userId, source } of videoUsers) {
+    startVideoRecording(channel, userId);
+    watched++;
+    logger.info({ userId, source }, "Detected pre-existing video user on join");
   }
   if (watched > 0) {
     logger.info(

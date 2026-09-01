@@ -14,7 +14,10 @@ import {
 function makeChannel(guildId = "g1", channelId = "c1") {
   return {
     id: channelId,
-    guild: { id: guildId },
+    guild: {
+      id: guildId,
+      members: { fetch: vi.fn().mockResolvedValue(new Map()) },
+    },
   };
 }
 
@@ -151,5 +154,40 @@ describe("videoRecorder (stream-watch orchestration)", () => {
       .mockImplementation(() => {});
     trackChannel("g1", makeChannel()); // no members
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("trackChannel falls back to REST guild.members.fetch() when cache is empty (cold start bug fix)", async () => {
+    const client = makeClient() as any;
+    setVideoRecorderClient(client);
+    const spy = vi
+      .spyOn(streamWatch, "startStreamWatch")
+      .mockImplementation(() => {});
+    // Warmable guild: members.fetch() populates channel.members with a
+    // camera-on member (selfVideo) — the cold-start scenario where the bot
+    // joins a channel that already has someone on camera but the member cache
+    // hasn't been populated yet.
+    const cameraMember = {
+      id: "u-cam",
+      voice: { streaming: false, selfVideo: true },
+    };
+    const ch = {
+      id: "c1",
+      guild: {
+        id: "g1",
+        members: {
+          fetch: vi.fn().mockImplementation(async () => {
+            // Simulate REST fetch populating the channel member cache.
+            (ch as any).members = new Map([["u-cam", cameraMember]]);
+            return new Map([["u-cam", cameraMember]]);
+          }),
+        },
+      },
+      members: new Map(), // empty at join time — cold cache
+    };
+    trackChannel("g1", ch as any);
+    // Allow the async scanExistingStreamers (fire-and-forget) to complete.
+    await vi.waitFor(() => {
+      expect(spy).toHaveBeenCalledWith(ch as any, "u-cam");
+    });
   });
 });
