@@ -1,3 +1,4 @@
+import { config } from "@/shared/config/index";
 import { NotFoundError, ValidationError } from "@/shared/errors/index";
 import { createChildLogger } from "@/shared/logger/index";
 import { embedQuery } from "./embed.js";
@@ -100,7 +101,11 @@ export class MessagesService {
       );
       return { results: [], nextCursor: null };
     }
-    const hits = await searchArchive(vector, input.limit, 0.6);
+    const hits = await searchArchive(
+      vector,
+      input.limit,
+      config.AI_LLM_EMBEDDING_ARCHIVE_MIN_SIMILARITY,
+    );
     const results = hits.map((h) => mapSearchHit(h));
     return { results, nextCursor: null };
   }

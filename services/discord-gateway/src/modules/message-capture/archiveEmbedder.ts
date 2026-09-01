@@ -1,4 +1,7 @@
-import { embedText } from "@/modules/ai-moderation/embeddingClient";
+import {
+  embedText,
+  normalizeEmbeddingContent,
+} from "@/modules/ai-moderation/embeddingClient";
 import {
   ARCHIVE_COLLECTION,
   qdrantPointId,
@@ -41,14 +44,19 @@ export function archiveMessageEmbedded(message: ArchiveMessage): void {
 
   void (async () => {
     try {
-      const vector = await embedText(text);
+      // Normalize once: the vector AND the stored payload both use the clean
+      // text so the public search returns readable content and the vector
+      // isn't diluted by @mentions/URLs/emoji (see normalizeEmbeddingContent).
+      const normalized = normalizeEmbeddingContent(text);
+      if (!normalized) return; // nothing meaningful left after cleanup
+      const vector = await embedText(normalized);
       if (!vector) return;
       const ok = await upsertQdrantPointV2(
         ARCHIVE_COLLECTION,
         qdrantPointId(`archive:${message.id}`),
         vector,
         {
-          text: text.slice(0, 4000),
+          text: normalized.slice(0, 4000),
           flags: "",
           analyzed_at: Date.now(),
           // 5-year persistent window (archive is NOT a TTL cache).

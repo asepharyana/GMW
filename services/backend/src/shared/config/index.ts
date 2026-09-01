@@ -135,6 +135,14 @@ export const configSchema = z
     AI_LLM_MODEL: z.string().default("text"),
     AI_LLM_VISION_MODEL: z.string().optional(),
     AI_LLM_EMBEDDING_MODEL: z.string().optional(),
+    // Minimum cosine similarity for the public archive semantic search. Lower
+    // = more (noisier) results; raise it to tighten precision. Tuned for a 1B
+    // embedding model — re-tune if the model's dimensionality changes.
+    AI_LLM_EMBEDDING_ARCHIVE_MIN_SIMILARITY: z.coerce
+      .number()
+      .min(0)
+      .max(1)
+      .default(0.6),
     AI_LLM_MAX_CONCURRENT: z.coerce.number().int().positive().default(5),
     AI_LLM_IMAGE_MAX_DIMENSION: z.coerce
       .number()

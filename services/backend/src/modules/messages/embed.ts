@@ -3,6 +3,26 @@ import { createChildLogger } from "@/shared/logger/index";
 
 const logger = createChildLogger("messages-embed");
 
+/** Max chars for a search query fed to the embedding model. */
+const MAX_QUERY_CHARS = 300;
+
+/**
+ * Normalize a user search query before embedding so it lands in the same
+ * vector space as the archived content (which is normalized the same way on
+ * write). Mirrors the gateway's normalizer: strip control/zero-width chars,
+ * lowercase, collapse whitespace, cap length. Readable punctuation is kept —
+ * a search query is already compact.
+ */
+export function normalizeEmbeddingQuery(raw: string): string {
+  if (!raw) return "";
+  return raw
+    .replace(/[\p{Cc}\p{Cf}]/gu, " ")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_QUERY_CHARS);
+}
+
 /**
  * Embed a search query with the configured OpenAI-compatible embedding model.
  * Uses raw fetch (the backend has no openai SDK dependency) and returns null
@@ -10,8 +30,10 @@ const logger = createChildLogger("messages-embed");
  *
  * encoding_format: "float" is REQUIRED — Nvidia-backed models reject base64.
  */
-export async function embedQuery(text: string): Promise<number[] | null> {
+export async function embedQuery(rawQuery: string): Promise<number[] | null> {
   if (!config.AI_LLM_API_KEY || !config.AI_LLM_EMBEDDING_MODEL) return null;
+  const text = normalizeEmbeddingQuery(rawQuery);
+  if (!text) return null;
   try {
     const res = await fetch(`${config.AI_LLM_BASE_URL}/embeddings`, {
       method: "POST",
