@@ -340,6 +340,11 @@ export const configSchema = z
       .optional()
       .transform((v) => v === "true")
       .default(false),
+    // Whisper model routed through the LLM base URL. Through 9router/omniroute
+    // use a provider-qualified id that has credentials (e.g.
+    // openrouter/openai/whisper-1) — bare `whisper-1` maps to the `openai`
+    // provider which the router rejects with "No credentials for provider".
+    AI_VOICE_TRANSCRIPTION_MODEL: z.string().default("whisper-1"),
 
     // ── Auto Delete ─────────────────────────────────────────────────────
     AUTO_DELETE_FLAGGED_ENABLED: z

@@ -30,12 +30,16 @@ export async function transcribeRecording(
 
     const response = await openai.audio.transcriptions.create({
       file: createReadStream(oggPath),
-      model: "whisper-1",
+      model: config.AI_VOICE_TRANSCRIPTION_MODEL,
       // No `language` param → Whisper auto-detects (handles id/en mixed).
-      response_format: "text",
+      // `json` (not `text`): 9router/omniroute proxies only json/verbose_json
+      // transcription responses; `text` returns 400 through the router.
+      response_format: "json",
     });
 
-    const text = typeof response === "string" ? response.trim() : null;
+    // With response_format "json", the SDK returns an object with `text`.
+    const text =
+      (typeof response === "string" ? response : response.text)?.trim() || null;
     if (!text) {
       logger.warn({ oggPath }, "Empty transcription result");
       return null;
