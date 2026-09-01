@@ -7,6 +7,7 @@ import {
   Music,
   Search,
   Shield,
+  Users,
 } from "lucide-react";
 
 export interface NavItem {
@@ -32,6 +33,12 @@ export const navItems: NavItem[] = [
     label: "Messages",
     icon: MessageSquare,
     matchPrefix: "/messages",
+  },
+  {
+    href: "/users",
+    label: "Users",
+    icon: Users,
+    matchPrefix: "/users",
   },
   {
     href: "/voice",

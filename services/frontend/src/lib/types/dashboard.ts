@@ -54,9 +54,13 @@ export interface DashboardUser {
   profile_summary?: string | null;
   total_messages: number;
   flagged_count: number;
+  clean_count?: number;
+  warn_count?: number;
   last_message_at?: number | null;
   trust_score?: number | null;
   clean_message_streak?: number | null;
+  total_infractions?: number | null;
+  last_infraction_at?: number | null;
 }
 
 export interface DashboardUserDetail extends DashboardUser {
@@ -64,6 +68,7 @@ export interface DashboardUserDetail extends DashboardUser {
   clean_message_streak: number | null;
   total_infractions: number | null;
   clean_count: number;
+  warn_count?: number;
   recent_messages: MessageRecord[];
 }
 

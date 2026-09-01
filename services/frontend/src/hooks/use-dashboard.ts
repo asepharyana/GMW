@@ -6,6 +6,7 @@ import type {
   DashboardChannelDetail,
   DashboardStats,
   DashboardUserDetail,
+  PaginatedUsers,
   TopReactedMessage,
   TopReactor,
 } from "@/lib/types";
@@ -33,7 +34,15 @@ export function useActivity(days = 14, initialData?: DashboardActivity) {
   );
 }
 
-export function useUsers(search?: string) {
+export function useUsers(initialData?: PaginatedUsers) {
+  return useSWR<PaginatedUsers>(
+    ["dashboard-users"],
+    () => dashboardApi.listUsers(50),
+    { fallbackData: initialData },
+  );
+}
+
+export function useUserSearch(search?: string) {
   return useSWR(
     ["dashboard-users", search ?? ""],
     async () => {

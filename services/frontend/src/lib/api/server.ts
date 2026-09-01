@@ -71,6 +71,11 @@ export async function getActivity(days = 14): Promise<DashboardActivity> {
     days,
   }) as unknown as Promise<DashboardActivity>;
 }
+export async function getUsers(limit = 20) {
+  return serverOrpc().dashboard.users({
+    limit,
+  }) as unknown as Promise<import("@/lib/types").PaginatedUsers>;
+}
 
 // ---- Media ----
 export async function getMediaStatus(): Promise<MediaState> {

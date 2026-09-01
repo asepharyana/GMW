@@ -7,6 +7,7 @@ export {
   useTopReactions,
   useTopReactors,
   useUserDetail,
+  useUserSearch,
   useUsers,
 } from "./use-dashboard";
 export { useGuilds } from "./use-guilds";
