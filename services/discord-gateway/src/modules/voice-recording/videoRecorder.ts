@@ -96,8 +96,13 @@ export function scanExistingStreamers(channel: VoiceChannel): void {
   if (!members || members.size === 0) return;
   let watched = 0;
   for (const [, member] of members) {
-    const vs = member.voice?.streaming;
-    if (vs && member.id !== _client?.user?.id) {
+    // Watch anyone with video ACTIVE: screen share (streaming) OR camera
+    // (selfVideo). Camera on Discord (mobile/desktop "video") is reported via
+    // self_video:true, NOT self_stream — previously only streaming was checked
+    // so camera-only users were never watched.
+    const vs = member.voice;
+    const hasVideo = Boolean(vs?.streaming || vs?.selfVideo);
+    if (hasVideo && member.id !== _client?.user?.id) {
       startVideoRecording(channel, member.id);
       watched++;
     }
@@ -129,11 +134,13 @@ async function handleVoiceStateUpdate(
     if (!channel) return; // not an actively-recorded channel
 
     const streaming = Boolean(newState.streaming);
+    const cameraOn = Boolean(newState.selfVideo);
+    const hasVideo = streaming || cameraOn;
     const inChannel = newState.channelId === channel.id;
 
-    if (streaming && inChannel) {
+    if (hasVideo && inChannel) {
       startVideoRecording(channel, newState.id);
-    } else if (!inChannel || !streaming) {
+    } else if (!inChannel || !hasVideo) {
       stopVideoRecording(channel.guild.id, newState.id);
     }
   } catch (err) {
