@@ -58,6 +58,9 @@ const pendingGuildCreateVoiceStates = new Map<
 
 let _client: Client | undefined;
 let _listenerAttached = false;
+// DIAG: collect all raw event types for ~10s after first raw event
+const _allRawTypes = new Set<string>();
+let _rawDiagLogged = false;
 /** Resolved at runtime from config (kept default as fallback). */
 let _recordingsDir = "/var/lib/gmw/recordings";
 
@@ -72,6 +75,8 @@ export function __resetVideoRecorderState(): void {
   pendingGuildCreateVoiceStates.clear();
   _listenerAttached = false;
   _client = undefined;
+  _allRawTypes.clear();
+  _rawDiagLogged = false;
 }
 
 /**
@@ -102,13 +107,30 @@ export function setVideoRecorderClient(client: Client | undefined) {
       d?: { voice_states?: unknown; id?: unknown };
     } | null;
     if (!p?.t) return;
-    // DIAG: log every raw event type once until we see GUILD_CREATE shape.
+    // DIAG: log all event types seen after READY (belt-and-suspenders)
+    if (_allRawTypes.size < 50) _allRawTypes.add(p.t);
+    // DIAG: after 10s, dump all raw types seen
+    if (!_rawDiagLogged) {
+      _rawDiagLogged = true;
+      setTimeout(() => {
+        logger.info(
+          { rawEventTypes: [..._allRawTypes].sort() },
+          "RAW DIAG: all WS raw event types (10s snapshot)",
+        );
+      }, 10_000);
+    }
+    // Log significant events
     if (
       p.t === "GUILD_CREATE" ||
       p.t === "READY" ||
-      p.t === "GUILD_MEMBERS_CHUNK"
+      p.t === "GUILD_MEMBERS_CHUNK" ||
+      (p.t.startsWith("GUILD") && !p.t.includes("UPDATE"))
     ) {
       const d = p.d as Record<string, unknown>;
+      const dAny = d as unknown as {
+        broadcaster_user_ids?: unknown;
+        sessions?: unknown;
+      };
       logger.info(
         {
           rawType: p.t,
@@ -116,6 +138,13 @@ export function setVideoRecorderClient(client: Client | undefined) {
           voiceStatesCount: Array.isArray(d?.voice_states)
             ? (d.voice_states as unknown[]).length
             : -1,
+          broadcasterUserIds: dAny.broadcaster_user_ids,
+          sessionVoice: Array.isArray(dAny.sessions)
+            ? (dAny.sessions as Array<{ voice?: unknown; session_id?: unknown }>)
+                .map((s) => s.voice)
+                .filter(Boolean)
+                .slice(0, 5)
+            : undefined,
           dKeys: Object.keys(d ?? {}).slice(0, 10),
         },
         "RAW diag: GUILD_CREATE/READY/GUILD_MEMBERS_CHUNK",
