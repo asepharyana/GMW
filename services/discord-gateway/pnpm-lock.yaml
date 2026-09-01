@@ -12,8 +12,8 @@ importers:
         specifier: ^0.10.0
         version: 0.10.0(supports-color@7.2.0)
       '@discordjs/voice':
-        specifier: ^0.19.2
-        version: 0.19.2(@discordjs/opus@0.10.0(supports-color@7.2.0))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(opusscript@0.1.1)
+        specifier: file:vendor/discord-voice-fork
+        version: file:vendor/discord-voice-fork(@discordjs/opus@0.10.0(supports-color@7.2.0))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(opusscript@0.1.1)
       '@snazzah/davey':
         specifier: ^0.1.11
         version: 0.1.12(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
@@ -183,8 +183,8 @@ packages:
     resolution: {integrity: sha512-3LKP7F2+atl9vJFhaBjn4nOaSWahZ/yWjOvA4e5pnXkt2qyXRCHLxoBQy81GFtLGCq7K9lPm9R517M1U+/90Qg==}
     engines: {node: '>=18'}
 
-  '@discordjs/voice@0.19.2':
-    resolution: {integrity: sha512-3yJ255e4ag3wfZu/DSxeOZK1UtnqNxnspmLaQetGT0pDkThNZoHs+Zg6dgZZ19JEVomXygvfHn9lNpICZuYtEA==}
+  '@discordjs/voice@file:vendor/discord-voice-fork':
+    resolution: {directory: vendor/discord-voice-fork, type: directory}
     engines: {node: '>=22.12.0'}
 
   '@drizzle-team/brocli@0.10.2':
@@ -2564,7 +2564,7 @@ snapshots:
     dependencies:
       discord-api-types: 0.38.52
 
-  '@discordjs/voice@0.19.2(@discordjs/opus@0.10.0(supports-color@7.2.0))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(opusscript@0.1.1)':
+  '@discordjs/voice@file:vendor/discord-voice-fork(@discordjs/opus@0.10.0(supports-color@7.2.0))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(opusscript@0.1.1)':
     dependencies:
       '@snazzah/davey': 0.1.12(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
       '@types/ws': 8.18.1

@@ -1,7 +1,9 @@
 node_modules
 /recordings
 .env
-dist/
+services/discord-gateway/dist/
+services/backend/dist/
+services/frontend/frontend/dist/
 public/app/
 .muxer-queue.**
 .claude/
@@ -10,7 +12,6 @@ logs/
 .codegraph/
 worktrees/
 .worktrees/
-services/frontend/frontend/dist/
 target/
 nix/
 # Gitea CI runner logs

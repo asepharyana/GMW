@@ -4,6 +4,7 @@ import { access, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { SSRCMap } from "@discordjs/voice";
 import {
   H264Depacketizer,
   muxToMp4,
@@ -120,5 +121,46 @@ describe("muxToMp4", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// ─── Fork @discordjs/voice patch tests (video receive support) ─────────────
+// These assert the behavior added in vendor/discord-voice-fork:
+//  1. SSRCMap.update() accepts videoSSRC and get() resolves video SSRCs
+//  2. The op-12 Speaking handler maps streams[].ssrc → videoSSRC
+describe("discord-voice-fork videoSSRC", () => {
+  it("registers a videoSSRC and get() resolves it from the video SSRC", () => {
+    const map = new SSRCMap();
+    // Simulates what the fork's onWsPacket(op 12) does:
+    // ssrcMap.update({ userId, audioSSRC, videoSSRC })
+    map.update({ userId: "user-1", audioSSRC: 1001, videoSSRC: 2001 });
+
+    // Audio path unchanged: get by audioSSRC
+    expect(map.get(1001)?.userId).toBe("user-1");
+    // Video path (fork): get by videoSSRC resolves to the same user
+    expect(map.get(2001)?.userId).toBe("user-1");
+    expect(map.get(2001)?.videoSSRC).toBe(2001);
+  });
+
+  it("emits create event with videoSSRC for videoReceiver attribution", () => {
+    const map = new SSRCMap();
+    const seen: Array<{ userId: string; videoSSRC?: number }> = [];
+    map.on("create", (data) => seen.push(data));
+
+    map.update({ userId: "user-2", audioSSRC: 1002, videoSSRC: 2002 });
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].videoSSRC).toBe(2002);
+    // videoReceiver.ts hooks this event to build videoSsrcToUser
+    expect(seen[0].userId).toBe("user-2");
+  });
+
+  it("keeps audio-only behavior when no videoSSRC present", () => {
+    const map = new SSRCMap();
+    map.update({ userId: "user-3", audioSSRC: 1003 });
+
+    expect(map.get(1003)?.userId).toBe("user-3");
+    // No videoSSRC → get by a random SSRC returns undefined (no false match)
+    expect(map.get(2003)).toBeUndefined();
   });
 });
