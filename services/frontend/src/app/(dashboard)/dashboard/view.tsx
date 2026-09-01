@@ -258,6 +258,54 @@ export function DashboardView({
           </GlassPanel>
         </div>
 
+        {/* Hourly Flow — last-24h message volume by hour */}
+        {activity?.hourly && activity.hourly.length > 0 && (
+          <GlassPanel className="linear-tile">
+            <SectionHeader
+              eyebrow="Cadence"
+              title="Hourly Flow · Last 24h"
+              action={
+                <span className="mono text-xs text-[#8a8f98]">
+                  {activity.hourly.reduce((a, h) => a + h.messages, 0)} MSGS ·{" "}
+                  {activity.hourly.reduce((a, h) => a + h.flagged, 0)} FLAGGED
+                </span>
+              }
+            />
+            <div className="mt-4 flex h-20 items-end gap-[3px]">
+              {activity.hourly.map((h) => {
+                const max = Math.max(
+                  ...activity.hourly.map((x) => x.messages),
+                  1,
+                );
+                const pct = Math.max(4, (h.messages / max) * 100);
+                return (
+                  <div
+                    key={h.hour}
+                    className="group relative flex h-full min-w-0 flex-1 flex-col justify-end"
+                    title={`${String(h.hour).padStart(2, "0")}:00 — ${h.messages} msgs, ${h.flagged} flagged`}
+                    suppressHydrationWarning
+                  >
+                    <div
+                      className="w-full rounded-t-[3px] bg-signal/80 transition-all group-hover:bg-signal"
+                      style={{ height: `${pct}%` }}
+                    />
+                    <div className="mt-1 truncate text-center font-mono text-[7px] text-ink-faint">
+                      {String(h.hour).padStart(2, "0")}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-1 flex justify-between font-mono text-[9px] text-ink-faint">
+              <span>00:00</span>
+              <span>06:00</span>
+              <span>12:00</span>
+              <span>18:00</span>
+              <span>23:00</span>
+            </div>
+          </GlassPanel>
+        )}
+
         {/* Top Channels + Engagement Row */}
         <div className="grid gap-3 lg:grid-cols-2">
           {/* Top Channels Ranking */}

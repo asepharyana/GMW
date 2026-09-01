@@ -799,6 +799,9 @@ function Leaderboard({
               <div className="text-ink-faint">
                 {s.transcribed > 0 ? `${s.words} words` : "no transcript"}
               </div>
+              <div className="text-ink-faint" suppressHydrationWarning>
+                {s.last_at ? `active ${formatRelativeTime(s.last_at)}` : "—"}
+              </div>
             </div>
           </button>
         ))}

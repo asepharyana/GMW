@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Cable,
   Mic,
   PhoneOff,
   Radio,
@@ -230,6 +231,99 @@ export function VoiceView({
             </div>
           </GlassPanel>
         </div>
+
+        {/* Connected Bridges — multi-guild voice bridge roster */}
+        <GlassPanel className="voice-tile">
+          <SectionHeader
+            eyebrow="Bridges"
+            title="Connected Voice Bridges"
+            action={
+              <span className="mono text-xs text-[#8a8f98]">
+                {status?.connections?.length ?? (connected ? 1 : 0)} ACTIVE
+              </span>
+            }
+          />
+          <div className="mt-3">
+            {status?.connections && status.connections.length > 0 ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {status.connections.map((conn) => {
+                  const isActive =
+                    conn.guildId === status.activeGuildId &&
+                    conn.channelId === status.activeChannelId;
+                  return (
+                    <div
+                      key={`${conn.guildId}-${conn.channelId}`}
+                      className={`flex items-center gap-2.5 rounded-[8px] border p-2.5 ${
+                        isActive
+                          ? "border-success/40 bg-success/5"
+                          : "border-hairline bg-surface-2"
+                      }`}
+                    >
+                      <span
+                        className={`flex size-8 shrink-0 items-center justify-center rounded-full border ${
+                          isActive
+                            ? "border-success/40 bg-success/10 text-success"
+                            : "border-hairline bg-surface text-ink-muted"
+                        }`}
+                      >
+                        <Cable className="size-3.5" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-medium text-ink">
+                          {conn.channelName || "#" + conn.channelId.slice(0, 8)}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[9px] text-ink-faint">
+                          <span className="truncate">
+                            G:{conn.guildId.slice(0, 8)} · C:
+                            {conn.channelId.slice(0, 8)}
+                          </span>
+                          {isActive && (
+                            <span className="rounded bg-success/15 px-1 text-success">
+                              ACTIVE
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span
+                        className="shrink-0 font-mono text-[9px] text-ink-faint"
+                        suppressHydrationWarning
+                      >
+                        {new Date(conn.connectedAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : connected ? (
+              <div className="flex items-center gap-2.5 rounded-[8px] border border-success/30 bg-success/5 p-2.5">
+                <span className="flex size-8 items-center justify-center rounded-full border border-success/40 bg-success/10 text-success">
+                  <Cable className="size-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-medium text-ink">
+                    {status?.activeChannelName || "Voice channel"}
+                  </div>
+                  <div className="mt-0.5 font-mono text-[9px] text-ink-faint">
+                    Active bridge · G:
+                    {(status?.activeGuildId ?? guildId ?? "").slice(0, 8)}
+                  </div>
+                </div>
+                <span className="rounded bg-success/15 px-1 font-mono text-[9px] text-success">
+                  ACTIVE
+                </span>
+              </div>
+            ) : (
+              <div className="rounded-[8px] border border-dashed border-hairline p-4 text-center">
+                <span className="font-mono text-[10px] text-ink-faint">
+                  No active voice bridges
+                </span>
+              </div>
+            )}
+          </div>
+        </GlassPanel>
 
         {/* Voice Stage Grid */}
         <div className="grid gap-3 lg:grid-cols-3">
