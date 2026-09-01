@@ -45,8 +45,9 @@ describe("videoRecorder (stream-watch orchestration)", () => {
     const client = makeClient();
     setVideoRecorderClient(client);
     setVideoRecorderClient(client); // idempotent (videoRecorder + streamWatch)
-    // one raw (streamWatch) + one voiceStateUpdate (videoRecorder)
-    expect(client.on).toHaveBeenCalledTimes(2);
+    // one voiceStateUpdate (videoRecorder) + raw GUILD_CREATE (videoRecorder)
+    // + raw STREAM_* (streamWatch) = 3
+    expect(client.on).toHaveBeenCalledTimes(3);
     expect(client.on).toHaveBeenCalledWith(
       "voiceStateUpdate",
       expect.any(Function),
@@ -189,5 +190,75 @@ describe("videoRecorder (stream-watch orchestration)", () => {
     await vi.waitFor(() => {
       expect(spy).toHaveBeenCalledWith(ch as any, "u-cam");
     });
+  });
+
+  it("detects pre-existing camera user from buffered GUILD_CREATE.voice_states (selfbot fix)", async () => {
+    const client = makeClient() as any;
+    setVideoRecorderClient(client);
+    const spy = vi
+      .spyOn(streamWatch, "startStreamWatch")
+      .mockImplementation(() => {});
+    const ch = {
+      id: "c1",
+      guild: {
+        id: "g1",
+        members: { fetch: vi.fn().mockResolvedValue(new Map()) },
+      },
+      members: new Map(), // empty — library drops voice_states
+    };
+    // Simulate GUILD_CREATE arriving at WS connect (after setVideoRecorderClient
+    // registered the raw listener, before trackChannel runs).
+    const rawListener = client.on.mock.calls.find(
+      (c: unknown[]) => c[0] === "raw",
+    )?.[1];
+    expect(rawListener).toBeDefined();
+    rawListener({
+      t: "GUILD_CREATE",
+      d: {
+        id: "g1",
+        voice_states: [
+          {
+            user_id: "u-cam",
+            channel_id: "c1",
+            self_video: true,
+            self_stream: false,
+          },
+          {
+            user_id: "u-share",
+            channel_id: "c1",
+            self_video: false,
+            self_stream: true,
+          },
+          {
+            user_id: "u-novideo",
+            channel_id: "c1",
+            self_video: false,
+            self_stream: false,
+          },
+          {
+            user_id: "bot1",
+            channel_id: "c1",
+            self_video: true,
+            self_stream: false,
+          }, // self — skip
+          {
+            user_id: "u-otherchan",
+            channel_id: "c9",
+            self_video: true,
+            self_stream: false,
+          }, // different channel — skip
+        ],
+      },
+    });
+    // Now track the channel — scanExistingStreamers consumes buffered states.
+    trackChannel("g1", ch as any);
+    await vi.waitFor(() => {
+      // camera user + screen-share user watched, self + no-video + other-channel skipped
+      expect(spy).toHaveBeenCalledWith(ch as any, "u-cam");
+      expect(spy).toHaveBeenCalledWith(ch as any, "u-share");
+    });
+    expect(spy).not.toHaveBeenCalledWith(ch as any, "u-novideo");
+    expect(spy).not.toHaveBeenCalledWith(ch as any, "bot1");
+    expect(spy).not.toHaveBeenCalledWith(ch as any, "u-otherchan");
   });
 });

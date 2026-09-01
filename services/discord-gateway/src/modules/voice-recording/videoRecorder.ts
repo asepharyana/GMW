@@ -40,6 +40,22 @@ const logger = createChildLogger("video-recorder");
 /** Channels currently under audio recording, keyed by guildId. */
 const watchedChannels = new Map<string, VoiceChannel>();
 
+/**
+ * GUILD_CREATE.voice_states captured at gateway WS connect (the selfbot lib
+ * drops them), keyed by guildId.  Consumed by scanExistingStreamers when the
+ * channel is tracked (voice join happens AFTER GUILD_CREATE, so we must store
+ * these until trackChannel runs).
+ */
+const pendingGuildCreateVoiceStates = new Map<
+  string,
+  Array<{
+    user_id?: unknown;
+    channel_id?: unknown;
+    self_video?: boolean;
+    self_stream?: boolean;
+  }>
+>();
+
 let _client: Client | undefined;
 let _listenerAttached = false;
 /** Resolved at runtime from config (kept default as fallback). */
@@ -53,6 +69,7 @@ export function setVideoRecordingsDir(dir: string) {
 /** Test-only: clear all module-level state. */
 export function __resetVideoRecorderState(): void {
   watchedChannels.clear();
+  pendingGuildCreateVoiceStates.clear();
   _listenerAttached = false;
   _client = undefined;
 }
@@ -73,6 +90,21 @@ export function setVideoRecorderClient(client: Client | undefined) {
       void handleVoiceStateUpdate(oldState, newState);
     },
   );
+  // THE selfbot-v13 GUILD_CREATE handler DROPS `d.voice_states` (it only sends
+  // GUILD_SUBSCRIPTIONS_BULK, never parses the initial voice-state list), so
+  // `channel.members` is empty on gateway restart and users who were ALREADY
+  // in voice (camera/screen on) are never detected.  Hook the raw GUILD_CREATE
+  // payload ourselves and scan the voice_states array — this is the only
+  // user-token-compatible source of "who is in the channel right now".
+  client.on("raw", (packet: unknown) => {
+    const p = packet as {
+      t?: string;
+      d?: { voice_states?: unknown; id?: unknown };
+    } | null;
+    if (!p?.t || p.t !== "GUILD_CREATE") return;
+    const vs = p.d?.voice_states;
+    handleGuildCreateVoiceStates(p.d as Record<string, unknown>, vs);
+  });
 }
 
 /** Register a channel whose audio recording is active (video should follow). */
@@ -92,12 +124,13 @@ export function trackChannel(guildId: string, channel: VoiceChannel) {
  * already on when the bot joined). Fire-and-forget per member — idempotent
  * (startVideoRecording is a no-op if a watch already exists for that user).
  *
- * BUG FIX (2026-09-02): `channel.members` is often EMPTY after a gateway
- * restart because the selfbot's guild member cache hasn't been populated yet.
- * When that happens, fall back to the Discord REST voice-states endpoint which
- * returns all users currently in the voice channel with their live voice state
- * (self_video, self_stream, etc.).  This ensures we detect pre-existing
- * camera/screen-share users even on a cold start.
+ * BUG FIX (2026-09-02 — user report "tidak mendeteksi user yg sudah ada"):
+ * `channel.members` is empty after a gateway restart because (a) the selfbot
+ * library's GUILD_CREATE handler DROPS `d.voice_states` (it only sends
+ * GUILD_SUBSCRIPTIONS_BULK, never parses the initial voice state list), and
+ * (b) guild member cache isn't populated yet. We now capture voice_states
+ * raw (Path C, the reliable selfbot-compatible source), fall back to
+ * guild.members.fetch() (Path D, may 403 for user tokens), then cache.
  */
 export async function scanExistingStreamers(
   channel: VoiceChannel,
@@ -118,14 +151,32 @@ export async function scanExistingStreamers(
     }
   }
 
-  // ── Path B: cache empty → fetch guild members via REST ────────────────
+  // ── Path C: GUILD_CREATE.voice_states (buffered at WS connect) ─────────
+  // The selfbot lib drops `d.voice_states` from GUILD_CREATE, but we capture
+  // it in the raw listener. This is the ONLY selfbot-compatible source of
+  // "who is already in voice with video" — not gated by REST permissions.
+  if (videoUsers.length === 0) {
+    const vsList = pendingGuildCreateVoiceStates.get(channel.guild.id);
+    if (Array.isArray(vsList) && vsList.length > 0) {
+      for (const vs of vsList) {
+        const uid = String(vs.user_id ?? "");
+        if (!uid || uid === selfId) continue;
+        if (String(vs.channel_id ?? "") !== channel.id) continue;
+        const hasVideo = Boolean(vs.self_video || vs.self_stream);
+        if (!hasVideo) continue;
+        videoUsers.push({ userId: uid, source: "guild-create-voice-states" });
+      }
+    }
+  }
+
+  // ── Path D: cache empty → fetch guild members via REST ────────────────
   // GET /channels/{id}/voice-states is BOT-ONLY since 2023 — user tokens get
   // 404. The user-token-compatible way to discover who is in the voice
   // channel: fetch the guild member list (GET /guilds/{id}/members — used
   // elsewhere by the selfbot) which populates member.voice states, then scan
-  // `channel.members` again.  Fire-and-forget retry: if it still looks empty
-  // after one fetch, we give up quietly (voiceStateUpdate will catch anyone
-  // who toggles later).
+  // `channel.members` again.  NOTE: user tokens may also get 403 on this REST
+  // path (verified 2026-09-02) — Path C is the reliable one; Path D is a
+  // best-effort fallback for real bot tokens.
   if (videoUsers.length === 0 && members && members.size === 0 && _client) {
     try {
       await channel.guild.members.fetch();
@@ -179,6 +230,40 @@ export async function scanExistingStreamers(
 export function untrackChannel(guildId: string) {
   watchedChannels.delete(guildId);
   stopAllStreamWatches(guildId);
+}
+
+/**
+ * Parse `GUILD_CREATE.d.voice_states` and buffer them for when trackChannel
+ * runs.  This is the authoritative, user-token-friendly list of everyone
+ * already in voice when the gateway connects — but GUILD_CREATE arrives BEFORE
+ * the voice join, so we can't start watches yet.  Store per-guild and consume
+ * in scanExistingStreamers.
+ */
+function handleGuildCreateVoiceStates(
+  data: Record<string, unknown>,
+  voiceStates: unknown,
+): void {
+  try {
+    const guildId = String(data.id ?? data.guild_id ?? "");
+    if (!guildId) return;
+    if (!Array.isArray(voiceStates)) return;
+    const list = voiceStates as Array<{
+      user_id?: unknown;
+      channel_id?: unknown;
+      self_video?: boolean;
+      self_stream?: boolean;
+    }>;
+    pendingGuildCreateVoiceStates.set(guildId, list);
+    logger.info(
+      { guildId, voiceStates: list.length },
+      "Buffered GUILD_CREATE.voice_states for pre-existing video detection",
+    );
+  } catch (err) {
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "GUILD_CREATE voice_states parse error (ignoring)",
+    );
+  }
 }
 
 async function handleVoiceStateUpdate(
