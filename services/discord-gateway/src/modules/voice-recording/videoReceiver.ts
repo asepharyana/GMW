@@ -396,8 +396,13 @@ function getSsrcInternalMap(
   | Map<number, { userId: string; audioSSRC?: number; videoSSRC?: number }>
   | undefined {
   const asAny = ssrcMap as unknown as Record<string, unknown>;
-  const m1 = asAny._map;
+  // @discordjs/voice 0.19.x exposes the map as `map` (public) — but some
+  // versions used `_map`. Accept both so attribute fallback keeps working.
+  const m1 = asAny.map ?? asAny._map;
   if (m1 instanceof Map) return m1 as Map<number, never>;
+  // SSRCMap could also be the fork's class — same shape.
+  const m2 = asAny.map;
+  if (m2 instanceof Map) return m2 as Map<number, never>;
   return undefined;
 }
 
