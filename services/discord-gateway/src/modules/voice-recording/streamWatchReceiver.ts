@@ -122,7 +122,7 @@ const _silenceInterval = setInterval(() => {
     );
 
     // Fire-and-forget: close + finalize the segment.
-    void closeCurrentSegment(watch, watchKey);
+    void closeCurrentSegment(watch);
   }
 }, 2_000);
 // Prevent the interval from keeping the process alive.
@@ -655,10 +655,7 @@ async function openOutput(
  * ready for a new segment (silence ended → packets resume).
  * Mirrors voice recording's finalizeSegment + uploadRecordingSegment flow.
  */
-async function closeCurrentSegment(
-  watch: WatchState,
-  watchKey: string,
-): Promise<void> {
+async function closeCurrentSegment(watch: WatchState): Promise<void> {
   if (!watch.out || watch.out.destroyed || watch.closing) return;
   // Mark closing FIRST (synchronously) so the UDP handler stops writing.
   watch.closing = true;
@@ -835,7 +832,7 @@ function closeWatch(watch: WatchState): void {
   }
   // Finalize any open segment (mux to MP4 + DB + upload).
   if (watch.out && !watch.out.destroyed) {
-    void closeCurrentSegment(watch, `${watch.guildId}:${watch.uid}`);
+    void closeCurrentSegment(watch);
   }
 }
 

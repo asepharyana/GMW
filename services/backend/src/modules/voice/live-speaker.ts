@@ -99,7 +99,7 @@ export function getSpeakingSpeakers(): LiveSpeaker[] {
  * snapshot doesn't carry ghost speakers.
  */
 export function clearAllSpeakers(): void {
-  for (const [id, s] of speakers) {
+  for (const [, s] of speakers) {
     s.speaking = false;
   }
   purgeStale();

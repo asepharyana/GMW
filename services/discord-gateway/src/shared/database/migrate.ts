@@ -194,8 +194,7 @@ async function seedDrizzleHistory(client: PoolClient): Promise<void> {
   // recorded). Seed up to the last journal `when` so Drizzle skips them
   // instead of re-running already-applied DDL and crashing. This is the
   // recovery that broke the gateway's infinite-restart loop.
-  const journalTag =
-    (await getFirstMigrationTag()) + `@${lastMigrationWhen}-reconciled`;
+  const journalTag = `${await getFirstMigrationTag()}@${lastMigrationWhen}-reconciled`;
   await client.query(
     `INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES ($1, $2)`,
     [journalTag, lastMigrationWhen],

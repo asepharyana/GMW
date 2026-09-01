@@ -140,7 +140,12 @@ export function setVideoRecorderClient(client: Client | undefined) {
             : -1,
           broadcasterUserIds: dAny.broadcaster_user_ids,
           sessionVoice: Array.isArray(dAny.sessions)
-            ? (dAny.sessions as Array<{ voice?: unknown; session_id?: unknown }>)
+            ? (
+                dAny.sessions as Array<{
+                  voice?: unknown;
+                  session_id?: unknown;
+                }>
+              )
                 .map((s) => s.voice)
                 .filter(Boolean)
                 .slice(0, 5)
