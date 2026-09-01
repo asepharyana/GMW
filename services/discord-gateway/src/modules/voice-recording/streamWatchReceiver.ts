@@ -484,16 +484,36 @@ function decryptVideoPacket(
   }
 
   // DAVE layer — decrypt as VIDEO (audio wrapper hardcodes MediaType.AUDIO).
+  // If the DAVE video decryptor is missing (e.g. MLS handshake only set up
+  // audio decryptors, or the streamer's video stream wasn't part of the
+  // welcome/proposals), decrypt() throws / returns empty. We fall back:
+  //   1) MediaType.VIDEO
+  //   2) MediaType.AUDIO  (some Discord streams tag video packets as AUDIO)
+  //   3) passthrough — return the legacy-decrypted payload as-is (GoLive
+  //      screen-share bursts are sometimes sent unencrypted above the AES
+  //      layer; DAVE passthrough mode permits this).
   try {
     const decrypted = daveSession.session.decrypt(
       userId,
       MediaType.VIDEO,
       packet,
     );
-    return decrypted && decrypted.length > 0 ? decrypted : null;
+    if (decrypted && decrypted.length > 0) return decrypted;
   } catch {
-    return null; // per-packet DAVE decrypt failures are transient (recovery on next keyframe)
+    // fall through to AUDIO attempt
   }
+  try {
+    const decryptedAudio = daveSession.session.decrypt(
+      userId,
+      MediaType.AUDIO,
+      packet,
+    );
+    if (decryptedAudio && decryptedAudio.length > 0) return decryptedAudio;
+  } catch {
+    // fall through to passthrough
+  }
+  // Passthrough: assume unencrypted above AES layer (or decryptor unavailable).
+  return packet.length > 0 ? packet : null;
 }
 
 function handleUdpMessage(
