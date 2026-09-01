@@ -268,12 +268,17 @@ export function AnalysisView() {
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <span
-                      className="reactor-count font-mono w-10 text-right text-[11px] font-semibold text-signal"
-                      data-target={r.net_count}
-                    >
-                      +0
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end">
+                      <span
+                        className="reactor-count font-mono text-[11px] font-semibold text-signal"
+                        data-target={r.net_count}
+                      >
+                        +0
+                      </span>
+                      <span className="font-mono text-[9px] text-ink-faint">
+                        {r.messages_reacted} msgs · {r.emojis_used} emoji
+                      </span>
+                    </div>
                   </div>
                 );
               })}
