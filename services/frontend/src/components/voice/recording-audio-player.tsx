@@ -21,9 +21,45 @@ function formatTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+/** Shared event wiring for a video element (kept small to avoid dup logic). */
+function wireVideoEvents(
+  el: HTMLVideoElement,
+  onLoadedMeta: () => void,
+  onTime: () => void,
+  onEnd: () => void,
+  onPause: () => void,
+  onPlaying: () => void,
+): void {
+  el.addEventListener("loadedmetadata", onLoadedMeta);
+  el.addEventListener("durationchange", onLoadedMeta);
+  el.addEventListener("timeupdate", onTime);
+  el.addEventListener("ended", onEnd);
+  el.addEventListener("pause", onPause);
+  el.addEventListener("playing", onPlaying);
+}
+
+/** Remove the listeners added by {@link wireVideoEvents}. */
+function unwireVideoEvents(
+  el: HTMLVideoElement,
+  onLoadedMeta: () => void,
+  onTime: () => void,
+  onEnd: () => void,
+  onPause: () => void,
+  onPlaying: () => void,
+): void {
+  el.removeEventListener("loadedmetadata", onLoadedMeta);
+  el.removeEventListener("durationchange", onLoadedMeta);
+  el.removeEventListener("timeupdate", onTime);
+  el.removeEventListener("ended", onEnd);
+  el.removeEventListener("pause", onPause);
+  el.removeEventListener("playing", onPlaying);
+}
+
 interface Props {
   src: string;
   label?: string;
+  /** True when the recording is video (camera/screen-share MP4). */
+  video?: boolean;
   /** Lifted state: parent highlights the card that owns the active player. */
   onPlayStateChange?: (playing: boolean) => void;
   className?: string;
@@ -34,20 +70,28 @@ interface Props {
  * play/pause with buffering spinner, click-to-seek progress bar, time label,
  * animated equalizer bars while playing, and single-playback enforcement
  * (starting one clip pauses all others).
+ *
+ * For `video` recordings it renders a native `<video controls>` instead —
+ * video needs the browser's own scrubbing/fullscreen UI — but still honors
+ * the single-playback registry and lifts play state to the parent card.
  */
 export function RecordingAudioPlayer({
   src,
   label = "Voice recording",
+  video = false,
   onPlayStateChange,
   className,
 }: Props) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [buffering, setBuffering] = useState(false);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  // Audio: hide an HTMLAudioElement and drive it with the custom scrubber.
   useEffect(() => {
+    if (video) return;
     const audio = new Audio();
     audio.preload = "metadata";
     audio.src = src;
@@ -107,36 +151,99 @@ export function RecordingAudioPlayer({
       audio.src = "";
       audioRef.current = null;
     };
-  }, [src]);
+  }, [src, video]);
+
+  // Video: wire the rendered <video controls> for single-playback + lifted state.
+  useEffect(() => {
+    if (!video) return;
+    const el = videoRef.current;
+    if (!el) return;
+
+    const onLoadedMeta = () => setDuration(el.duration || 0);
+    const onTime = () => setCurrent(el.currentTime);
+    const onEnd = () => {
+      setPlaying(false);
+      setCurrent(0);
+    };
+    const onPause = () => setPlaying(false);
+    const onPlaying = () => setPlaying(true);
+    wireVideoEvents(el, onLoadedMeta, onTime, onEnd, onPause, onPlaying);
+
+    // Single playback: pausing any other video/audio that starts.
+    const pauseThis = () => el.pause();
+    let unregister: (() => void) | null = null;
+    const onPlayEvt = () => {
+      for (const other of activePlayers) {
+        if (other !== pauseThis) other();
+      }
+      unregister?.();
+      unregister = registerPlayer(pauseThis);
+    };
+    el.addEventListener("play", onPlayEvt);
+
+    return () => {
+      unregister?.();
+      unwireVideoEvents(el, onLoadedMeta, onTime, onEnd, onPause, onPlaying);
+      el.removeEventListener("play", onPlayEvt);
+    };
+  }, [video]);
 
   useEffect(() => {
     onPlayStateChange?.(playing || buffering);
   }, [playing, buffering, onPlayStateChange]);
 
   const toggle = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (audio.paused) {
+    const el = video ? videoRef.current : audioRef.current;
+    if (!el) return;
+    if (el.paused) {
       setBuffering(true);
-      void audio.play().catch(() => setBuffering(false));
+      void el.play().catch(() => setBuffering(false));
     } else {
-      audio.pause();
+      el.pause();
     }
-  }, []);
+  }, [video]);
 
-  const seek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const audio = audioRef.current;
-    if (!audio || !Number.isFinite(audio.duration)) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = Math.min(
-      1,
-      Math.max(0, (e.clientX - rect.left) / rect.width),
-    );
-    audio.currentTime = ratio * audio.duration;
-    setCurrent(audio.currentTime);
-  }, []);
+  const seek = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const el = video ? videoRef.current : audioRef.current;
+      if (!el || !Number.isFinite(el.duration)) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const ratio = Math.min(
+        1,
+        Math.max(0, (e.clientX - rect.left) / rect.width),
+      );
+      el.currentTime = ratio * el.duration;
+      setCurrent(el.currentTime);
+    },
+    [video],
+  );
 
   const pct = duration > 0 ? (current / duration) * 100 : 0;
+
+  if (video) {
+    return (
+      <div
+        className={cn(
+          "rounded-[8px] border bg-surface-2 p-1.5 transition-colors",
+          playing
+            ? "border-signal/40 shadow-[0_0_24px_-10px_var(--color-signal-glow)]"
+            : "border-hairline",
+          className,
+        )}
+        role="group"
+        aria-label={label}
+      >
+        <video
+          ref={videoRef}
+          src={src}
+          controls
+          playsInline
+          preload="metadata"
+          className="aspect-video w-full rounded-[5px] bg-black object-contain"
+        />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -183,15 +290,12 @@ export function RecordingAudioPlayer({
             tabIndex={0}
             onClick={seek}
             onKeyDown={(e) => {
-              const audio = audioRef.current;
-              if (!audio || !Number.isFinite(audio.duration)) return;
+              const el = video ? videoRef.current : audioRef.current;
+              if (!el || !Number.isFinite(el.duration)) return;
               if (e.key === "ArrowRight")
-                audio.currentTime = Math.min(
-                  audio.duration,
-                  audio.currentTime + 5,
-                );
+                el.currentTime = Math.min(el.duration, el.currentTime + 5);
               if (e.key === "ArrowLeft")
-                audio.currentTime = Math.max(0, audio.currentTime - 5);
+                el.currentTime = Math.max(0, el.currentTime - 5);
             }}
             className="group relative h-4 cursor-pointer"
           >

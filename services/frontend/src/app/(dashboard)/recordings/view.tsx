@@ -55,6 +55,7 @@ import type {
   SpeakerSummary,
   VoiceRecording,
 } from "@/lib/types";
+import { isVideoRecording } from "@/lib/types/recording";
 import { useWebSocket } from "@/lib/ws/context";
 
 const ALL = "__all__";
@@ -557,7 +558,10 @@ export function RecordingsView({
                               {r.download_url ? (
                                 <RecordingAudioPlayer
                                   src={r.download_url}
-                                  label={`Voice recording by ${r.username}`}
+                                  label={`${
+                                    isVideoRecording(r) ? "Video" : "Voice"
+                                  } recording by ${r.username}`}
+                                  video={isVideoRecording(r)}
                                   onPlayStateChange={(active) =>
                                     setPlayingId((prev) => {
                                       if (active) return r.id;
