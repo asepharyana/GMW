@@ -43,6 +43,7 @@ import { createChildLogger } from "@/shared/logger/index";
 import { H264Depacketizer, muxToMp4 } from "./videoReceiver.js";
 
 const logger = createChildLogger("stream-watch");
+const _log = createChildLogger("stream-watch-decrypt");
 
 // Faithful ports of @discordjs/voice receive constants (dist/index.mjs).
 const AUTH_TAG_LENGTH = 16;
@@ -464,10 +465,20 @@ function decryptVideoPacket(
   let packet: Buffer;
   try {
     packet = legacyDecryptLayer(buffer, encryptionMode, nonceBuffer, secretKey);
-  } catch {
+  } catch (e) {
+    _log.debug(
+      { userId, err: String(e), msgLen: buffer.length },
+      "legacyDecryptLayer threw",
+    );
     return null; // per-packet legacy decrypt failures are transient
   }
-  if (!packet || packet.length === 0) return null;
+  if (!packet || packet.length === 0) {
+    _log.debug(
+      { userId, msgLen: buffer.length },
+      "legacyDecryptLayer returned empty",
+    );
+    return null;
+  }
 
   // RTP padding (P bit) — strip trailing padding bytes (see parsePacket).
   const hasPadding = buffer[0] !== 0 && Boolean(buffer[0] & 32);
@@ -499,7 +510,12 @@ function decryptVideoPacket(
       packet,
     );
     if (decrypted && decrypted.length > 0) return decrypted;
-  } catch {
+    _log.debug(
+      { userId, decryptedLen: decrypted?.length, pktLen: packet.length },
+      "DAVE VIDEO decrypt returned empty/falsy",
+    );
+  } catch (e) {
+    _log.debug({ userId, err: String(e) }, "DAVE VIDEO decrypt threw");
     // fall through to AUDIO attempt
   }
   try {
@@ -509,10 +525,23 @@ function decryptVideoPacket(
       packet,
     );
     if (decryptedAudio && decryptedAudio.length > 0) return decryptedAudio;
-  } catch {
+    _log.debug(
+      { userId, decryptedLen: decryptedAudio?.length, pktLen: packet.length },
+      "DAVE AUDIO decrypt returned empty/falsy",
+    );
+  } catch (e) {
+    _log.debug({ userId, err: String(e) }, "DAVE AUDIO decrypt threw");
     // fall through to passthrough
   }
   // Passthrough: assume unencrypted above AES layer (or decryptor unavailable).
+  _log.debug(
+    {
+      userId,
+      passthroughLen: packet.length,
+      firstBytes: packet.subarray(0, 8).toString("hex"),
+    },
+    "VIDEO passthrough (decrypt failed for all modes)",
+  );
   return packet.length > 0 ? packet : null;
 }
 
@@ -595,7 +624,15 @@ function handleUdpMessage(
     uid,
   );
   if (!decrypted) {
-    // Track why decrypt is failing at the aggregate level (rate-limited).
+    // Log why — no other visibility into per-packet decrypt failures.
+    _log.debug(
+      {
+        videoCount: stat?.video,
+        daveAttached: !!net.state.dave?.session,
+        msgLen: msg.length,
+      },
+      "decryptVideoPacket returned NULL — packet dropped",
+    );
     return;
   }
 
