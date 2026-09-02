@@ -34,7 +34,7 @@ describe("extractChunkText — streaming chunk text extraction", () => {
   });
 
   it('falls back to delta.reasoning — mimo via omniroute streams reasoning there with content:""', () => {
-  // Exact shape seen from omniroute → mimo-v2.5-free (2026-08-11):
+    // Exact shape seen from omniroute → mimo-v2.5-free (2026-08-11):
     // {"choices":[{"delta":{"content":"","reasoning":"The user wants a","role":"assistant"},"finish_reason":null,...}]}
     expect(
       extractChunkText({

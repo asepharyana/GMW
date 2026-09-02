@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { access, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
 import { SSRCMap } from "@discordjs/voice";
+import { describe, expect, it } from "vitest";
 import {
   H264Depacketizer,
   muxToMp4,

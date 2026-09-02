@@ -18,6 +18,7 @@ import {
 import { MediaHandler } from "./media.handler.js";
 import { wireMediaStatusWriter } from "./mediaStatusSink.js";
 import { ModerationHandler } from "./moderation.handler.js";
+import { VideoHandler } from "./video.handler.js";
 import { VoiceHandler } from "./voice.handler.js";
 
 const logger = createChildLogger("command-handler");
@@ -52,6 +53,7 @@ export class CommandHandler {
   private mediaHandler!: MediaHandler;
   private guildHandler!: GuildHandler;
   private moderationHandler!: ModerationHandler;
+  private videoHandler!: VideoHandler;
 
   constructor() {
     // Dedicated Redis connection needed because: Redis requires a dedicated
@@ -86,6 +88,7 @@ export class CommandHandler {
     this.mediaHandler = new MediaHandler();
     this.guildHandler = new GuildHandler(client);
     this.moderationHandler = new ModerationHandler(client);
+    this.videoHandler = new VideoHandler(client, voiceController);
 
     // Wire the media status sink so MediaHandler can persist status on
     // queue advances that happen outside a command (natural track end).
@@ -97,6 +100,7 @@ export class CommandHandler {
       this.mediaHandler,
       this.guildHandler,
       this.moderationHandler,
+      this.videoHandler,
     );
 
     this.redisSub.on("message", (_channel, message) => {

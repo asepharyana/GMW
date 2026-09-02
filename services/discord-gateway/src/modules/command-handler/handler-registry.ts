@@ -7,6 +7,8 @@ import {
   COMMAND_MEDIA_STOP,
   COMMAND_MEDIA_VOLUME,
   COMMAND_MODERATION_ACTION,
+  COMMAND_VIDEO_UNWATCH,
+  COMMAND_VIDEO_WATCH,
   COMMAND_VOICE_CHANNELS,
   COMMAND_VOICE_CONNECT,
   COMMAND_VOICE_DISCONNECT,
@@ -19,6 +21,7 @@ import {
 import type { GuildHandler } from "./guild.handler.js";
 import type { MediaHandler } from "./media.handler.js";
 import type { ModerationHandler } from "./moderation.handler.js";
+import type { VideoHandler } from "./video.handler.js";
 import type { VoiceHandler } from "./voice.handler.js";
 
 // ---------------------------------------------------------------------------
@@ -38,6 +41,7 @@ export function createHandlerRegistry(
   mediaHandler: MediaHandler,
   guildHandler: GuildHandler,
   moderationHandler: ModerationHandler,
+  videoHandler: VideoHandler,
 ): Map<string, CommandHandlerFn> {
   const registry = new Map<string, CommandHandlerFn>();
 
@@ -59,6 +63,14 @@ export function createHandlerRegistry(
   );
   registry.set(COMMAND_VOICE_TRANSMIT_STOP, (cmd) =>
     voiceHandler.handleVoiceTransmitStop(cmd),
+  );
+
+  // Video watch commands
+  registry.set(COMMAND_VIDEO_WATCH, (cmd) =>
+    videoHandler.handleVideoWatch(cmd),
+  );
+  registry.set(COMMAND_VIDEO_UNWATCH, (cmd) =>
+    videoHandler.handleVideoUnwatch(cmd),
   );
 
   // Media commands
