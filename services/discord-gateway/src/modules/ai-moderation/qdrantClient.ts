@@ -50,10 +50,7 @@ export interface QdrantVerdictPayload {
 }
 
 function baseUrl(): string {
-  return (config.QDRANT_URL ?? "http://100.121.180.82:6333").replace(
-    /\/+$/,
-    "",
-  );
+  return (config.QDRANT_URL ?? "http://127.0.0.1:6333").replace(/\/+$/, "");
 }
 
 function collectionName(): string {
@@ -166,6 +163,11 @@ export async function ensureQdrantCollection(
         },
         "Failed to ensure Qdrant collection",
       );
+      // The memoised promise is permanently sticky: once it rejects (e.g. a
+      // recreate aborted mid-way — DELETE done, PUT failed), every later call
+      // returns the same rejected promise and the collection is never
+      // re-created until process restart. Reset so the next call retries.
+      ensureCollectionPromise = null;
       return false;
     }
   })();

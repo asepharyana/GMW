@@ -151,10 +151,7 @@ export const configSchema = z
       .transform((v) => v === "true")
       .default(false),
     AI_LLM_API_KEY: z.string().optional(),
-    AI_LLM_BASE_URL: z
-      .string()
-      .url()
-      .default("http://100.121.180.82:20128/api/v1"),
+    AI_LLM_BASE_URL: z.string().url().default("http://127.0.0.1:4014/v1"),
     AI_LLM_MODEL: z.string().default("text"),
     // Vision uses the SAME router/base URL as text moderation
     // (AI_LLM_BASE_URL) but a different model alias. The dedicated NVIDIA
