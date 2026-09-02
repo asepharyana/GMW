@@ -40,7 +40,7 @@ importers:
         version: 11.5.2
       openai:
         specifier: ^7.8.0
-        version: 7.8.0(undici@7.29.0)(ws@8.21.3)(zod@4.5.2)
+        version: 7.8.0(undici@7.29.0)(ws@8.21.3)(zod@4.5.4)
       opusscript:
         specifier: ^0.1.1
         version: 0.1.1
@@ -72,8 +72,8 @@ importers:
         specifier: ^8.21.3
         version: 8.21.3
       zod:
-        specifier: ^4.5.2
-        version: 4.5.2
+        specifier: ^4.5.4
+        version: 4.5.4
     devDependencies:
       '@biomejs/biome':
         specifier: latest
@@ -2481,8 +2481,8 @@ packages:
     resolution: {integrity: sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==}
     engines: {node: '>=12.20'}
 
-  zod@4.5.2:
-    resolution: {integrity: sha512-XkYXCol10+ba/6F/cueWV+TezUeOqXW0hdeJt5CdXjTYeAgAQg5N03RQdJ80mhfFE72+pblvYMW4wy2Qp4Qbrg==}
+  zod@4.5.4:
+    resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
 
 snapshots:
 
@@ -3883,11 +3883,11 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  openai@7.8.0(undici@7.29.0)(ws@8.21.3)(zod@4.5.2):
+  openai@7.8.0(undici@7.29.0)(ws@8.21.3)(zod@4.5.4):
     optionalDependencies:
       undici: 7.29.0
       ws: 8.21.3
-      zod: 4.5.2
+      zod: 4.5.4
 
   opusscript@0.1.1: {}
 
@@ -4348,4 +4348,4 @@ snapshots:
 
   yocto-queue@1.2.2: {}
 
-  zod@4.5.2: {}
+  zod@4.5.4: {}
