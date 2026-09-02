@@ -50,7 +50,10 @@ export interface QdrantVerdictPayload {
 }
 
 function baseUrl(): string {
-  return (config.QDRANT_URL ?? "http://127.0.0.1:6333").replace(/\/+$/, "");
+  return (config.QDRANT_URL ?? "http://100.121.180.82:6333").replace(
+    /\/+$/,
+    "",
+  );
 }
 
 function collectionName(): string {
