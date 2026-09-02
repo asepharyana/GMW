@@ -23,7 +23,10 @@ export const ResultItemSchema = z.object({
   message_id: z.union([z.string(), z.number()]).transform(String),
   status: z.enum(["clean", "warn", "flagged"]),
   flags: z.array(z.string()).optional(),
-  score: z.number(),
+  // score is optional — the LLM occasionally omits it (especially media
+  // batches) and callers already null-coalesce (`result.score ?? 0`).
+  // Requiring it hard-fails the whole batch parse for one missing field.
+  score: z.number().optional(),
   analysis: z.string().nullable().optional(),
   categories: z.array(z.string()).optional(),
   severity: SeveritySchema.optional(),
