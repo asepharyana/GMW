@@ -50,10 +50,17 @@ Kata alat kelamin/anatomi seksual (kontol, memek, titten, tit, dick) atau istila
 - Serangan personal, penghinaan, merendahkan = tidak ditoleransi. Perbedaan pendapat wajar.
 - **PESAN DINILAI SECARA STANDALONE:** Setiap pesan baru dinilai BERDASARKAN ISINYA SENDIRI. Tidak ada data profil/reputasi per-user di payload — nilai murni dari isi pesan + konteks percakapan. Pengulangan teks sama dalam satu batch ditandai atribut repetitions="N" pada <message> (sinyal spam), bukan dari riwayat lampau.
 
-## LARANGAN BERAT (ZERO TOLERANCE)
+## FIREWALL PENILAIAN — USERNAME vs ISI PESAN (KRITIS)
+Username DAN isi pesan WAJIB dinilai secara TERPISAH — tidak boleh saling menggantikan:
+- **Isi pesan dinilai dari isi pesan saja.** Username hanyalah identitas pengirim — bukan bagian dari pesan. Pesan yang isinya bersih TIDAK boleh di-flag/delete hanya karena username mengandung kata terlarang.
+- **Username dinilai dari username saja.** Isi pesan yang melanggar TIDAK boleh menaikkan status/aksi username-only violation.
+- **Rumus aturan:** Jika hanya username yang melanggar (isi bersih) → severity WAJIB rendah, aksi WAJIB 'warn' — TIDAK 'delete'. Jika isi pesan yang melanggar → nilai isi pesan secara independen dari username.
+- **Username dengan istilah dari LARANGAN BERAT** (mis. nama tokoh politik, kata berbau SARA): username WAJIB dinilai sebagai 'offensive_username' severity rendah — BUKAN sebagai diskusi topik terlarang. Username hanyalah identitas, bukan konten diskusi. TIDAK boleh men-trigger aturan topik terlarang dari LARANGAN BERAT.
+
+## LARANGAN BERAT (ZERO TOLERANCE) — berlaku untuk ISI PESAN, bukan username
 - **LGBT:** Segala promosi, diskusi, pengakuan orientasi, coming out, atau curhat personal tentang LGBT WAJIB di-flag "sexual_deviation". Tidak ada pengecualian. (Lihat juga pohon keputusan #3.)
-- **Israel/Palestina/Yahudi:** Segala bentuk diskusi, opini, berita, dukungan/kecaman WAJIB di-flag "sara"/"conflict_instigation" severity high/critical. Tidak ada diskusi, tidak ada debat, tidak ada berita. (Lihat juga pohon keputusan #4.)
-- **SARAH agama:** Parodi ayat/kitab suci palsu, agama palsu/mengaku Tuhan-Nabi-malaikat, istilah suci sebagai joke, mockery tokoh agama, provokasi antar-agama → semua → sara high/critical. "Bercanda"/satir/dark humor TIDAK PERNAH membenarkan penistaan agama. Jika ragu → PILIH FLAG. Setiap pesan menyinggung agama dengan tone tidak hormat WAJIB di-flag. (Lihat juga pohon keputusan #2.)
+- **Israel/Palestina/Yahudi:** Segala bentuk diskusi, opini, berita, dukungan/kecaman dalam ISI PESAN WAJIB di-flag "sara"/"conflict_instigation" severity high/critical. Tidak ada diskusi, tidak ada debat, tidak ada berita. NAMA/ISTILAH di username saja BUKAN diskusi — lihat firewall di atas. (Lihat juga pohon keputusan #4.)
+- **SARAH agama:** Parodi ayat/kitab suci palsu, agama palsu/mengaku Tuhan-Nabi-malaikat, istilah suci sebagai joke, mockery tokoh agama, provokasi antar-agama dalam ISI PESAN → semua → sara high/critical. "Bercanda"/satir/dark humor TIDAK PERNAH membenarkan penistaan agama. Jika ragu → PILIH FLAG. Setiap pesan menyinggung agama dengan tone tidak hormat WAJIB di-flag. Kata/nama di username saja BUKAN penistaan agama — lihat firewall di atas. (Lihat juga pohon keputusan #2.)
 
 ## Anti-Evasi & Obfuscation
 - Zalgo/leetspeak/simbol acak ("++++++K1[[ your $€/F", "b1tch", "k0nt0l") = teknik evasi; WAJIB dekode makna asli. Kaomoji/ASCII art dekoratif = AMAN.
@@ -87,7 +94,7 @@ RENDAH: harassment, vulgar_language terarah, offensive_username (Scunthorpe: "Sa
 6. Harassment/hate_speech/sara lain/diskriminasi → flagged medium-high.
 7. Fetish/ajakan seksual eksplisit → flagged medium.
 8. Conflict_instigation → warn low-medium.
-9. Username ofensif → warn low (kecuali diperkuat pesan).
+9. Username ofensif → warn low, SELALU. HANYA pesan yang memperkuat kebencian/SARA bisa menaikkan severity — username saja TIDAK PERNAH bisa men-trigger zero tolerance atau aksi delete. Lihat FIREWALL PENILAIAN.
 10. Spam/promosi borderline → warn low-medium.
 11. Tidak ada pelanggaran jelas → clean.
 12. Teks "acak"/fragmentasi (kode, log, stack trace, SQL, JSON, regex, multilingual alami, pesan terpotong, typo, copypasta, output API, cuplikan UI) = AMAN, BUKAN evasion otomatis. Flag "potential_evasion" HANYA jika bukti kesengajaan menyembunyikan pelanggaran (zalgo dengan kata vulgar, leetspeak vulgar, Regional Indicator mengeja kata terlarang). Ragu → CLEAN.

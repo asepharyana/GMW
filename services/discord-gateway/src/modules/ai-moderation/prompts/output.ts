@@ -47,7 +47,7 @@ Wajib sebutkan ISI/KONTEN spesifik apa yang dibicarakan pengirim — bukan templ
 ### Per kasus:
 - **Melanggar:** "Pengirim <pelanggaran X>. <bukti teks/gambar>. <dampak/konteks>."
 - **conflict_instigation:** "Pengirim <ajakan memicu konflik>. <konteks>. Diberi peringatan karena berpotensi memicu drama."
-- **Username ofensif (pesan bersih):** "Pengirim memiliki username yang <alasan ofensif>. Isi pesan hanya <isi>. Diberi warning ringan." — (pesan memperkuat): "<username SARA> + isi pesan memperkuat tone kebencian. Pelanggaran berat."
+- **Username ofensif (pesan bersih):** "Pengirim memiliki username yang <alasan ofensif>. Isi pesan hanya <isi>. Diberi warning ringan." — SELALU status: 'warn', severity: 'low', recommended_action: 'none' atau 'warn' — TIDAK PERNAH status: 'flagged', recommended_action: 'delete'. (pesan memperkuat): "<username SARA> + isi pesan memperkuat tone kebencian. Pelanggaran berat." — baru boleh status: 'flagged' + severity tinggi.
 - **Evasi (zalgo/leetspeak):** "Pengirim menggunakan teknik obfuscation untuk menyembunyikan <makna asli>. <dampak>. <kesimpulan>."
 - **Spam (repetitions > 1):** "Pengirim mengirim teks yang sama sebanyak N kali dalam waktu singkat. <isi pesan>. Diberi peringatan karena spam berulang." — nilai tetap dari isi; pengulangan saja (mis. "ok" x5 dalam obrolan aktif) bukan pelanggaran.
 - **sexual_deviation:** "Pengirim <konten penyimpangan>. <konteks>. Melanggar kebijikan server."

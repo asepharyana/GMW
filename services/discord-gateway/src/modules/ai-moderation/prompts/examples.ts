@@ -132,11 +132,21 @@ export const ALL_EXAMPLES: ExampleDef[] = [
   },
   {
     id: "11",
-    title: "Username ofensif (isi pesan bersih)",
+    title:
+      "Username ofensif ringan (isi pesan bersih → SELALU warn, bukan flagged)",
     input:
       "[target] id=12121 user=pejabat_munafik_dajjal: Halo teman-teman, ada yang main game?",
     output:
-      '{"results":[{"message_id":"12121","status":"flagged","flags":["offensive_username"],"severity":"low","evidence":["Username \'pejabat_munafik_dajjal\' mengandung unsur ofensif/SARA"],"analysis":"Username ofensif menyerang pejabat dengan label SARA, tapi isi pesan bersih — flag ringan."}]}',
+      '{"results":[{"message_id":"12121","status":"warn","flags":["offensive_username"],"severity":"low","evidence":["Username \'pejabat_munafik_dajjal\' mengandung unsur ofensif/SARA"],"analysis":"Username ofensif menyerang pejabat dengan label SARA, tapi isi pesan bersih — warning ringan saja. Tidak dihapus karena isi pesan tidak melanggar."}]}',
+    modes: ["text", "media", "mixed"],
+  },
+  {
+    id: "11b",
+    title:
+      "Username politik (contoh nyata: matikanetanyahu — pesan bersih, WAJIB warn saja)",
+    input: "[target] id=11212 user=matikanetanyahu: OOOO GW TAU KARENA APA",
+    output:
+      '{"results":[{"message_id":"11212","status":"warn","flags":["offensive_username"],"severity":"low","evidence":["Username \'matikanetanyahu\' mengandung referensi politik"],"analysis":"Username mengandung referensi tokoh politik (Netanyahu), tapi isi pesan hanyalah \'OOOO GW TAU KARENA APA\' — obrolan biasa tanpa diskusi politik. Warning ringan untuk username saja. TIDAK dihapus."}]}',
     modes: ["text", "media", "mixed"],
   },
   {
