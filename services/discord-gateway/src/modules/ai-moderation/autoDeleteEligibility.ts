@@ -72,13 +72,58 @@ export function parseModerationFlags(
  * correct enforcement is resetting the nickname to the default username.
  * Any other flag (sara, harassment, vulgar_language, ...) keeps the normal
  * delete path.
+ *
+ * Two detection paths (belt-and-suspenders):
+ *  1. Exact flags — the ONLY flag is `offensive_username`.
+ *  2. Analysis attribution — the flag set is exactly the username-attributable
+ *     set (`offensive_username`, `sara`, `conflict_instigation`) AND the
+ *     analysis text explicitly attributes the violation SOLELY to the
+ *     username while stating the message content itself is clean/ordinary.
+ *     This catches the false-positive case where the LLM wrongly applies a
+ *     content-level zero-tolerance flag (e.g. `sara`/`conflict_instigation`
+ *     for a username like "matikanetanyahu") instead of `offensive_username`.
  */
+const USERNAME_ATTRIBUTABLE_FLAGS = new Set([
+  "offensive_username",
+  "sara",
+  "conflict_instigation",
+]);
+
+/** Analysis text that clearly states the message content itself is clean. */
+const CONTENT_CLEAN_PATTERN =
+  /(?:isi pesan\s*(?:hanya|bersih|tidak (?:melanggar|ada)|membahas|berisi|bukan)|pesan\s*(?:bersih|tidak (?:melanggar|ada))|tidak ada (?:diskusi|konten|indikasi|pelanggaran))/i;
+
+/** Analysis text that clearly attributes the violation to the username. */
+const USERNAME_ATTRIBUTION_PATTERN =
+  /(?:username|nickname|nama pengguna)[\s\S]{0,40}?(?:mengandung|memiliki|berisi|melanggar|ofensif|mengecam|menyerang)/i;
+
 export function isNicknameOnlyViolation(
   message: MessageRecord,
   analysisResult?: AnalysisResult,
 ): boolean {
   const flags = parseModerationFlags(message, analysisResult);
-  return flags.length > 0 && flags.every((f) => f === "offensive_username");
+  if (flags.length === 0) return false;
+
+  // Path 1: exact offensive_username-only.
+  if (flags.every((f) => f === "offensive_username")) return true;
+
+  // Path 2: username-attributable flag set + analysis text corroborates
+  // that the violation is username-only with clean content.
+  const onlyUsernameAttributable = flags.every((f) =>
+    USERNAME_ATTRIBUTABLE_FLAGS.has(f),
+  );
+  if (!onlyUsernameAttributable) return false;
+
+  const analysis =
+    (analysisResult?.analysis ?? typeof message.ai_analysis === "string")
+      ? message.ai_analysis
+      : "";
+  if (!analysis) return false;
+
+  return (
+    USERNAME_ATTRIBUTION_PATTERN.test(analysis) &&
+    CONTENT_CLEAN_PATTERN.test(analysis)
+  );
 }
 
 /**

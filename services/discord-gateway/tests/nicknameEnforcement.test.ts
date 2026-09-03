@@ -11,7 +11,10 @@ import type {
   MessageRecord,
 } from "../src/modules/message-capture/types.js";
 
-function msg(flagsJson: string | null): MessageRecord {
+function msg(
+  flagsJson: string | null,
+  analysis?: string | null,
+): MessageRecord {
   return {
     id: "m1",
     guild_id: "g1",
@@ -34,6 +37,7 @@ function msg(flagsJson: string | null): MessageRecord {
     reference_guild_id: null,
     metadata: null,
     ai_moderation_flags: flagsJson,
+    ai_analysis: analysis ?? null,
   };
 }
 
@@ -73,5 +77,41 @@ describe("isNicknameOnlyViolation", () => {
   it("false when no flags at all", () => {
     expect(isNicknameOnlyViolation(msg(null))).toBe(false);
     expect(isNicknameOnlyViolation(msg("[]"))).toBe(false);
+  });
+
+  // ── Safety-net: content-level flags mis-applied to a username-only offense ──
+
+  it("true: partial flags sara/conflict + analysis attributes violation to username with clean content (matikanetanyahu case)", () => {
+    const analysis =
+      "Pengirim menggunakan username 'matikanetanyahu' yang menyerang tokoh politik terkait konflik Israel-Palestina. Meskipun isi pesan membahas alasan hilangnya tugas, keberadaan username tersebut tetap melanggar aturan server.";
+    expect(
+      isNicknameOnlyViolation(msg('["sara","conflict_instigation"]', analysis)),
+    ).toBe(true);
+  });
+
+  it("true: sara-only flag + analysis clearly attributes to username with clean content", () => {
+    const analysis =
+      "Username mengandung referensi politik (Netanyahu), tapi isi pesan hanya obrolan biasa tanpa diskusi politik. Warning ringan untuk username saja.";
+    expect(isNicknameOnlyViolation(msg('["sara"]', analysis))).toBe(true);
+  });
+
+  it("false: username-attributable flags but analysis lacks clean-content signal", () => {
+    const analysis =
+      "Pengirim mengkritik kebijakan luar negeri Israel secara eksplisit di dalam pesan. Pelanggaran diskusi topik terlarang.";
+    expect(
+      isNicknameOnlyViolation(msg('["sara","conflict_instigation"]', analysis)),
+    ).toBe(false);
+  });
+
+  it("false: mixed flags including a real content violation, even with clean analysis", () => {
+    const analysis =
+      "Username ofensif dan isi pesan berisi ancaman kekerasan terarah.";
+    expect(isNicknameOnlyViolation(msg('["sara","violence"]', analysis))).toBe(
+      false,
+    );
+  });
+
+  it("false: username-attributable flags but no analysis text available", () => {
+    expect(isNicknameOnlyViolation(msg('["sara"]', null))).toBe(false);
   });
 });
