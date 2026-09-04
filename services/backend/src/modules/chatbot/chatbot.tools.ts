@@ -1,4 +1,5 @@
 import { and, desc, eq, like, sql } from "drizzle-orm";
+import { createChildLogger } from "@/shared/logger/index";
 import { getDatabase } from "../../shared/database/index.js";
 import {
   pgChannelCulturesTable,
@@ -19,6 +20,20 @@ import {
  */
 
 export type ToolResult = string;
+
+const logger = createChildLogger("chatbot.tools");
+
+/** Saturating counter of chatbot tool execution errors (for observability). */
+export let toolErrors = 0;
+const TOOL_ERROR_CAP = 1000;
+
+function toolExecError(err: unknown, name: string): string {
+  if (toolErrors < TOOL_ERROR_CAP) toolErrors++;
+  const detail = (err as Error)?.message ?? "unknown";
+  logger.warn({ tool: name, error: detail }, "Chatbot tool execution failed");
+  return `Tool ${name} gagal: ${detail}`;
+}
+
 /** Executes a tool call against the real DB and returns a readable result. */
 export async function executeTool(
   name: string,
@@ -90,7 +105,7 @@ export async function executeTool(
     }
   } catch (error) {
     // Best-effort: if a tool fails, return readable error instead of crashing
-    return `Terjadi kesalahan saat ambil data: ${(error as Error).message ?? "unknown"}`;
+    return toolExecError(error, name);
   }
 }
 

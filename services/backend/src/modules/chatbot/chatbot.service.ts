@@ -64,7 +64,7 @@ class ChatbotService {
   private async getRecentConversationContext(
     userId: string,
   ): Promise<string[]> {
-    const history = await chatbotRepository.getChatHistory(userId, 3);
+    const history = await chatbotRepository.getChatHistory(userId, 8);
     return history.flatMap((row) => [
       `User: ${row.user_message}`,
       `Bot: ${row.bot_response}`,
@@ -82,11 +82,27 @@ class ChatbotService {
 
 ${scopeLine}
 
+TOOLS YANG TERSEDIA (panggil saat user tanya soal data server):
+- get_server_stats → statistik server: total pesan, user aktif, flagged/warn/clean
+- get_top_channels → channel paling aktif (jumlah pesan terbanyak)
+- get_recent_activity → pesan terbaru (siapa, channel mana, jam berapa, isinya)
+- get_top_flagged → pesan yang di-flag AI (alasan, severity, analysis)
+- search_messages → cari pesan berdasarkan kata kunci (LIKE search)
+- get_user_messages → pesan terbaru dari satu user tertentu
+- get_user_profile → profil AI dari seorang user (pola perilaku, gaya bicara)
+- get_channel_culture → norma/slang dari suatu channel
+- get_message_detail → 1 pesan lengkap beserta hasil analisis AI-nya
+- get_message_reviews → antrean review moderasi manual
+- get_voice_recordings → rekaman suara terbaru
+- get_moderation_timeline → tren harian: total vs flagged vs warn vs clean
+- get_corrections → riwayat koreksi false-positive AI
+
 ATURAN PENTING — JANGAN PAKAI KONTEKS STATIS:
-- Kamu TIDAK punya hafalan soal angka server (jumlah pesan, user aktif, flagged, dll). JANGAN tebak atau karang angka.
-- Untuk SEMUA pertanyaan soal data server (jumlah pesan, user aktif, channel ramai, aktivitas terbaru, pesan di-flag), WAJIB panggil tool yang sesuai (get_server_stats, get_top_channels, get_recent_activity, get_top_flagged). Jawab HANYA dari hasil tool.
-- Tool otomatis di-scope ke guild/channel di atas — kalau argumen guildId/channelId kosong, biarkan kosong (sudah otomatis ter-isi). Jangan isi ID yang kamu tebak.
-- Kalau tool balas error atau kosong, bilang aja data lagi ga ketemu, jangan karang.
+- Kamu TIDAK punya hafalan soal angka server. JANGAN tebak atau karang angka.
+- Untuk SEMUA pertanyaan soal data server, WAJIB panggil tool yang sesuai. Jawab HANYA dari hasil tool.
+- Tool otomatis di-scope ke guild/channel — kalau argumen kosong, biarkan kosong. Jangan isi ID tebakan.
+- Kalau tool balik error atau kosong, bilang aja data lagi ga ketemu, jangan karang.
+- Boleh panggil banyak tool dalam satu jawaban kalau pertanyaan butuh beberapa data (multi-hop).
 
 Gaya ngobrol:
 - Santai, hangat, kayak ngobrol sama temen
@@ -127,27 +143,31 @@ Gaya ngobrol:
     try {
       const { default: axios } = await import("axios");
 
-      // Gateway tidak handle role system — gabung konteks ke user message.
-      // The system section stays visible to the model as the first user turn.
-      const contextPrefixed = `${systemPrompt}\n\nPertanyaan user: ${userMessage}`;
-
-      // Seed conversation: prior turns + current question.
-      const messages: Array<
-        | { role: "user" | "assistant"; content: string }
-        | {
-            role: "assistant";
-            content: string | null;
-            tool_calls: Array<{
-              id: string;
-              type: "function";
-              function: { name: string; arguments: string };
-            }>;
-          }
-        | { role: "tool"; tool_call_id: string; content: string }
-      > = [...history, { role: "user", content: contextPrefixed }];
+      const scopeHint = scope.guildId
+        ? ` (scope: guild ${scope.guildId}${scope.channelId ? `, channel ${scope.channelId}` : ""})`
+        : "";
+      // Local message type that models the shapes the agent loop emits and
+      // accepts: plain system/user/assistant turns and assistant tool-calls +
+      // tool results. role is a union string so history entries typed as
+      // `"user" | "assistant"` don't break the discriminant.
+      type ChatMsg = {
+        role: "system" | "user" | "assistant" | "tool";
+        content?: string | null;
+        tool_call_id?: string;
+        tool_calls?: Array<{
+          id: string;
+          type: "function";
+          function: { name: string; arguments: string };
+        }>;
+      };
+      const messages: ChatMsg[] = [
+        { role: "system", content: systemPrompt },
+        ...history,
+        { role: "user", content: `${userMessage}${scopeHint}` },
+      ];
 
       // ── Agentic tool loop ─────────────────────────────────────────
-      const MAX_TOOL_ROUNDS = 4;
+      const MAX_TOOL_ROUNDS = 6;
       for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
         const response = await axios.post(
           `${baseUrl}/chat/completions`,
