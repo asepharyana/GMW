@@ -14,6 +14,7 @@ import type { ChatCompletion } from "openai/resources/chat/completions";
 import { createChildLogger } from "@/shared/logger/index";
 import { delay, retryWithBackoff } from "@/shared/utils/index";
 import { config } from "../../shared/config/config.js";
+import { incrementCounterBy } from "../gateway-metrics/index.js";
 import type { AnalysisResult } from "../message-capture/types.js";
 import { llmChat } from "./llmClient.js";
 import { parseModerationResponse } from "./moderationResponseParser.js";
@@ -170,6 +171,23 @@ export async function callModerationLLM(
     // so cost per channel/guild can be tracked (routers bill per token).
     const usage = result?.usage;
     if (usage && (usage.prompt_tokens || usage.completion_tokens)) {
+      // Prometheus token-usage counters for cost tracking per model + phase.
+      // Counters accumulate across scrapes so total spend per model/label is
+      // queryable (rate(...) dashboards).
+      if (usage.prompt_tokens) {
+        incrementCounterBy("llm_tokens_total", usage.prompt_tokens, {
+          model: config.AI_LLM_MODEL,
+          type: "prompt",
+          label,
+        });
+      }
+      if (usage.completion_tokens) {
+        incrementCounterBy("llm_tokens_total", usage.completion_tokens, {
+          model: config.AI_LLM_MODEL,
+          type: "completion",
+          label,
+        });
+      }
       log.info(
         {
           label,

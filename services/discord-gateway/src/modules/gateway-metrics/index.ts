@@ -1,5 +1,6 @@
 export {
   incrementCounter,
+  incrementCounterBy,
   registerCollector,
   setGauge,
   startMetricsServer,

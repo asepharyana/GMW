@@ -26,13 +26,25 @@ class ChatbotService {
     // longer bake server stats into the prompt — the model must pull current
     // data via tools (see buildSystemPrompt), so it always answers from live
     // numbers instead of a stale snapshot.
-    const scope = {
+    //
+    // If the current request doesn't carry a guild/channel scope (e.g. a
+    // cross-server dashboard surface), fall back to the most recent scope the
+    // user was chatting in from history, so the agent doesn't drift to the
+    // wrong server between turns.
+    const explicitScope = {
       guildId: context?.guildId,
       channelId: context?.channelId,
     };
+    const scope =
+      explicitScope.guildId || explicitScope.channelId
+        ? explicitScope
+        : (recentContext.lastScope ?? {
+            guildId: undefined,
+            channelId: undefined,
+          });
 
     const systemPrompt = this.buildSystemPrompt(scope);
-    const conversationHistory = this.buildHistoryMessages(recentContext);
+    const conversationHistory = this.buildHistoryMessages(recentContext.turns);
     const llmResponse = await this.callLLM(
       systemPrompt,
       conversationHistory,
@@ -61,14 +73,28 @@ class ChatbotService {
     await chatbotRepository.clearChatHistory(userId);
   }
 
-  private async getRecentConversationContext(
-    userId: string,
-  ): Promise<string[]> {
+  private async getRecentConversationContext(userId: string): Promise<{
+    turns: string[];
+    lastScope: { guildId?: string; channelId?: string } | null;
+  }> {
     const history = await chatbotRepository.getChatHistory(userId, 8);
-    return history.flatMap((row) => [
-      `User: ${row.user_message}`,
-      `Bot: ${row.bot_response}`,
-    ]);
+    const turns: string[] = [];
+    let lastScope: { guildId?: string; channelId?: string } | null = null;
+    for (const row of history) {
+      turns.push(`User: ${row.user_message}`, `Bot: ${row.bot_response}`);
+      // Capture the most recent scope this user was chatting in, so the
+      // agent keeps server context across turns even if the current request
+      // doesn't carry one.
+      const g = row.context?.guildId;
+      const c = row.context?.channelId;
+      if (g || c) {
+        lastScope = {
+          guildId: g ?? undefined,
+          channelId: c ?? undefined,
+        };
+      }
+    }
+    return { turns, lastScope };
   }
 
   private buildSystemPrompt(scope: {
@@ -213,35 +239,44 @@ Gaya ngobrol:
         );
 
         if (toolCalls.length > 0) {
-          // Execute each tool, append tool results, continue loop.
-          for (const tc of toolCalls) {
-            messages.push({
-              role: "assistant",
-              content: null,
-              tool_calls: [
-                {
-                  id: tc.id,
-                  type: "function",
-                  function: { name: tc.name, arguments: tc.arguments },
-                },
-              ],
-            });
-            // Auto-scope: if the model omitted guildId/channelId, fill them
-            // from the request scope so tools query the right server without
-            // the model having to guess IDs.
-            const scopedArgs = { ...tc.args };
-            if (scope.guildId && scopedArgs.guildId == null) {
-              scopedArgs.guildId = scope.guildId;
-            }
-            if (scope.channelId && scopedArgs.channelId == null) {
-              scopedArgs.channelId = scope.channelId;
-            }
-            let result = "";
-            try {
-              result = await executeTool(tc.name, scopedArgs);
-            } catch (e) {
-              result = `Tool error: ${(e as Error).message}`;
-            }
+          // Executor for a single tool call: pushes the assistant tool_call,
+          // runs the tool, returns { tc, result } so results can be appended
+          // in order after all tools execute in parallel.
+          const executions = await Promise.all(
+            toolCalls.map(async (tc) => {
+              messages.push({
+                role: "assistant",
+                content: null,
+                tool_calls: [
+                  {
+                    id: tc.id,
+                    type: "function",
+                    function: { name: tc.name, arguments: tc.arguments },
+                  },
+                ],
+              });
+              // Auto-scope: if the model omitted guildId/channelId, fill them
+              // from the request scope so tools query the right server without
+              // the model having to guess IDs.
+              const scopedArgs = { ...tc.args };
+              if (scope.guildId && scopedArgs.guildId == null) {
+                scopedArgs.guildId = scope.guildId;
+              }
+              if (scope.channelId && scopedArgs.channelId == null) {
+                scopedArgs.channelId = scope.channelId;
+              }
+              let result = "";
+              try {
+                result = await executeTool(tc.name, scopedArgs);
+              } catch (e) {
+                result = `Tool error: ${(e as Error).message}`;
+              }
+              return { tc, result };
+            }),
+          );
+          // Append tool results in the SAME order as the tool_calls so the
+          // API's function-calling contract isn't violated by reordering.
+          for (const { tc, result } of executions) {
             messages.push({
               role: "tool",
               tool_call_id: tc.id,

@@ -38,15 +38,24 @@ export function incrementCounter(
   name: string,
   labels?: Record<string, string>,
 ): void {
+  incrementCounterBy(name, 1, labels);
+}
+
+/** Increment a counter by an explicit delta (e.g. token counts per batch). */
+export function incrementCounterBy(
+  name: string,
+  delta: number,
+  labels?: Record<string, string>,
+): void {
   const k = key(`bete_${name}`, labels);
   const existing = metrics.get(k);
   if (existing) {
-    existing.value += 1;
+    existing.value += delta;
   } else {
     metrics.set(k, {
       help: `Counter: ${name}`,
       type: "counter",
-      value: 1,
+      value: delta,
       labels: labels ? { ...labels } : undefined,
     });
   }

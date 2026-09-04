@@ -8,6 +8,7 @@
 import { LRUCache } from "lru-cache";
 import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
+import { incrementCounterBy } from "../gateway-metrics/index.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
 import type {
   AnalysisResult,
@@ -243,10 +244,12 @@ export async function runModerationAnalysis(
     const representative = hitByKey.get(candidate.scopedKey);
     if (representative) {
       cacheHits.push({ ...representative, messageId: candidate.target.id });
+      incrementCounterBy("moderation_cache_hits", 1, { type: "exact" });
     } else {
       uncachedTargets.push(candidate.target);
     }
   }
+  incrementCounterBy("moderation_cache_misses", uncachedTargets.length);
 
   // ── Phase 2: semantic cache — batched (one embed call + one Qdrant
   //    batch search for ALL uncached text targets) ─────────────────────────
@@ -321,6 +324,9 @@ export async function runModerationAnalysis(
             hitByKey.set(cacheKey, hit);
             servedCacheKeys.add(cacheKey); // bump hit_count for metrics
             logCacheEvent("hit", cacheKey, "text");
+            incrementCounterBy("moderation_cache_hits", 1, {
+              type: "semantic-qdrant",
+            });
           }
         } else {
           // Legacy Postgres fallback path (no Qdrant): per-candidate scan.
@@ -360,6 +366,9 @@ export async function runModerationAnalysis(
             hitByKey.set(cacheKey, hit);
             servedCacheKeys.add(cacheKey); // bump hit_count for metrics
             logCacheEvent("hit", cacheKey, "text");
+            incrementCounterBy("moderation_cache_hits", 1, {
+              type: "semantic-pg",
+            });
           }
         }
 
