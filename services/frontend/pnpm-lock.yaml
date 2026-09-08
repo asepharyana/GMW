@@ -40,7 +40,7 @@ importers:
         version: 3.6.0
     devDependencies:
       '@biomejs/biome':
-        specifier: 2.5.12
+        specifier: ^2.5.12
         version: 2.5.12
       '@tailwindcss/postcss':
         specifier: ^4
@@ -58,7 +58,7 @@ importers:
         specifier: ^0.185.4
         version: 0.185.4
       babel-plugin-react-compiler:
-        specifier: 1.0.0
+        specifier: ^1.0.0
         version: 1.0.0
       puppeteer-core:
         specifier: ^25.10.0
