@@ -17,7 +17,10 @@ import { config } from "../../shared/config/config.js";
 import { incrementCounterBy } from "../gateway-metrics/index.js";
 import type { AnalysisResult } from "../message-capture/types.js";
 import { llmChat } from "./llmClient.js";
-import { parseModerationResponse } from "./moderationResponseParser.js";
+import {
+  extractJson,
+  parseModerationResponse,
+} from "./moderationResponseParser.js";
 import { logModerationError } from "./responseLogger.js";
 
 const log = createChildLogger("llm-caller");
@@ -129,6 +132,35 @@ export async function callModerationLLM(
               },
               `Failed to parse moderation response (${label})`,
             );
+            // Attempt cheap structural repair before re-throwing: models with
+            // thinking disabled sometimes emit the JSON object as plain text
+            // (no code fence, outer prose). extractJson walks the raw content
+            // for a balanced {…} / […]. If that yields a parseable object,
+            // use it — the parse is data-driven, never injected into the
+            // prompt, so it cannot leak into future calls.
+            try {
+              const repaired = extractJson(rawContent);
+              if (repaired) {
+                return {
+                  parsed: parseModerationResponse(
+                    JSON.stringify(repaired),
+                    targetIds,
+                  ),
+                  result: completion,
+                };
+              }
+            } catch (repairError: any) {
+              log.warn(
+                {
+                  error:
+                    repairError instanceof Error
+                      ? repairError.message
+                      : String(repairError),
+                  label,
+                },
+                "JSON repair attempt failed — falling through to retry",
+              );
+            }
             throw parseError;
           }
         } catch (apiError: any) {

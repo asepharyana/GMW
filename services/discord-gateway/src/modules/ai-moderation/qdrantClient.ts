@@ -107,6 +107,54 @@ async function request(
   }
 }
 
+/** True for transient errors worth retrying (408 timeout, ECONNRESET, aborts). */
+function isTransientQdrantError(error: unknown): boolean {
+  if (error instanceof Error && error.name === "AbortError") return true;
+  const msg = error instanceof Error ? error.message : String(error);
+  return (
+    msg.includes("-> 408") ||
+    msg.includes("aborted") ||
+    msg.includes("ECONNRESET") ||
+    msg.includes("ETIMEDOUT") ||
+    msg.includes("fetch failed")
+  );
+}
+
+/** Retry with exponential backoff around `request`, abort-aware. */
+async function requestWithRetry(
+  method: string,
+  path: string,
+  body?: unknown,
+  timeoutMs = 10_000,
+  attempts = 3,
+): Promise<unknown> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) {
+      // Exponential backoff: 500ms → 1s → 2s (jittered ±20%).
+      const base = 500 * 2 ** (attempt - 1);
+      const delayMs = base + Math.floor(Math.random() * base * 0.2);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    try {
+      return await request(method, path, body, timeoutMs);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientQdrantError(error)) throw error;
+      log.debug(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          attempt: attempt + 1,
+          method,
+          path,
+        },
+        "Qdrant transient error — retrying with backoff",
+      );
+    }
+  }
+  throw lastError;
+}
+
 /** Deterministic uint64 point id from the exact-hash cache key. */
 export function qdrantPointId(cacheKey: string): number {
   const digest = createHash("sha256").update(cacheKey).digest();
@@ -185,7 +233,7 @@ export async function upsertQdrantPoint(
 ): Promise<boolean> {
   try {
     if (!(await ensureQdrantCollection(vector.length))) return false;
-    await request(
+    await requestWithRetry(
       "PUT",
       `/collections/${collectionName()}/points`,
       {
@@ -193,6 +241,7 @@ export async function upsertQdrantPoint(
         wait: true,
       },
       30_000,
+      3,
     );
     return true;
   } catch (error) {
@@ -470,7 +519,7 @@ export async function upsertQdrantPointV2(
 ): Promise<boolean> {
   try {
     if (!(await ensureQdrantCollectionV2(name, vector.length))) return false;
-    await request(
+    await requestWithRetry(
       "PUT",
       `/collections/${name}/points`,
       {
@@ -478,6 +527,7 @@ export async function upsertQdrantPointV2(
         wait: true,
       },
       30_000,
+      3,
     );
     return true;
   } catch (error) {

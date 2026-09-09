@@ -78,6 +78,10 @@ export async function runMediaBatch(
   const userContent = userBlocks.join("\n\n");
 
   const perMsgTimeout = config.AI_LLM_MEDIA_ANALYSIS_TIMEOUT_MS ?? 60000;
+  // Batch budget = per-message budget × message count, capped at 5 minutes
+  // absolute so a single slow vision call cannot stall the whole pipeline
+  // for a huge batch (the abandonment budget is a hard safety net; messages
+  // that time out are routed to the individual fallback queue anyway).
   const batchTimeout = Math.min(
     Math.max(perMsgTimeout, perMsgTimeout * targets.length),
     300_000,

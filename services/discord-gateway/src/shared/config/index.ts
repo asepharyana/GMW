@@ -105,6 +105,14 @@ export const configSchema = z
     // to POSTGRES_POOL_MAX; min:0 only drops idle clients after
     // idleTimeoutMillis. This both trims RSS and frees PgBouncer slots.
     POSTGRES_POOL_MIN: z.coerce.number().int().min(0).default(0),
+    // Ceiling for the gateway's per-process pg Pool. Each Piscina worker
+    // thread owns its own pool (main + 4 workers = 5 pools), so this value
+    // is the per-thread cap. Kept at 10 (2026-09-09 audit): the real
+    // bottleneck is PgBouncer's per-(user,db) default_pool_size on imrnes —
+    // raising this ceiling without raising the Bouncer pool just makes more
+    // clients queue at the same 20 slots. pool_mode=session means each pg
+    // Pool client occupies a Bouncer slot for the whole transaction; min:0
+    // + idleTimeoutMillis frees idle slots automatically.
     POSTGRES_POOL_MAX: z.coerce.number().int().positive().default(10),
 
     // ── Redis ────────────────────────────────────────────────────────────
@@ -211,16 +219,18 @@ export const configSchema = z
       .number()
       .int()
       .positive()
-      .default(60000),
+      .default(120_000),
     // Standalone image/sticker/emoji vision analysis (analyzeSingleMediaImage
     // → llmVision → llmChat). Decoupled from the media *batch* timeout above so
-    // a single vision call can be tuned independently. 1 minute by default —
-    // vision models (especially behind a router) need headroom for large images.
+    // a single vision call can be tuned independently. 2 minutes by default —
+    // vision models (especially behind a router) need headroom for large images
+    // and the media batch budget grew to 120s (2026-09-09) so single-image calls
+    // must not be the bottleneck in the fallback chain.
     AI_LLM_VISION_ANALYSIS_TIMEOUT_MS: z.coerce
       .number()
       .int()
       .positive()
-      .default(60000),
+      .default(120_000),
     // Text-only moderation batches are cheaper than media (no downloads /
     // vision pre-pass), so they get their own (shorter) timeout instead of
     // being tied to the media budget.
