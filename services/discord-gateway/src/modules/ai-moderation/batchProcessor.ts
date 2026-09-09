@@ -23,6 +23,9 @@ import {
 
 const logger = createChildLogger("batch-processor");
 
+/** User IDs whose messages are captured but never AI-analyzed (config). */
+const AI_SKIP_ANALYSIS_USER_IDS = new Set(config.AI_SKIP_ANALYSIS_USER_IDS);
+
 export interface AnalysisWorkerResponse {
   ok: boolean;
   conversationKey: string;
@@ -67,6 +70,11 @@ export function isAgeRestrictedMessage(message: MessageRecord): boolean {
   return isAgeRestrictedMetadata(message.metadata);
 }
 
+/** True when the author's user ID is in the AI_SKIP_ANALYSIS_USER_IDS set. */
+export function isSkipAnalysisUser(message: MessageRecord): boolean {
+  return AI_SKIP_ANALYSIS_USER_IDS.has(message.user_id);
+}
+
 export function buildAgeRestrictedSkipResult(): {
   status: "clean";
   flags: string | null;
@@ -85,6 +93,33 @@ export function buildAgeRestrictedSkipResult(): {
     score: 0,
     analysis: "Skipped moderation for age-restricted content.",
     categories: ["age_restricted"],
+    severity: "none",
+    confidence: 1,
+    recommendedAction: "none",
+    analyzedAt: Date.now(),
+    error: null,
+  };
+}
+
+/** Skip-result for authors in the AI_SKIP_ANALYSIS_USER_IDS set (music bots). */
+export function buildSkipAnalysisUserResult(): {
+  status: "clean";
+  flags: string | null;
+  score: number;
+  analysis: string;
+  categories: string[];
+  severity: "none";
+  confidence: number;
+  recommendedAction: "none";
+  analyzedAt: number;
+  error: null;
+} {
+  return {
+    status: "clean",
+    flags: JSON.stringify(["skip_analysis_user"]),
+    score: 0,
+    analysis: "Skipped moderation for bot author (configured skip list).",
+    categories: ["skip_analysis_user"],
     severity: "none",
     confidence: 1,
     recommendedAction: "none",
@@ -115,6 +150,30 @@ export async function skipAgeRestrictedMessages(
   const skippedIds = new Set(
     ageRestrictedMessages.map((message) => message.id),
   );
+  return messages.filter((message) => !skippedIds.has(message.id));
+}
+
+/** Filter out messages from AI_SKIP_ANALYSIS_USER_IDS authors (no LLM call). */
+export async function skipAnalysisUserMessages(
+  messages: MessageRecord[],
+): Promise<MessageRecord[]> {
+  const skipUsers = messages.filter(isSkipAnalysisUser);
+  if (skipUsers.length === 0) {
+    return messages;
+  }
+
+  const skippedRows = await messageStore.updateMessagesAIAnalysisBulk(
+    skipUsers.map((message) => ({
+      messageId: message.id,
+      result: buildSkipAnalysisUserResult(),
+    })),
+  );
+
+  for (const row of skippedRows) {
+    broadcastAnalysisCompleted(row);
+  }
+
+  const skippedIds = new Set(skipUsers.map((message) => message.id));
   return messages.filter((message) => !skippedIds.has(message.id));
 }
 

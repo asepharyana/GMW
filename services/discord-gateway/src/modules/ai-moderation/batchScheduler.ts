@@ -6,6 +6,7 @@ import {
   pickBatchWithinBudget,
   processBatch,
   skipAgeRestrictedMessages,
+  skipAnalysisUserMessages,
 } from "./batchProcessor.js";
 import {
   conversationConsecutiveErrors,
@@ -81,7 +82,9 @@ export function scheduleConversationAnalysis(conversationKey: string): void {
           return;
         }
 
-        const processableMessages = await skipAgeRestrictedMessages(messages);
+        const processableMessages = await skipAnalysisUserMessages(
+          await skipAgeRestrictedMessages(messages),
+        );
         if (processableMessages.length === 0) {
           if (
             conversationProcessing.get(conversationKey) === processingStartedAt

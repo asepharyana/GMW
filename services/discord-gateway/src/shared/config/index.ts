@@ -39,6 +39,15 @@ export const configSchema = z
       .describe(
         "Channel IDs where bot messages are NOT captured/analyzed (bot detection stays on everywhere else)",
       ),
+    // User IDs whose messages are captured but NEVER AI-analyzed (skip result
+    // directly, like age-restricted). Used for high-volume music/reaction
+    // bots that spam the chat log (e.g. Jockie Music) — their now-playing
+    // embeds carry no moderation signal.
+    AI_SKIP_ANALYSIS_USER_IDS: z
+      .string()
+      .default("411916947773587456")
+      .transform((v) => v.split(",").filter(Boolean))
+      .describe("User IDs to skip AI analysis for (captured but not analyzed)"),
 
     // ── Legacy voice ─────────────────────────────────────────────────────
     VOICE_GUILD_ID: z.string().min(1).optional(),

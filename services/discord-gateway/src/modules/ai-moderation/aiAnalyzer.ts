@@ -7,8 +7,11 @@ import type { AnalysisQueueStatus } from "../message-capture/types.js";
 import {
   activeRequests,
   buildAgeRestrictedSkipResult,
+  buildSkipAnalysisUserResult,
   isAgeRestrictedMessage,
+  isSkipAnalysisUser,
   skipAgeRestrictedMessages,
+  skipAnalysisUserMessages,
 } from "./batchProcessor.js";
 import { scheduleConversationAnalysis } from "./batchScheduler.js";
 import { getConversationKey } from "./circuitBreaker.js";
@@ -80,6 +83,21 @@ export async function queueMessageAnalysis(messageId: string): Promise<void> {
       logger.debug(
         { messageId },
         "Skipped AI analysis for age-restricted message",
+      );
+      return;
+    }
+
+    if (isSkipAnalysisUser(message)) {
+      const updated = await messageStore.updateMessageAIAnalysis(
+        message.id,
+        buildSkipAnalysisUserResult(),
+      );
+      if (updated) {
+        broadcastAnalysisCompleted(updated);
+      }
+      logger.debug(
+        { messageId, userId: message.user_id },
+        "Skipped AI analysis for configured skip-list user",
       );
       return;
     }
@@ -240,8 +258,9 @@ export function startPendingAIAnalysisWorker(
               messageStore
                 .getIncompleteMessagesByConversation(key, 500)
                 .then(async (msgs) => {
-                  const processableMessages =
-                    await skipAgeRestrictedMessages(msgs);
+                  const processableMessages = await skipAnalysisUserMessages(
+                    await skipAgeRestrictedMessages(msgs),
+                  );
                   return processableMessages;
                 })
                 .then((msgs) => {
