@@ -233,12 +233,16 @@ export const configSchema = z
       .default(120_000),
     // Text-only moderation batches are cheaper than media (no downloads /
     // vision pre-pass), so they get their own (shorter) timeout instead of
-    // being tied to the media budget.
+    // being tied to the media budget. Raised 45s→75s (2026-09-09): the text
+    // model behind the router regularly exceeds 45s on long context batches,
+    // and the individual-fallback re-run adds another full timeout cycle
+    // before marking the message exhausted. 75s is still bounded and keeps
+    // the status queue from piling up.
     AI_LLM_TEXT_ANALYSIS_TIMEOUT_MS: z.coerce
       .number()
       .int()
       .positive()
-      .default(45000),
+      .default(75_000),
     // Term glossary — per-word Wikipedia lookups (via SearXNG) for words the
     // LLM may not know (slang, jargon, regional language, foreign terms).
     // Definitions are cached (in-memory + Redis) so repeat lookups are fast.
