@@ -3,7 +3,7 @@
 Status: PLANNED (not yet built)
 Date: 2026-09-02
 Author: Hermes
-Related: `.hermes/plans/2026-08-31_video-receive-phaseC-spec.md` (auto-receive, superseded
+Related: `docs/specs/2026-08-31_video-receive-phaseC-spec.md` (auto-receive, superseded
 for selfbot), `gmw-ops/references/selfbot-presence-detection-limits.md`,
 `gmw-ops/references/discord-voice-fork-video-receive.md`
 

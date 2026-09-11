@@ -1,3 +1,5 @@
+@../../AGENTS.md
+
 # Bete Frontend — Project Overview
 
 Next.js 16 (App Router), React 19, TypeScript strict, Tailwind v4, shadcn/ui, base-ui.

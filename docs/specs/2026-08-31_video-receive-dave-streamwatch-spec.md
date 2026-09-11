@@ -3,8 +3,8 @@
 Status: **P1–P3 DONE + 4th CRITICAL FIX deployed (f1a7b0c2); DAVE Ready + MLS handshake CONFIRMED live; P4 = waiting on active streamer to confirm video-burst→mp4**
 Date: 2026-08-31
 Author: Hermes
-Related: `.hermes/plans/2026-08-31_video-receive-eager-selfbot-connection-spec.md` (superseded by this)
-         `.hermes/plans/2026-08-31_video-receive-phaseC-spec.md` (Phase C build, selfbot path — dead)
+Related: `docs/specs/2026-08-31_video-receive-eager-selfbot-connection-spec.md` (superseded by this)
+         `docs/specs/2026-08-31_video-receive-phaseC-spec.md` (Phase C build, selfbot path — dead)
 
 ## Problem / Ground truth (established from live logs 2026-08-31)
 GMW must record OTHER members' screen-share + camera video in a voice channel it

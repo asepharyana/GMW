@@ -3,7 +3,7 @@
 Status: PLANNED (not built)
 Date: 2026-08-31
 Author: Hermes
-Related: `.hermes/plans/2026-08-30_video-record-receive-spec.md` (Phase A/B — raw UDP hook, superseded for receive)
+Related: `docs/specs/2026-08-30_video-record-receive-spec.md` (Phase A/B — raw UDP hook, superseded for receive)
 
 ## TL;DR — what changed vs Phase A/B
 

@@ -3,7 +3,7 @@
 Status: PLANNED
 Date: 2026-08-31
 Author: Hermes
-Related: `.hermes/plans/2026-08-31_video-receive-phaseC-spec.md` (Phase C build, made Option A this fix)
+Related: `docs/specs/2026-08-31_video-receive-phaseC-spec.md` (Phase C build, made Option A this fix)
 
 ## Symptom (from live logs, 2026-08-31 ~12:34)
 A user was actively screen-sharing + on camera in the recorded voice channel.
