@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "GMW — Guild Moderation Watcher",
+    "output": "gmw-architecture.html",
+    "quality_profile": "showcase",
+    "viewBox": [1140, 620]
+  },
+  "components": [
+    { "id": "redis", "type": "messagebus", "label": "Redis", "sublabel": "pub/sub :6379", "pos": [300, 40], "size": [140, 60], "tag": "events + PCM" },
+    { "id": "pg", "type": "database", "label": "PostgreSQL", "sublabel": "shared state :6432", "pos": [640, 40], "size": [140, 60] },
+    { "id": "discord", "type": "external", "label": "Discord Guilds", "sublabel": "channels · voice · reactions", "pos": [40, 240], "size": [140, 60] },
+    { "id": "gateway", "type": "backend", "label": "discord-gateway", "sublabel": "selfbot :4016", "pos": [260, 240], "size": [140, 60], "tag": "discord.js-selfbot-v13" },
+    { "id": "backend", "type": "backend", "label": "gmw-backend", "sublabel": "Express · oRPC · WS :4001", "pos": [640, 240], "size": [140, 60], "tag": "Drizzle ORM" },
+    { "id": "proxy", "type": "cloud", "label": "nginx proxy", "sublabel": "reverse proxy :4009", "pos": [960, 240], "size": [140, 60], "tag": "nginx" },
+    { "id": "ai", "type": "backend", "label": "AI Moderation", "sublabel": "LLM caller · embeddings", "pos": [260, 400], "size": [140, 60] },
+    { "id": "frontend", "type": "frontend", "label": "gmw-frontend", "sublabel": "Next.js 16 SSR :4017", "pos": [960, 400], "size": [140, 60], "tag": "React 19 · Tailwind v4" },
+    { "id": "llm", "type": "cloud", "label": "9router LLM", "sublabel": "text + vision API", "pos": [260, 540], "size": [140, 60], "tag": "AI_LLM_BASE_URL" },
+    { "id": "browser", "type": "external", "label": "Dashboard Users", "sublabel": "browser · partysocket", "pos": [960, 540], "size": [140, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "imrnes — Tailscale shared state", "wraps": ["redis", "pg"] },
+    { "kind": "region", "label": "orangevps — Nix/systemd", "wraps": ["gateway", "ai", "backend", "proxy", "frontend"] }
+  ],
+  "connections": [
+    { "id": "c1", "from": "discord", "to": "gateway", "label": "selfbot events", "variant": "emphasis" },
+    { "id": "c2", "from": "gateway", "to": "ai", "label": "capture → analyze", "labelDy": 24 },
+    { "id": "c3", "from": "gateway", "to": "redis", "label": "publish events", "fromSide": "top", "toSide": "bottom" },
+    { "id": "c4", "from": "redis", "to": "backend", "label": "redis-bridge → WS" },
+    { "id": "c5", "from": "ai", "to": "llm", "label": "text + vision", "labelDy": 24 },
+    { "id": "c6", "from": "backend", "to": "llm", "label": "agentic chatbot", "variant": "dashed" },
+    { "id": "c7", "from": "backend", "to": "pg", "label": "Drizzle SQL" },
+    { "id": "c8", "from": "proxy", "to": "backend", "label": "/api · /ws · /trpc" },
+    { "id": "c9", "from": "proxy", "to": "frontend", "label": "SSR + static", "labelDy": 24 },
+    { "id": "c10", "from": "browser", "to": "frontend", "label": "HTTPS dashboard", "variant": "emphasis" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Capture", "items": ["Selfbot gateway listens to guild events + voice streams", "AI moderation runs LLM on messages, attachments, transcripts"] },
+    { "dot": "emerald", "title": "Application", "items": ["oRPC over HTTP + WS (partysocket auto-reconnect)", "Next.js 16 SSR dashboard · nginx :4009 reverse proxy"] },
+    { "dot": "rose", "title": "Shared State", "items": ["Redis pub/sub relays events + live PCM audio", "PostgreSQL via Drizzle persists messages & assessments"] }
+  ]
+}
