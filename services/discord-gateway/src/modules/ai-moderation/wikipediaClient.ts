@@ -28,6 +28,7 @@ import {
   isMostlyStopwords,
   scoreWord,
 } from "./textSignals.js";
+import { isTinyFishEnabled, tinyFishSearchLive } from "./tinyFishSearch.js";
 
 const log = createChildLogger("wikipedia-client");
 
@@ -102,6 +103,19 @@ export async function wikipediaSearch(
   const mapped = await wikipediaSearchLive(q, timeoutMs);
   if (mapped.length > 0) {
     cacheSet(cacheKey, JSON.stringify(mapped), SEARCH_CACHE_TTL_SECONDS);
+    return mapped;
+  }
+
+  // Wikipedia miss (empty, not error — errors already returned [] the same
+  // way): one TinyFish web-search attempt as fallback. Disabled/no-key
+  // returns [] instantly; a hit is cached under the same key so the next
+  // batch never pays the fallback latency again.
+  if (isTinyFishEnabled()) {
+    const fallback = await tinyFishSearchLive(q);
+    if (fallback.length > 0) {
+      cacheSet(cacheKey, JSON.stringify(fallback), SEARCH_CACHE_TTL_SECONDS);
+      return fallback;
+    }
   }
   return mapped;
 }

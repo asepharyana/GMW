@@ -132,6 +132,22 @@ export const configSchema = z
     WIKIPEDIA_LANG: z.string().min(1).default("id"),
     // Per-request timeout (ms) for Wikipedia API calls.
     WIKIPEDIA_TIMEOUT_MS: z.coerce.number().positive().default(8000),
+    // ── TinyFish web search (fallback when Wikipedia misses) ─────────────
+    // GET {base}?query=..&location=..&language=.. with X-API-Key header.
+    // Empty key = fallback disabled (Wikipedia-only, tests stay offline).
+    TINYFISH_API_KEY: z.string().optional().default(""),
+    TINYFISH_SEARCH_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === "true")
+      .default(true),
+    TINYFISH_SEARCH_BASE_URL: z
+      .string()
+      .url()
+      .default("https://api.search.tinyfish.ai"),
+    TINYFISH_SEARCH_TIMEOUT_MS: z.coerce.number().positive().default(10000),
+    TINYFISH_SEARCH_LOCATION: z.string().min(1).default("US"),
+    TINYFISH_SEARCH_LANGUAGE: z.string().min(1).default("en"),
     // ── Voice PCM WebSocket (direct gateway→backend, bypasses Redis) ────
     VOICE_PCM_WS_ENABLED: z
       .string()

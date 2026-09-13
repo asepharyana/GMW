@@ -49,6 +49,7 @@ import {
   scoreWord,
   WORD_RE,
 } from "./textSignals.js";
+import { isTinyFishEnabled, tinyFishSearchLive } from "./tinyFishSearch.js";
 import { wikipediaSummary } from "./wikipediaClient.js";
 
 const log = createChildLogger("term-glossary");
@@ -212,7 +213,17 @@ async function fetchDefinitionLive(
       // (up to 4 requests per term under stagger+concurrency-2 — pure
       // Wikipedia pressure for a miss that gets cached 1h anyway).
       const result = await wikipediaSummary(key, GLOSSARY_SEARCH_TIMEOUT_MS);
-      const def = result ? buildDefinition(result, term) : null;
+      let def = result ? buildDefinition(result, term) : null;
+
+      // Wikipedia miss (null result, no throw): one TinyFish web-search
+      // attempt — its top hit's snippet becomes the definition. Disabled/
+      // no-key returns [] instantly. A hit is persisted permanently like a
+      // Wikipedia definition; a miss keeps the short-TTL miss sentinel.
+      if (!def && isTinyFishEnabled()) {
+        const fallback = await tinyFishSearchLive(key);
+        const top = fallback[0];
+        if (top) def = buildDefinition(top, term);
+      }
 
       if (def) {
         // Persist permanently (definitions rarely change) — best-effort,
