@@ -169,47 +169,55 @@ async function wikipediaSearchLive(
 export async function wikipediaSummary(
   title: string,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  retries = 1,
 ): Promise<SearchResult | null> {
   const t = title.trim();
   if (!t) return null;
 
-  const { controller, clear } = createAbortControllerWithTimeout(timeoutMs);
-  try {
-    const res = await fetch(
-      `https://${WIKIPEDIA_LANG}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
-        t.replace(/ /g, "_"),
-      )}`,
-      {
-        signal: controller.signal,
-        headers: {
-          Accept: "application/json",
-          "User-Agent": buildUserAgent(),
-        },
-      },
-    );
+  const url = `https://${WIKIPEDIA_LANG}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
+    t.replace(/ /g, "_"),
+  )}`;
+  const headers = {
+    Accept: "application/json",
+    "User-Agent": buildUserAgent(),
+  };
 
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      title?: string;
-      extract?: string;
-      content_urls?: { desktop?: { page?: string } };
-    };
-    if (!data.extract) return null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const { controller, clear } = createAbortControllerWithTimeout(timeoutMs);
+    try {
+      const res = await fetch(url, { signal: controller.signal, headers });
 
-    return {
-      title: data.title ?? t,
-      url: data.content_urls?.desktop?.page ?? wikipediaPageUrl(t),
-      snippet: data.extract.slice(0, 500),
-    };
-  } catch (err) {
-    log.warn(
-      { error: err instanceof Error ? err.message : String(err), title: t },
-      "Wikipedia summary error",
-    );
-    return null;
-  } finally {
-    clear();
+      if (!res.ok) return null;
+      const data = (await res.json()) as {
+        title?: string;
+        extract?: string;
+        content_urls?: { desktop?: { page?: string } };
+      };
+      if (!data.extract) return null;
+
+      return {
+        title: data.title ?? t,
+        url: data.content_urls?.desktop?.page ?? wikipediaPageUrl(t),
+        snippet: data.extract.slice(0, 500),
+      };
+    } catch (err) {
+      // Abort/timeout is transient (prod: 100% of summary errors were
+      // "This operation was aborted"); retry once after a short pause so
+      // one slow Wikipedia response doesn't burn a glossary term. A final
+      // failure still degrades gracefully to null.
+      if (attempt === retries) {
+        log.warn(
+          { error: err instanceof Error ? err.message : String(err), title: t },
+          "Wikipedia summary error",
+        );
+        return null;
+      }
+      await new Promise((r) => setTimeout(r, 300));
+    } finally {
+      clear();
+    }
   }
+  return null;
 }
 
 export interface ExtractSearchQueryOptions {

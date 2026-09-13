@@ -69,8 +69,6 @@ const MISS_TTL_SECONDS = 60 * 60;
 const MISS_TTL_MS = MISS_TTL_SECONDS * 1000;
 /** Sentinel stored in caches for "term has no resolvable definition". */
 const EMPTY_SENTINEL = "__not_found__";
-/** Delay before retrying a search that returned zero results. */
-const RETRY_DELAY_MS = 350;
 /** Max definition snippet length kept in the prompt. */
 const MAX_DEFINITION_CHARS = 300;
 /**
@@ -209,15 +207,12 @@ async function fetchDefinitionLive(
   return liveSearchLimit(async () => {
     await acquireLiveSlot();
     try {
-      let result = await wikipediaSummary(key, GLOSSARY_SEARCH_TIMEOUT_MS);
-      let def = result ? buildDefinition(result, term) : null;
-      // Zero result is usually the limiter/network blip, not a real miss —
-      // retry once. Result-but-unusable = genuine miss, no retry.
-      if (!def) {
-        await delay(RETRY_DELAY_MS);
-        result = await wikipediaSummary(key, GLOSSARY_SEARCH_TIMEOUT_MS);
-        def = result ? buildDefinition(result, term) : null;
-      }
+      // Single call: wikipediaSummary already retries once internally on
+      // abort/timeout, so a second call here would double the attempts
+      // (up to 4 requests per term under stagger+concurrency-2 — pure
+      // Wikipedia pressure for a miss that gets cached 1h anyway).
+      const result = await wikipediaSummary(key, GLOSSARY_SEARCH_TIMEOUT_MS);
+      const def = result ? buildDefinition(result, term) : null;
 
       if (def) {
         // Persist permanently (definitions rarely change) — best-effort,
