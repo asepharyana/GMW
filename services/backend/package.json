@@ -35,9 +35,9 @@
     "zod": "^4.6.2"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.12",
+    "@biomejs/biome": "^2.5.13",
     "@types/express": "^5.0.6",
-    "@types/node": "^26.5.0",
+    "@types/node": "^26.5.1",
     "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.13",
