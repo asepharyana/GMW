@@ -39,8 +39,8 @@ importers:
         specifier: ^11.5.1
         version: 11.5.2
       openai:
-        specifier: ^7.10.0
-        version: 7.10.0(undici@7.29.0)(ws@8.21.3)(zod@4.5.4)
+        specifier: ^7.15.0
+        version: 7.15.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.2)
       opusscript:
         specifier: ^0.1.1
         version: 0.1.1
@@ -72,8 +72,8 @@ importers:
         specifier: ^8.21.3
         version: 8.21.3
       zod:
-        specifier: ^4.5.4
-        version: 4.5.4
+        specifier: ^4.6.2
+        version: 4.6.2
     devDependencies:
       '@biomejs/biome':
         specifier: latest
@@ -1946,8 +1946,8 @@ packages:
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
 
-  openai@7.10.0:
-    resolution: {integrity: sha512-sn9t2Kls7O52PwuF9BUTYNu4Gk/r0lXJyrgaNht4TNRlZFb3dJIGO0RciSgjARGCBRtWjySubAQFJttlzUvGQQ==}
+  openai@7.15.0:
+    resolution: {integrity: sha512-2DIwesnPSduw68MFx7nAdgvshrgvS8WOan5W8+tgUMlAy/tY+Q41g80Pa+w/v64rHA6rtn+dketa8QvMVxU96w==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
@@ -2461,8 +2461,8 @@ packages:
     resolution: {integrity: sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==}
     engines: {node: '>=12.20'}
 
-  zod@4.5.4:
-    resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
+  zod@4.6.2:
+    resolution: {integrity: sha512-lh5RCAGFa1Cm2hjtNwLQhSs/AsqdWnTQaBER9fEwN/88pSh7KOtJavtBx/0VlkN/uFd61SwYmljLMDAsHlvzBQ==}
 
 snapshots:
 
@@ -3836,11 +3836,11 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  openai@7.10.0(undici@7.29.0)(ws@8.21.3)(zod@4.5.4):
+  openai@7.15.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.2):
     optionalDependencies:
       undici: 7.29.0
       ws: 8.21.3
-      zod: 4.5.4
+      zod: 4.6.2
 
   opusscript@0.1.1: {}
 
@@ -4291,4 +4291,4 @@ snapshots:
 
   yocto-queue@1.2.2: {}
 
-  zod@4.5.4: {}
+  zod@4.6.2: {}
