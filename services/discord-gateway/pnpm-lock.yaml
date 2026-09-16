@@ -40,7 +40,7 @@ importers:
         version: 11.5.2
       openai:
         specifier: ^7.15.0
-        version: 7.15.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.2)
+        version: 7.15.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.4)
       opusscript:
         specifier: ^0.1.1
         version: 0.1.1
@@ -72,8 +72,8 @@ importers:
         specifier: ^8.21.3
         version: 8.21.3
       zod:
-        specifier: ^4.6.2
-        version: 4.6.2
+        specifier: ^4.6.4
+        version: 4.6.4
     devDependencies:
       '@biomejs/biome':
         specifier: latest
@@ -98,7 +98,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: latest
-        version: 5.0.0(@types/node@26.4.0)(vite@8.1.5(@types/node@26.4.0)(esbuild@0.28.2)(tsx@4.23.13))
+        version: 5.0.1(@types/node@26.4.0)(vite@8.1.5(@types/node@26.4.0)(esbuild@0.28.2)(tsx@4.23.13))
 
 packages:
 
@@ -1323,8 +1323,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@vitest/mocker@5.0.0':
-    resolution: {integrity: sha512-66PGTMIiVJP3t4a5yxU9qPtf7MdTBs8jmToMvy+HVflB3Yy13WJZTtPePdvU+wjRV02SKK5doLbSA6o9pwOmiA==}
+  '@vitest/mocker@5.0.1':
+    resolution: {integrity: sha512-6K1DoBNAPGvuOcSsGA4D6x+5zEEff/KmOOP3uetT2TrGpVfI+HRHRnJJfKi5ib/g1vx8IYHQD8s0pbJz8WQI7Q==}
     peerDependencies:
       msw: ^2.4.9
       vite: ^6.0.0 || ^7.0.0 || ^8.0.0
@@ -1334,8 +1334,8 @@ packages:
       vite:
         optional: true
 
-  '@vitest/spy@5.0.0':
-    resolution: {integrity: sha512-uy+luWBAPw9XfthoHi5AkfHUnuPYEESjl0p/r+meoBnU8bxg5GDQ3Ey8MjcJ6sqahkL4PFyrvfMJJBw7LbU06g==}
+  '@vitest/spy@5.0.1':
+    resolution: {integrity: sha512-rbto/mF/SGERxEgYOek7Xm6B9b+y+mVoo+f4b2LymYO8zM1b7uB5nHuhVMTP2hxdzgxvGiZYGxGIaMvL5y180Q==}
 
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}
@@ -2358,20 +2358,20 @@ packages:
       yaml:
         optional: true
 
-  vitest@5.0.0:
-    resolution: {integrity: sha512-gpsMNoRhMjMktVxPtstOH4/PJuPyovVaMDr4oDilXaGH1EcqM2OE96SoHT2VIQ6fTGtTjqmHDrEu2X9RQiXf8Q==}
+  vitest@5.0.1:
+    resolution: {integrity: sha512-iA95lQbKEkvrtTkdAgnWbXfbipWiiWe/hDl2P5tMi6WFwD76G0NxXAGp/M9EOcYupeGJRr6wppMc7CoA41TQjg==}
     engines: {node: ^22.12.0 || ^24.0.0 || >=26.0.0}
     hasBin: true
     peerDependencies:
       '@edge-runtime/vm': '*'
       '@opentelemetry/api': ^1.9.0
       '@types/node': ^22.0.0 || >=24.0.0
-      '@vitest/browser-playwright': 5.0.0
-      '@vitest/browser-preview': 5.0.0
+      '@vitest/browser-playwright': 5.0.1
+      '@vitest/browser-preview': 5.0.1
       '@vitest/browser-webdriverio': ^5.0.0-beta.5 || >=5.0.0
-      '@vitest/coverage-istanbul': 5.0.0
-      '@vitest/coverage-v8': 5.0.0
-      '@vitest/ui': 5.0.0
+      '@vitest/coverage-istanbul': 5.0.1
+      '@vitest/coverage-v8': 5.0.1
+      '@vitest/ui': 5.0.1
       happy-dom: '*'
       jsdom: '*'
       vite: ^6.4.0 || ^7.0.0 || ^8.0.0
@@ -2461,8 +2461,8 @@ packages:
     resolution: {integrity: sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==}
     engines: {node: '>=12.20'}
 
-  zod@4.6.2:
-    resolution: {integrity: sha512-lh5RCAGFa1Cm2hjtNwLQhSs/AsqdWnTQaBER9fEwN/88pSh7KOtJavtBx/0VlkN/uFd61SwYmljLMDAsHlvzBQ==}
+  zod@4.6.4:
+    resolution: {integrity: sha512-AXSD6hvGdvRjajG/l1cC+d6IrhH+sjmPKtYeQdJIK8MFJl3LyClzS+o/YsVC+zQZPupAaeH5skwwm8YqYH7BqA==}
 
 snapshots:
 
@@ -3277,16 +3277,16 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@vitest/mocker@5.0.0(vite@8.1.5(@types/node@26.4.0)(esbuild@0.28.2)(tsx@4.23.13))':
+  '@vitest/mocker@5.0.1(vite@8.1.5(@types/node@26.4.0)(esbuild@0.28.2)(tsx@4.23.13))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
-      '@vitest/spy': 5.0.0
+      '@vitest/spy': 5.0.1
       estree-walker: 3.0.3
       magic-string: 1.2.3
     optionalDependencies:
       vite: 8.1.5(@types/node@26.4.0)(esbuild@0.28.2)(tsx@4.23.13)
 
-  '@vitest/spy@5.0.0': {}
+  '@vitest/spy@5.0.1': {}
 
   abbrev@1.1.1: {}
 
@@ -3836,11 +3836,11 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  openai@7.15.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.2):
+  openai@7.15.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.4):
     optionalDependencies:
       undici: 7.29.0
       ws: 8.21.3
-      zod: 4.6.2
+      zod: 4.6.4
 
   opusscript@0.1.1: {}
 
@@ -4207,10 +4207,10 @@ snapshots:
       fsevents: 2.3.3
       tsx: 4.23.13
 
-  vitest@5.0.0(@types/node@26.4.0)(vite@8.1.5(@types/node@26.4.0)(esbuild@0.28.2)(tsx@4.23.13)):
+  vitest@5.0.1(@types/node@26.4.0)(vite@8.1.5(@types/node@26.4.0)(esbuild@0.28.2)(tsx@4.23.13)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.0(vite@8.1.5(@types/node@26.4.0)(esbuild@0.28.2)(tsx@4.23.13))
+      '@vitest/mocker': 5.0.1(vite@8.1.5(@types/node@26.4.0)(esbuild@0.28.2)(tsx@4.23.13))
       chai: 6.2.2
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -4291,4 +4291,4 @@ snapshots:
 
   yocto-queue@1.2.2: {}
 
-  zod@4.6.2: {}
+  zod@4.6.4: {}
