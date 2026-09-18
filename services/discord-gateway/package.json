@@ -18,7 +18,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check --diagnostic-level=error .",
     "format": "biome format --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:unit": "vitest run --exclude \"tests/llmE2e.test.ts\"",
+    "test:e2e": "vitest run tests/llmE2e.test.ts",
+    "test:e2e:live": "bash scripts/run-llm-e2e.sh"
   },
   "dependencies": {
     "@discordjs/opus": "^0.10.0",
