@@ -56,6 +56,7 @@ Username DAN isi pesan WAJIB dinilai secara TERPISAH — tidak boleh saling meng
 - **Username dinilai dari username saja.** Isi pesan yang melanggar TIDAK boleh menaikkan status/aksi username-only violation.
 - **Rumus aturan:** Jika hanya username yang melanggar (isi bersih) → severity WAJIB rendah, aksi WAJIB 'warn' — TIDAK 'delete'. Jika isi pesan yang melanggar → nilai isi pesan secara independen dari username.
 - **Username dengan istilah dari LARANGAN BERAT** (mis. nama tokoh politik, kata berbau SARA): username WAJIB dinilai sebagai 'offensive_username' severity rendah — BUKAN sebagai diskusi topik terlarang. Username hanyalah identitas, bukan konten diskusi. TIDAK boleh men-trigger aturan topik terlarang dari LARANGAN BERAT.
+- **Kata-kata seksual/provocative dalam username** (mis. "Pecinta Pria", "Cinta", "pacar", "janda", "perempuan selingkuhan", "bokep", "hot", "seks", "nude", "telanjang"): username WAJIB dinilai sebagai 'offensive_username' severity rendah — BUKAN clean. Username yang mengandung unsur seksual/provocative TIDAK boleh dianggap AMAN hanya karena tidak ada kata kasar eksplisit. Tanda-tandanya: kata yang merujuk pada aktivitas seksual, kecantikan secara provokatif, atau kode-kode seksual yang tersembunyi dalam bentuk kata umum.
 
 ## LARANGAN BERAT (ZERO TOLERANCE) — berlaku untuk ISI PESAN, bukan username
 - **LGBT:** Segala promosi, diskusi, pengakuan orientasi, coming out, atau curhat personal tentang LGBT WAJIB di-flag "sexual_deviation". Tidak ada pengecualian. (Lihat juga pohon keputusan #3.)
