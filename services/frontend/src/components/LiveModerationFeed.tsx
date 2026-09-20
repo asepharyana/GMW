@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { Badge } from "@/components/primitives";
 import { formatRelativeTime } from "@/lib/format";
 import type { ModerationAction } from "@/lib/types";
+import { staggerDelay } from "@/lib/utils";
 
 const ACTION_LABEL: Record<string, string> = {
   delete_message: "Deleted",
@@ -106,12 +107,13 @@ export function LiveModerationFeed({
             AWAITING MODERATION DISPATCH STREAM...
           </div>
         ) : (
-          actions.map((a) => {
+          actions.map((a, i) => {
             const tone = severityTone(a.severity);
             return (
               <div
                 key={a.id}
-                className="mod-feed-item hud-card flex items-start gap-3 p-3 transition-all"
+                className="mod-feed-item hud-card animate-stagger flex items-start gap-3 p-3 transition-all"
+                style={staggerDelay(i)}
               >
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-surface-2">
                   {actionIcon(a.action_type)}

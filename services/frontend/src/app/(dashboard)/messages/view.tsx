@@ -61,6 +61,7 @@ import type {
   MessageMetadata,
   MessageRecord,
 } from "@/lib/types";
+import { staggerDelay } from "@/lib/utils";
 import { useWebSocket } from "@/lib/ws/context";
 
 export function MessagesView({
@@ -354,7 +355,8 @@ export function MessagesView({
                 {semantic.data.map((r, i) => (
                   <div
                     key={r.message_id ?? i}
-                    className="hud-card flex items-start gap-3 p-3"
+                    className="hud-card animate-stagger flex items-start gap-3 p-3"
+                    style={staggerDelay(i)}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -473,7 +475,7 @@ export function MessagesView({
               >
                 <div ref={streamRef} className="space-y-1.5">
                   {viewMode === "timeline" && timelineNodes
-                    ? timelineNodes.map((node) =>
+                    ? timelineNodes.map((node, i) =>
                         node.type === "date" ? (
                           <div
                             key={`date-${node.iso}`}
@@ -486,15 +488,17 @@ export function MessagesView({
                           <MessageRow
                             key={node.m.id}
                             m={node.m}
+                            index={i}
                             selected={selected}
                             onSelect={setSelected}
                           />
                         ),
                       )
-                    : display.map((m) => (
+                    : display.map((m, i) => (
                         <MessageRow
                           key={m.id}
                           m={m}
+                          index={i}
                           selected={selected}
                           onSelect={setSelected}
                         />
@@ -879,10 +883,12 @@ function MessageRow({
   m,
   selected,
   onSelect,
+  index = 0,
 }: {
   m: MessageRecord;
   selected: string | null;
   onSelect: (id: string) => void;
+  index?: number;
 }) {
   const meta = parseMeta(m.metadata);
   const attachments = meta?.attachments ?? [];
@@ -907,11 +913,12 @@ function MessageRow({
       key={m.id}
       type="button"
       onClick={() => onSelect(m.id)}
-      className={`msg-feed-card flex w-full items-start gap-3 rounded-[8px] border p-2.5 text-left transition-all ${
+      className={`msg-feed-card animate-stagger flex w-full items-start gap-3 rounded-[8px] border p-2.5 text-left transition-all ${
         selected === m.id
           ? "border-signal/50 bg-signal/10 shadow-xs"
           : "border-hairline bg-surface-2 hover:border-hairline-focus hover:bg-surface"
       }`}
+      style={staggerDelay(index)}
     >
       <Avatar src={m.avatar_url} name={m.server_nick ?? m.username} size={32} />
       <div className="min-w-0 flex-1">

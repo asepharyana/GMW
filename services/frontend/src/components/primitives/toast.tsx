@@ -76,8 +76,10 @@ export function Toaster({ position = "bottom-right" }: { position?: string }) {
             key={t.id}
             className={cn(
               "glass animate-toast-in pointer-events-auto flex items-start gap-3 p-3.5 transition-colors",
-              t.tone === "signal" && "border-signal/30",
-              t.tone === "vermilion" && "border-vermilion/30",
+              t.tone === "signal" && "border-signal/40",
+              t.tone === "vermilion" && "border-vermilion/40",
+              t.tone === "signal" &&
+                "shadow-[0_0_0_1px_var(--color-signal)/20]",
             )}
           >
             <Icon

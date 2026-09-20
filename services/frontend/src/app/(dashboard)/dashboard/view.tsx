@@ -32,6 +32,7 @@ import { useActivity, useStats, useTopReactions } from "@/hooks";
 import { useStaggerReveal } from "@/hooks/use-gsap-animation";
 import { formatNumber } from "@/lib/format";
 import type { DashboardStats } from "@/lib/types";
+import { staggerDelay } from "@/lib/utils";
 
 function deriveSignal(stats?: DashboardStats) {
   if (!stats)
@@ -334,7 +335,8 @@ export function DashboardView({
                   return (
                     <div
                       key={ch.channel_id}
-                      className="flex items-center gap-3 text-xs"
+                      className="animate-stagger flex items-center gap-3 text-xs"
+                      style={staggerDelay(i)}
                     >
                       <span className="font-mono w-4 text-[10px] text-ink-faint">
                         {String(i + 1).padStart(2, "0")}

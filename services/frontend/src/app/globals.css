@@ -644,6 +644,13 @@
 .animate-fade-up { animation: fade-up 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
 .animate-toast-in { animation: toast-in 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
 
+/* Staggered list-item reveal — pair with inline `animationDelay` from
+   staggerDelay(i) in lib/utils.ts. Fades + slides up, forwards fill so
+   items stay put after animating. */
+.animate-stagger {
+  animation: fade-up 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Sweeping glow line across a hero/placeholder panel. */
 .scan-line {
   position: absolute;
@@ -690,6 +697,7 @@
   .animate-eq,
   .animate-fade-up,
   .animate-toast-in,
+  .animate-stagger,
   .scan-line,
   .ambient-blob,
   .ambient-mote,
