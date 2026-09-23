@@ -279,25 +279,36 @@ export type JevAnswers = Record<
     }
 >;
 
-/** Reads the per-message answer subset by id, missing → null. */
-function answersOf(
-  answers: JevAnswers,
-  id: string,
-): {
+/** Per-message answer subset (nullable until validated — `answersOf`). */
+interface JevMessageAnswers {
   v?: { type: "noul"; noul: number };
   status?: { type: "choice"; choice: string; confidence: number };
   severity?: { type: "choice"; choice: string };
   category?: { type: "choice"; choice: string };
   action?: { type: "choice"; choice: string };
-} {
+}
+
+/** Reads the per-message answer subset by id, missing → undefined. */
+function answersOf(answers: JevAnswers, id: string): JevMessageAnswers {
   return {
-    v: answers[`${id}__v`] as never,
-    status: answers[`${id}__status`] as never,
-    severity: answers[`${id}__severity`] as never,
-    category: answers[`${id}__category`] as never,
-    action: answers[`${id}__action`] as never,
+    v: answers[`${id}__v`] as JevMessageAnswers["v"],
+    status: answers[`${id}__status`] as JevMessageAnswers["status"],
+    severity: answers[`${id}__severity`] as JevMessageAnswers["severity"],
+    category: answers[`${id}__category`] as JevMessageAnswers["category"],
+    action: answers[`${id}__action`] as JevMessageAnswers["action"],
   };
 }
+
+/** Optionally-typed accessor for a choice answer's label ("" when missing). */
+function labelOf(a: { type: "choice"; choice: string } | undefined): string {
+  return a?.type === "choice" ? a.choice : "";
+}
+
+/** Set form of the vocab arrays for O(1) membership tests. */
+const JEV_STATUS_SET = new Set<string>(JEV_STATUSES);
+const JEV_SEVERITY_SET = new Set<string>(JEV_SEVERITIES);
+const JEV_CATEGORY_SET = new Set<string>(JEV_CATEGORIES);
+const JEV_ACTION_SET = new Set<string>(JEV_ACTIONS);
 
 /**
  * Decide per-message Jev acceptance. Requires ALL five questions present
@@ -331,39 +342,42 @@ export function isJevAccepted(
   )
     return false;
 
-  if (!JEV_STATUSES.includes(status.choice as (typeof JEV_STATUSES)[number]))
-    return false;
+  // Valid label = one of the vocab const arrays. The membership guards
+  // (Set.has) reject anything unknown, then the labels are narrowed via the
+  // const-array includes so the downstream comparisons typecheck.
+  const statusLabel = labelOf(status);
+  const severityLabel = labelOf(severity);
+  const categoryLabel = labelOf(category);
+  const actionLabel = labelOf(action);
   if (
-    !JEV_SEVERITIES.includes(severity.choice as (typeof JEV_SEVERITIES)[number])
+    !JEV_STATUS_SET.has(statusLabel) ||
+    !JEV_SEVERITY_SET.has(severityLabel) ||
+    !JEV_CATEGORY_SET.has(categoryLabel) ||
+    !JEV_ACTION_SET.has(actionLabel)
   )
-    return false;
-  if (
-    !JEV_CATEGORIES.includes(category.choice as (typeof JEV_CATEGORIES)[number])
-  )
-    return false;
-  if (!JEV_ACTIONS.includes(action.choice as (typeof JEV_ACTIONS)[number]))
-    return false;
+    return false; // unknown label — LLM fallback
+
+  const s = statusLabel as (typeof JEV_STATUSES)[number];
+  const sev = severityLabel as (typeof JEV_SEVERITIES)[number];
+  const cat = categoryLabel as (typeof JEV_CATEGORIES)[number];
+  const act = actionLabel as (typeof JEV_ACTIONS)[number];
 
   const noulVal = a.v.noul;
 
   // noul ↔ status consistency
-  if (status.choice === "clean" && noulVal >= 0.5) return false;
-  if (status.choice !== "clean" && noulVal < 0.5) return false;
+  if (s === "clean" && noulVal >= 0.5) return false;
+  if (s !== "clean" && noulVal < 0.5) return false;
   // severity ↔ status: clean must be none; flagged/warn must NOT be none
-  if (status.choice === "clean" && severity.choice !== "none") return false;
-  if (status.choice !== "clean" && severity.choice === "none") return false;
+  if (s === "clean" && sev !== "none") return false;
+  if (s !== "clean" && sev === "none") return false;
   // action ↔ status: clean must be none; flagged must NOT be none;
   // warn must not delete/escalate; clean must never delete/escalate
-  if (status.choice === "clean" && action.choice !== "none") return false;
-  if (status.choice === "flagged" && action.choice === "none") return false;
-  if (
-    status.choice === "warn" &&
-    (action.choice === "delete" || action.choice === "escalate")
-  )
-    return false;
+  if (s === "clean" && act !== "none") return false;
+  if (s === "flagged" && act === "none") return false;
+  if (s === "warn" && (act === "delete" || act === "escalate")) return false;
   // category ↔ status: clean must be none; flagged must NOT be none
-  if (status.choice === "clean" && category.choice !== "none") return false;
-  if (status.choice === "flagged" && category.choice === "none") return false;
+  if (s === "clean" && cat !== "none") return false;
+  if (s === "flagged" && cat === "none") return false;
 
   return true;
 }
@@ -378,12 +392,16 @@ export function mapJevAnswersToResult(
 ): AnalysisResult {
   const a = answersOf(answers, messageId);
   const v = a.v as { type: "noul"; noul: number };
-  const st = a.status as { type: "choice"; choice: string; confidence: number };
-  const sev = a.severity as { type: "choice"; choice: string };
-  const cat = a.category as { type: "choice"; choice: string };
-  const act = a.action as { type: "choice"; choice: string };
+  const st = a.status as {
+    type: "choice";
+    choice: string;
+    confidence: number;
+  };
+  const sev = labelOf(a.severity);
+  const cat = labelOf(a.category);
+  const act = labelOf(a.action);
 
-  const status = st.choice as "clean" | "warn" | "flagged";
+  const status = st.choice as (typeof JEV_STATUSES)[number];
   // Calibrated score: clean → 0; warn → 0.45; flagged → P(violates) clamped.
   const rawNoul = typeof v.noul === "number" ? v.noul : 0;
   const score =
@@ -400,15 +418,15 @@ export function mapJevAnswersToResult(
   return {
     messageId,
     status,
-    flags: cat.choice === "none" ? [] : [cat.choice],
+    flags: cat === "none" ? [] : [cat],
     score,
     analysis:
-      `[Jev] status=${status}, kategori=${cat.choice}, keparahan=${sev.choice}, ` +
-      `keyakinan=${confidence.toFixed(2)}, tindakan=${act.choice}, p_melanggar=${rawNoul.toFixed(2)}`,
-    categories: cat.choice === "none" ? [] : [cat.choice],
-    severity: sev.choice as AnalysisResult["severity"],
+      `[Jev] status=${status}, kategori=${cat}, keparahan=${sev}, ` +
+      `keyakinan=${confidence.toFixed(2)}, tindakan=${act}, p_melanggar=${rawNoul.toFixed(2)}`,
+    categories: cat === "none" ? [] : [cat],
+    severity: sev as AnalysisResult["severity"],
     confidence,
-    recommendedAction: act.choice as AnalysisResult["recommendedAction"],
+    recommendedAction: act as AnalysisResult["recommendedAction"],
     policyVersion: JEV_POLICY_VERSION,
     evidence: [],
   };
@@ -483,7 +501,7 @@ export async function analyzeBatchWithJev(
 
     outcome.raw = systemOneResult;
     const answers = systemOneResult.answers as unknown as JevAnswers;
-    const minConfidence = config.AI_LLM_JEV_MIN_CONFIDENCE ?? 0.9;
+    const minConfidence = config.AI_LLM_JEV_MIN_CONFIDENCE;
 
     for (const t of targets) {
       if (isJevAccepted(answers, t.id, minConfidence)) {

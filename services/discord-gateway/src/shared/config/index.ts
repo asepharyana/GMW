@@ -201,8 +201,8 @@ export const configSchema = z
     AI_LLM_JEV_ENABLED: z
       .string()
       .optional()
-      .transform((v) => v === "true")
-      .default(true),
+      .default("false")
+      .transform((v) => v === "true"),
     AI_LLM_JEV_API_KEY: z.string().optional().default(""),
     AI_LLM_JEV_BASE_URL: z.string().url().default("http://127.0.0.1:4014"),
     AI_LLM_JEV_MODEL: z.string().default("oc/jev-1.13-free"),

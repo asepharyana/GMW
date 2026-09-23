@@ -171,7 +171,11 @@ export async function runTextOnlyBatch(
       if (urlArr.length >= 10) break;
     }
     if (urlArr.length === 0) {
-      return { text: new Map(), image: new Map(), title: new Map() };
+      return {
+        text: new Map(),
+        image: new Map(),
+        title: new Map(),
+      } satisfies UrlFetchResult;
     }
     const results = await Promise.allSettled(
       urlArr.map((url) => fetchUrlSafely(url)),
@@ -365,7 +369,7 @@ export async function runTextOnlyBatch(
       const messagesBlock = (
         await Promise.all(
           workingSet.map(async (msg) => {
-            const content = truncateForAi(getAnalysisContent(msg));
+            const content = analysisContentOf(msg);
             const msgUrls = extractUrlsFromText(content);
             const urlContexts = msgUrls
               .map((url) => {
