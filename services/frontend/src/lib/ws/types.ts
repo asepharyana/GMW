@@ -62,10 +62,3 @@ export type WsEventType = keyof WsEventMap;
 export type WsEventHandler<E extends WsEventType = WsEventType> = (
   data: WsEventMap[E],
 ) => void;
-
-// ── Binary PCM ─────────────────────────────────────────────
-
-export interface PcmChunk {
-  userIdHash: number;
-  samples: Int16Array;
-}

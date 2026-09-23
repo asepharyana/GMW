@@ -1,10 +1,7 @@
 import {
-  Headphones,
   LayoutDashboard,
   type LucideIcon,
   MessageSquare,
-  Mic,
-  Music,
   Search,
   Shield,
   Users,
@@ -39,24 +36,6 @@ export const navItems: NavItem[] = [
     label: "Users",
     icon: Users,
     matchPrefix: "/users",
-  },
-  {
-    href: "/voice",
-    label: "Voice",
-    icon: Mic,
-    matchPrefix: "/voice",
-  },
-  {
-    href: "/media",
-    label: "Media",
-    icon: Music,
-    matchPrefix: "/media",
-  },
-  {
-    href: "/recordings",
-    label: "Recordings",
-    icon: Headphones,
-    matchPrefix: "/recordings",
   },
   {
     href: "/moderation",

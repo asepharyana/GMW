@@ -567,11 +567,6 @@
   100% { background-position: -200% 0; }
 }
 
-@keyframes eq {
-  0%, 100% { transform: scaleY(0.35); }
-  50% { transform: scaleY(1); }
-}
-
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
@@ -634,12 +629,6 @@
   animation: shimmer 1.6s ease-in-out infinite;
 }
 
-/* Live equalizer bars (mini-player / recording player). */
-.animate-eq {
-  transform-origin: bottom;
-  animation: eq 0.9s ease-in-out infinite;
-}
-
 /* Entrance for popovers, toasts, mini-player. */
 .animate-fade-up { animation: fade-up 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
 .animate-toast-in { animation: toast-in 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
@@ -694,7 +683,6 @@
   .animate-spin-disc,
   .animate-pulse-ring,
   .animate-shimmer,
-  .animate-eq,
   .animate-fade-up,
   .animate-toast-in,
   .animate-stagger,

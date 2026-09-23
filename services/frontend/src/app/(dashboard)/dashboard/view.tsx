@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Hash,
   MessageSquare,
-  Mic,
   Shield,
   ShieldAlert,
   ShieldCheck,
@@ -159,12 +158,6 @@ export function DashboardView({
             value={formatNumber(s.active_users_24h)}
             hint={`${formatNumber(s.total_users)} total profiles`}
             icon={<Users className="size-4" />}
-          />
-          <MetricTile
-            label="Voice Recordings"
-            value={formatNumber(s.total_voice_recordings)}
-            hint="Archived audio sessions"
-            icon={<Mic className="size-4" />}
           />
           <MetricTile
             label="Mod Queue"

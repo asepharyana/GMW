@@ -25,8 +25,7 @@ const bricolage = Bricolage_Grotesque({
 
 export const metadata: Metadata = {
   title: "GMW — Discord Moderation Console",
-  description:
-    "AI-powered Discord moderation, voice monitoring, and media control console",
+  description: "AI-powered Discord moderation console",
 };
 
 export const viewport: Viewport = {

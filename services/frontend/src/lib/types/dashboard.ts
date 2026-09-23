@@ -7,7 +7,6 @@ export interface DashboardStats {
   total_clean: number;
   total_warned: number;
   total_error: number;
-  total_voice_recordings: number;
   total_profiles: number;
   today_messages: number;
   today_flagged: number;
