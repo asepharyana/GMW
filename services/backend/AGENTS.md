@@ -59,8 +59,6 @@ src/
 | messages | Store & query Discord messages | `messages`, `ai_moderations`, `ai_moderation_flags` |
 | moderation | Moderation actions & metrics | `ai_moderations`, `moderation_actions` |
 | media | Media file management | `media_attachments` |
-| voice | Live speakers + recordings | `voice_recordings` |
-| recordings | Recordings API | `voice_recordings` |
 | dashboard | Stats aggregation | Various (read-only) |
 | knowledge | Semantic search | Qdrant vector DB |
 | chatbot | AI chatbot with tools | `chatbot_history` |
@@ -91,7 +89,6 @@ The frontend fetches via `src/lib/api/server.ts` (SSR, server-side) and
 ```
 discord:message:{created,updated,deleted,analyzed}
 discord:attachment:{created,uploaded}
-discord:voice:{started,stopped,uploaded,active_user,pcm,analyzed}
 discord:analysis:queue_status
 discord:reaction:{added,removed}
 discord:thread:{created,deleted,updated}

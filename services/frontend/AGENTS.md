@@ -14,12 +14,7 @@ Key points:
 - **API client** at `src/lib/api/client.ts` — browser-side fetch for live ops,
   same-origin through the reverse proxy.
 - **WebSocket** at `src/lib/ws/` — auto-reconnecting client with typed event
-  subscriptions. Realtime state (voice, media, messages) stays client-side.
-- **Shared realtime state is server-authoritative**: the backend aggregates the
-  gateway's `voice_active_user` deltas into a live speaker snapshot
-  (`GET /api/voice/status` → `activeSpeakers`, plus WS `voice_state` sent on
-  connect). Every browser converges on the same voice state; `useSpeakers`
-  seeds from the server snapshot instead of accumulating per-tab.
+  subscriptions. Realtime state (moderation, messages) stays client-side.
 - **No authentication**: all endpoints are public
 
 ## Data flow (match these — do not invent endpoints)
@@ -47,12 +42,9 @@ Discord → discord-gateway → Redis pub/sub → backend (Express :4001) ←→
   each row is `{ id, user_id, user_message, bot_response, context, created_at }`.
   Map rows to display messages in `chatbot-context.tsx`.
 - `message_deleted` WS payload → `{ id, deleted_at }` (an object, not a string).
-- `voice_recording_uploaded` WS payload has **no** `duration_bytes` (REST rows do).
 - Dashboard endpoints: `/api/dashboard/stats|users|channels` (+ `/:id` details).
 - Channel/guild names live inside `message.metadata` JSON (`channel.channelName`),
   not top-level.
-- `GET /api/voice/status` now includes `activeSpeakers` (authoritative shared
-  snapshot from `src/modules/voice/live-speaker.ts` on the backend).
 
 <!-- BEGIN:nextjs-agent-rules -->
 

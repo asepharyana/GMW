@@ -18,8 +18,6 @@ services/discord-gateway/
 │   └── modules/
 │       ├── message-capture/         # Discord listeners + DB store + metadata
 │       ├── ai-moderation/           # LLM moderation pipeline (largest module)
-│       ├── voice-recording/         # Voice connect + Opus→OGG recording (+ recorder/)
-│       ├── voice-pcm-ws/            # Real-time PCM → backend WebSocket
 │       ├── attachment-upload/       # Download + sharp resize + upload
 │       ├── event-broadcaster/        # RedisEventPublisher + EventBroadcaster
 │       ├── command-handler/         # Backend→gateway Redis commands
@@ -51,11 +49,6 @@ semantic Qdrant → LLM), `textBatchProcessor.ts` / `mediaBatchProcessor.ts`
 `embeddingClient.ts` + `qdrantClient.ts` (semantic cache), plus
 `channelCultureStore.ts` / `userProfileStore.ts`.
 
-### voice-recording
-`voiceController.ts` (connect/disconnect/list) + `recorder.ts` (orchestration)
-+ `recorder/` (decoder, segment, session, uploader, oggCrc). Publishes
-`discord:voice:*` events. Real-time audio also streamed via `voice-pcm-ws`.
-
 ### attachment-upload
 `attachmentUploader.ts` (download → upload to storage) + `imageResizer.ts`
 (sharp resize). Emits `discord:attachment:*`.
@@ -72,7 +65,7 @@ per scrape; live pipeline gauges registered in `bootstrap.ts`.
 - **config** — Zod schema in `shared/config/index.ts` (single source of truth).
 - **database** — Drizzle ORM over `pg`; pool `min:0` (`shared/config`).
 - **logger** — `pino` wrapper, `createChildLogger()` for context loggers.
-- **errors** — `AppError` hierarchy (`ConfigError`, `AudioError`, …).
+- **errors** — `AppError` hierarchy (`ConfigError`, …).
 
 ## Notes
 - No HTTP server (other than the metrics endpoint). Pure event-driven.

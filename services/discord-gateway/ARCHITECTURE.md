@@ -1,7 +1,7 @@
 # Discord Gateway — Architecture
 
 Pure event-driven microservice (no HTTP server). Captures Discord
-messages/voice/attachments/reactions/threads/presence, runs LLM-based AI
+messages/attachments/reactions/threads/presence, runs LLM-based AI
 moderation, and publishes everything to Redis pub/sub for the backend to
 consume. The backend serves the HTTP/WS API to the frontend.
 
@@ -24,9 +24,9 @@ services/discord-gateway/
 │   │   ├── config/                  # Zod-validated env (index.ts = schema+loader)
 │   │   ├── database/                # Drizzle ORM + pg Pool + migrations
 │   │   │   ├── init.ts drizzle.ts pool.ts migrate.ts migrateCli.ts
-│   │   │   └── schema/              # messages, cache, voice, analytics, meta
+│   │   │   └── schema/              # messages, cache, meta, analytics
 │   │   ├── logger/                  # pino wrapper + createChildLogger()
-│   │   ├── errors/                  # AppError / ConfigError / AudioError ...
+│   │   ├── errors/                  # AppError / ConfigError ...
 │   │   ├── utils/                   # retry, pagination
 │   │   ├── discord/clientOptions.ts # discord.js-selfbot-v13 client options
 │   │   ├── uploader.ts              # Shared attachment upload helper
@@ -35,9 +35,6 @@ services/discord-gateway/
 │   └── modules/
 │       ├── message-capture/         # Discord event listeners + DB store
 │       ├── ai-moderation/           # LLM moderation pipeline (see below)
-│       ├── voice-recording/         # Voice connect + Opus→OGG recording
-│       │   └── recorder/            # decoder, segment, session, uploader, oggCrc
-│       ├── voice-pcm-ws/            # Real-time PCM → backend WebSocket (bypasses Redis)
 │       ├── attachment-upload/       # Download + (sharp) resize + upload
 │       ├── event-broadcaster/        # RedisEventPublisher + EventBroadcaster
 │       ├── command-handler/         # Redis-subscribed backend→gateway commands
@@ -102,7 +99,6 @@ grows on demand up to `POSTGRES_POOL_MAX`.
 
 `discord:message:{created,updated,deleted,analyzed}`,
 `discord:attachment:{created,uploaded}`,
-`discord:voice:{started,stopped,uploaded,active_user,pcm,analyzed}`,
 `discord:analysis:queue_status`,
 `discord:reaction:{added,removed}`,
 `discord:thread:{created,deleted,updated}`,
@@ -124,8 +120,8 @@ See `src/shared/redis-channels.ts` for the canonical names.
 
 `SIGINT`/`SIGTERM` (and uncaught transient stream errors: EPIPE / ECONNRESET /
 ERR_STREAM_DESTROYED / ERR_STREAM_WRITE_AFTER_END are treated as non-fatal):
-stop metrics → stop muxer → disconnect voice → close PCM WS → close Redis →
-close command handler → close DB → destroy client → exit.
+stop metrics → close event broadcaster (Redis) → close command handler →
+close DB → destroy client → exit.
 
 ## Observability
 

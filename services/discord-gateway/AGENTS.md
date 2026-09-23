@@ -36,9 +36,6 @@ src/
 ├── modules/
 │   ├── ai-moderation/           # LLM moderation pipeline (largest module)
 │   ├── message-capture/         # Discord event listeners + DB store
-│   ├── voice-recording/         # Voice connect + Opus→OGG recording
-│   │   └── recorder/            # decoder, segment, session, uploader, oggCrc
-│   ├── voice-pcm-ws/            # Real-time PCM → backend WebSocket
 │   ├── attachment-upload/       # Download + sharp resize + upload
 │   ├── event-broadcaster/       # Redis pub/sub publisher
 │   ├── command-handler/         # Backend→gateway Redis commands
@@ -76,24 +73,6 @@ textBatchProcessor.ts    mediaBatchProcessor.ts         llmClient.ts
 - Piscina: text pool (4 threads) + media pool (2 threads)
 - **Each worker thread has its own pg Pool** (min 0, grows to `POSTGRES_POOL_MAX`)
 
-## Voice recording pipeline
-
-```
-receiver.speaking "start" → speakingHandler(userId)
-  → collectUserMetadata → receiver.subscribe → PacketFilter → oggPacketStream
-  → SegmentManager.open → OggLogicalBitstream → .ogg file
-  → data: rotateIfNeeded + decoder.write
-  → end: finalizeSegment → upload + transcribe
-```
-
-Key files:
-- `voiceController.ts` — connect/disconnect/list
-- `recorder.ts` — orchestration
-- `recorder/segment.ts` — segment rotation
-- `recorder/sessionRecording.ts` — session management
-- `recorder/uploader.ts` — upload to storage
-- `voiceTranscriber.ts` — Whisper transcription (if enabled)
-
 ## Module: message-capture
 
 - `messageCapture.ts` — Discord event listeners (messageCreate/Update/Delete)
@@ -107,7 +86,7 @@ Key files:
 
 See `src/shared/redis-channels.ts` for canonical names. Examples:
 ```
-discord:message:created, discord:voice:active_user, discord:attachment:uploaded
+discord:message:created, discord:moderation:action, discord:attachment:uploaded
 ```
 
 ## Config (env vars)
@@ -120,7 +99,6 @@ All validated via Zod in `shared/config/index.ts`. Critical:
 - `REDIS_URL` — pub/sub to backend
 - `AI_ANALYSIS_ENABLED` — master toggle for AI moderation
 - `AI_LLM_BASE_URL` / `AI_LLM_API_KEY` — LLM router
-- `AI_VOICE_TRANSCRIPTION_ENABLED` — toggle Whisper transcription
 - `PISCINA_MAX_THREADS` / `PISCINA_MEDIA_MAX_THREADS` — worker pool sizing
 
 ## Concurrency model
@@ -143,8 +121,6 @@ All validated via Zod in `shared/config/index.ts`. Critical:
 
 - **Piscina pool isolation**: worker threads are NOT the main thread. Cannot
   share state via module-level variables. Use DB or Redis for cross-thread state.
-- **AfterSilence race**: `@discordjs/voice` AfterSilence can fail to emit "end"
-  on disconnect. Always have a watchdog/timeout.
 - **Cache eviction**: LRU caches (user metadata, term glossary) evict at max size.
   Don't assume cache hit after eviction.
 - **Circuit breaker**: per-conversation CB opens after repeated failures.

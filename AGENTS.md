@@ -1,6 +1,6 @@
 # GMW — Agent Guide
 
-GMW (Guild Moderation Watcher) is a Discord bot + web dashboard for AI-powered moderation. A monorepo with three services: a selfbot gateway that captures messages/voice and runs LLM moderation, an Express/oRPC backend that serves the dashboard API, and a Next.js 16 SSR frontend. They communicate via Redis pub/sub (gateway→backend) and WebSocket (backend→browser).
+GMW (Guild Moderation Watcher) is a Discord bot + web dashboard for AI-powered moderation. A monorepo with three services: a selfbot gateway that captures Discord events and runs LLM moderation, an Express/oRPC backend that serves the dashboard API, and a Next.js 16 SSR frontend. They communicate via Redis pub/sub (gateway→backend) and WebSocket (backend→browser).
 
 ## Quick reference
 
