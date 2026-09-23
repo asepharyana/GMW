@@ -7,9 +7,7 @@ export interface Guild {
 export interface Channel {
   id: string;
   name: string;
-  type: "voice" | "text";
-  /** Whether the selfbot account can actually join this voice channel. */
-  joinable?: boolean;
+  type: "text";
 }
 
 /** Shape of the /api/config response (camelCase keys from backend). */
@@ -21,10 +19,7 @@ export interface AppConfig {
   backlogSyncBatchSize?: number;
   retentionMessagesDays?: number;
   retentionAttachmentsDays?: number;
-  retentionVoiceDays?: number;
   autoDeleteFlaggedEnabled?: boolean;
   aiAnalysisEnabled?: boolean;
-  voiceGuildId?: string | null;
-  voiceChannelId?: string | null;
   logLevel?: string;
 }

@@ -2,14 +2,16 @@ import { config } from "@/shared/config/index";
 import { NotFoundError, ValidationError } from "@/shared/errors/index";
 import { createChildLogger } from "@/shared/logger/index";
 import { embedQuery } from "./embed.js";
-import { messagesRepository } from "./messages.repository.js";
+import { type MessageRow, messagesRepository } from "./messages.repository.js";
 import type { MessageQuery, SemanticSearchQuery } from "./messages.schema.js";
 import { searchArchive } from "./qdrant.js";
 
 const logger = createChildLogger("messages.service");
 
 export class MessagesService {
-  async listMessages(query: MessageQuery) {
+  async listMessages(
+    query: MessageQuery,
+  ): Promise<Awaited<ReturnType<typeof messagesRepository.findMany>>> {
     if (!query.channelId && !query.guildId) {
       throw new ValidationError("Either channelId or guildId is required");
     }
@@ -26,7 +28,10 @@ export class MessagesService {
     return messagesRepository.streamMany(query, pageSize);
   }
 
-  async getMessagesByChannel(channelId: string, query: MessageQuery) {
+  async getMessagesByChannel(
+    channelId: string,
+    query: MessageQuery,
+  ): Promise<Awaited<ReturnType<typeof messagesRepository.findByChannel>>> {
     if (!channelId) {
       throw new ValidationError("channelId is required");
     }
@@ -35,7 +40,14 @@ export class MessagesService {
     return messagesRepository.findByChannel(channelId, query);
   }
 
-  async getMessageById(id: string) {
+  async getMessageById(id: string): Promise<
+    NonNullable<Awaited<ReturnType<typeof messagesRepository.findById>>> & {
+      edit_count: number;
+      edit_history: Awaited<
+        ReturnType<typeof messagesRepository.getEditHistory>
+      >;
+    }
+  > {
     if (!id) {
       throw new ValidationError("message ID is required");
     }
@@ -56,7 +68,12 @@ export class MessagesService {
     };
   }
 
-  async getAttachmentsByChannel(channelId: string, query: MessageQuery) {
+  async getAttachmentsByChannel(
+    channelId: string,
+    query: MessageQuery,
+  ): Promise<
+    Awaited<ReturnType<typeof messagesRepository.getAttachmentsByChannel>>
+  > {
     if (!channelId) {
       throw new ValidationError("channelId is required");
     }
@@ -111,13 +128,32 @@ export class MessagesService {
     return { results, nextCursor: null };
   }
 
-  async getActivity(days = 30) {
+  async getActivity(
+    days = 30,
+  ): Promise<Awaited<ReturnType<typeof messagesRepository.getActivity>>> {
     return messagesRepository.getActivity(days);
   }
 
-  async getRecentEdits(limit = 50, channelId?: string) {
+  async getRecentEdits(
+    limit = 50,
+    channelId?: string,
+  ): Promise<Awaited<ReturnType<typeof messagesRepository.getRecentEdits>>> {
     logger.debug({ limit, channelId }, "Getting recent message edits");
     return messagesRepository.getRecentEdits(limit, channelId);
+  }
+
+  /** Distinct guilds present in the message archive (guild picker). */
+  async getGuilds(): Promise<
+    Awaited<ReturnType<typeof messagesRepository.listGuilds>>
+  > {
+    return messagesRepository.listGuilds();
+  }
+
+  /** Text channels for a guild (channel picker). */
+  async getTextChannels(
+    guildId: string,
+  ): Promise<Awaited<ReturnType<typeof messagesRepository.listTextChannels>>> {
+    return messagesRepository.listTextChannels(guildId);
   }
 }
 

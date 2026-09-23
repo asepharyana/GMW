@@ -112,87 +112,6 @@ export class EventBroadcaster {
     });
   }
 
-  async voiceRecordingStarted(data: Record<string, unknown>): Promise<void> {
-    this.logger.debug({ data }, "Publishing voice_recording_started");
-    await this.publisher.publish(EventChannels.VOICE_STARTED, {
-      type: "voice_recording_started",
-      data,
-      timestamp: Date.now(),
-      source: "discord-gateway",
-    });
-  }
-
-  async voiceRecordingStopped(data: Record<string, unknown>): Promise<void> {
-    this.logger.debug({ data }, "Publishing voice_recording_stopped");
-    await this.publisher.publish(EventChannels.VOICE_STOPPED, {
-      type: "voice_recording_stopped",
-      data,
-      timestamp: Date.now(),
-      source: "discord-gateway",
-    });
-  }
-
-  async voiceRecordingUploaded(data: Record<string, unknown>): Promise<void> {
-    this.logger.debug({ data }, "Publishing voice_recording_uploaded");
-    await this.publisher.publish(EventChannels.VOICE_UPLOADED, {
-      type: "voice_recording_uploaded",
-      data,
-      timestamp: Date.now(),
-      source: "discord-gateway",
-    });
-  }
-
-  /**
-   * Broadcasts PCM audio data for real-time voice streaming
-   * @param pcmBuffer - Raw PCM audio buffer
-   * @param userId - Discord user ID
-   * @param metadata - Optional metadata about the audio chunk
-   */
-  async voicePcmData(
-    pcmBuffer: Buffer,
-    userId: string,
-    metadata?: Record<string, unknown>,
-  ): Promise<void> {
-    this.logger.debug(
-      { userId, pcmSize: pcmBuffer.length },
-      "Publishing voice_pcm_data",
-    );
-    await this.publisher.publish(EventChannels.VOICE_PCM, {
-      type: "voice_pcm_data",
-      data: {
-        userId,
-        pcm: pcmBuffer.toString("base64"),
-        metadata,
-      },
-      timestamp: Date.now(),
-      source: "discord-gateway",
-    });
-  }
-
-  /**
-   * Broadcasts voice user activity state changes
-   * @param userId - Discord user ID
-   * @param data - User state data including username, avatar, and speaking status
-   */
-  async voiceActiveUser(
-    userId: string,
-    data: { username: string; avatar: string; speaking: boolean },
-  ): Promise<void> {
-    this.logger.debug(
-      { userId, speaking: data.speaking },
-      "Publishing voice_active_user",
-    );
-    await this.publisher.publish(EventChannels.VOICE_ACTIVE_USER, {
-      type: "voice_active_user",
-      data: {
-        userId,
-        ...data,
-      },
-      timestamp: Date.now(),
-      source: "discord-gateway",
-    });
-  }
-
   async reactionAdded(data: Record<string, unknown>): Promise<void> {
     this.logger.debug({ data }, "Publishing reaction_added");
     await this.publisher.publish(EventChannels.REACTION_ADDED, {
@@ -277,16 +196,6 @@ export class EventBroadcaster {
     this.logger.debug({ data }, "Publishing guild_member_removed");
     await this.publisher.publish(EventChannels.GUILD_MEMBER_REMOVED, {
       type: "guild_member_removed",
-      data,
-      timestamp: Date.now(),
-      source: "discord-gateway",
-    });
-  }
-
-  async voiceAnalyzed(data: Record<string, unknown>): Promise<void> {
-    this.logger.debug({ data }, "Publishing voice_analyzed");
-    await this.publisher.publish(EventChannels.VOICE_ANALYZED, {
-      type: "voice_analyzed",
       data,
       timestamp: Date.now(),
       source: "discord-gateway",

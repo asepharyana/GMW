@@ -51,10 +51,51 @@ export interface AttachmentResult {
   uploaded_at: number | null;
 }
 
+type MessageRow = ReturnType<typeof mapMessageRow>;
+
+export type { MessageRow };
+
+/**
+ * Build the NULL-safe "exclude spam threads" condition. Non-thread messages
+ * (NULL thread_id) are always kept; thread messages are kept only when their
+ * thread is not in the configured exclusion list.
+ */
+function excludeSpamThreads(): SQL | undefined {
+  if (EXCLUDED_THREAD_IDS.length === 0) return undefined;
+  return or(
+    isNull(pgMessagesTable.thread_id),
+    notInArray(pgMessagesTable.thread_id, EXCLUDED_THREAD_IDS),
+  );
+}
+
+/** Normalize a raw attachment DB row to the API shape. */
+function mapAttachmentRow(r: Record<string, unknown>): AttachmentResult {
+  return {
+    id: String(r.id ?? ""),
+    message_id: String(r.message_id ?? ""),
+    guild_id: String(r.guild_id ?? ""),
+    channel_id: String(r.channel_id ?? ""),
+    thread_id: (r.thread_id as string | null) ?? null,
+    user_id: String(r.user_id ?? ""),
+    filename: String(r.filename ?? ""),
+    size: Number(r.size ?? 0),
+    type: String(r.type ?? ""),
+    discord_url: String(r.discord_url ?? ""),
+    uploaded_url: (r.uploaded_url as string | null) ?? null,
+    upload_status: String(r.upload_status ?? "pending"),
+    upload_error: (r.upload_error as string | null) ?? null,
+    created_at: Number(r.created_at ?? 0),
+    uploaded_at: (r.uploaded_at as number | null) ?? null,
+  };
+}
+
+/** Select the first `limit + 1` rows so the caller can derive the next cursor. */
+function cursorLimit(limit: number): number {
+  return limit + 1;
+}
+
 export class MessagesRepository {
-  async findMany(
-    query: MessageQuery,
-  ): Promise<PageResult<ReturnType<typeof mapMessageRow>>> {
+  async findMany(query: MessageQuery): Promise<PageResult<MessageRow>> {
     const db = getDatabase();
     const limit = query.limit ?? 50;
     const conditions: SQL[] = [];
@@ -76,13 +117,8 @@ export class MessagesRepository {
     }
 
     // Exclude spam threads (NULL-safe: non-thread messages are kept)
-    if (EXCLUDED_THREAD_IDS.length > 0) {
-      const excludeThreads = or(
-        isNull(pgMessagesTable.thread_id),
-        notInArray(pgMessagesTable.thread_id, EXCLUDED_THREAD_IDS),
-      );
-      if (excludeThreads) conditions.push(excludeThreads);
-    }
+    const excludeThreads = excludeSpamThreads();
+    if (excludeThreads) conditions.push(excludeThreads);
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const rows = await db
@@ -90,7 +126,7 @@ export class MessagesRepository {
       .from(pgMessagesTable)
       .where(where)
       .orderBy(desc(pgMessagesTable.created_at))
-      .limit(limit + 1);
+      .limit(cursorLimit(limit));
 
     const data = rows
       .slice(0, limit)
@@ -138,7 +174,7 @@ export class MessagesRepository {
   async findByChannel(
     channelId: string,
     query: MessageQuery,
-  ): Promise<PageResult<ReturnType<typeof mapMessageRow>>> {
+  ): Promise<PageResult<MessageRow>> {
     const db = getDatabase();
     const limit = query.limit ?? 50;
     const conditions: SQL[] = [eq(pgMessagesTable.channel_id, channelId)];
@@ -148,20 +184,15 @@ export class MessagesRepository {
     }
 
     // Exclude spam threads (NULL-safe)
-    if (EXCLUDED_THREAD_IDS.length > 0) {
-      const excludeThreads = or(
-        isNull(pgMessagesTable.thread_id),
-        notInArray(pgMessagesTable.thread_id, EXCLUDED_THREAD_IDS),
-      );
-      if (excludeThreads) conditions.push(excludeThreads);
-    }
+    const excludeThreads = excludeSpamThreads();
+    if (excludeThreads) conditions.push(excludeThreads);
 
     const rows = await db
       .select()
       .from(pgMessagesTable)
       .where(and(...conditions))
       .orderBy(desc(pgMessagesTable.created_at))
-      .limit(limit + 1);
+      .limit(cursorLimit(limit));
 
     const data = rows
       .slice(0, limit)
@@ -181,7 +212,7 @@ export class MessagesRepository {
   async *streamMany(
     query: MessageQuery,
     pageSize = 50,
-  ): AsyncGenerator<ReturnType<typeof mapMessageRow>, void, unknown> {
+  ): AsyncGenerator<MessageRow, void, unknown> {
     const conditions: SQL[] = [];
 
     if (query.guildId) {
@@ -196,13 +227,8 @@ export class MessagesRepository {
     if (query.status) {
       conditions.push(eq(pgMessagesTable.ai_status, query.status));
     }
-    if (EXCLUDED_THREAD_IDS.length > 0) {
-      const excludeThreads = or(
-        isNull(pgMessagesTable.thread_id),
-        notInArray(pgMessagesTable.thread_id, EXCLUDED_THREAD_IDS),
-      );
-      if (excludeThreads) conditions.push(excludeThreads);
-    }
+    const excludeThreads = excludeSpamThreads();
+    if (excludeThreads) conditions.push(excludeThreads);
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     let cursor: string | undefined = query.cursor;
@@ -221,7 +247,7 @@ export class MessagesRepository {
         .from(pgMessagesTable)
         .where(pageWhere)
         .orderBy(desc(pgMessagesTable.created_at))
-        .limit(pageSize + 1);
+        .limit(cursorLimit(pageSize));
 
       if (rows.length === 0) return;
 
@@ -366,31 +392,30 @@ export class MessagesRepository {
   async getImageMessages(
     guildId: string,
     limit: number = 50,
-  ): Promise<PageResult<ReturnType<typeof mapMessageRow>>> {
+  ): Promise<PageResult<MessageRow>> {
     const db = getDatabase();
 
     // Subquery: find distinct message_ids from attachments with image MIME type
+    const attachmentConditions: SQL[] = [
+      eq(pgAttachmentsTable.guild_id, guildId),
+      like(pgAttachmentsTable.type, "image/%"),
+    ];
+    // Exclude spam threads (NULL-safe for non-thread messages)
+    const excludeThreads =
+      EXCLUDED_THREAD_IDS.length > 0
+        ? or(
+            isNull(pgAttachmentsTable.thread_id),
+            notInArray(pgAttachmentsTable.thread_id, EXCLUDED_THREAD_IDS),
+          )
+        : undefined;
+    if (excludeThreads) attachmentConditions.push(excludeThreads);
+
     const imageMsgIds = db
       .select({ id: pgAttachmentsTable.message_id })
       .from(pgAttachmentsTable)
-      .where(
-        and(
-          eq(pgAttachmentsTable.guild_id, guildId),
-          like(pgAttachmentsTable.type, "image/%"),
-          // Exclude spam threads (NULL-safe for non-thread messages)
-          ...(EXCLUDED_THREAD_IDS.length > 0
-            ? (() => {
-                const excludeThreads = or(
-                  isNull(pgAttachmentsTable.thread_id),
-                  notInArray(pgAttachmentsTable.thread_id, EXCLUDED_THREAD_IDS),
-                );
-                return excludeThreads ? [excludeThreads] : [];
-              })()
-            : []),
-        ),
-      )
+      .where(and(...attachmentConditions))
       .orderBy(desc(pgAttachmentsTable.created_at))
-      .limit(limit + 1);
+      .limit(cursorLimit(limit));
 
     // Fetch full message rows for those IDs
     const rows = await db
@@ -398,7 +423,7 @@ export class MessagesRepository {
       .from(pgMessagesTable)
       .where(inArray(pgMessagesTable.id, imageMsgIds))
       .orderBy(desc(pgMessagesTable.created_at))
-      .limit(limit + 1);
+      .limit(cursorLimit(limit));
 
     const data = rows
       .slice(0, limit)
@@ -433,28 +458,16 @@ export class MessagesRepository {
       .from(pgAttachmentsTable)
       .where(and(...conditions))
       .orderBy(desc(pgAttachmentsTable.created_at))
-      .limit(limit + 1);
+      .limit(cursorLimit(limit));
 
-    const data = rows.map((r) => ({
-      id: String(r.id ?? ""),
-      message_id: String(r.message_id ?? ""),
-      guild_id: String(r.guild_id ?? ""),
-      channel_id: String(r.channel_id ?? ""),
-      thread_id: (r.thread_id as string | null) ?? null,
-      user_id: String(r.user_id ?? ""),
-      filename: String(r.filename ?? ""),
-      size: Number(r.size ?? 0),
-      type: String(r.type ?? ""),
-      discord_url: String(r.discord_url ?? ""),
-      uploaded_url: (r.uploaded_url as string | null) ?? null,
-      upload_status: String(r.upload_status ?? "pending"),
-      upload_error: (r.upload_error as string | null) ?? null,
-      created_at: Number(r.created_at ?? 0),
-      uploaded_at: (r.uploaded_at as number | null) ?? null,
-    }));
+    const data = rows.map((r) =>
+      mapAttachmentRow(r as Record<string, unknown>),
+    );
 
+    // nextCursor derives from the fetched-but-untrimmed overflow row (index
+    // `limit`), matching the other cursor-paginated queries.
     const nextCursor =
-      data.length > limit ? String(data[limit].created_at) : null;
+      rows.length > limit ? String(rows[limit].created_at) : null;
     const trimmed = data.slice(0, limit);
 
     return { data: trimmed, nextCursor };
@@ -520,6 +533,44 @@ export class MessagesRepository {
       channel_id: r.channel_id ? String(r.channel_id) : null,
       channel_name: r.channel_name ? String(r.channel_name) : null,
       username: r.username ? String(r.username) : null,
+    }));
+  }
+
+  /**
+   * Distinct guilds present in the message archive (drives the guild picker).
+   */
+  async listGuilds(): Promise<
+    Array<{ id: string; name: string; icon: string | null }>
+  > {
+    const db = getDatabase();
+    const rows = await db
+      .selectDistinct({ guild_id: pgMessagesTable.guild_id })
+      .from(pgMessagesTable)
+      .orderBy(pgMessagesTable.guild_id);
+    return rows.map((row) => ({
+      id: String(row.guild_id ?? ""),
+      name: `Guild ${String(row.guild_id).slice(0, 8)}`,
+      icon: null,
+    }));
+  }
+
+  /**
+   * Text channels for a guild, derived from the message archive
+   * (drives the channel picker).
+   */
+  async listTextChannels(
+    guildId: string,
+  ): Promise<Array<{ id: string; name: string; type: "text" }>> {
+    const db = getDatabase();
+    const rows = await db
+      .selectDistinct({ channel_id: pgMessagesTable.channel_id })
+      .from(pgMessagesTable)
+      .where(eq(pgMessagesTable.guild_id, guildId))
+      .orderBy(pgMessagesTable.channel_id);
+    return rows.map((row) => ({
+      id: String(row.channel_id ?? ""),
+      name: `Channel ${String(row.channel_id).slice(0, 8)}`,
+      type: "text" as const,
     }));
   }
 }

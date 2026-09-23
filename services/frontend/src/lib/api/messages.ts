@@ -1,13 +1,20 @@
 import { orpc } from "@/lib/orpc/client";
 import type {
   AttachmentRecord,
+  Channel,
   EditHistoryRow,
+  Guild,
   MessageActivityBucket,
   MessageRecord,
   SemanticSearchResult,
 } from "@/lib/types";
 
 export const messagesApi = {
+  getGuilds: () => orpc.messages.guilds() as unknown as Promise<Guild[]>,
+
+  getTextChannels: (guildId: string) =>
+    orpc.messages.textChannels({ guildId }) as unknown as Promise<Channel[]>,
+
   list: (
     guildId: string,
     limit?: number,

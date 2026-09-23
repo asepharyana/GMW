@@ -19,7 +19,6 @@ services/discord-gateway/
 │   │   │   ├── schema.ts         # Drizzle ORM schema
 │   │   │   ├── drizzle.ts        # PostgreSQL connection
 │   │   │   ├── migrate.ts        # Migration runner
-│   │   │   └── voiceRecordingRepo.ts
 │   │   ├── errors/
 │   │   │   └── errors.ts         # Custom error classes
 │   │   ├── logger/
@@ -42,17 +41,6 @@ services/discord-gateway/
 │   │   │   ├── aiAnalysisWorker.ts # Service: Worker pool
 │   │   │   ├── indonesianTextNormalizer.ts # Service: Text normalization
 │   │   │   ├── moderationPrompt.ts # Service: Prompt generation
-│   │   │   └── index.ts          # Module exports
-│   │   ├── voice-recording/      # Controller-Service-Repository
-│   │   │   ├── voiceController.ts # Controller: Voice connection mgmt
-│   │   │   ├── recorder.ts       # Service: Recording orchestration
-│   │   │   ├── recorder/         # Sub-services
-│   │   │   │   ├── audioStream.ts # Audio stream subscription
-│   │   │   │   ├── decoder.ts    # Opus decoding
-│   │   │   │   ├── segment.ts    # OGG segment rotation
-│   │   │   │   ├── metadata.ts   # Segment metadata
-│   │   │   │   ├── sessionRecording.ts # Session management
-│   │   │   │   └── uploader.ts   # Segment upload
 │   │   │   └── index.ts          # Module exports
 │   │   ├── attachment-upload/    # Controller-Service-Repository
 │   │   │   ├── attachmentUploader.ts # Service: Upload orchestration
@@ -85,11 +73,6 @@ Each feature module follows **Controller-Service-Repository** pattern:
 - **Service** (`aiAnalysisWorker.ts`): Worker pool management
 - **Service** (`indonesianTextNormalizer.ts`): Text preprocessing
 
-**Voice Recording Module**:
-- **Controller** (`voiceController.ts`): Voice channel connection management
-- **Service** (`recorder.ts`): Recording orchestration
-- **Sub-services** (`recorder/*`): Audio stream, decoding, segmentation, upload
-
 **Attachment Upload Module**:
 - **Service** (`attachmentUploader.ts`): Upload orchestration
 - **Service** (`imageResizer.ts`): Image processing
@@ -107,9 +90,6 @@ Discord Events → Discord Gateway Service → Redis Pub/Sub → Backend Service
                                     - discord:message:analyzed
                                     - discord:attachment:created
                                     - discord:attachment:uploaded
-                                    - discord:voice:started
-                                    - discord:voice:stopped
-                                    - discord:voice:uploaded
                                     - discord:analysis:queue_status
 ```
 
@@ -146,20 +126,6 @@ Centralized, reusable components:
 5. `eventBroadcaster.messageAnalyzed()` publishes results
 6. Backend service receives and updates UI
 
-### Voice Recording
-1. `voiceController.connect()` joins voice channel
-2. `recorder.ts` subscribes to user audio streams
-3. For each speaking user:
-   - `audioStream.ts` subscribes to Opus packets
-   - `decoder.ts` decodes Opus to PCM
-   - `segment.ts` rotates OGG files (5s default)
-   - `metadata.ts` collects user info
-4. On silence (3s):
-   - `sessionRecording.ts` finalizes segment
-   - `uploader.ts` uploads to storage
-   - `eventBroadcaster.voiceRecordingUploaded()` publishes
-5. Backend service indexes recording
-
 ### Attachment Upload
 1. `messageCapture.ts` detects attachments
 2. `attachmentUploader.ts` downloads from Discord
@@ -194,21 +160,16 @@ Centralized, reusable components:
 
 On SIGINT/SIGTERM/uncaughtException/unhandledRejection:
 1. Close PostgreSQL connection
-2. Disconnect from voice channels
-3. Close Redis connection
-4. Destroy Discord client
-5. Exit process (code 0 for clean, 1 for error)
+2. Close Redis connection
+3. Destroy Discord client
+4. Exit process (code 0 for clean, 1 for error)
 
 ## Dependencies
 
 **Core Discord**:
 - `discord.js-selfbot-v13` — Discord client (selfbot variant)
-- `@discordjs/voice` — Voice connection management
-- `@discordjs/opus` — Native Opus codec
 
-**Audio Processing**:
-- `prism-media` — Opus encoding/decoding
-- `opusscript` — Opus fallback for Node v26+
+**Media Processing**:
 - `sharp` — Image resizing
 
 **Data & Config**:
@@ -269,7 +230,6 @@ On SIGINT/SIGTERM/uncaughtException/unhandledRejection:
 ### Modules (28 files)
 - `src/modules/message-capture/` (5 files)
 - `src/modules/ai-moderation/` (6 files)
-- `src/modules/voice-recording/` (9 files)
 - `src/modules/attachment-upload/` (3 files)
 - `src/modules/event-broadcaster/` (3 files)
 
@@ -289,7 +249,6 @@ On SIGINT/SIGTERM/uncaughtException/unhandledRejection:
 ✅ Shared infrastructure migrated
 ✅ Message capture module migrated
 ✅ AI moderation module migrated
-✅ Voice recording module migrated
 ✅ Attachment upload module migrated
 ✅ Event broadcaster module created (Redis pub/sub)
 ✅ Bootstrap and entry point created
@@ -304,36 +263,33 @@ On SIGINT/SIGTERM/uncaughtException/unhandledRejection:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Discord Gateway Service                      │
+│                     Discord Gateway Service                     │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────┐ │
-│  │ Message Capture  │  │  AI Moderation   │  │ Voice Record │ │
-│  │   (Controller)   │  │   (Controller)   │  │ (Controller) │ │
-│  └────────┬─────────┘  └────────┬─────────┘  └──────┬───────┘ │
-│           │                     │                   │          │
-│           ├─────────────────────┼───────────────────┤          │
-│           │                     │                   │          │
-│           ▼                     ▼                   ▼          │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │         Event Broadcaster (Redis Pub/Sub)              │  │
-│  │  - discord:message:created                             │  │
-│  │  - discord:message:updated                             │  │
-│  │  - discord:message:deleted                             │  │
-│  │  - discord:message:analyzed                            │  │
-│  │  - discord:attachment:created                          │  │
-│  │  - discord:attachment:uploaded                         │  │
-│  │  - discord:voice:started                               │  │
-│  │  - discord:voice:stopped                               │  │
-│  │  - discord:voice:uploaded                              │  │
-│  │  - discord:analysis:queue_status                       │  │
-│  └─────────────────────────────────────────────────────────┘  │
-│           │                                                    │
-└───────────┼────────────────────────────────────────────────────┘
-            │
-            │ Redis Pub/Sub
-            │
-            ▼
+│  ┌────────────────────────────┐  ┌────────────────────────────┐ │
+│  │      Message Capture       │  │       AI Moderation        │ │
+│  │        (Controller)        │  │        (Controller)        │ │
+│  └──────────────┬─────────────┘  └──────────────┬─────────────┘ │
+│                 │                               │               │
+│                 ├───────────────────────────────┤               │
+│                 │                               │               │
+│                 ▼                               ▼               │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │             Event Broadcaster (Redis Pub/Sub)             │  │
+│  │  - discord:message:created                                │  │
+│  │  - discord:message:updated                                │  │
+│  │  - discord:message:deleted                                │  │
+│  │  - discord:message:analyzed                               │  │
+│  │  - discord:attachment:created                             │  │
+│  │  - discord:attachment:uploaded                            │  │
+│  │  - discord:analysis:queue_status                          │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                │                                │
+└────────────────────────────────┼────────────────────────────────┘
+                                 │
+                                 │ Redis Pub/Sub
+                                 │
+                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Backend Service                              │
 │  (Subscribes to events, serves HTTP API, manages WebSocket)    │

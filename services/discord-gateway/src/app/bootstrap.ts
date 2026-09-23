@@ -1,6 +1,4 @@
 import { Client } from "discord.js-selfbot-v13";
-import { inArray, lt } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { ConfigError, DatabaseError } from "@/shared/errors/index";
 import { createChildLogger } from "@/shared/logger/index";
 import {
@@ -33,143 +31,17 @@ import { startDigestScheduler } from "../modules/monitor/digestScheduler.js";
 import { registerReactionCapture } from "../modules/reaction-tracking/index.js";
 import { registerThreadCapture } from "../modules/thread-tracking/index.js";
 import { registerPresenceCapture } from "../modules/user-presence/index.js";
-import { VoicePcmWsClient } from "../modules/voice-pcm-ws/index.js";
-import { startMuxerWorker } from "../modules/voice-recording/muxer.js";
-import {
-  registerSelfVoiceStateGuard,
-  setPcmWsClient,
-  setEventBroadcaster as setRecorderEventBroadcaster,
-} from "../modules/voice-recording/recorder.js";
-import {
-  setVideoRecorderClient,
-  setVideoRecordingsDir,
-} from "../modules/voice-recording/videoRecorder.js";
-import { VoiceController } from "../modules/voice-recording/voiceController.js";
 import { config } from "../shared/config/config.js";
 import {
   closeDatabase,
-  getDatabase,
   initializeDatabase,
 } from "../shared/database/drizzle.js";
 import { runMigrations } from "../shared/database/migrate.js";
-import type * as schema from "../shared/database/schema.js";
-import {
-  attachmentsTable,
-  messagesTable,
-  voiceRecordingsTable,
-} from "../shared/database/schema.js";
 import { createDiscordClientOptions } from "../shared/discord/clientOptions.js";
+import { startRetentionCleanup } from "./retention.js";
 import { createGracefulShutdown } from "./shutdown.js";
 
 const logger = createChildLogger("discord-gateway");
-
-// ─── Retention Cleanup ─────────────────────────────────────────────────────
-
-async function deleteExpiredRecords(
-  table: any,
-  timestampField: any,
-  days: number | undefined,
-  dryRun: boolean,
-  label: string,
-): Promise<void> {
-  if (!days || days <= 0) {
-    logger.debug({ label }, `Retention disabled for ${label}`);
-    return;
-  }
-
-  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-  const db = getDatabase() as unknown as NodePgDatabase<typeof schema>;
-
-  const expired = await db
-    .select({ id: table.id })
-    .from(table)
-    .where(lt(timestampField, cutoff))
-    .limit(1000);
-
-  if (expired.length === 0) {
-    logger.debug({ label }, `No expired ${label} found`);
-    return;
-  }
-
-  logger.info({ count: expired.length, label }, `Found expired ${label}`);
-
-  if (dryRun) {
-    logger.info(
-      { count: expired.length, label },
-      `[DRY RUN] Would delete ${expired.length} ${label}`,
-    );
-    return;
-  }
-
-  try {
-    await db.delete(table).where(
-      inArray(
-        table.id,
-        expired.map((r) => r.id),
-      ),
-    );
-    logger.info({ count: expired.length, label }, `Deleted expired ${label}`);
-  } catch (err) {
-    logger.error({ err, label }, `Failed to delete expired ${label}`);
-  }
-}
-
-function startRetentionCleanup(): void {
-  const intervalMs = config.RETENTION_CLEANUP_INTERVAL_MS;
-  const dryRun = config.RETENTION_DRY_RUN;
-
-  logger.info(
-    {
-      intervalMs,
-      dryRun,
-      messagesDays: config.RETENTION_MESSAGES_DAYS,
-      attachmentsDays: config.RETENTION_ATTACHMENTS_DAYS,
-      voiceDays: config.RETENTION_VOICE_DAYS,
-    },
-    "Starting retention cleanup scheduler",
-  );
-
-  async function runCleanupTick(): Promise<void> {
-    await deleteExpiredRecords(
-      messagesTable,
-      messagesTable.created_at,
-      config.RETENTION_MESSAGES_DAYS,
-      dryRun,
-      "messages",
-    );
-    await deleteExpiredRecords(
-      attachmentsTable,
-      attachmentsTable.created_at,
-      config.RETENTION_ATTACHMENTS_DAYS,
-      dryRun,
-      "attachments",
-    );
-    await deleteExpiredRecords(
-      voiceRecordingsTable,
-      voiceRecordingsTable.created_at,
-      config.RETENTION_VOICE_DAYS,
-      dryRun,
-      "voice recordings",
-    );
-  }
-
-  // Run immediately on start, then schedule
-  runCleanupTick().catch((error) => {
-    logger.error(
-      { error: error instanceof Error ? error.message : String(error) },
-      "Initial retention cleanup tick failed",
-    );
-  });
-
-  setInterval(() => {
-    runCleanupTick().catch((error) => {
-      logger.error(
-        { error: error instanceof Error ? error.message : String(error) },
-        "Retention cleanup tick failed",
-      );
-    });
-  }, intervalMs);
-}
 
 // ─── Bootstrap ─────────────────────────────────────────────────────────────
 
@@ -188,13 +60,6 @@ export async function initializeDiscordGateway() {
 
   logger.info("Creating Discord client");
   const client = new Client(createDiscordClientOptions());
-  const voiceController = new VoiceController(client);
-
-  // Wire the video recorder (others' camera/screen share) to the selfbot's
-  // native watch/receive stack + its recordings dir. Best-effort: failures are
-  // logged inside, never fatal.
-  setVideoRecorderClient(client);
-  setVideoRecordingsDir(config.RECORDINGS_DIR);
 
   // Initialize Redis event broadcaster
   const redisPublisher = new RedisEventPublisher(config.REDIS_URL, logger);
@@ -203,33 +68,13 @@ export async function initializeDiscordGateway() {
   // Initialize Redis command handler for backend→gateway commands
   const commandHandler = new CommandHandler();
 
-  // Initialize Voice PCM WebSocket client (bypasses Redis for real-time audio)
-  let pcmWsClient: VoicePcmWsClient | undefined;
-  if (config.VOICE_PCM_WS_ENABLED && config.BACKEND_WS_TOKEN) {
-    pcmWsClient = new VoicePcmWsClient(
-      config.BACKEND_WS_URL,
-      config.BACKEND_WS_TOKEN,
-    );
-    pcmWsClient.connect();
-    setPcmWsClient(pcmWsClient);
-    logger.info({ url: config.BACKEND_WS_URL }, "Voice PCM WS client enabled");
-  } else if (config.VOICE_PCM_WS_ENABLED && !config.BACKEND_WS_TOKEN) {
-    logger.warn(
-      "VOICE_PCM_WS_ENABLED=true but BACKEND_WS_TOKEN is empty — falling back to Redis for PCM",
-    );
-  } else {
-    logger.info("Voice PCM WS disabled — using Redis for PCM");
-  }
-
   const gracefulShutdown = createGracefulShutdown({
     logger,
     closeDatabase,
-    voiceController,
     client,
     eventBroadcaster,
     commandHandler,
     stopMetricsServer,
-    pcmWsClient,
   });
 
   try {
@@ -255,8 +100,6 @@ export async function initializeDiscordGateway() {
 
   client.on("debug", (msg) => {
     if (
-      msg.includes("[VOICE") ||
-      msg.includes("[ffmpeg") ||
       msg.toLowerCase().includes("error") ||
       msg.toLowerCase().includes("stream")
     ) {
@@ -269,7 +112,6 @@ export async function initializeDiscordGateway() {
   client.on("ready", async () => {
     logger.info({ user: client.user?.tag }, "Bot logged in");
     setMessageCaptureEventBroadcaster(eventBroadcaster);
-    setRecorderEventBroadcaster(eventBroadcaster);
     setModerationEventBroadcaster(eventBroadcaster);
     registerMessageCapture(client);
     startPendingAIAnalysisWorker(client, eventBroadcaster);
@@ -281,29 +123,9 @@ export async function initializeDiscordGateway() {
     registerChannelTopicCapture(client, eventBroadcaster);
     registerGuildMemberEvents(client, eventBroadcaster);
 
-    // Start background workers
-    startMuxerWorker();
-
     // Start command handler after Discord is ready
-    commandHandler.start(client, voiceController);
+    commandHandler.start(client);
     logger.info("Command handler started");
-
-    // Rejoin persisted voice channels (auto-reconnect on restart/reboot).
-    // Non-fatal: failures are logged inside autoReconnect.
-    void voiceController
-      .autoReconnect()
-      .catch((err) =>
-        logger.warn(
-          { err: err instanceof Error ? err.message : String(err) },
-          "Voice auto-reconnect on startup failed",
-        ),
-      );
-
-    // Attach the immediate self-undeafen/self-unmute guard so the bot reacts
-    // INSTANTLY when an admin server-mutes or server-deafens it (previously
-    // only re-asserted on video-watch/reconnect, leaving the bot muted for
-    // minutes).
-    registerSelfVoiceStateGuard(client);
 
     // Start retention cleanup scheduler
     startRetentionCleanup();

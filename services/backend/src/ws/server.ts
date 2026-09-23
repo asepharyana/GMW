@@ -1,9 +1,8 @@
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
+import type { MessageQuery } from "../modules/messages/messages.schema.js";
 import { messagesService } from "../modules/messages/messages.service.js";
-import { config } from "../shared/config/index.js";
-import { BACKEND_COMMAND, BACKEND_VOICE_TRANSMIT } from "../shared/index.js";
 import { createChildLogger } from "../shared/logger/index.js";
 import { setBroadcastFunctions } from "./broadcast.js";
 
@@ -17,9 +16,15 @@ interface BroadcastEvent {
 
 interface JsonMessage {
   type: string;
-  buffer?: string;
-  command?: string;
   payload?: Record<string, unknown>;
+}
+
+/** Payload accepted by the `stream_messages` JSON command. */
+interface StreamMessagesPayload {
+  guildId?: string;
+  channelId?: string;
+  cursor?: string;
+  limit?: number;
 }
 
 // Track the active WebSocket server for lifecycle management
@@ -54,36 +59,6 @@ async function sendInitialStates(ws: WebSocket): Promise<void> {
   } catch (err) {
     logger.warn({ err }, "Failed to send initial ui_state");
   }
-
-  // Send initial media state
-  try {
-    const { getStatus } = await import("../modules/media/media.service.js");
-    const mediaState = await getStatus();
-    ws.send(
-      JSON.stringify({
-        type: "media_state",
-        state: mediaState,
-      }),
-    );
-  } catch (err) {
-    logger.warn({ err }, "Failed to send initial media_state");
-  }
-
-  // Send initial live-voice snapshot (shared authoritative state — a browser
-  // joining mid-call sees the same speakers as everyone else, not an empty DB).
-  try {
-    const { getActiveSpeakers } = await import(
-      "../modules/voice/live-speaker.js"
-    );
-    ws.send(
-      JSON.stringify({
-        type: "voice_state",
-        state: { activeSpeakers: getActiveSpeakers() },
-      }),
-    );
-  } catch (err) {
-    logger.warn({ err }, "Failed to send initial voice_state");
-  }
 }
 
 export function closeWebSocketServer(): void {
@@ -94,9 +69,7 @@ export function closeWebSocketServer(): void {
 }
 
 export function createWebSocketServer(server: Server): WebSocketServer {
-  // Separate tracking: gateway sends PCM → forwarded to frontend only
   const frontendClients = new Set<WebSocket>();
-  const gatewayClients = new Set<WebSocket>();
 
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: true });
   _wss = wss;
@@ -115,43 +88,9 @@ export function createWebSocketServer(server: Server): WebSocketServer {
   // Map-based dispatcher for JSON WebSocket message types
   const jsonHandlers = new Map<string, MessageHandler>();
 
-  jsonHandlers.set("voice_transmit", async (_ws, message) => {
-    if (!message.buffer) return;
-    const { getCommandPublisher } = await import("../shared/redis/index.js");
-    const publisher = getCommandPublisher();
-    await publisher.publish(
-      BACKEND_VOICE_TRANSMIT,
-      JSON.stringify({ type: "pcm", buffer: message.buffer }),
-    );
-  });
-
-  jsonHandlers.set("voice_command", async (_ws, message) => {
-    if (!message.command) return;
-    const { getCommandPublisher } = await import("../shared/redis/index.js");
-    const publisher = getCommandPublisher();
-    const commandId = `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    await publisher.publish(
-      BACKEND_COMMAND,
-      JSON.stringify({
-        id: commandId,
-        type: message.command,
-        payload: message.payload ?? {},
-        replyChannel: `reply:${commandId}`,
-      }),
-    );
-  });
-
-  // Stream historical messages one-by-one over WS (no 50-row batch).
-  // The frontend requests it once per channel switch; the backend emits one
-  // `message_snapshot` frame per message so the UI renders progressively.
   jsonHandlers.set("stream_messages", async (ws, message) => {
     if (ws.readyState !== WebSocket.OPEN) return;
-    const payload = (message.payload ?? {}) as {
-      guildId?: string;
-      channelId?: string;
-      cursor?: string;
-      limit?: number;
-    };
+    const payload = (message.payload ?? {}) as StreamMessagesPayload;
     const guildId = payload.guildId;
     const channelId = payload.channelId;
     if (!guildId && !channelId) {
@@ -162,6 +101,17 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     const pageSize = 50; // internal DB page size; still emitted one frame at a time
     const maxFrames = Math.min(payload.limit ?? 200, 500);
 
+    /** Send the end-of-stream frame, reporting sent count + next cursor. */
+    function sendEnd(data: Record<string, unknown>): void {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      ws.send(
+        JSON.stringify({
+          type: "message_snapshot_end",
+          data,
+        }),
+      );
+    }
+
     let sent = 0;
     let nextCursor: string | null = null;
     try {
@@ -170,7 +120,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
           guildId,
           channelId,
           cursor: payload.cursor,
-        } as never,
+        } as MessageQuery,
         pageSize,
       )) {
         if (ws.readyState !== WebSocket.OPEN) break;
@@ -187,95 +137,22 @@ export function createWebSocketServer(server: Server): WebSocketServer {
         sent++;
         if (sent >= maxFrames) break;
       }
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: "message_snapshot_end",
-            data: { sent, nextCursor },
-          }),
-        );
-      }
+      sendEnd({ sent, nextCursor });
     } catch (err) {
       logger.error({ err }, "stream_messages failed");
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: "message_snapshot_end",
-            data: { sent, nextCursor, error: true },
-          }),
-        );
-      }
+      sendEnd({ sent, nextCursor, error: true });
     }
   });
 
-  wss.on("connection", (ws: WebSocket, req) => {
-    // Parse auth token from query string
-    const rawUrl = req.url ?? "/";
-    let isGateway = false;
-
-    try {
-      const url = new URL(rawUrl, "http://localhost");
-      const token = url.searchParams.get("token");
-      isGateway =
-        token !== null &&
-        config.BACKEND_WS_TOKEN !== "" &&
-        token === config.BACKEND_WS_TOKEN;
-    } catch {
-      // Malformed URL — treat as frontend
-    }
-
-    if (isGateway) {
-      gatewayClients.add(ws);
-      logger.info("Discord gateway WebSocket client authenticated");
-      // Gateway doesn't need initial states
-    } else {
-      frontendClients.add(ws);
-      logger.info(`Frontend client connected (${frontendClients.size} total)`);
-      // Send initial states (user, ui, media) — fire-and-forget
-      sendInitialStates(ws).catch((err) =>
-        logger.error({ err }, "sendInitialStates failed"),
-      );
-    }
+  wss.on("connection", (ws: WebSocket) => {
+    frontendClients.add(ws);
+    logger.info(`Frontend client connected (${frontendClients.size} total)`);
+    // Send initial states (user, ui) — fire-and-forget
+    sendInitialStates(ws).catch((err) =>
+      logger.error({ err }, "sendInitialStates failed"),
+    );
 
     ws.on("message", (data: Buffer) => {
-      // Gateway PCM forward — broadcast raw binary to frontend clients only
-      if (isGateway && Buffer.isBuffer(data)) {
-        broadcastBinary(data);
-        return;
-      }
-
-      // Handle binary PCM from browser (FE→Discord transmit)
-      // Format: 4-byte magic "PCM\0" + raw PCM Int16 LE
-      if (
-        Buffer.isBuffer(data) &&
-        data.length > 4 &&
-        data[0] === 0x50 && // 'P'
-        data[1] === 0x43 && // 'C'
-        data[2] === 0x4d && // 'M'
-        data[3] === 0x00 // '\0'
-      ) {
-        const pcmBuffer = data.subarray(4);
-        const base64 = pcmBuffer.toString("base64");
-        import("../shared/redis/index.js").then(({ getCommandPublisher }) => {
-          const publisher = getCommandPublisher();
-          publisher
-            .publish(
-              BACKEND_VOICE_TRANSMIT,
-              JSON.stringify({
-                type: "pcm",
-                buffer: base64,
-              }),
-            )
-            .catch((err: Error) => {
-              logger.error(
-                { err },
-                "Failed to publish voice transmit to Redis",
-              );
-            });
-        });
-        return;
-      }
-
       // Handle JSON messages from browser
       if (
         typeof data === "string" ||
@@ -296,24 +173,15 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     });
 
     ws.on("close", () => {
-      if (isGateway) {
-        gatewayClients.delete(ws);
-        logger.info("Discord gateway WebSocket disconnected");
-      } else {
-        frontendClients.delete(ws);
-        logger.info(
-          `Frontend client disconnected (${frontendClients.size} total)`,
-        );
-      }
+      frontendClients.delete(ws);
+      logger.info(
+        `Frontend client disconnected (${frontendClients.size} total)`,
+      );
     });
 
     ws.on("error", (err: Error) => {
       logger.error({ err }, "WebSocket client error");
-      if (isGateway) {
-        gatewayClients.delete(ws);
-      } else {
-        frontendClients.delete(ws);
-      }
+      frontendClients.delete(ws);
     });
   });
 

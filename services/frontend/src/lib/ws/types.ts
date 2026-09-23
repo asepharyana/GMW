@@ -1,10 +1,4 @@
-import type {
-  ActiveSpeaker,
-  MediaState,
-  MessageRecord,
-  ModerationAction,
-  VoiceRecording,
-} from "@/lib/types";
+import type { MessageRecord, ModerationAction } from "@/lib/types";
 
 // ── Connection Status ──────────────────────────────────────
 
@@ -46,19 +40,6 @@ export interface WsEventMap {
   message_snapshot_end: { sent: number; error?: boolean };
   attachment_created: unknown;
   attachment_uploaded: unknown;
-  voice_recording_started: unknown;
-  voice_recording_stopped: unknown;
-  voice_recording_uploaded: VoiceRecording;
-  voice_active_user: ActiveSpeaker;
-  /**
-   * Authoritative shared live-voice snapshot — `{ activeSpeakers: [...] }`.
-   * The backend sends this on WS connect (initial state) and clients replace
-   * their local list wholesale so every user converges on the same state.
-   */
-  voice_state: { activeSpeakers: ActiveSpeaker[] };
-  /** NOT delivered as JSON — arrives only via onPcm() binary handler as PcmChunk */
-  voice_pcm_data: never;
-  voice_analyzed: unknown;
   analysis_queue_status: unknown;
   reaction_added: unknown;
   reaction_removed: unknown;
@@ -71,7 +52,6 @@ export interface WsEventMap {
   guild_member_removed: unknown;
   /** Live moderation action broadcast (gateway → Redis → backend → WS). */
   moderation_action: ModerationAction;
-  media_state: MediaState;
   user_state: unknown;
   ui_state: unknown;
   heartbeat: unknown;

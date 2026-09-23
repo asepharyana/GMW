@@ -20,10 +20,9 @@ src/
 │   ├── page.tsx          # Redirect ke /dashboard
 │   └── dashboard/        # Dashboard layout + tabs
 │       ├── layout.tsx    # Sidebar, header, WS provider, chatbot
-│       └── page.tsx      # Tab routing (messages/live/dashboard)
+│       └── page.tsx      # Tab routing (messages/dashboard)
 ├── features/
 │   ├── messages/         # Message feed, search, review, detail modal
-│   ├── live/             # Voice connection, music player, recordings
 │   ├── dashboard/        # Stats, users, channels overview
 │   └── chatbot/          # AI chatbot
 ├── lib/

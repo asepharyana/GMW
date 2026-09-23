@@ -1,22 +1,21 @@
 import Redis from "ioredis";
-import {
-  clearAllSpeakers,
-  recordSpeaker,
-} from "../modules/voice/live-speaker.js";
 import { config } from "../shared/config/index.js";
-import {
-  DISCORD_CHANNEL_TO_WS_EVENT,
-  DISCORD_VOICE_ACTIVE_USER,
-  DISCORD_VOICE_PCM,
-  DISCORD_VOICE_STOPPED,
-} from "../shared/index.js";
+import { DISCORD_CHANNEL_TO_WS_EVENT } from "../shared/index.js";
 import { createChildLogger } from "../shared/logger/index.js";
-import { broadcastBinary, broadcastEvent } from "./broadcast.js";
+import { broadcastEvent } from "./broadcast.js";
 
 const logger = createChildLogger("ws.redis-bridge");
 
 /** Channels we subscribe to = all keys in DISCORD_CHANNEL_TO_WS_EVENT */
 const SUBSCRIPTION_CHANNELS = Object.keys(DISCORD_CHANNEL_TO_WS_EVENT);
+
+/** Shape of the DiscordGatewayEvent envelope published by the gateway. */
+interface GatewayEnvelope {
+  type?: string;
+  data?: unknown;
+  timestamp?: number;
+  source?: string;
+}
 
 let subscriber: Redis | null = null;
 
@@ -31,14 +30,9 @@ function handleSubscriptionMessage(channel: string, message: string): void {
     return;
   }
 
-  let envelope: {
-    type?: string;
-    data?: unknown;
-    timestamp?: number;
-    source?: string;
-  };
+  let envelope: GatewayEnvelope;
   try {
-    envelope = JSON.parse(message);
+    envelope = JSON.parse(message) as GatewayEnvelope;
   } catch (err) {
     logger.error({ channel, err }, "Failed to parse Redis message as JSON");
     return;
@@ -49,65 +43,8 @@ function handleSubscriptionMessage(channel: string, message: string): void {
   // We only want <actual payload>, not the full envelope.
   const data = envelope.data !== undefined ? envelope.data : envelope;
 
-  // Voice PCM: decode base64 → binary broadcast instead of JSON
-  if (channel === DISCORD_VOICE_PCM) {
-    const pcmPayload = data as { userId?: string; pcm?: string };
-    if (pcmPayload?.pcm && pcmPayload?.userId) {
-      try {
-        const pcmBuffer = Buffer.from(pcmPayload.pcm, "base64");
-        // Prepend userId as 4-byte FNV-1a hash
-        const userIdHash = hashUserId(pcmPayload.userId);
-        const binary = Buffer.alloc(4 + pcmBuffer.length);
-        binary.writeUInt32LE(userIdHash, 0);
-        pcmBuffer.copy(binary, 4);
-        broadcastBinary(binary);
-        return;
-      } catch {
-        // fallback to JSON broadcast on error
-      }
-    }
-  }
-
-  // Aggregate live-voice state authoritatively BEFORE broadcasting.
-  // Every browser hears the same `voice_active_user` deltas, so the backend
-  // can maintain the single shared snapshot for late-joining clients.
-  if (channel === DISCORD_VOICE_ACTIVE_USER) {
-    const speaker = data as {
-      userId?: string;
-      username?: string;
-      avatar?: string | null;
-      speaking?: boolean;
-    };
-    if (speaker?.userId) {
-      recordSpeaker({
-        userId: speaker.userId,
-        username: speaker.username,
-        avatar: speaker.avatar,
-        speaking: Boolean(speaker.speaking),
-      });
-    }
-  }
-
-  // When the gateway stops voice recording (disconnects from voice channel),
-  // clear all speakers from the authoritative snapshot so frontends don't
-  // show ghost participants.
-  if (channel === DISCORD_VOICE_STOPPED) {
-    clearAllSpeakers();
-    logger.info("Voice recording stopped — cleared all live speakers");
-  }
-
   logger.debug({ channel, eventType }, "Broadcasting Redis event");
   broadcastEvent(eventType, data);
-}
-
-/** Simple 32-bit FNV-1a hash for userId → 4-byte identifier */
-function hashUserId(userId: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < userId.length; i++) {
-    hash ^= userId.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
 }
 
 export async function startRedisBridge(): Promise<void> {

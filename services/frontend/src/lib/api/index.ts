@@ -7,10 +7,8 @@ export { chatbotApi } from "./chatbot";
 export { configApi } from "./config";
 export { dashboardApi } from "./dashboard";
 export { knowledgeApi } from "./knowledge";
-export { mediaApi } from "./media";
 export { messagesApi } from "./messages";
 export { moderationApi } from "./moderation";
-export { recordingsApi } from "./recordings";
 // Re-export server-side fetchers for use inside React Server Components.
 export {
   getChannelCultures,
@@ -18,4 +16,3 @@ export {
   getRecentEdits,
 } from "./server";
 export { uiStateApi } from "./ui-state";
-export { voiceApi } from "./voice";

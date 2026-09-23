@@ -2,27 +2,23 @@
 
 import { useEffect, useState } from "react";
 import { Select, type SelectOption } from "@/components/primitives";
-import { useGuilds, useTextChannels, useVoiceChannels } from "@/hooks";
+import { useGuilds, useTextChannels } from "@/hooks";
 import type { Guild } from "@/lib/types";
 
 export function GuildChannelPicker({
-  mode,
   guildsInitial,
   guildId,
   channelId,
   onChange,
 }: {
-  mode: "voice" | "text";
   guildsInitial?: Guild[];
   guildId: string | null;
   channelId: string | null;
   onChange: (guildId: string, channelId: string | null) => void;
 }) {
   const { data: guilds } = useGuilds(guildsInitial);
-  // Call both hooks unconditionally (rules of hooks); select by mode.
-  const voiceChannels = useVoiceChannels(guildId ?? "");
   const textChannels = useTextChannels(guildId ?? "");
-  const channels = mode === "voice" ? voiceChannels.data : textChannels.data;
+  const channels = textChannels.data;
 
   const [g, setG] = useState(guildId);
   const [c, setC] = useState(channelId);
@@ -61,7 +57,7 @@ export function GuildChannelPicker({
           if (g) onChange(g, v);
         }}
         options={channelOpts}
-        placeholder={mode === "voice" ? "Voice channel" : "Text channel"}
+        placeholder="Text channel"
         size="sm"
         className="w-full sm:w-52"
       />

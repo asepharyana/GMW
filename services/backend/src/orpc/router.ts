@@ -6,32 +6,12 @@ import { chatbotService } from "../modules/chatbot/chatbot.service";
 import { dashboardService } from "../modules/dashboard/dashboard.service";
 import { knowledgeService } from "../modules/knowledge/knowledge.service";
 import {
-  mediaLoopSchema,
-  mediaQueueSchema,
-} from "../modules/media/media.schema";
-import {
-  getStatus,
-  queue,
-  setLoop,
-  skip,
-  stop,
-} from "../modules/media/media.service";
-import {
   messageQuerySchema,
   semanticSearchSchema,
 } from "../modules/messages/messages.schema";
 import { messagesService } from "../modules/messages/messages.service";
 import { moderationService } from "../modules/moderation/moderation.service";
-import { recordingsService } from "../modules/recordings/recordings.service";
 import { uiStateService } from "../modules/ui-state/ui-state.service";
-import {
-  connectVoice,
-  disconnectVoice,
-  getGuilds,
-  getTextChannels,
-  getVoiceChannels,
-  getVoiceStatus,
-} from "../modules/voice/voice.service";
 import { config } from "../shared/config/index";
 import { publishCommandNoReply } from "../shared/redis/index";
 
@@ -89,6 +69,10 @@ const dashboardRouter = {
 
 // ── Messages ─────────────────────────────────────────────────────
 const messagesRouter = {
+  guilds: os.handler(() => messagesService.getGuilds()),
+  textChannels: os
+    .input(z.object({ guildId: z.string() }))
+    .handler(({ input }) => messagesService.getTextChannels(input.guildId)),
   list: os
     .input(messageQuerySchema)
     .handler(({ input }) => messagesService.listMessages(input)),
@@ -238,86 +222,6 @@ const moderationRouter = {
     .handler(({ input }) => moderationService.getCoverage(input.days)),
 };
 
-// ── Media ────────────────────────────────────────────────────────
-const mediaRouter = {
-  status: os.handler(() => getStatus()),
-  queue: os.input(mediaQueueSchema).handler(async ({ input }) => {
-    await queue(input.source, input.mode);
-    return getStatus();
-  }),
-  skip: os.handler(async () => {
-    await skip();
-    return getStatus();
-  }),
-  stop: os.handler(async () => {
-    await stop();
-    return getStatus();
-  }),
-  loop: os.input(mediaLoopSchema).handler(async ({ input }) => {
-    await setLoop(input.loop);
-    return getStatus();
-  }),
-};
-
-// ── Voice ─────────────────────────────────────────────────────────
-const voiceRouter = {
-  guilds: os.handler(() => getGuilds()),
-  textChannels: os
-    .input(z.object({ guildId: z.string() }))
-    .handler(({ input }) => getTextChannels(input.guildId)),
-  voiceChannels: os
-    .input(z.object({ guildId: z.string() }))
-    .handler(({ input }) => getVoiceChannels(input.guildId)),
-  status: os.handler(() => getVoiceStatus()),
-  connect: os
-    .input(z.object({ guildId: z.string(), channelId: z.string() }))
-    .handler(async ({ input }) => {
-      await connectVoice(input.guildId, input.channelId);
-      return getVoiceStatus();
-    }),
-  disconnect: os.handler(async () => {
-    await disconnectVoice();
-    return getVoiceStatus();
-  }),
-  command: os
-    .input(z.object({ command: z.string().min(1) }))
-    .handler(async ({ input }) => {
-      await publishCommandNoReply(input.command);
-      return { success: true, command: input.command };
-    }),
-};
-
-// ── Recordings ───────────────────────────────────────────────────
-const recordingsRouter = {
-  list: os
-    .input(
-      z.object({
-        limit: z.coerce.number().int().positive().default(50),
-        channelId: z.string().optional(),
-        userId: z.string().optional(),
-        cursor: z.string().optional(),
-        q: z.string().optional(),
-        startDate: z.coerce.number().int().optional(),
-        endDate: z.coerce.number().int().optional(),
-      }),
-    )
-    .handler(({ input }) =>
-      recordingsService.getRecent(input.limit, {
-        channelId: input.channelId,
-        userId: input.userId,
-        cursor: input.cursor,
-        q: input.q,
-        startDate: input.startDate,
-        endDate: input.endDate,
-      }),
-    ),
-  delete: os.input(z.object({ id: z.string() })).handler(async ({ input }) => {
-    await recordingsService.deleteById(input.id);
-    return { ok: true };
-  }),
-  summary: os.handler(async () => recordingsService.getSummary()),
-};
-
 // ── Analysis (search) ──────────────────────────────────────────────
 const analysisRouter = {
   search: os
@@ -416,11 +320,8 @@ const configRouter = {
     backlogSyncBatchSize: config.BACKLOG_SYNC_BATCH_SIZE,
     retentionMessagesDays: config.RETENTION_MESSAGES_DAYS,
     retentionAttachmentsDays: config.RETENTION_ATTACHMENTS_DAYS,
-    retentionVoiceDays: config.RETENTION_VOICE_DAYS,
     autoDeleteFlaggedEnabled: config.AUTO_DELETE_FLAGGED_ENABLED,
     aiAnalysisEnabled: config.AI_ANALYSIS_ENABLED,
-    voiceGuildId: config.VOICE_GUILD_ID || null,
-    voiceChannelId: config.VOICE_CHANNEL_ID || null,
     logLevel: config.LOG_LEVEL,
   })),
 };
@@ -438,9 +339,6 @@ export const appRouter = {
   dashboard: dashboardRouter,
   messages: messagesRouter,
   moderation: moderationRouter,
-  media: mediaRouter,
-  voice: voiceRouter,
-  recordings: recordingsRouter,
   analysis: analysisRouter,
   chatbot: chatbotRouter,
   config: configRouter,

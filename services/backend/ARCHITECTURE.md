@@ -35,16 +35,6 @@ services/backend/
 │   │   │   └── routes/
 │   │   │       └── index.ts
 │   │   │
-│   │   ├── media/
-│   │   │   ├── media.service.ts
-│   │   │   └── routes/
-│   │   │       └── index.ts
-│   │   │
-│   │   ├── voice/
-│   │   │   ├── voice.service.ts
-│   │   │   └── routes/
-│   │   │       └── index.ts
-│   │   │
 │   │   └── health/
 │   │       ├── health.schema.ts
 │   │       ├── health.repository.ts
@@ -148,8 +138,6 @@ export const messageQuerySchema = z.object({
 |--------|---------|--------|
 | **messages** | Text message storage & retrieval | GET /api/messages, GET /api/messages/:channelId |
 | **analytics** | Moderation statistics & trends | GET /api/analytics/overview, /daily-trend, /hourly-stats |
-| **media** | Media file management | GET /api/media/list, POST /api/media/upload |
-| **voice** | Voice recording management | GET /api/voice/recordings, POST /api/voice/connect |
 | **health** | Service health checks | GET /api/health |
 
 ## Data Flow

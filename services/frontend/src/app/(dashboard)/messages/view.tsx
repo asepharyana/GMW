@@ -263,7 +263,6 @@ export function MessagesView({
       {/* Filter and Mode Bar */}
       <GlassPanel className="flex flex-wrap items-center gap-3 p-3">
         <GuildChannelPicker
-          mode="text"
           guildsInitial={initialGuilds}
           guildId={guildId}
           channelId={channelId}

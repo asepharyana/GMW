@@ -46,18 +46,11 @@ export function clearBroadcastFunctions(): void {
   logger.info("Broadcast functions cleared");
 }
 
-function shouldLog(type: string): boolean {
-  if (!_enabled) return false;
-  // Avoid logging high-volume events
-  if (type === "voice_pcm_data") return false;
-  return true;
-}
-
 /**
  * Broadcast a JSON event to all connected WebSocket clients.
  */
 export function broadcastEvent(type: string, data: unknown): void {
-  if (shouldLog(type)) {
+  if (_enabled) {
     logger.debug({ event: type }, "Broadcasting event");
   }
   _broadcast?.(type, data);
