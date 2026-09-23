@@ -11,6 +11,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { analyzeBatchWithJev } from "../src/modules/ai-moderation/jevAnalyzer.js";
+import type { AnalysisResult } from "../src/modules/message-capture/types.js";
 
 const SMOKE = process.env.AI_LLM_JEV_SMOKE === "1";
 const SKIP_REASON =
@@ -75,13 +76,8 @@ describe("Jev live smoke (real 9router /v1/systemone)", () => {
       expect(byId.m_clean?.status).toBe("clean");
       expect(byId.m_help?.status).toBe("clean");
 
-      // Verdicts are calibration-honest
-      const verdicts = outcome.results as Array<{
-        status: string;
-        confidence: number;
-        score: number;
-        analysis: string;
-      }>;
+      // Verdicts are calibration-honest (typed by the real pipeline shape)
+      const verdicts = outcome.results as AnalysisResult[];
       for (const r of verdicts) {
         expect(r.confidence).toBeGreaterThanOrEqual(0.9);
         if (r.status === "clean") expect(r.score).toBe(0);
