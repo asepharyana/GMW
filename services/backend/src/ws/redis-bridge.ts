@@ -9,6 +9,14 @@ const logger = createChildLogger("ws.redis-bridge");
 /** Channels we subscribe to = all keys in DISCORD_CHANNEL_TO_WS_EVENT */
 const SUBSCRIPTION_CHANNELS = Object.keys(DISCORD_CHANNEL_TO_WS_EVENT);
 
+/** Shape of the DiscordGatewayEvent envelope published by the gateway. */
+interface GatewayEnvelope {
+  type?: string;
+  data?: unknown;
+  timestamp?: number;
+  source?: string;
+}
+
 let subscriber: Redis | null = null;
 
 function createSubscriber(): Redis {
@@ -22,14 +30,9 @@ function handleSubscriptionMessage(channel: string, message: string): void {
     return;
   }
 
-  let envelope: {
-    type?: string;
-    data?: unknown;
-    timestamp?: number;
-    source?: string;
-  };
+  let envelope: GatewayEnvelope;
   try {
-    envelope = JSON.parse(message);
+    envelope = JSON.parse(message) as GatewayEnvelope;
   } catch (err) {
     logger.error({ channel, err }, "Failed to parse Redis message as JSON");
     return;

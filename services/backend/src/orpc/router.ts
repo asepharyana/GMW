@@ -222,8 +222,6 @@ const moderationRouter = {
     .handler(({ input }) => moderationService.getCoverage(input.days)),
 };
 
-// ── Recordings (removed) / Voice (removed) ─────────────────────
-// Music/media playback (media.mjs) was removed with the voice feature.
 // ── Analysis (search) ──────────────────────────────────────────────
 const analysisRouter = {
   search: os

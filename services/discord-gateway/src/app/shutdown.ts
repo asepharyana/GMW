@@ -18,10 +18,15 @@ export interface GracefulShutdownOptions {
   stopMetricsServer?: StopMetricsServer;
 }
 
-export function createGracefulShutdown(options: GracefulShutdownOptions) {
+export type GracefulShutdown = (signal: string) => Promise<void>;
+
+/** Create a shutdown handler that can only be triggered once. */
+export function createGracefulShutdown(
+  options: GracefulShutdownOptions,
+): GracefulShutdown {
   let isShuttingDown = false;
 
-  return async function gracefulShutdown(signal: string) {
+  return async function gracefulShutdown(signal: string): Promise<void> {
     if (isShuttingDown) {
       options.logger.warn(`Already shutting down, ignoring ${signal}`);
       return;

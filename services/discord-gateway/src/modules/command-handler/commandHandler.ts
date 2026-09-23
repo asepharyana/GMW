@@ -32,9 +32,9 @@ export class CommandHandler {
     // connection for SUBSCRIBE mode — a subscribed connection cannot perform
     // publish/set operations. This connection listens on backend:command for
     // inbound requests from the backend.
-    this.redisSub = new Redis(config.REDIS_URL); // Dedicated Redis connection needed because: Redis requires a dedicated
-    // PUBLISH connection (cannot share with redisSub which is in SUBSCRIBE mode).
-    // Handles command reply publishing and voice/media status key updates.
+    this.redisSub = new Redis(config.REDIS_URL);
+    // A second dedicated connection for PUBLISH — a connection in SUBSCRIBE
+    // mode cannot publish, so replies go out on this one.
     this.redisPub = new Redis(config.REDIS_URL);
 
     this.redisSub.on("error", (err) => {
@@ -85,6 +85,11 @@ export class CommandHandler {
 
   // ---- Command dispatch ----
 
+  /** Normalize an unknown thrown value to a readable message. */
+  private static errorMessage(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+  }
+
   private async handleCommand(raw: string): Promise<void> {
     let cmd: CommandMessage;
     try {
@@ -112,7 +117,7 @@ export class CommandHandler {
         };
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = CommandHandler.errorMessage(err);
       logger.error(
         { commandId: cmd.id, error: message },
         "Command execution failed",

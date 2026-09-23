@@ -6,7 +6,13 @@ import { describe, expect, it } from "vitest";
 
 const BASE = process.env.API_BASE ?? "http://localhost:4001/api";
 
-async function api(path: string, init?: RequestInit) {
+/** Result of a JSON API call: status + parsed body (or null for 204/empty). */
+interface ApiResult {
+  status: number;
+  body: Record<string, unknown> | null;
+}
+
+async function api(path: string, init?: RequestInit): Promise<ApiResult> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
@@ -23,7 +29,8 @@ describe("API Health", () => {
   });
 
   it("GET /metrics returns prometheus text", async () => {
-    const res = await fetch(`${BASE.replace("/api", "")}/api/metrics`);
+    const base = BASE.endsWith("/api") ? BASE.slice(0, -4) : BASE;
+    const res = await fetch(`${base}/api/metrics`);
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toContain("nodejs");

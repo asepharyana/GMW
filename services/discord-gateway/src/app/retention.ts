@@ -1,5 +1,8 @@
 import { inArray, lt } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type {
+  NodePgDatabase,
+  NodePgQueryResultHKT,
+} from "drizzle-orm/node-postgres";
 import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../shared/config/config.js";
 import { getDatabase } from "../shared/database/drizzle.js";
@@ -8,11 +11,26 @@ import { attachmentsTable, messagesTable } from "../shared/database/schema.js";
 
 const logger = createChildLogger("discord-gateway");
 
+/** DB handle typed with the full schema so table/column refs resolve. */
+type GatewayDatabase = NodePgDatabase<typeof schema>;
+
+/** Tables eligible for retention cleanup: string `id` + numeric `created_at`. */
+type RetentionTable = typeof messagesTable | typeof attachmentsTable;
+
+type RetentionTimestampColumn =
+  | typeof messagesTable.created_at
+  | typeof attachmentsTable.created_at;
+
 // ─── Retention Cleanup ─────────────────────────────────────────────────────
 
+/**
+ * Delete rows older than `days` in `table`, in batches of up to 1000 ids.
+ * When `dryRun` is set, logs what would be deleted without deleting.
+ * Returns immediately (no-op) when `days` is unset or <= 0.
+ */
 async function deleteExpiredRecords(
-  table: any,
-  timestampField: any,
+  table: RetentionTable,
+  timestampField: RetentionTimestampColumn,
   days: number | undefined,
   dryRun: boolean,
   label: string,
@@ -23,7 +41,7 @@ async function deleteExpiredRecords(
   }
 
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-  const db = getDatabase() as unknown as NodePgDatabase<typeof schema>;
+  const db = getDatabase() as unknown as GatewayDatabase;
 
   const expired = await db
     .select({ id: table.id })

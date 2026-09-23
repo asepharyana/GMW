@@ -1,6 +1,7 @@
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
+import type { MessageQuery } from "../modules/messages/messages.schema.js";
 import { messagesService } from "../modules/messages/messages.service.js";
 import { createChildLogger } from "../shared/logger/index.js";
 import { setBroadcastFunctions } from "./broadcast.js";
@@ -16,6 +17,14 @@ interface BroadcastEvent {
 interface JsonMessage {
   type: string;
   payload?: Record<string, unknown>;
+}
+
+/** Payload accepted by the `stream_messages` JSON command. */
+interface StreamMessagesPayload {
+  guildId?: string;
+  channelId?: string;
+  cursor?: string;
+  limit?: number;
 }
 
 // Track the active WebSocket server for lifecycle management
@@ -81,12 +90,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
 
   jsonHandlers.set("stream_messages", async (ws, message) => {
     if (ws.readyState !== WebSocket.OPEN) return;
-    const payload = (message.payload ?? {}) as {
-      guildId?: string;
-      channelId?: string;
-      cursor?: string;
-      limit?: number;
-    };
+    const payload = (message.payload ?? {}) as StreamMessagesPayload;
     const guildId = payload.guildId;
     const channelId = payload.channelId;
     if (!guildId && !channelId) {
@@ -97,6 +101,17 @@ export function createWebSocketServer(server: Server): WebSocketServer {
     const pageSize = 50; // internal DB page size; still emitted one frame at a time
     const maxFrames = Math.min(payload.limit ?? 200, 500);
 
+    /** Send the end-of-stream frame, reporting sent count + next cursor. */
+    function sendEnd(data: Record<string, unknown>): void {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      ws.send(
+        JSON.stringify({
+          type: "message_snapshot_end",
+          data,
+        }),
+      );
+    }
+
     let sent = 0;
     let nextCursor: string | null = null;
     try {
@@ -105,7 +120,7 @@ export function createWebSocketServer(server: Server): WebSocketServer {
           guildId,
           channelId,
           cursor: payload.cursor,
-        } as never,
+        } as MessageQuery,
         pageSize,
       )) {
         if (ws.readyState !== WebSocket.OPEN) break;
@@ -122,24 +137,10 @@ export function createWebSocketServer(server: Server): WebSocketServer {
         sent++;
         if (sent >= maxFrames) break;
       }
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: "message_snapshot_end",
-            data: { sent, nextCursor },
-          }),
-        );
-      }
+      sendEnd({ sent, nextCursor });
     } catch (err) {
       logger.error({ err }, "stream_messages failed");
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: "message_snapshot_end",
-            data: { sent, nextCursor, error: true },
-          }),
-        );
-      }
+      sendEnd({ sent, nextCursor, error: true });
     }
   });
 

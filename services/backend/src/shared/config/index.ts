@@ -229,9 +229,8 @@ export const configSchema = z
       .default(true),
   })
   .superRefine((value, ctx) => {
-    if (!value.AI_ANALYSIS_ENABLED) {
-      // skip: AI analysis not enabled
-    } else if (!value.AI_LLM_API_KEY) {
+    // AI analysis requires credentials to run.
+    if (value.AI_ANALYSIS_ENABLED && !value.AI_LLM_API_KEY) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["AI_LLM_API_KEY"],
