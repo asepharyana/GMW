@@ -13,7 +13,7 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAmbient } from "@/components/ambient/ambient-context";
 import { AreaActivity, RadialGauge } from "@/components/charts";
 import { GlassPanel } from "@/components/primitives";
@@ -28,7 +28,7 @@ import {
 } from "@/components/shared";
 import { useActivity, useStats, useTopReactions } from "@/hooks";
 import { useStaggerReveal } from "@/hooks/use-gsap-animation";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatRelativeTime } from "@/lib/format";
 import type { DashboardStats } from "@/lib/types";
 import { staggerDelay } from "@/lib/utils";
 
@@ -65,6 +65,7 @@ export function DashboardView({
   } = useStats(initialStats);
   const { data: activity } = useActivity(14, initialActivity);
   const { data: reactions } = useTopReactions();
+  const [showAllReactions, setShowAllReactions] = useState(false);
   const ambient = useAmbient();
 
   const hudRef = useStaggerReveal<HTMLDivElement>(".linear-tile", {
@@ -359,44 +360,64 @@ export function DashboardView({
               <SectionHeader
                 eyebrow="Engagement"
                 title="Top Reacted Messages"
+                action={
+                  <button
+                    type="button"
+                    onClick={() => setShowAllReactions((v) => !v)}
+                    className="font-mono text-[10px] text-ink-muted transition-colors hover:text-ink"
+                  >
+                    {showAllReactions
+                      ? "SHOW TOP 4"
+                      : `VIEW ALL ${reactions.length}`}
+                  </button>
+                }
               />
               <div className="mt-3 space-y-2">
-                {reactions.slice(0, 4).map((r) => (
-                  <div
-                    key={r.message_id}
-                    className="hud-card flex items-start justify-between gap-2 p-2.5"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <span className="line-clamp-1 block text-xs text-ink-soft">
-                        {r.content || "[Media/Attachment]"}
-                      </span>
-                      {r.username && (
-                        <span className="mt-0.5 block font-mono text-[10px] text-ink-muted">
-                          @{r.username}
-                          {r.channel_name && ` in #${r.channel_name}`}
+                {(showAllReactions ? reactions : reactions.slice(0, 4)).map(
+                  (r) => (
+                    <div
+                      key={r.message_id}
+                      className="hud-card flex items-start justify-between gap-2 p-2.5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <span className="line-clamp-1 block text-xs text-ink-soft">
+                          {r.content || "[Media/Attachment]"}
                         </span>
-                      )}
+                        <span className="mt-0.5 block font-mono text-[10px] text-ink-muted">
+                          @{r.username || "unknown"}
+                          {r.channel_name && ` in #${r.channel_name}`}
+                          {r.created_at != null && (
+                            <>
+                              {" "}
+                              ·{" "}
+                              <span suppressHydrationWarning>
+                                {formatRelativeTime(r.created_at)}
+                              </span>
+                            </>
+                          )}
+                        </span>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <span className="font-mono text-xs font-semibold text-signal">
+                          {formatNumber(r.reaction_count)}
+                        </span>
+                        {r.top_emojis && r.top_emojis.length > 0 && (
+                          <div className="mt-0.5 flex gap-0.5">
+                            {r.top_emojis.slice(0, 2).map((e) => (
+                              <span
+                                key={e.emoji}
+                                className="text-[10px]"
+                                title={`${e.emoji} ×${e.count}`}
+                              >
+                                {e.emoji}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="shrink-0 text-right">
-                      <span className="font-mono text-xs font-semibold text-signal">
-                        {formatNumber(r.reaction_count)}
-                      </span>
-                      {r.top_emojis && r.top_emojis.length > 0 && (
-                        <div className="mt-0.5 flex gap-0.5">
-                          {r.top_emojis.map((e) => (
-                            <span
-                              key={e.emoji}
-                              className="text-[10px]"
-                              title={`${e.emoji} ×${e.count}`}
-                            >
-                              {e.emoji}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  ),
+                )}
               </div>
             </GlassPanel>
           )}
