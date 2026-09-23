@@ -3,7 +3,6 @@
 import {
   Activity,
   AlertTriangle,
-  AudioWaveform,
   ChevronRight,
   Hash,
   MessageSquare,
@@ -423,32 +422,12 @@ export function DashboardView({
             <ChevronRight className="size-3.5 text-ink-muted" />
           </Link>
           <Link
-            href="/voice"
-            className="linear-tile hud-card flex items-center justify-between p-3 text-xs text-ink-soft transition-colors hover:text-ink"
-          >
-            <span className="flex items-center gap-2">
-              <AudioWaveform className="size-3.5 text-success" />
-              Active Voice Stages
-            </span>
-            <ChevronRight className="size-3.5 text-ink-muted" />
-          </Link>
-          <Link
             href="/analysis"
             className="linear-tile hud-card flex items-center justify-between p-3 text-xs text-ink-soft transition-colors hover:text-ink"
           >
             <span className="flex items-center gap-2">
               <AlertTriangle className="size-3.5 text-amber" />
               Flagged Content Analysis
-            </span>
-            <ChevronRight className="size-3.5 text-ink-muted" />
-          </Link>
-          <Link
-            href="/recordings"
-            className="linear-tile hud-card flex items-center justify-between p-3 text-xs text-ink-soft transition-colors hover:text-ink"
-          >
-            <span className="flex items-center gap-2">
-              <Mic className="size-3.5 text-vermilion" />
-              Voice Recording Archive
             </span>
             <ChevronRight className="size-3.5 text-ink-muted" />
           </Link>

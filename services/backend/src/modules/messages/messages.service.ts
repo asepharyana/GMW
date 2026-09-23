@@ -119,6 +119,16 @@ export class MessagesService {
     logger.debug({ limit, channelId }, "Getting recent message edits");
     return messagesRepository.getRecentEdits(limit, channelId);
   }
+
+  /** Distinct guilds present in the message archive (guild picker). */
+  async getGuilds() {
+    return messagesRepository.listGuilds();
+  }
+
+  /** Text channels for a guild (channel picker). */
+  async getTextChannels(guildId: string) {
+    return messagesRepository.listTextChannels(guildId);
+  }
 }
 
 /** Shape returned to the frontend (text + rich metadata from the archive payload). */

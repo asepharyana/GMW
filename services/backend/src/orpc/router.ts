@@ -69,6 +69,10 @@ const dashboardRouter = {
 
 // ── Messages ─────────────────────────────────────────────────────
 const messagesRouter = {
+  guilds: os.handler(() => messagesService.getGuilds()),
+  textChannels: os
+    .input(z.object({ guildId: z.string() }))
+    .handler(({ input }) => messagesService.getTextChannels(input.guildId)),
   list: os
     .input(messageQuerySchema)
     .handler(({ input }) => messagesService.listMessages(input)),

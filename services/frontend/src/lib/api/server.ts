@@ -25,13 +25,10 @@ import type {
   GlossaryRow,
   Guild,
   HourlyModeration,
-  MediaState,
   ModerationCoverage,
   ModerationStats,
   ModerationTrends,
   PaginatedModerationActions,
-  PaginatedRecordings,
-  VoiceStatus,
 } from "@/lib/types";
 import type { ORPCClient } from "../orpc/types";
 
@@ -77,11 +74,6 @@ export async function getUsers(limit = 20) {
   }) as unknown as Promise<import("@/lib/types").PaginatedUsers>;
 }
 
-// ---- Media ----
-export async function getMediaStatus(): Promise<MediaState> {
-  return serverOrpc().media.status() as unknown as Promise<MediaState>;
-}
-
 // ---- Config ----
 export async function getConfig(): Promise<AppConfig> {
   return serverOrpc().config.get() as unknown as Promise<AppConfig>;
@@ -125,19 +117,9 @@ export async function getCoverage(days = 30) {
   }) as unknown as ModerationCoverage;
 }
 
-// ---- Voice ----
+// ---- Guilds (from message archive) ----
 export async function getGuilds(): Promise<Guild[]> {
-  return serverOrpc().voice.guilds() as unknown as Promise<Guild[]>;
-}
-export async function getVoiceStatus(): Promise<VoiceStatus> {
-  return serverOrpc().voice.status() as unknown as Promise<VoiceStatus>;
-}
-
-// ---- Recordings ----
-export async function getRecordings(limit = 50): Promise<PaginatedRecordings> {
-  return serverOrpc().recordings.list({
-    limit,
-  }) as unknown as Promise<PaginatedRecordings>;
+  return serverOrpc().messages.guilds() as unknown as Promise<Guild[]>;
 }
 
 // ---- Messages (SSR seed for the streaming view) ----

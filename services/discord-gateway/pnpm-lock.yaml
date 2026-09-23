@@ -8,15 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@discordjs/opus':
-        specifier: ^0.10.0
-        version: 0.10.0(supports-color@7.2.0)
-      '@discordjs/voice':
-        specifier: file:vendor/discord-voice-fork
-        version: file:vendor/discord-voice-fork(@discordjs/opus@0.10.0(supports-color@7.2.0))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(opusscript@0.1.1)
-      '@snazzah/davey':
-        specifier: ^0.1.11
-        version: 0.1.12(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
       '@typesafe-ai/sdk':
         specifier: ^0.6.0
         version: 0.6.0
@@ -25,7 +16,7 @@ importers:
         version: 1.20.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
       discord.js-selfbot-v13:
         specifier: ^3.7.1
-        version: 3.7.1(@discordjs/opus@0.10.0(supports-color@7.2.0))(opusscript@0.1.1)(supports-color@7.2.0)
+        version: 3.7.1(@discordjs/opus@0.10.0(supports-color@7.2.0))(supports-color@7.2.0)
       dotenv:
         specifier: ^18.0.0
         version: 18.0.1
@@ -35,18 +26,12 @@ importers:
       ioredis:
         specifier: ^6.0.0
         version: 6.0.0(supports-color@7.2.0)
-      libsodium-wrappers:
-        specifier: ^0.8.4
-        version: 0.8.4
       lru-cache:
         specifier: ^11.5.3
         version: 11.5.3
       openai:
         specifier: ^7.19.0
         version: 7.19.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5)
-      opusscript:
-        specifier: ^0.1.1
-        version: 0.1.1
       p-limit:
         specifier: ^7.3.3
         version: 7.3.3
@@ -62,9 +47,6 @@ importers:
       piscina:
         specifier: ^5.3.2
         version: 5.3.2
-      prism-media:
-        specifier: 2.0.0-alpha.0
-        version: 2.0.0-alpha.0
       sharp:
         specifier: ^0.35.4
         version: 0.35.4(@types/node@26.4.0)
@@ -186,18 +168,11 @@ packages:
     resolution: {integrity: sha512-3LKP7F2+atl9vJFhaBjn4nOaSWahZ/yWjOvA4e5pnXkt2qyXRCHLxoBQy81GFtLGCq7K9lPm9R517M1U+/90Qg==}
     engines: {node: '>=18'}
 
-  '@discordjs/voice@file:vendor/discord-voice-fork':
-    resolution: {directory: vendor/discord-voice-fork, type: directory}
-    engines: {node: '>=22.12.0'}
-
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
 
   '@emnapi/core@1.11.1':
     resolution: {integrity: sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ==}
-
-  '@emnapi/core@1.11.3':
-    resolution: {integrity: sha512-zLpS5asjEb7lq8jYLq37N6XKaE41DIexlY1rF/z4/tIl3wo13Sqm28fRyfIsKZD+NZ8mM5RoKkpW/rBcuoSZSg==}
 
   '@emnapi/runtime@1.11.1':
     resolution: {integrity: sha512-vgj7R3y3Wgx24IQaGPA/R6YFXLHVMOZ0uVEyIQPaWs+rd1AzfEMXlAC22FYwO1XkKR6NPsq7mUandH8oIRdZFw==}
@@ -207,9 +182,6 @@ packages:
 
   '@emnapi/wasi-threads@1.2.2':
     resolution: {integrity: sha512-c95qOXkHdydNKhscBTebqEC1CVAZpyqOfVfBzQ1qgzyl3gfeldUjIggDbIZgDKsHLgnsM+igH7TJ/eAasaVuMA==}
-
-  '@emnapi/wasi-threads@1.2.3':
-    resolution: {integrity: sha512-ELEBe8PsLvvJ6QMr0zLt8ffvOHW/dc1m3CEzNMg7aJUv3bMaoDtw2TXyDAwkYBuroxxuHEwhRTLJSe5sya547g==}
 
   '@esbuild-kit/core-utils@3.3.2':
     resolution: {integrity: sha512-sPRAnw9CdSsRmEtnsl2WXWdyquogVpB3yZ3dgwJfe8zrOzTsV7cJvmwrKVa+0ma5BoiGJ+BoqkMvawbayKUsqQ==}
@@ -1088,97 +1060,6 @@ packages:
     resolution: {integrity: sha512-d9dUmWVA7MMiKobL3VpLF8P2aeanRTu6ypG2OIaEv/ZHH/SUQ2iHOVyi5wAPjQ+HmnMuL0whK9ez8I/raWbtIg==}
     engines: {node: '>=v16'}
 
-  '@snazzah/davey-android-arm-eabi@0.1.12':
-    resolution: {integrity: sha512-6VC/an+Sx5dI5skb+90rYcIB1jhm48Rl0nDaw0UNT4bz1rMjpVfmmZqeocYXMq96IdbBMlE6OTKGcBm2C3gkQg==}
-    engines: {node: '>= 10'}
-    cpu: [arm]
-    os: [android]
-
-  '@snazzah/davey-android-arm64@0.1.12':
-    resolution: {integrity: sha512-0Bwd03/JsTFhlPhF4q/LW0RxSzntFpQdhz+TBdFljYSg8IEyA38saPJeTNjpIgDfhAumPzvhCdfS6O5qT8yXDw==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [android]
-
-  '@snazzah/davey-darwin-arm64@0.1.12':
-    resolution: {integrity: sha512-lKMV6ITi9BQLt0fx/pAT7M8xcojVK7bryVJGdaW3bq8gABFslS3ti/KzrWabQvhpEV71FZe5mV0UcKHFVaTsZw==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@snazzah/davey-darwin-x64@0.1.12':
-    resolution: {integrity: sha512-vXXc/eW/e3TQeb7VsdtrPqs3/22j0aSqiP1ZXmZtDjQRBwgSxwItWYa6sh5MELP2EHB2igNlGzB6Hc0XlbGi4g==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [darwin]
-
-  '@snazzah/davey-freebsd-x64@0.1.12':
-    resolution: {integrity: sha512-G1gas5HrC4Xp3mRY0+OeAqXS6fG2tRgBEc8gQh69Hw4YK9RV9mzQKcmoKMkBM72U1+2C+2u57dolnKKzwozByQ==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [freebsd]
-
-  '@snazzah/davey-linux-arm-gnueabihf@0.1.12':
-    resolution: {integrity: sha512-97Fujh82r2Ll7dPZeNuoZ3yKfsqycf3c93OWXOo/ThNL/18Onl2Ht4SIvpX6VHhfeS9bDpHJ1lHCaz1b/i5ocw==}
-    engines: {node: '>= 10'}
-    cpu: [arm]
-    os: [linux]
-
-  '@snazzah/davey-linux-arm64-gnu@0.1.12':
-    resolution: {integrity: sha512-FWyAOv52cHKDM4BOsmImKKogHFvqNFoXmZcicNJbX3XpVl8Mas88ZoXQ+IA5V+qc9pNtAl1MbWwEZ9JrqAQtbg==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [linux]
-    libc: [glibc]
-
-  '@snazzah/davey-linux-arm64-musl@0.1.12':
-    resolution: {integrity: sha512-ptRbLSQxtV6EjXppS5z7qaPDI0NRKhrkJYsTlAjEghmOvlAObozSCYYnMO6nbkt6Ab3+lWqyahClzcRNcD2ouw==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [linux]
-    libc: [musl]
-
-  '@snazzah/davey-linux-x64-gnu@0.1.12':
-    resolution: {integrity: sha512-w86fZvhJn0ErOoAQHt2UbQ95V/cgwvfvQ4GlTPQLCzt58nn+rLlXLgPn90qYlSQrZxFW38rKXwqVOMbm9p+pwQ==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [linux]
-    libc: [glibc]
-
-  '@snazzah/davey-linux-x64-musl@0.1.12':
-    resolution: {integrity: sha512-LLNnO+hfG41ymeI+O1YHo5/0h3aKaetUNLdkBwpdJsjoyKMXZaeCnB+aHNkkupJCMPmWS0g6iPMCHUOqZSBcTg==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [linux]
-    libc: [musl]
-
-  '@snazzah/davey-wasm32-wasi@0.1.12':
-    resolution: {integrity: sha512-MPKFuqYVkDFXheR7qmtEY4FWxQ/ADfgsCojQWHi13sibUqCTR9q2F1LqNn2i9IVh3sh1sxeg87fdFMCH63pl7g==}
-    engines: {node: '>=14.0.0'}
-    cpu: [wasm32]
-
-  '@snazzah/davey-win32-arm64-msvc@0.1.12':
-    resolution: {integrity: sha512-Uf4OYHyfbXpzyaOqIV8/h6kv166Qni5+Bxmc1E/ov4uhhKO8qXbOky8zbVOzu0U4cv5ll3s4IQ8jDAJkx/K75Q==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [win32]
-
-  '@snazzah/davey-win32-ia32-msvc@0.1.12':
-    resolution: {integrity: sha512-nRVbKTsb2ldcPI8D4BDA7P/UeiMEMvR+wYuUMp7H1pRD/3dF2hKo+MzUU+Pn78EhuYA3CWHItiAcS/GsPld67A==}
-    engines: {node: '>= 10'}
-    cpu: [ia32]
-    os: [win32]
-
-  '@snazzah/davey-win32-x64-msvc@0.1.12':
-    resolution: {integrity: sha512-AgUA3itPDVkxQq7RIkgE1thCiWePwWjyfOZefBBxGIlMWpRUOSwF4vY9kNLnrScyJcFULdR+Zm8PwiwV8/RKnw==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [win32]
-
-  '@snazzah/davey@0.1.12':
-    resolution: {integrity: sha512-V+NlX5931RwVamZhhEfZekMdcvXDKdMAmHW1AuGaykVQsNyBOq3bpmGpoKRBDCYgFWKIufJ0Dcg3m4cYhvUy6g==}
-    engines: {node: '>= 10'}
-
   '@tybys/wasm-util@0.10.3':
     resolution: {integrity: sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg==}
 
@@ -1601,9 +1482,6 @@ packages:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
     engines: {node: '>= 0.4'}
 
-  duplex-child-process@1.0.1:
-    resolution: {integrity: sha512-tWbt4tyioDjyK5nh+qicbdvBvNjSXsTUF5zKUwSauuKPg1mokjwn/HezwfvWhh6hXoLdgetY+ZlzU/sMwUMJkg==}
-
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
 
@@ -1771,12 +1649,6 @@ packages:
   is-network-error@1.3.2:
     resolution: {integrity: sha512-PhBY86zaxNZUuWP6h13Vu5oFe0XY6/UlKzQnYFELzGVHygP3MxmvTfYSG7GN3aIab/iWudSMgjSnG9Dq+nHrgA==}
     engines: {node: '>=16'}
-
-  libsodium-wrappers@0.8.4:
-    resolution: {integrity: sha512-mu8aAWucZjTB5O/BtGXtW4e1agy7uHxNYG7zPthmmD1jU43LCDmSWZLN4JhflbdPXj3yDO4lxM1O9hLDgIOXDw==}
-
-  libsodium@0.8.4:
-    resolution: {integrity: sha512-lMcYaRi0zcs7tarATsQUYC7rstliIXZuoq0c6zXSgNtSNtdvBgkSegjWhpMJAXzKX3SUSwIp7+zEsob+j3LuRw==}
 
   lightningcss-android-arm64@1.33.0:
     resolution: {integrity: sha512-gEpRTalKdosp4Bb8qWtc2iOgE5SeIHlpS1up9bFq2wAyYhl1UdTObYiHe98zEM9SQvSoqQZ1IQD0JNpg3Ml5pg==}
@@ -1978,9 +1850,6 @@ packages:
       zod:
         optional: true
 
-  opusscript@0.1.1:
-    resolution: {integrity: sha512-mL0fZZOUnXdZ78woRXp18lApwpp0lF5tozJOD1Wut0dgrA9WuQTgSels/CSmFleaAZrJi/nci5KOVtbuxeWoQA==}
-
   otplib@12.0.1:
     resolution: {integrity: sha512-xDGvUOQjop7RDgxTQ+o4pOol0/3xSZzawTiPKRrHnQWAy0WjhNs/5HdIDJCrqC4MBynmjXgULc6YfioaxZeFgg==}
 
@@ -2107,9 +1976,6 @@ packages:
         optional: true
       opusscript:
         optional: true
-
-  prism-media@2.0.0-alpha.0:
-    resolution: {integrity: sha512-QL9rnO4xo0grgj7ptsA+AzSCYLirGWM4+ZcyboFmbkYHSgaXIESzHq/SXNizz2iHIfuM2og0cPhmSnTVMeFjKg==}
 
   process-warning@5.1.0:
     resolution: {integrity: sha512-jQSaVHsPgtyw60e1rQ/A+/ArPEj/S8pS/vFnyGa/gYFXrKk/6RuDkoqVDQ5NI5MmS01698ltlAk0NoDBNLujRw==}
@@ -2539,6 +2405,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - supports-color
+    optional: true
 
   '@discordjs/opus@0.10.0(supports-color@7.2.0)':
     dependencies:
@@ -2547,40 +2414,17 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - supports-color
+    optional: true
 
   '@discordjs/util@1.2.0':
     dependencies:
       discord-api-types: 0.38.52
-
-  '@discordjs/voice@file:vendor/discord-voice-fork(@discordjs/opus@0.10.0(supports-color@7.2.0))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(opusscript@0.1.1)':
-    dependencies:
-      '@snazzah/davey': 0.1.12(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
-      '@types/ws': 8.18.1
-      discord-api-types: 0.38.52
-      prism-media: 1.3.5(@discordjs/opus@0.10.0(supports-color@7.2.0))(opusscript@0.1.1)
-      tslib: 2.8.1
-      ws: 8.21.3
-    transitivePeerDependencies:
-      - '@discordjs/opus'
-      - '@emnapi/core'
-      - '@emnapi/runtime'
-      - bufferutil
-      - ffmpeg-static
-      - node-opus
-      - opusscript
-      - utf-8-validate
 
   '@drizzle-team/brocli@0.10.2': {}
 
   '@emnapi/core@1.11.1':
     dependencies:
       '@emnapi/wasi-threads': 1.2.2
-      tslib: 2.8.1
-    optional: true
-
-  '@emnapi/core@1.11.3':
-    dependencies:
-      '@emnapi/wasi-threads': 1.2.3
       tslib: 2.8.1
     optional: true
 
@@ -2595,11 +2439,6 @@ snapshots:
     optional: true
 
   '@emnapi/wasi-threads@1.2.2':
-    dependencies:
-      tslib: 2.8.1
-    optional: true
-
-  '@emnapi/wasi-threads@1.2.3':
     dependencies:
       tslib: 2.8.1
     optional: true
@@ -3032,13 +2871,6 @@ snapshots:
       '@tybys/wasm-util': 0.10.3
     optional: true
 
-  '@napi-rs/wasm-runtime@1.2.1(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)':
-    dependencies:
-      '@emnapi/core': 1.11.3
-      '@emnapi/runtime': 1.11.3
-      '@tybys/wasm-util': 0.10.3
-    optional: true
-
   '@otplib/core@12.0.1': {}
 
   '@otplib/plugin-crypto@12.0.1':
@@ -3123,73 +2955,6 @@ snapshots:
     dependencies:
       fast-deep-equal: 3.1.3
       lodash: 4.18.1
-
-  '@snazzah/davey-android-arm-eabi@0.1.12':
-    optional: true
-
-  '@snazzah/davey-android-arm64@0.1.12':
-    optional: true
-
-  '@snazzah/davey-darwin-arm64@0.1.12':
-    optional: true
-
-  '@snazzah/davey-darwin-x64@0.1.12':
-    optional: true
-
-  '@snazzah/davey-freebsd-x64@0.1.12':
-    optional: true
-
-  '@snazzah/davey-linux-arm-gnueabihf@0.1.12':
-    optional: true
-
-  '@snazzah/davey-linux-arm64-gnu@0.1.12':
-    optional: true
-
-  '@snazzah/davey-linux-arm64-musl@0.1.12':
-    optional: true
-
-  '@snazzah/davey-linux-x64-gnu@0.1.12':
-    optional: true
-
-  '@snazzah/davey-linux-x64-musl@0.1.12':
-    optional: true
-
-  '@snazzah/davey-wasm32-wasi@0.1.12(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)':
-    dependencies:
-      '@napi-rs/wasm-runtime': 1.2.1(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
-    transitivePeerDependencies:
-      - '@emnapi/core'
-      - '@emnapi/runtime'
-    optional: true
-
-  '@snazzah/davey-win32-arm64-msvc@0.1.12':
-    optional: true
-
-  '@snazzah/davey-win32-ia32-msvc@0.1.12':
-    optional: true
-
-  '@snazzah/davey-win32-x64-msvc@0.1.12':
-    optional: true
-
-  '@snazzah/davey@0.1.12(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)':
-    optionalDependencies:
-      '@snazzah/davey-android-arm-eabi': 0.1.12
-      '@snazzah/davey-android-arm64': 0.1.12
-      '@snazzah/davey-darwin-arm64': 0.1.12
-      '@snazzah/davey-darwin-x64': 0.1.12
-      '@snazzah/davey-freebsd-x64': 0.1.12
-      '@snazzah/davey-linux-arm-gnueabihf': 0.1.12
-      '@snazzah/davey-linux-arm64-gnu': 0.1.12
-      '@snazzah/davey-linux-arm64-musl': 0.1.12
-      '@snazzah/davey-linux-x64-gnu': 0.1.12
-      '@snazzah/davey-linux-x64-musl': 0.1.12
-      '@snazzah/davey-wasm32-wasi': 0.1.12(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
-      '@snazzah/davey-win32-arm64-msvc': 0.1.12
-      '@snazzah/davey-win32-ia32-msvc': 0.1.12
-      '@snazzah/davey-win32-x64-msvc': 0.1.12
-    transitivePeerDependencies:
-      - '@emnapi/core'
-      - '@emnapi/runtime'
 
   '@tybys/wasm-util@0.10.3':
     dependencies:
@@ -3298,7 +3063,8 @@ snapshots:
 
   '@vitest/spy@5.0.1': {}
 
-  abbrev@1.1.1: {}
+  abbrev@1.1.1:
+    optional: true
 
   agent-base@6.0.2(supports-color@7.2.0):
     dependencies:
@@ -3312,12 +3078,14 @@ snapshots:
     dependencies:
       color-convert: 2.0.1
 
-  aproba@2.1.0: {}
+  aproba@2.1.0:
+    optional: true
 
   are-we-there-yet@2.0.0:
     dependencies:
       delegates: 1.0.0
       readable-stream: 3.6.2
+    optional: true
 
   assertion-error@2.0.1: {}
 
@@ -3335,7 +3103,8 @@ snapshots:
       - debug
       - supports-color
 
-  balanced-match@1.0.2: {}
+  balanced-match@1.0.2:
+    optional: true
 
   base64-js@1.5.1: {}
 
@@ -3343,6 +3112,7 @@ snapshots:
     dependencies:
       balanced-match: 1.0.2
       concat-map: 0.0.1
+    optional: true
 
   buffer-from@1.1.2: {}
 
@@ -3365,7 +3135,8 @@ snapshots:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
 
-  chownr@2.0.0: {}
+  chownr@2.0.0:
+    optional: true
 
   cliui@6.0.0:
     dependencies:
@@ -3381,7 +3152,8 @@ snapshots:
 
   color-name@1.1.4: {}
 
-  color-support@1.1.3: {}
+  color-support@1.1.3:
+    optional: true
 
   combined-stream@1.0.8:
     dependencies:
@@ -3389,9 +3161,11 @@ snapshots:
 
   commander@14.0.3: {}
 
-  concat-map@0.0.1: {}
+  concat-map@0.0.1:
+    optional: true
 
-  console-control-strings@1.1.0: {}
+  console-control-strings@1.1.0:
+    optional: true
 
   debug@4.4.0(supports-color@7.2.0):
     dependencies:
@@ -3409,7 +3183,8 @@ snapshots:
 
   delayed-stream@1.0.0: {}
 
-  delegates@1.0.0: {}
+  delegates@1.0.0:
+    optional: true
 
   denque@2.1.0: {}
 
@@ -3419,7 +3194,7 @@ snapshots:
 
   discord-api-types@0.38.52: {}
 
-  discord.js-selfbot-v13@3.7.1(@discordjs/opus@0.10.0(supports-color@7.2.0))(opusscript@0.1.1)(supports-color@7.2.0):
+  discord.js-selfbot-v13@3.7.1(@discordjs/opus@0.10.0(supports-color@7.2.0))(supports-color@7.2.0):
     dependencies:
       '@discordjs/builders': 1.14.1
       '@discordjs/collection': 2.1.1
@@ -3429,7 +3204,7 @@ snapshots:
       fetch-cookie: 3.2.0
       find-process: 2.1.1
       otplib: 12.0.1
-      prism-media: 1.3.5(@discordjs/opus@0.10.0(supports-color@7.2.0))(opusscript@0.1.1)
+      prism-media: 1.3.5(@discordjs/opus@0.10.0(supports-color@7.2.0))
       qrcode: 1.5.4
       tough-cookie: 5.1.2
       tree-kill: 1.2.2
@@ -3464,8 +3239,6 @@ snapshots:
       call-bind-apply-helpers: 1.0.2
       es-errors: 1.3.0
       gopd: 1.2.0
-
-  duplex-child-process@1.0.1: {}
 
   emoji-regex@8.0.0: {}
 
@@ -3612,8 +3385,10 @@ snapshots:
   fs-minipass@2.1.0:
     dependencies:
       minipass: 3.3.6
+    optional: true
 
-  fs.realpath@1.0.0: {}
+  fs.realpath@1.0.0:
+    optional: true
 
   fsevents@2.3.3:
     optional: true
@@ -3631,6 +3406,7 @@ snapshots:
       string-width: 4.2.3
       strip-ansi: 6.0.1
       wide-align: 1.1.5
+    optional: true
 
   get-caller-file@2.0.5: {}
 
@@ -3664,6 +3440,7 @@ snapshots:
       minimatch: 3.1.5
       once: 1.4.0
       path-is-absolute: 1.0.1
+    optional: true
 
   gopd@1.2.0: {}
 
@@ -3675,7 +3452,8 @@ snapshots:
     dependencies:
       has-symbols: 1.1.0
 
-  has-unicode@2.0.1: {}
+  has-unicode@2.0.1:
+    optional: true
 
   hasown@2.0.4:
     dependencies:
@@ -3694,8 +3472,10 @@ snapshots:
     dependencies:
       once: 1.4.0
       wrappy: 1.0.2
+    optional: true
 
-  inherits@2.0.4: {}
+  inherits@2.0.4:
+    optional: true
 
   ioredis@6.0.0(supports-color@7.2.0):
     dependencies:
@@ -3711,12 +3491,6 @@ snapshots:
   is-fullwidth-code-point@3.0.0: {}
 
   is-network-error@1.3.2: {}
-
-  libsodium-wrappers@0.8.4:
-    dependencies:
-      libsodium: 0.8.4
-
-  libsodium@0.8.4: {}
 
   lightningcss-android-arm64@1.33.0:
     optional: true
@@ -3784,6 +3558,7 @@ snapshots:
   make-dir@3.1.0:
     dependencies:
       semver: 6.3.1
+    optional: true
 
   math-intrinsics@1.1.0: {}
 
@@ -3801,33 +3576,41 @@ snapshots:
   minimatch@3.1.5:
     dependencies:
       brace-expansion: 1.1.18
+    optional: true
 
   minipass@3.3.6:
     dependencies:
       yallist: 4.0.0
+    optional: true
 
-  minipass@5.0.0: {}
+  minipass@5.0.0:
+    optional: true
 
   minizlib@2.1.2:
     dependencies:
       minipass: 3.3.6
       yallist: 4.0.0
+    optional: true
 
-  mkdirp@1.0.4: {}
+  mkdirp@1.0.4:
+    optional: true
 
   ms@2.1.3: {}
 
   nanoid@3.3.16: {}
 
-  node-addon-api@8.9.0: {}
+  node-addon-api@8.9.0:
+    optional: true
 
   node-fetch@2.7.0:
     dependencies:
       whatwg-url: 5.0.0
+    optional: true
 
   nopt@5.0.0:
     dependencies:
       abbrev: 1.1.1
+    optional: true
 
   npmlog@5.0.1:
     dependencies:
@@ -3835,8 +3618,10 @@ snapshots:
       console-control-strings: 1.1.0
       gauge: 3.0.2
       set-blocking: 2.0.0
+    optional: true
 
-  object-assign@4.1.1: {}
+  object-assign@4.1.1:
+    optional: true
 
   obug@2.1.4: {}
 
@@ -3845,14 +3630,13 @@ snapshots:
   once@1.4.0:
     dependencies:
       wrappy: 1.0.2
+    optional: true
 
   openai@7.19.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5):
     optionalDependencies:
       undici: 7.29.0
       ws: 8.21.3
       zod: 4.6.5
-
-  opusscript@0.1.1: {}
 
   otplib@12.0.1:
     dependencies:
@@ -3880,7 +3664,8 @@ snapshots:
 
   path-exists@4.0.0: {}
 
-  path-is-absolute@1.0.1: {}
+  path-is-absolute@1.0.1:
+    optional: true
 
   pg-cloudflare@1.4.0:
     optional: true
@@ -3963,14 +3748,9 @@ snapshots:
     dependencies:
       xtend: 4.0.2
 
-  prism-media@1.3.5(@discordjs/opus@0.10.0(supports-color@7.2.0))(opusscript@0.1.1):
+  prism-media@1.3.5(@discordjs/opus@0.10.0(supports-color@7.2.0)):
     optionalDependencies:
       '@discordjs/opus': 0.10.0(supports-color@7.2.0)
-      opusscript: 0.1.1
-
-  prism-media@2.0.0-alpha.0:
-    dependencies:
-      duplex-child-process: 1.0.1
 
   process-warning@5.1.0: {}
 
@@ -3989,6 +3769,7 @@ snapshots:
       inherits: 2.0.4
       string_decoder: 1.3.0
       util-deprecate: 1.0.2
+    optional: true
 
   real-require@0.2.0: {}
 
@@ -4005,6 +3786,7 @@ snapshots:
   rimraf@3.0.2:
     dependencies:
       glob: 7.2.3
+    optional: true
 
   rolldown@1.1.5:
     dependencies:
@@ -4027,11 +3809,13 @@ snapshots:
       '@rolldown/binding-win32-arm64-msvc': 1.1.5
       '@rolldown/binding-win32-x64-msvc': 1.1.5
 
-  safe-buffer@5.2.1: {}
+  safe-buffer@5.2.1:
+    optional: true
 
   safe-stable-stringify@2.5.0: {}
 
-  semver@6.3.1: {}
+  semver@6.3.1:
+    optional: true
 
   semver@7.8.5: {}
 
@@ -4074,7 +3858,8 @@ snapshots:
 
   siginfo@2.0.0: {}
 
-  signal-exit@3.0.7: {}
+  signal-exit@3.0.7:
+    optional: true
 
   sonic-boom@4.2.1:
     dependencies:
@@ -4106,6 +3891,7 @@ snapshots:
   string_decoder@1.3.0:
     dependencies:
       safe-buffer: 5.2.1
+    optional: true
 
   strip-ansi@6.0.1:
     dependencies:
@@ -4123,6 +3909,7 @@ snapshots:
       minizlib: 2.1.2
       mkdirp: 1.0.4
       yallist: 4.0.0
+    optional: true
 
   thirty-two@1.0.2: {}
 
@@ -4161,7 +3948,8 @@ snapshots:
     dependencies:
       tldts: 7.4.9
 
-  tr46@0.0.3: {}
+  tr46@0.0.3:
+    optional: true
 
   tree-kill@1.2.2: {}
 
@@ -4202,7 +3990,8 @@ snapshots:
 
   undici@7.29.0: {}
 
-  util-deprecate@1.0.2: {}
+  util-deprecate@1.0.2:
+    optional: true
 
   vite@8.1.5(@types/node@26.4.0)(esbuild@0.28.2)(tsx@4.23.13):
     dependencies:
@@ -4238,7 +4027,8 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
-  webidl-conversions@3.0.1: {}
+  webidl-conversions@3.0.1:
+    optional: true
 
   werift-rtp@0.8.9(supports-color@7.2.0):
     dependencies:
@@ -4252,6 +4042,7 @@ snapshots:
     dependencies:
       tr46: 0.0.3
       webidl-conversions: 3.0.1
+    optional: true
 
   which-module@2.0.1: {}
 
@@ -4263,6 +4054,7 @@ snapshots:
   wide-align@1.1.5:
     dependencies:
       string-width: 4.2.3
+    optional: true
 
   wrap-ansi@6.2.0:
     dependencies:
@@ -4270,7 +4062,8 @@ snapshots:
       string-width: 4.2.3
       strip-ansi: 6.0.1
 
-  wrappy@1.0.2: {}
+  wrappy@1.0.2:
+    optional: true
 
   ws@8.21.3: {}
 
@@ -4278,7 +4071,8 @@ snapshots:
 
   y18n@4.0.3: {}
 
-  yallist@4.0.0: {}
+  yallist@4.0.0:
+    optional: true
 
   yargs-parser@18.1.3:
     dependencies:

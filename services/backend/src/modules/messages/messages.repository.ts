@@ -522,6 +522,44 @@ export class MessagesRepository {
       username: r.username ? String(r.username) : null,
     }));
   }
+
+  /**
+   * Distinct guilds present in the message archive (drives the guild picker).
+   */
+  async listGuilds(): Promise<
+    Array<{ id: string; name: string; icon: string | null }>
+  > {
+    const db = getDatabase();
+    const rows = await db
+      .selectDistinct({ guild_id: pgMessagesTable.guild_id })
+      .from(pgMessagesTable)
+      .orderBy(pgMessagesTable.guild_id);
+    return rows.map((row) => ({
+      id: String(row.guild_id ?? ""),
+      name: `Guild ${String(row.guild_id).slice(0, 8)}`,
+      icon: null,
+    }));
+  }
+
+  /**
+   * Text channels for a guild, derived from the message archive
+   * (drives the channel picker).
+   */
+  async listTextChannels(
+    guildId: string,
+  ): Promise<Array<{ id: string; name: string; type: "text" }>> {
+    const db = getDatabase();
+    const rows = await db
+      .selectDistinct({ channel_id: pgMessagesTable.channel_id })
+      .from(pgMessagesTable)
+      .where(eq(pgMessagesTable.guild_id, guildId))
+      .orderBy(pgMessagesTable.channel_id);
+    return rows.map((row) => ({
+      id: String(row.channel_id ?? ""),
+      name: `Channel ${String(row.channel_id).slice(0, 8)}`,
+      type: "text" as const,
+    }));
+  }
 }
 
 export const messagesRepository = new MessagesRepository();

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useAction } from "@/hooks/use-action";
-import { messagesApi, voiceApi } from "@/lib/api";
+import { messagesApi } from "@/lib/api";
 import type {
   AttachmentRecord,
   Channel,
@@ -108,7 +108,7 @@ export function useLoadMore() {
 
 export function useTextChannels(guildId: string) {
   return useSWR<Channel[]>(guildId ? ["text-channels", guildId] : null, () =>
-    voiceApi.getTextChannels(guildId),
+    messagesApi.getTextChannels(guildId),
   );
 }
 
