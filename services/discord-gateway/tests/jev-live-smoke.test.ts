@@ -76,12 +76,13 @@ describe("Jev live smoke (real 9router /v1/systemone)", () => {
       expect(byId.m_help?.status).toBe("clean");
 
       // Verdicts are calibration-honest
-      for (const r of Object.values(byId) as Array<{
+      const verdicts = outcome.results as Array<{
         status: string;
         confidence: number;
         score: number;
         analysis: string;
-      }>) {
+      }>;
+      for (const r of verdicts) {
         expect(r.confidence).toBeGreaterThanOrEqual(0.9);
         if (r.status === "clean") expect(r.score).toBe(0);
         expect(r.analysis).toContain("[Jev]");

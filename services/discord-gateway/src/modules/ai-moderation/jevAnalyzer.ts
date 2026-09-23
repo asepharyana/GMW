@@ -30,7 +30,7 @@
  * back to the LLM. Keep this block in sync when SYSTEM_RULES changes.
  */
 
-import type { Questions } from "@typesafe-ai/sdk";
+import type { Question, Questions } from "@typesafe-ai/sdk";
 import { choice, noul, TypeSafeClient } from "@typesafe-ai/sdk";
 import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/config.js";
@@ -153,7 +153,7 @@ export interface JevTarget {
  * ("pesan <id> melanggar kebijakan server"). Five questions per message.
  */
 export function buildJevQuestions(targets: JevTarget[]): Questions {
-  const questions: Record<string, ReturnType<typeof noul | typeof choice>> = {};
+  const questions: Record<string, Question> = {};
   for (const t of targets) {
     const k = t.id;
     questions[`${k}__v`] = noul(
@@ -208,6 +208,20 @@ export interface JevBatchContext {
 }
 
 /**
+ * Strip XML/HTML tags from a raw block and collapse whitespace so it can be
+ * restated as plain factual prose in the declarative state. Empty after
+ * stripping → omitted from the state.
+ */
+function stripToFacts(block: string, maxLength: number): string | null {
+  const cleaned = block
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return null;
+  return JSON.stringify(cleaned.slice(0, maxLength));
+}
+
+/**
  * Build the declarative `state` payload. NO chat/XML scaffolding — plain
  * factual statements (see the framing rule above; chat-style injection
  * makes Jev confidently wrong).
@@ -235,37 +249,15 @@ export function buildJevState(
       `KULTUR CHANNEL (fakta): ${JSON.stringify(ctx.channelCulture.slice(0, 800))}`,
     );
   }
-  if (ctx.contextBlock.trim()) {
-    const clean = ctx.contextBlock
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (clean)
-      extraFacts.push(`KONTEKS: ${JSON.stringify(clean.slice(0, 1200))}`);
-  }
-  if (ctx.webSearchBlock.trim()) {
-    const clean = ctx.webSearchBlock
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (clean)
-      extraFacts.push(
-        `HASIL PENCARIAN WEB: ${JSON.stringify(clean.slice(0, 1500))}`,
-      );
-  }
-  if (ctx.glossaryBlock.trim()) {
-    const clean = ctx.glossaryBlock
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (clean)
-      extraFacts.push(`GLOSARIUM: ${JSON.stringify(clean.slice(0, 800))}`);
-  }
-  if (correctedExamples.trim()) {
-    extraFacts.push(
-      `KOREKSI SEBELUMNYA: ${JSON.stringify(correctedExamples.slice(0, 800))}`,
-    );
-  }
+  const contextFacts = stripToFacts(ctx.contextBlock, 1200);
+  if (contextFacts) extraFacts.push(`KONTEKS: ${contextFacts}`);
+  const webSearchFacts = stripToFacts(ctx.webSearchBlock, 1500);
+  if (webSearchFacts) extraFacts.push(`HASIL PENCARIAN WEB: ${webSearchFacts}`);
+  const glossaryFacts = stripToFacts(ctx.glossaryBlock, 800);
+  if (glossaryFacts) extraFacts.push(`GLOSARIUM: ${glossaryFacts}`);
+  const correctionFacts = stripToFacts(correctedExamples, 800);
+  if (correctionFacts)
+    extraFacts.push(`KOREKSI SEBELUMNYA: ${correctionFacts}`);
   if (extraFacts.length > 0) parts.push(...extraFacts);
 
   return parts.join("\n");
@@ -286,11 +278,6 @@ export type JevAnswers = Record<
       probabilities?: Record<string, number>;
     }
 >;
-
-export interface JevDecision {
-  result: AnalysisResult;
-  rawAnswers: Record<string, unknown>;
-}
 
 /** Reads the per-message answer subset by id, missing → null. */
 function answersOf(

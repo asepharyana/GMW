@@ -37,7 +37,7 @@ const flaggedAnswers: JevAnswers = {
 };
 
 function answersFor(overrides: Partial<JevAnswers>): JevAnswers {
-  return { ...cleanAnswers, ...overrides } as JevAnswers;
+  return { ...cleanAnswers, ...overrides };
 }
 
 describe("buildJevQuestions", () => {

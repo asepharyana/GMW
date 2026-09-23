@@ -48,6 +48,46 @@ import {
 const log = createChildLogger("textBatchProcessor");
 
 // ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+/** Maps of URL-fetch outcomes, keyed by the fetched URL (text, image, title). */
+interface UrlFetchResult {
+  text: Map<string, string>;
+  image: Map<string, { data: Buffer; mimeType: string }>;
+  title: Map<string, string>;
+}
+
+/** Provider-reported token usage from a raw LLM/Jev payload (may be absent). */
+interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+/** Read provider-reported token usage from either the LLM or Jev raw payload. */
+function extractUsage(raw: unknown): TokenUsage | undefined {
+  return (raw as { usage?: TokenUsage } | null)?.usage ?? undefined;
+}
+
+/** Render the `<web_searches>` XML block from the query→results map. */
+function buildWebSearchBlock(webSearchResults: Map<string, string>): string {
+  if (webSearchResults.size === 0) return "";
+  const entries = Array.from(webSearchResults.entries())
+    .map(
+      ([q, xml]) =>
+        `  <search_query query="${escapeXml(q)}">\n${xml}  </search_query>`,
+    )
+    .join("\n");
+  return `<web_searches>\n${entries}\n</web_searches>`;
+}
+
+/** Raw message content as the models see it (truncated + sanitized). */
+function analysisContentOf(msg: MessageRecord): string {
+  return truncateForAi(getAnalysisContent(msg));
+}
+
+// ---------------------------------------------------------------------------
 // Few-shot correction builder
 // ---------------------------------------------------------------------------
 export async function buildCorrectedFewShotExamples(): Promise<string> {
@@ -78,21 +118,21 @@ export async function buildCorrectedFewShotExamples(): Promise<string> {
 // ---------------------------------------------------------------------------
 // Few-shot correction cache (refreshes hourly)
 // ---------------------------------------------------------------------------
-let _correctedExamplesCache: string | null = null;
-let _correctedExamplesCacheAt = 0;
+let correctedExamplesCache: string | null = null;
+let correctedExamplesCacheAt = 0;
 const CORRECTED_CACHE_TTL_MS = 60 * 60 * 1000;
 
 async function getCachedCorrectedExamples(): Promise<string> {
   const now = Date.now();
   if (
-    _correctedExamplesCache !== null &&
-    now - _correctedExamplesCacheAt < CORRECTED_CACHE_TTL_MS
+    correctedExamplesCache !== null &&
+    now - correctedExamplesCacheAt < CORRECTED_CACHE_TTL_MS
   ) {
-    return _correctedExamplesCache;
+    return correctedExamplesCache;
   }
-  _correctedExamplesCache = await buildCorrectedFewShotExamples();
-  _correctedExamplesCacheAt = now;
-  return _correctedExamplesCache;
+  correctedExamplesCache = await buildCorrectedFewShotExamples();
+  correctedExamplesCacheAt = now;
+  return correctedExamplesCache;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +148,7 @@ export async function runTextOnlyBatch(
   const timeoutMs = config.AI_LLM_TEXT_ANALYSIS_TIMEOUT_MS ?? 30000;
 
   // Parallel: URL fetch + SearXNG
-  const urlFetchPromise = (async () => {
+  const urlFetchPromise: Promise<UrlFetchResult> = (async () => {
     const allUrls = new Set<string>();
     for (const msg of targets) {
       for (const url of extractUrlsFromText(msg.edited_content ?? msg.content))
@@ -131,11 +171,7 @@ export async function runTextOnlyBatch(
       if (urlArr.length >= 10) break;
     }
     if (urlArr.length === 0) {
-      return {
-        text: new Map<string, string>(),
-        image: new Map<string, { data: Buffer; mimeType: string }>(),
-        title: new Map<string, string>(),
-      };
+      return { text: new Map(), image: new Map(), title: new Map() };
     }
     const results = await Promise.allSettled(
       urlArr.map((url) => fetchUrlSafely(url)),
@@ -354,15 +390,7 @@ export async function runTextOnlyBatch(
         )
       ).join("\n");
 
-      const webSearchBlock =
-        webSearchResults.size > 0
-          ? `<web_searches>\n${Array.from(webSearchResults.entries())
-              .map(
-                ([q, xml]) =>
-                  `  <search_query query="${escapeXml(q)}">\n${xml}  </search_query>`,
-              )
-              .join("\n")}\n</web_searches>`
-          : "";
+      const webSearchBlock = buildWebSearchBlock(webSearchResults);
       // Data/instruction separation: the system prompt is stable per mode —
       // all per-batch context (conversation, web evidence) lives in the USER
       // payload, ordered oldest-first so targets come last. Personal user
@@ -415,28 +443,16 @@ export async function runTextOnlyBatch(
       // Jev rejects (low confidence / inconsistent) and any Jev API failure
       // falls back to the existing LLM call — fail-open, never dead.
       if (isJevEnabled()) {
-        const jevTargets: JevTarget[] = batch.map((msg) => {
-          const content = truncateForAi(getAnalysisContent(msg));
-          return {
-            id: msg.id,
-            user: resolveDisplayName(msg),
-            content,
-          };
-        });
-        const webSearchBlock =
-          webSearchResults.size > 0
-            ? `<web_searches>\n${Array.from(webSearchResults.entries())
-                .map(
-                  ([q, xml]) =>
-                    `  <search_query query="${escapeXml(q)}">\n${xml}  </search_query>`,
-                )
-                .join("\n")}\n</web_searches>`
-            : "";
+        const jevTargets: JevTarget[] = batch.map((msg) => ({
+          id: msg.id,
+          user: resolveDisplayName(msg),
+          content: analysisContentOf(msg),
+        }));
         const jevOutcome = await analyzeBatchWithJev(
           jevTargets,
           {
             contextBlock,
-            webSearchBlock,
+            webSearchBlock: buildWebSearchBlock(webSearchResults),
             glossaryBlock,
             channelCulture: channelCultureObj?.culture_summary,
           },
@@ -475,15 +491,7 @@ export async function runTextOnlyBatch(
             config.AI_LLM_MODEL,
             llmResult.results,
             0,
-            (
-              llmResult.raw as {
-                usage?: {
-                  prompt_tokens: number;
-                  completion_tokens: number;
-                  total_tokens: number;
-                };
-              } | null
-            )?.usage ?? undefined,
+            extractUsage(llmResult.raw),
           );
         } else {
           // Jev accepted everything — no LLM usage to attribute.
@@ -500,8 +508,11 @@ export async function runTextOnlyBatch(
         );
         subBatchResults = batchResult.results;
       }
-    } catch (err: any) {
-      if (err.name === "AbortError" || abortController.signal.aborted) {
+    } catch (err: unknown) {
+      const isAbort =
+        (err instanceof Error && err.name === "AbortError") ||
+        abortController.signal.aborted;
+      if (isAbort) {
         // Sub-batch timed out — log but DO NOT throw. Previous sub-batches'
         // results are already in allResults; throwing would discard them.
         log.warn(
@@ -538,15 +549,7 @@ export async function runTextOnlyBatch(
           : config.AI_LLM_MODEL,
         subBatchResults,
         0,
-        (
-          batchResult.raw as {
-            usage?: {
-              prompt_tokens: number;
-              completion_tokens: number;
-              total_tokens: number;
-            };
-          } | null
-        )?.usage ?? undefined,
+        extractUsage(batchResult.raw),
       );
     }
   }
