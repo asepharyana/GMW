@@ -15,6 +15,12 @@ import type {
 } from "../message-capture/types.js";
 import { getChannelCulture } from "./channelCultureStore.js";
 import { estimateTokens } from "./conversationContext.js";
+import {
+  analyzeBatchWithJev,
+  isJevEnabled,
+  JEV_POLICY_VERSION,
+  type JevTarget,
+} from "./jevAnalyzer.js";
 import type { ModerationPromptContent, RetryState } from "./llmCaller.js";
 import { callModerationLLM } from "./llmCaller.js";
 import { analyzeSingleMediaImage } from "./mediaAnalysisClient.js";
@@ -304,6 +310,7 @@ export async function runTextOnlyBatch(
 
     const buildContent = async (
       state: RetryState,
+      subset?: MessageRecord[],
     ): Promise<ModerationPromptContent> => {
       const correction = state.lastParseError
         ? {
@@ -318,9 +325,10 @@ export async function runTextOnlyBatch(
         channelCulture,
       });
 
+      const workingSet = subset ?? batch;
       const messagesBlock = (
         await Promise.all(
-          batch.map(async (msg) => {
+          workingSet.map(async (msg) => {
             const content = truncateForAi(getAnalysisContent(msg));
             const msgUrls = extractUrlsFromText(content);
             const urlContexts = msgUrls
@@ -375,7 +383,12 @@ export async function runTextOnlyBatch(
     const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
     timeoutId.unref();
 
-    let batchResult: { results: AnalysisResult[]; raw: unknown };
+    let batchResult: { results: AnalysisResult[]; raw: unknown } = {
+      results: [],
+      raw: null,
+    };
+    // Per-sub-batch verdicts before fan-out (Jev + LLM fallback merged).
+    let subBatchResults: AnalysisResult[] = [];
     try {
       // Output budget scales with the prompt: the JSON verdict block is
       // roughly proportional to message count, so a small sub-batch doesn't
@@ -394,13 +407,99 @@ export async function runTextOnlyBatch(
         16384,
         Math.max(2048, Math.ceil(subBatchPromptEstimate * 1.5)),
       );
-      batchResult = await callModerationLLM(
-        buildContent,
-        targetIds,
-        `text-batch-${i + 1}`,
-        abortController.signal,
-        dynamicMaxTokens,
-      );
+
+      // ── Jev-first (TypeSafe System One) with LLM fallback ────────────────
+      // Jev is the PRIMARY text analyzer: ONE systemOne call per sub-batch
+      // (5 typed questions × N messages, evaluated in parallel by Jev).
+      // Verdicts that pass the acceptance gate are used directly; anything
+      // Jev rejects (low confidence / inconsistent) and any Jev API failure
+      // falls back to the existing LLM call — fail-open, never dead.
+      if (isJevEnabled()) {
+        const jevTargets: JevTarget[] = batch.map((msg) => {
+          const content = truncateForAi(getAnalysisContent(msg));
+          return {
+            id: msg.id,
+            user: resolveDisplayName(msg),
+            content,
+          };
+        });
+        const webSearchBlock =
+          webSearchResults.size > 0
+            ? `<web_searches>\n${Array.from(webSearchResults.entries())
+                .map(
+                  ([q, xml]) =>
+                    `  <search_query query="${escapeXml(q)}">\n${xml}  </search_query>`,
+                )
+                .join("\n")}\n</web_searches>`
+            : "";
+        const jevOutcome = await analyzeBatchWithJev(
+          jevTargets,
+          {
+            contextBlock,
+            webSearchBlock,
+            glossaryBlock,
+            channelCulture: channelCultureObj?.culture_summary,
+          },
+          abortController.signal,
+          correctedExamples,
+        );
+
+        subBatchResults.push(...jevOutcome.results);
+        if (jevOutcome.results.length > 0) {
+          log.info(
+            {
+              subBatch: i + 1,
+              accepted: jevOutcome.results.length,
+              rejected: jevOutcome.rejectedIds.length,
+            },
+            "Jev analyzed sub-batch — accepted verdicts kept, rejected go to LLM",
+          );
+        }
+
+        // Which targets still need the LLM?
+        const coveredIds = new Set(subBatchResults.map((r) => r.messageId));
+        const llmTargets = batch.filter((m) => !coveredIds.has(m.id));
+
+        if (llmTargets.length > 0) {
+          const llmResult = await callModerationLLM(
+            (state) => buildContent(state, llmTargets),
+            llmTargets.map((m) => m.id),
+            `text-batch-${i + 1}-jev-fallback`,
+            abortController.signal,
+            dynamicMaxTokens,
+          );
+          subBatchResults.push(...llmResult.results);
+          batchResult = llmResult;
+          logModerationAnalysis(
+            llmTargets.map((m) => m.id),
+            config.AI_LLM_MODEL,
+            llmResult.results,
+            0,
+            (
+              llmResult.raw as {
+                usage?: {
+                  prompt_tokens: number;
+                  completion_tokens: number;
+                  total_tokens: number;
+                };
+              } | null
+            )?.usage ?? undefined,
+          );
+        } else {
+          // Jev accepted everything — no LLM usage to attribute.
+          batchResult = { results: subBatchResults, raw: null };
+        }
+      } else {
+        // Jev disabled / unconfigured — pure LLM path (unchanged).
+        batchResult = await callModerationLLM(
+          buildContent,
+          targetIds,
+          `text-batch-${i + 1}`,
+          abortController.signal,
+          dynamicMaxTokens,
+        );
+        subBatchResults = batchResult.results;
+      }
     } catch (err: any) {
       if (err.name === "AbortError" || abortController.signal.aborted) {
         // Sub-batch timed out — log but DO NOT throw. Previous sub-batches'
@@ -416,35 +515,40 @@ export async function runTextOnlyBatch(
       clearTimeout(timeoutId);
     }
 
-    // Fan-out results for deduplicated messages
+    // Fan-out results for deduplicated messages (applies to Jev + LLM
+    // verdicts alike — they only consume AnalysisResult[]).
     const fannedOutResults =
       groupMapping.size > 0
-        ? batchResult.results.flatMap((result) => {
+        ? subBatchResults.flatMap((result) => {
             const members = groupMapping.get(result.messageId);
             return members
               ? members.map((memberId) => ({ ...result, messageId: memberId }))
               : [result];
           })
-        : batchResult.results;
+        : subBatchResults;
 
     allResults.push(...fannedOutResults);
     if (batchResult.raw) lastRaw = batchResult.raw;
 
-    logModerationAnalysis(
-      targetIds,
-      config.AI_LLM_MODEL,
-      batchResult.results,
-      0,
-      (
-        batchResult.raw as {
-          usage?: {
-            prompt_tokens: number;
-            completion_tokens: number;
-            total_tokens: number;
-          };
-        } | null
-      )?.usage ?? undefined,
-    );
+    if (subBatchResults.length > 0) {
+      logModerationAnalysis(
+        targetIds,
+        subBatchResults.every((r) => r.policyVersion === JEV_POLICY_VERSION)
+          ? config.AI_LLM_JEV_MODEL
+          : config.AI_LLM_MODEL,
+        subBatchResults,
+        0,
+        (
+          batchResult.raw as {
+            usage?: {
+              prompt_tokens: number;
+              completion_tokens: number;
+              total_tokens: number;
+            };
+          } | null
+        )?.usage ?? undefined,
+      );
+    }
   }
 
   log.debug(
