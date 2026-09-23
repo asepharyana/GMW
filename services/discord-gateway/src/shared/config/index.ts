@@ -49,32 +49,6 @@ export const configSchema = z
       .transform((v) => v.split(",").filter(Boolean))
       .describe("User IDs to skip AI analysis for (captured but not analyzed)"),
 
-    // ── Legacy voice ─────────────────────────────────────────────────────
-    VOICE_GUILD_ID: z.string().min(1).optional(),
-    VOICE_CHANNEL_ID: z.string().min(1).optional(),
-
-    // ── Recording ────────────────────────────────────────────────────────
-    RECORDINGS_DIR: z.string().default("./recordings"),
-    RECORDING_SEGMENT_MS: z.coerce.number().positive().default(5000),
-
-    // ── Decoder ──────────────────────────────────────────────────────────
-    DECODER_ROTATE_MS: z.coerce.number().positive().default(5000),
-    DECODER_COOLDOWN_MS: z.coerce.number().positive().default(30000),
-
-    // ── Audio ────────────────────────────────────────────────────────────
-    // AfterSilence: how long a voice burst may stay silent before the receive
-    // stream ends the segment. Raised 3000→4000 so natural pauses in speech
-    // (thinking gaps, interruptions) don't split one utterance into multiple
-    // segments ("terpotong"). Tunable via env; larger = fewer splits but a
-    // longer silent tail on each recording.
-    AUDIO_STREAM_SILENCE_DURATION_MS: z.coerce
-      .number()
-      .positive()
-      .default(4000),
-    PACKET_FILTER_MIN_SIZE: z.coerce.number().positive().default(8),
-    OPUS_FRAME_SIZE: z.coerce.number().positive().default(960),
-    AUDIO_SAMPLE_RATE: z.coerce.number().positive().default(48000),
-    AUDIO_CHANNELS: z.coerce.number().positive().default(2),
     AVATAR_SIZE: z.coerce.number().positive().default(64),
 
     // ── Server ───────────────────────────────────────────────────────────
@@ -148,17 +122,8 @@ export const configSchema = z
     TINYFISH_SEARCH_TIMEOUT_MS: z.coerce.number().positive().default(10000),
     TINYFISH_SEARCH_LOCATION: z.string().min(1).default("US"),
     TINYFISH_SEARCH_LANGUAGE: z.string().min(1).default("en"),
-    // ── Voice PCM WebSocket (direct gateway→backend, bypasses Redis) ────
-    VOICE_PCM_WS_ENABLED: z
-      .string()
-      .optional()
-      .transform((v) => v === "true")
-      .default(true),
-    BACKEND_WS_URL: z.string().default("ws://backend:3000/ws"),
-    BACKEND_WS_TOKEN: z.string().optional().default(""),
 
     // ── Connection ───────────────────────────────────────────────────────
-    VOICE_CONNECTION_TIMEOUT_MS: z.coerce.number().positive().default(15000),
     RECONNECT_TIMEOUT_MS: z.coerce.number().positive().default(5000),
 
     // ── Attachments ─────────────────────────────────────────────────────
@@ -390,18 +355,6 @@ export const configSchema = z
     // tuning one never starves the other.
     PISCINA_MEDIA_MAX_THREADS: z.coerce.number().int().positive().default(2),
 
-    // ── Voice Transcription ────────────────────────────────────────────────
-    AI_VOICE_TRANSCRIPTION_ENABLED: z
-      .string()
-      .optional()
-      .transform((v) => v === "true")
-      .default(false),
-    // Whisper model routed through the LLM base URL. Through 9router/omniroute
-    // use a provider-qualified id that has credentials (e.g.
-    // openrouter/openai/whisper-1) — bare `whisper-1` maps to the `openai`
-    // provider which the router rejects with "No credentials for provider".
-    AI_VOICE_TRANSCRIPTION_MODEL: z.string().default("whisper-1"),
-
     // ── Auto Delete ─────────────────────────────────────────────────────
     AUTO_DELETE_FLAGGED_ENABLED: z
       .string()
@@ -444,7 +397,6 @@ export const configSchema = z
     // ── Retention ───────────────────────────────────────────────────────
     RETENTION_MESSAGES_DAYS: z.coerce.number().int().min(0).default(0),
     RETENTION_ATTACHMENTS_DAYS: z.coerce.number().int().min(0).default(0),
-    RETENTION_VOICE_DAYS: z.coerce.number().int().min(0).default(0),
     RETENTION_CLEANUP_INTERVAL_MS: z.coerce
       .number()
       .positive()
@@ -483,7 +435,6 @@ export const configSchema = z
 
 export type AppConfig = z.infer<typeof configSchema> & {
   EFFECTIVE_TEXT_GUILD_ID?: string;
-  EFFECTIVE_VOICE_GUILD_ID?: string;
   EFFECTIVE_MONITOR_GUILD_IDS: string[];
 };
 
@@ -493,7 +444,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     return {
       ...parsed,
       EFFECTIVE_TEXT_GUILD_ID: parsed.TEXT_GUILD_ID ?? parsed.MONITOR_GUILD_ID,
-      EFFECTIVE_VOICE_GUILD_ID: parsed.VOICE_GUILD_ID,
       EFFECTIVE_MONITOR_GUILD_IDS:
         parsed.MONITOR_GUILD_IDS.length > 0
           ? parsed.MONITOR_GUILD_IDS

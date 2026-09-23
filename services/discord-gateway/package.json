@@ -1,12 +1,11 @@
 {
   "name": "@bete/discord-gateway",
   "version": "1.0.0",
-  "description": "Discord Gateway service - handles message capture, voice recording, and AI moderation",
+  "description": "Discord Gateway service - handles message capture and AI moderation",
   "type": "module",
   "main": "dist/index.js",
   "pnpm": {
     "onlyBuiltDependencies": [
-      "@discordjs/opus",
       "esbuild",
       "sharp"
     ]
@@ -24,25 +23,19 @@
     "test:e2e:live": "bash scripts/run-llm-e2e.sh"
   },
   "dependencies": {
-    "@discordjs/opus": "^0.10.0",
-    "@discordjs/voice": "file:vendor/discord-voice-fork",
-    "@snazzah/davey": "^0.1.11",
     "@typesafe-ai/sdk": "^0.6.0",
     "axios": "^1.20.0",
     "discord.js-selfbot-v13": "^3.7.1",
     "dotenv": "^18.0.0",
     "drizzle-orm": "^0.45.2",
     "ioredis": "^6.0.0",
-    "libsodium-wrappers": "^0.8.4",
     "lru-cache": "^11.5.3",
     "openai": "^7.19.0",
-    "opusscript": "^0.1.1",
     "p-limit": "^7.3.3",
     "p-retry": "^8.0.1",
     "pg": "^8.23.0",
     "pino": "^10.3.1",
     "piscina": "^5.3.2",
-    "prism-media": "2.0.0-alpha.0",
     "sharp": "^0.35.4",
     "tiktoken": "^1.0.22",
     "ws": "^8.21.3",

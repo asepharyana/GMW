@@ -41,30 +41,9 @@ describe("API Dashboard", () => {
   });
 });
 
-describe("API Recordings", () => {
-  it("GET /recordings returns items with pagination", async () => {
-    const { status, body } = await api("/recordings?limit=5");
-    expect(status).toBe(200);
-    expect(body).toHaveProperty("items");
-    expect(Array.isArray(body.items)).toBe(true);
-    if (body.items.length > 0) {
-      expect(body.items[0]).toHaveProperty("id");
-      expect(body.items[0]).toHaveProperty("username");
-      expect(body.items[0]).toHaveProperty("created_at");
-    }
-  });
-});
-
 describe("API Config", () => {
   it("GET /config returns 200", async () => {
     const { status } = await api("/config");
-    expect(status).toBe(200);
-  });
-});
-
-describe("API Voice", () => {
-  it("GET /guilds returns 200", async () => {
-    const { status } = await api("/guilds");
     expect(status).toBe(200);
   });
 });

@@ -33,18 +33,6 @@ import { startDigestScheduler } from "../modules/monitor/digestScheduler.js";
 import { registerReactionCapture } from "../modules/reaction-tracking/index.js";
 import { registerThreadCapture } from "../modules/thread-tracking/index.js";
 import { registerPresenceCapture } from "../modules/user-presence/index.js";
-import { VoicePcmWsClient } from "../modules/voice-pcm-ws/index.js";
-import { startMuxerWorker } from "../modules/voice-recording/muxer.js";
-import {
-  registerSelfVoiceStateGuard,
-  setPcmWsClient,
-  setEventBroadcaster as setRecorderEventBroadcaster,
-} from "../modules/voice-recording/recorder.js";
-import {
-  setVideoRecorderClient,
-  setVideoRecordingsDir,
-} from "../modules/voice-recording/videoRecorder.js";
-import { VoiceController } from "../modules/voice-recording/voiceController.js";
 import { config } from "../shared/config/config.js";
 import {
   closeDatabase,
@@ -53,11 +41,7 @@ import {
 } from "../shared/database/drizzle.js";
 import { runMigrations } from "../shared/database/migrate.js";
 import type * as schema from "../shared/database/schema.js";
-import {
-  attachmentsTable,
-  messagesTable,
-  voiceRecordingsTable,
-} from "../shared/database/schema.js";
+import { attachmentsTable, messagesTable } from "../shared/database/schema.js";
 import { createDiscordClientOptions } from "../shared/discord/clientOptions.js";
 import { createGracefulShutdown } from "./shutdown.js";
 
@@ -124,7 +108,6 @@ function startRetentionCleanup(): void {
       dryRun,
       messagesDays: config.RETENTION_MESSAGES_DAYS,
       attachmentsDays: config.RETENTION_ATTACHMENTS_DAYS,
-      voiceDays: config.RETENTION_VOICE_DAYS,
     },
     "Starting retention cleanup scheduler",
   );
@@ -143,13 +126,6 @@ function startRetentionCleanup(): void {
       config.RETENTION_ATTACHMENTS_DAYS,
       dryRun,
       "attachments",
-    );
-    await deleteExpiredRecords(
-      voiceRecordingsTable,
-      voiceRecordingsTable.created_at,
-      config.RETENTION_VOICE_DAYS,
-      dryRun,
-      "voice recordings",
     );
   }
 
@@ -188,13 +164,6 @@ export async function initializeDiscordGateway() {
 
   logger.info("Creating Discord client");
   const client = new Client(createDiscordClientOptions());
-  const voiceController = new VoiceController(client);
-
-  // Wire the video recorder (others' camera/screen share) to the selfbot's
-  // native watch/receive stack + its recordings dir. Best-effort: failures are
-  // logged inside, never fatal.
-  setVideoRecorderClient(client);
-  setVideoRecordingsDir(config.RECORDINGS_DIR);
 
   // Initialize Redis event broadcaster
   const redisPublisher = new RedisEventPublisher(config.REDIS_URL, logger);
@@ -203,33 +172,13 @@ export async function initializeDiscordGateway() {
   // Initialize Redis command handler for backend→gateway commands
   const commandHandler = new CommandHandler();
 
-  // Initialize Voice PCM WebSocket client (bypasses Redis for real-time audio)
-  let pcmWsClient: VoicePcmWsClient | undefined;
-  if (config.VOICE_PCM_WS_ENABLED && config.BACKEND_WS_TOKEN) {
-    pcmWsClient = new VoicePcmWsClient(
-      config.BACKEND_WS_URL,
-      config.BACKEND_WS_TOKEN,
-    );
-    pcmWsClient.connect();
-    setPcmWsClient(pcmWsClient);
-    logger.info({ url: config.BACKEND_WS_URL }, "Voice PCM WS client enabled");
-  } else if (config.VOICE_PCM_WS_ENABLED && !config.BACKEND_WS_TOKEN) {
-    logger.warn(
-      "VOICE_PCM_WS_ENABLED=true but BACKEND_WS_TOKEN is empty — falling back to Redis for PCM",
-    );
-  } else {
-    logger.info("Voice PCM WS disabled — using Redis for PCM");
-  }
-
   const gracefulShutdown = createGracefulShutdown({
     logger,
     closeDatabase,
-    voiceController,
     client,
     eventBroadcaster,
     commandHandler,
     stopMetricsServer,
-    pcmWsClient,
   });
 
   try {
@@ -255,8 +204,6 @@ export async function initializeDiscordGateway() {
 
   client.on("debug", (msg) => {
     if (
-      msg.includes("[VOICE") ||
-      msg.includes("[ffmpeg") ||
       msg.toLowerCase().includes("error") ||
       msg.toLowerCase().includes("stream")
     ) {
@@ -269,7 +216,6 @@ export async function initializeDiscordGateway() {
   client.on("ready", async () => {
     logger.info({ user: client.user?.tag }, "Bot logged in");
     setMessageCaptureEventBroadcaster(eventBroadcaster);
-    setRecorderEventBroadcaster(eventBroadcaster);
     setModerationEventBroadcaster(eventBroadcaster);
     registerMessageCapture(client);
     startPendingAIAnalysisWorker(client, eventBroadcaster);
@@ -281,29 +227,9 @@ export async function initializeDiscordGateway() {
     registerChannelTopicCapture(client, eventBroadcaster);
     registerGuildMemberEvents(client, eventBroadcaster);
 
-    // Start background workers
-    startMuxerWorker();
-
     // Start command handler after Discord is ready
-    commandHandler.start(client, voiceController);
+    commandHandler.start(client);
     logger.info("Command handler started");
-
-    // Rejoin persisted voice channels (auto-reconnect on restart/reboot).
-    // Non-fatal: failures are logged inside autoReconnect.
-    void voiceController
-      .autoReconnect()
-      .catch((err) =>
-        logger.warn(
-          { err: err instanceof Error ? err.message : String(err) },
-          "Voice auto-reconnect on startup failed",
-        ),
-      );
-
-    // Attach the immediate self-undeafen/self-unmute guard so the bot reacts
-    // INSTANTLY when an admin server-mutes or server-deafens it (previously
-    // only re-asserted on video-watch/reconnect, leaving the bot muted for
-    // minutes).
-    registerSelfVoiceStateGuard(client);
 
     // Start retention cleanup scheduler
     startRetentionCleanup();

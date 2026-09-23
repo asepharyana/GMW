@@ -4,11 +4,7 @@ import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../shared/config/config.js";
 import { getDatabase } from "../shared/database/drizzle.js";
 import type * as schema from "../shared/database/schema.js";
-import {
-  attachmentsTable,
-  messagesTable,
-  voiceRecordingsTable,
-} from "../shared/database/schema.js";
+import { attachmentsTable, messagesTable } from "../shared/database/schema.js";
 
 const logger = createChildLogger("discord-gateway");
 
@@ -73,7 +69,6 @@ function startRetentionCleanup(): void {
       dryRun,
       messagesDays: config.RETENTION_MESSAGES_DAYS,
       attachmentsDays: config.RETENTION_ATTACHMENTS_DAYS,
-      voiceDays: config.RETENTION_VOICE_DAYS,
     },
     "Starting retention cleanup scheduler",
   );
@@ -92,13 +87,6 @@ function startRetentionCleanup(): void {
       config.RETENTION_ATTACHMENTS_DAYS,
       dryRun,
       "attachments",
-    );
-    await deleteExpiredRecords(
-      voiceRecordingsTable,
-      voiceRecordingsTable.created_at,
-      config.RETENTION_VOICE_DAYS,
-      dryRun,
-      "voice recordings",
     );
   }
 

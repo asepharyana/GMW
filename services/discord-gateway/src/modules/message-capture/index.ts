@@ -9,7 +9,6 @@ export type {
   AIStatus,
   AttachmentRecord,
   MessageRecord,
-  VoiceSegmentRecord,
 } from "../message-capture/types.js";
 export type { TextCaptureTarget } from "./messageCapture.js";
 export {

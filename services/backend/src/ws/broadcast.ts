@@ -49,7 +49,6 @@ export function clearBroadcastFunctions(): void {
 function shouldLog(type: string): boolean {
   if (!_enabled) return false;
   // Avoid logging high-volume events
-  if (type === "voice_pcm_data") return false;
   return true;
 }
 

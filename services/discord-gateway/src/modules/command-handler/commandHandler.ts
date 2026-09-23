@@ -5,40 +5,16 @@ import {
   BACKEND_COMMAND,
   type CommandMessage,
   type CommandReply,
-  MEDIA_STATUS_KEY,
-  VOICE_STATUS_KEY,
 } from "../../shared/index.js";
 import { createChildLogger } from "../../shared/logger/index.js";
-import type { VoiceController } from "../voice-recording/voiceController.js";
 import { GuildHandler } from "./guild.handler.js";
 import {
   type CommandHandlerFn,
   createHandlerRegistry,
 } from "./handler-registry.js";
-import { MediaHandler } from "./media.handler.js";
-import { wireMediaStatusWriter } from "./mediaStatusSink.js";
 import { ModerationHandler } from "./moderation.handler.js";
-import { VideoHandler } from "./video.handler.js";
-import { VoiceHandler } from "./voice.handler.js";
 
 const logger = createChildLogger("command-handler");
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface VoiceStatusPayload {
-  connected: boolean;
-  activeGuildId: string | null;
-  activeChannelId: string | null;
-  activeChannelName: string | null;
-  connections: Array<{
-    guildId: string;
-    channelId: string;
-    channelName: string;
-    connectedAt: number;
-  }>;
-}
 
 // ---------------------------------------------------------------------------
 // CommandHandler
@@ -47,13 +23,9 @@ interface VoiceStatusPayload {
 export class CommandHandler {
   private redisSub: Redis;
   private redisPub: Redis;
-  private voiceController: VoiceController | null = null;
   private registry: Map<string, CommandHandlerFn> = new Map();
-  private voiceHandler!: VoiceHandler;
-  private mediaHandler!: MediaHandler;
   private guildHandler!: GuildHandler;
   private moderationHandler!: ModerationHandler;
-  private videoHandler!: VideoHandler;
 
   constructor() {
     // Dedicated Redis connection needed because: Redis requires a dedicated
@@ -77,30 +49,18 @@ export class CommandHandler {
   // ---- Lifecycle ----
 
   /**
-   * Attach the Discord client and VoiceController, then subscribe to the Redis
-   * command channel.  Must be called *after* the Discord client is created.
+   * Attach the Discord client, then subscribe to the Redis command channel.
+   * Must be called *after* the Discord client is created.
    */
-  start(client: Client, voiceController: VoiceController): void {
-    this.voiceController = voiceController;
-
+  start(client: Client): void {
     // Create domain-specific handlers with their dependencies
-    this.voiceHandler = new VoiceHandler(client, voiceController);
-    this.mediaHandler = new MediaHandler();
     this.guildHandler = new GuildHandler(client);
     this.moderationHandler = new ModerationHandler(client);
-    this.videoHandler = new VideoHandler(client, voiceController);
-
-    // Wire the media status sink so MediaHandler can persist status on
-    // queue advances that happen outside a command (natural track end).
-    wireMediaStatusWriter(this.redisPub);
 
     // Build the command registry
     this.registry = createHandlerRegistry(
-      this.voiceHandler,
-      this.mediaHandler,
       this.guildHandler,
       this.moderationHandler,
-      this.videoHandler,
     );
 
     this.redisSub.on("message", (_channel, message) => {
@@ -117,10 +77,6 @@ export class CommandHandler {
         logger.info(`Subscribed to Redis channel "${BACKEND_COMMAND}"`);
       }
     });
-
-    // Publish initial status snapshots so the backend knows the starting state.
-    this.publishVoiceStatus();
-    this.publishMediaStatus();
   }
 
   async close(): Promise<void> {
@@ -175,51 +131,5 @@ export class CommandHandler {
     } catch (err) {
       logger.error({ err }, "Failed to publish command reply");
     }
-
-    // Always refresh status keys after every command so the backend has
-    // the latest snapshot without polling.
-    this.publishVoiceStatus();
-    this.publishMediaStatus();
-  }
-
-  // ---- Status publishing ----
-
-  private publishVoiceStatus(): void {
-    const raw = this.voiceController
-      ? this.voiceController.getStatus()
-      : {
-          ready: false,
-          connected: false,
-          activeGuildId: null,
-          activeChannelId: null,
-          activeChannelName: null,
-          connections: [],
-        };
-    const status: VoiceStatusPayload = {
-      connected: raw.connected,
-      activeGuildId: raw.activeGuildId,
-      activeChannelId: raw.activeChannelId,
-      activeChannelName: raw.activeChannelName,
-      connections: raw.connections ?? [],
-    };
-
-    this.setKey(VOICE_STATUS_KEY, JSON.stringify(status));
-  }
-
-  private publishMediaStatus(): void {
-    this.setKey(
-      MEDIA_STATUS_KEY,
-      JSON.stringify(this.mediaHandler.getCurrentMediaStatus()),
-    );
-  }
-
-  /**
-   * Fire-and-forget SET using the persistent Redis publisher connection.
-   */
-  private setKey(key: string, value: string): void {
-    this.redisPub.set(key, value).catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      logger.warn({ key, error: msg }, "Failed to update Redis status key");
-    });
   }
 }

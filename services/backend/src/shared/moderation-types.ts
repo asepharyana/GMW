@@ -24,9 +24,6 @@ export interface BroadcasterClient {
   messageAnalyzed: (data: unknown) => void;
   attachmentCreated: (data: unknown) => void;
   attachmentUploaded: (data: unknown) => void;
-  voiceRecordingStarted: (data: unknown) => void;
-  voiceRecordingStopped: (data: unknown) => void;
-  voiceRecordingUploaded: (data: unknown) => void;
   analysisQueueStatus: (data: unknown) => void;
 }
 
@@ -102,17 +99,6 @@ export interface AttachmentRecord {
   uploaded_at: number | null;
 }
 
-export interface VoiceSegmentRecord {
-  id: string;
-  user_id: string;
-  session_id: string;
-  guild_id: string;
-  channel_id: string;
-  filename: string;
-  duration_ms: number;
-  created_at: number;
-}
-
 export interface DashboardMessage {
   id: string;
   channel_id: string;
@@ -121,7 +107,7 @@ export interface DashboardMessage {
   avatar_url: string | null;
   content: string;
   created_at: number;
-  type: "text" | "image" | "voice";
+  type: "text" | "image";
 }
 
 export interface MessageQuery {
@@ -152,23 +138,6 @@ export interface AnalysisResult {
   recommendedAction?: AIRecommendedAction;
   policyVersion?: string;
   evidence?: string[];
-}
-
-export interface VoiceRecordingUploadData {
-  id: string;
-  user_id: string;
-  username: string;
-  avatar_url: string | null;
-  guild_id: string | null;
-  channel_id: string | null;
-  channel_name: string | null;
-  filename: string;
-  size_bytes: number;
-  download_url: string;
-  upload_status: string;
-  created_at: number;
-  uploaded_at: number;
-  transcription?: string | null;
 }
 
 export interface AnalysisQueueStatus {
@@ -221,7 +190,6 @@ export interface RetentionPolicy {
   channel_id: string | null;
   retention_days: number;
   apply_to_media: boolean;
-  apply_to_voice: boolean;
   enabled: boolean;
   created_at: number;
   updated_at: number;
