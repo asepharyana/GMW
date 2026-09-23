@@ -35,7 +35,7 @@
     "ioredis": "^6.0.0",
     "libsodium-wrappers": "^0.8.4",
     "lru-cache": "^11.5.3",
-    "openai": "^7.19.0",
+    "openai": "^7.20.0",
     "opusscript": "^0.1.1",
     "p-limit": "^7.3.3",
     "p-retry": "^8.0.1",
