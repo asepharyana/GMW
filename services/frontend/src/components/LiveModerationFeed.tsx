@@ -49,6 +49,15 @@ function severityTone(
   }
 }
 
+function confidenceTone(confidence?: number | null) {
+  if (confidence == null) return null;
+  return confidence >= 0.75
+    ? "bg-signal"
+    : confidence >= 0.5
+      ? "bg-amber"
+      : "bg-vermilion";
+}
+
 export function LiveModerationFeed({
   actions,
 }: {
@@ -115,8 +124,27 @@ export function LiveModerationFeed({
                 className="mod-feed-item hud-card animate-stagger flex items-start gap-3 p-3 transition-all"
                 style={staggerDelay(i)}
               >
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-surface-2">
+                <span
+                  className={`relative flex size-7 shrink-0 items-center justify-center rounded-[6px] border ${
+                    a.status === "failed"
+                      ? "border-vermilion/40 bg-vermilion/10"
+                      : a.status === "pending"
+                        ? "border-amber/40 bg-amber/10"
+                        : "border-hairline bg-surface-2"
+                  }`}
+                >
                   {actionIcon(a.action_type)}
+                  {a.status && (
+                    <span
+                      className={`absolute -right-0.5 -top-0.5 size-2 rounded-full ring-2 ring-surface ${
+                        a.status === "failed"
+                          ? "bg-vermilion"
+                          : a.status === "pending"
+                            ? "bg-amber"
+                            : "bg-signal"
+                      }`}
+                    />
+                  )}
                 </span>
 
                 <div className="min-w-0 flex-1">
@@ -149,6 +177,56 @@ export function LiveModerationFeed({
                     <p className="mt-1 font-sans text-xs text-ink-soft line-clamp-2">
                       &ldquo;{a.reason}&rdquo;
                     </p>
+                  )}
+
+                  {(a.confidence != null || a.flags?.length) && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      {a.confidence != null && (
+                        <span
+                          className="flex items-center gap-1.5"
+                          title={`Model confidence ${Math.round(a.confidence * 100)}%`}
+                        >
+                          <span className="font-mono text-[9px] tracking-wider text-ink-faint uppercase">
+                            conf
+                          </span>
+                          <span className="inline-flex h-1 w-14 overflow-hidden rounded-full bg-surface-2">
+                            <span
+                              className={`h-full rounded-full ${confidenceTone(a.confidence) ?? "bg-ink-faint"}`}
+                              style={{
+                                width: `${Math.min(100, Math.round(a.confidence * 100))}%`,
+                              }}
+                            />
+                          </span>
+                          <span className="font-mono text-[9px] text-ink-faint">
+                            {Math.round(a.confidence * 100)}%
+                          </span>
+                        </span>
+                      )}
+                      {a.flags && a.flags.length > 0 && (
+                        <span className="flex flex-wrap items-center gap-1">
+                          {a.flags.slice(0, 2).map((flag) => (
+                            <Badge
+                              key={flag}
+                              tone={tone ?? "neutral"}
+                              size="sm"
+                              className="uppercase"
+                            >
+                              {flag}
+                            </Badge>
+                          ))}
+                          {a.flags.length > 2 && (
+                            <span className="font-mono text-[9px] text-ink-faint">
+                              +{a.flags.length - 2}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                      {a.error && (
+                        <span className="font-mono text-[9px] text-vermilion/80">
+                          {a.error}
+                        </span>
+                      )}
+                    </div>
                   )}
 
                   <div className="mt-1.5 flex items-center gap-2 font-mono text-[10px] text-ink-faint">

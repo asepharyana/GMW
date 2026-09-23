@@ -75,7 +75,7 @@ export function SkeletonRows({
   );
 }
 
-/** Hero block placeholder (dashboard / media "now playing"). */
+/** Hero block placeholder (dashboard headline). */
 export function SkeletonHero({ className }: { className?: string }) {
   return (
     <GlassPanel glow className={cn("relative overflow-hidden", className)}>
