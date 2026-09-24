@@ -43,3 +43,22 @@ export function pickBatchWithinBudget(
 
   return batch;
 }
+
+/**
+ * Returns the messages that were fetched/claimed but did NOT make it into the
+ * trimmed batch (i.e. the tail past the token budget).
+ *
+ * The DB claim step flips every fetched pending row to `processing`; the batch
+ * trim may then stop early on the token budget. Those tail rows would stay
+ * stuck in `processing` forever unless the caller explicitly un-claims them —
+ * this helper identifies exactly which rows that is, so the caller can write
+ * them back to `pending` for the next wave.
+ */
+export function computeBudgetOverflowMessages(
+  claimed: MessageRecord[],
+  trimmed: MessageRecord[],
+): MessageRecord[] {
+  if (trimmed.length === 0) return claimed;
+  const trimmedIds = new Set(trimmed.map((m) => m.id));
+  return claimed.filter((m) => !trimmedIds.has(m.id));
+}

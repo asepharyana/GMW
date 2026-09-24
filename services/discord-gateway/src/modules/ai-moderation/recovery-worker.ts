@@ -48,18 +48,21 @@ export function startRecoveryWorker(): void {
   setInterval(() => {
     runCachePruneIfDue();
 
-    // Only revert stuck processing messages if there's active processing.
-    // Avoids a DB query every recovery interval when the pipeline is idle.
-    if (conversationProcessing.size > 0) {
-      messageStore
-        .revertStuckProcessingMessages(STUCK_PROCESSING_AGE_MS)
-        .catch((err: unknown) => {
-          logger.error(
-            { error: String(err) },
-            "Failed to run stuck processing recovery",
-          );
-        });
-    }
+    // Revert stuck `processing` messages back to `pending` unconditionally.
+    // The old `if (conversationProcessing.size > 0)` guard skipped the revert
+    // when the in-memory lock map was empty (fresh boot, or every lock was
+    // already pruned) — precisely the moment stranded `processing` rows from
+    // a previous process still need rescuing. `revertStuckProcessingMessages`
+    // is a cheap UPDATE..RETURNING keyed on ai_status + age, safe to run
+    // every interval; it matches 0 rows when there is nothing to do.
+    messageStore
+      .revertStuckProcessingMessages(STUCK_PROCESSING_AGE_MS)
+      .catch((err: unknown) => {
+        logger.error(
+          { error: String(err) },
+          "Failed to run stuck processing recovery",
+        );
+      });
 
     Promise.all([
       messageStore.getPendingConversationKeys(500),

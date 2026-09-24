@@ -3,6 +3,7 @@ import { config } from "../../shared/config/index.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type { MessageRecord } from "../message-capture/types.js";
 import { type AnalysisLane, splitMessagesByLane } from "./analysisLanes.js";
+import { computeBudgetOverflowMessages } from "./batchBudget.js";
 import {
   pickBatchWithinBudget,
   processBatch,
@@ -145,6 +146,60 @@ function scheduleLaneTimer(
             },
             "All messages exceed token budget -- processing first message alone to avoid stuck-pending deadlock",
           );
+        }
+
+        // Un-claim messages that did NOT make it into the trimmed batch.
+        // getPendingMessagesByConversation() flips EVERY fetched pending row
+        // to `processing`; pickBatchWithinBudget() may then stop early on the
+        // token budget, leaving the tail rows stuck in `processing` forever
+        // (recovery only reverts rows older than 120s, and these keep getting
+        // re-claimed each wave). Return them to `pending` so the next wave
+        // picks them up instead of leaking processing slots.
+        const unclaimed = computeBudgetOverflowMessages(
+          processableMessages,
+          trimmed,
+        );
+        if (unclaimed.length > 0) {
+          const unclaimedRows = await messageStore
+            .updateMessagesAIAnalysisBulk(
+              unclaimed.map((msg) => ({
+                messageId: msg.id,
+                result: {
+                  status: "pending",
+                  flags: null,
+                  score: null,
+                  analysis: null,
+                  categories: null,
+                  severity: null,
+                  confidence: null,
+                  recommendedAction: null,
+                  analyzedAt: null,
+                  error: null,
+                },
+              })),
+            )
+            .catch((err: unknown) => {
+              logger.error(
+                {
+                  conversationKey,
+                  lane,
+                  count: unclaimed.length,
+                  error: err instanceof Error ? err.message : String(err),
+                },
+                "Failed to un-claim budget-overflow messages back to pending",
+              );
+              return null;
+            });
+          if (unclaimedRows) {
+            logger.debug(
+              {
+                conversationKey,
+                lane,
+                unclaimedCount: unclaimed.length,
+              },
+              "Returned budget-overflow messages to pending for next wave",
+            );
+          }
         }
 
         // processBatch releases THIS lane's lock the moment its worker job

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeBudgetOverflowMessages,
   pickBatchWithinBudget,
   type TokenEstimator,
 } from "../src/modules/ai-moderation/batchBudget.js";
@@ -9,6 +10,8 @@ import type { MessageRecord } from "../src/modules/message-capture/types.js";
 // exact regardless of tiktoken behavior (the real estimator is injected at
 // the call site — see batchProcessor.ts).
 const estimate: TokenEstimator = (text: string) => text.length;
+
+const TOKENS_PER_MESSAGE = 50;
 
 function msg(id: string, content: string, createdAt: number): MessageRecord {
   return {
@@ -36,8 +39,6 @@ function msg(id: string, content: string, createdAt: number): MessageRecord {
 }
 
 describe("pickBatchWithinBudget", () => {
-  const TOKENS_PER_MESSAGE = 50;
-
   it("returns a contiguous chronological prefix — no gaps mid-timeline", () => {
     // sizes: 100, 100, 400 (overflow), 10
     const messages = [
@@ -86,6 +87,62 @@ describe("pickBatchWithinBudget", () => {
   it("handles empty input", () => {
     expect(
       pickBatchWithinBudget([], 500, TOKENS_PER_MESSAGE, estimate),
+    ).toEqual([]);
+  });
+});
+
+describe("computeBudgetOverflowMessages", () => {
+  it("returns the tail that did NOT fit the token budget", () => {
+    const messages = [
+      msg("m1", "a".repeat(100), 1),
+      msg("m2", "b".repeat(100), 2),
+      msg("m3", "c".repeat(900), 3),
+      msg("m4", "d".repeat(10), 4),
+    ];
+    // 500 budget: m1(150)+m2(150)=300 fits, m3(950) overflows → batch = [m1,m2]
+    const batch = pickBatchWithinBudget(
+      messages,
+      500,
+      TOKENS_PER_MESSAGE,
+      estimate,
+    );
+    const overflow = computeBudgetOverflowMessages(messages, batch);
+    // m3 + m4 were claimed `processing` by the DB fetch but never processed —
+    // they must be identified so the scheduler can return them to `pending`.
+    expect(overflow.map((m) => m.id)).toEqual(["m3", "m4"]);
+  });
+
+  it("returns everything when the batch is empty (all overflow)", () => {
+    const messages = [
+      msg("m1", "x".repeat(1000), 1),
+      msg("m2", "y".repeat(1000), 2),
+    ];
+    const batch = pickBatchWithinBudget(
+      messages,
+      500,
+      TOKENS_PER_MESSAGE,
+      estimate,
+    );
+    expect(batch).toHaveLength(0);
+    expect(
+      computeBudgetOverflowMessages(messages, batch).map((m) => m.id),
+    ).toEqual(["m1", "m2"]);
+  });
+
+  it("returns nothing when every claimed message was processed", () => {
+    const messages = [
+      msg("m1", "a".repeat(100), 1),
+      msg("m2", "b".repeat(100), 2),
+    ];
+    const batch = pickBatchWithinBudget(
+      messages,
+      500,
+      TOKENS_PER_MESSAGE,
+      estimate,
+    );
+    expect(batch).toHaveLength(2);
+    expect(
+      computeBudgetOverflowMessages(messages, batch).map((m) => m.id),
     ).toEqual([]);
   });
 });
