@@ -26,8 +26,16 @@ import {
 
 const logger = createChildLogger("ai-recovery");
 
-/** Revert messages stuck in `processing` for longer than this. */
-const STUCK_PROCESSING_AGE_MS = 300_000;
+/**
+ * Revert messages stuck in `processing` for longer than this.
+ * Kept in lockstep with the batch processing timeout
+ * (AI_ANALYSIS_PROCESSING_TIMEOUT_MS, default 120s): a row sitting past the
+ * batch budget is a leak, not a legitimate slow batch. messagesCleanup's
+ * default was lowered 300s→120s in 2026-08-24; this constant was missed and
+ * stayed at 300s — messages looked stuck for up to 5 minutes before recovery
+ * touched them.
+ */
+const STUCK_PROCESSING_AGE_MS = config.AI_ANALYSIS_PROCESSING_TIMEOUT_MS;
 
 /**
  * Starts the periodic recovery worker.
