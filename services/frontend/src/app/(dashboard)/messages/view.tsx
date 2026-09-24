@@ -739,7 +739,7 @@ function MessageDetail({
 
       {m.ai_analysis && (
         <div>
-          <div className="eyebrow mb-1">AI heuristic reasoning</div>
+          <div className="eyebrow mb-1">AI moderation analysis</div>
           <div className="hud-card p-3 text-xs text-ink-muted leading-relaxed">
             {m.ai_analysis}
           </div>
