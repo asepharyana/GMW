@@ -35,8 +35,17 @@ export function deriveSeverity(msg: MessageRecord): string {
 
 /** Derive recommended action from legacy messages that lack structured AI fields. */
 export function deriveRecommendedAction(msg: MessageRecord): string {
-  if (msg.ai_recommended_action) return msg.ai_recommended_action;
   const severity = deriveSeverity(msg);
+  // Flagged at high/critical severity is ALWAYS delete — the stored
+  // recommended_action from the LLM is conservative (often "review") and
+  // must not override severity for severe violations.
+  if (
+    msg.ai_status === "flagged" &&
+    (severity === "critical" || severity === "high")
+  ) {
+    return "delete";
+  }
+  if (msg.ai_recommended_action) return msg.ai_recommended_action;
   if (
     msg.ai_status === "flagged" &&
     (severity === "critical" || severity === "high" || severity === "medium")
@@ -177,19 +186,36 @@ export function isEligibleForAutoDelete(
     return false;
   }
 
-  // Recommended action check
-  const recommendedAction =
-    analysisResult?.recommendedAction ?? deriveRecommendedAction(message);
+  // Recommended action check.
+  // CRITICAL: the LLM's `recommended_action` is CONSERVATIVE — for a flagged
+  // message at high/critical severity it frequently emits "review" (it sees a
+  // screenshot/context ambiguity and hedges) even when the violation itself is
+  // severe. Trusting that value lets serious violations (harassment, SARA,
+  // threats) slip through undeleted. So: flagged + high/critical severity is
+  // ALWAYS eligible regardless of the LLM's recommended action. The action
+  // check only gates warn/flagged-medium (where a review is legitimate).
   if (
-    recommendedAction !== "delete" &&
-    recommendedAction !== "escalate" &&
-    recommendedAction !== "warn"
+    status === "flagged" &&
+    (severity === "high" || severity === "critical")
   ) {
     logger.debug(
-      { messageId: message.id, recommendedAction },
-      "Message not eligible for auto-delete: recommended action is not delete/escalate/warn",
+      { messageId: message.id, status, severity },
+      "Message eligible for auto-delete: flagged with high/critical severity",
     );
-    return false;
+  } else {
+    const recommendedAction =
+      analysisResult?.recommendedAction ?? deriveRecommendedAction(message);
+    if (
+      recommendedAction !== "delete" &&
+      recommendedAction !== "escalate" &&
+      recommendedAction !== "warn"
+    ) {
+      logger.debug(
+        { messageId: message.id, recommendedAction },
+        "Message not eligible for auto-delete: recommended action is not delete/escalate/warn",
+      );
+      return false;
+    }
   }
 
   // Categories check
