@@ -23,3 +23,7 @@ result
 
 # Playwright MCP artifacts
 .playwright-mcp/
+findings.md
+findings.md
+progress.md
+task_plan.md
