@@ -43,7 +43,7 @@ services/discord-gateway/
 │       ├── command-handler/         # Redis-subscribed backend→gateway commands
 │       ├── reaction-tracking/ thread-tracking/ user-presence/
 │       ├── channel-topic/ guild-member-events/ monitor/
-│       └── gateway-metrics/         # Prometheus /metrics endpoint (port 4016)
+│       └── gateway-metrics/         # Prometheus /metrics endpoint (METRICS_PORT)
 ```
 
 Dependency direction is one-way: `index.ts` → `app/` → `modules/` → `shared/`.
@@ -148,8 +148,8 @@ See `src/shared/redis-channels.ts` for the canonical names.
    `initializeDatabase()` (pg Pool, min 0).
 4. `registerClientDebugLogging()` — only client debug lines carrying signal.
 5. Install process guards (`registerProcessGuards`).
-6. Register pipeline gauges + start the metrics server (port `METRICS_PORT`,
-   default 4016).
+6. Register pipeline gauges + start the metrics server (`METRICS_PORT`, code
+   default 9090, set per deployment).
 7. `client.login(token)`.
 
 On the Discord `ready` event, `lifecycle.ts` runs `startGatewayLifecycle()`:
@@ -173,7 +173,9 @@ handler → close DB → destroy client → exit.
 
 ## Observability
 
-Prometheus scrapes `127.0.0.1:4016/metrics` (`bete_*` prefix). Collectors run
+Prometheus scrapes the metrics server at `127.0.0.1:$METRICS_PORT/metrics`
+(`bete_*` prefix; the code default is 9090 — deployments set it explicitly,
+this host uses 4018). Collectors run
 per-scrape and expose: process memory/uptime, and (when AI analysis is on) live
 pipeline gauges registered by `app/metrics-collector.ts` —
 `ai_analysis_queued_conversations`, `ai_analysis_active_batch_requests`,

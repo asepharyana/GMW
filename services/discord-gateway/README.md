@@ -47,7 +47,7 @@ src/
     ├── attachment-upload/   #   download → resize → upload
     ├── event-broadcaster/   #   Redis pub/sub publisher
     ├── command-handler/     #   backend → gateway commands over Redis
-    ├── gateway-metrics/     #   Prometheus /metrics (port 4016)
+    ├── gateway-metrics/     #   Prometheus /metrics (METRICS_PORT)
     ├── monitor/             #   weekly digest scheduler
     └── reaction-tracking/ thread-tracking/ user-presence/
         channel-topic/ guild-member-events/
