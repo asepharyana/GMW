@@ -54,7 +54,7 @@ src/
    **Never** reintroduce regex/heuristic content classification.
 2. **Discord tokens sanitized** before reaching LLM (`discordTokens.ts`).
 3. **Semantic cache is batched** — one embed call + one Qdrant batch search.
-4. **Streaming is mandatory** against the omniroute base URL.
+4. **Streaming is mandatory** against the router base URL.
 
 ## AI moderation pipeline
 

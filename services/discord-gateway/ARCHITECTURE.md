@@ -194,5 +194,5 @@ pipeline gauges registered by `app/metrics-collector.ts` —
   numeric snowflake IDs never trigger false positives.
 - **Semantic cache is batched** (one embed call + one Qdrant batch search),
   not N sequential round-trips. `ensureQdrantCollection` is memoized.
-- **Streaming is mandatory** against the omniroute base URL (non-stream waits for
+- **Streaming is mandatory** against the router base URL (non-stream waits for
   the full body and times out). `llmClient` aggregates SSE chunks.

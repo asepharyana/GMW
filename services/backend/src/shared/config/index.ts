@@ -96,10 +96,10 @@ export const configSchema = z
       .transform((v) => v === "true")
       .default(false),
     AI_LLM_API_KEY: z.string().optional(),
-    AI_LLM_BASE_URL: z
-      .string()
-      .url()
-      .default("http://100.121.180.82:20128/api/v1"),
+    // 9router — OpenAI-compatible router on this host (127.0.0.1:4014).
+    // Loopback on purpose: backend runs on the same machine as 9router, so no
+    // TLS/proxy hop is needed.
+    AI_LLM_BASE_URL: z.string().url().default("http://127.0.0.1:4014/v1"),
     AI_LLM_MODEL: z.string().default("text"),
     AI_LLM_VISION_MODEL: z.string().optional(),
     AI_LLM_EMBEDDING_MODEL: z.string().optional(),

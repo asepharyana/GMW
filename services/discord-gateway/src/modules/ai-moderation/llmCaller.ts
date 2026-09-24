@@ -92,7 +92,7 @@ export async function callModerationLLM(
             jsonResponse: { type: "json_object" },
             retries: 0,
             signal,
-            // Router (omniroute) always streams SSE even when the
+            // Router always streams SSE even when the
             // request omits `stream`. In non-stream mode the OpenAI SDK waits
             // for the FULL body before parsing, so slow/long upstream streams
             // hit the 30s/60s timeout and abort mid-generation. Streaming mode
