@@ -4,7 +4,7 @@ import type {
   NodePgQueryResultHKT,
 } from "drizzle-orm/node-postgres";
 import { createChildLogger } from "@/shared/logger/index";
-import { config } from "../shared/config/config.js";
+import { config } from "../shared/config/index.js";
 import { getDatabase } from "../shared/database/drizzle.js";
 import type * as schema from "../shared/database/schema.js";
 import { attachmentsTable, messagesTable } from "../shared/database/schema.js";

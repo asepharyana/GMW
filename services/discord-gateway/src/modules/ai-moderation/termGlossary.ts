@@ -34,7 +34,7 @@ import { LRUCache } from "lru-cache";
 import pLimit from "p-limit";
 import { createChildLogger } from "@/shared/logger/index";
 import { delay } from "@/shared/utils/index";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 import { cacheGet, cacheSet, makeCacheKey } from "./cacheStore.js";
 import { escapeXml } from "./moderationBuilders.js";
 import {

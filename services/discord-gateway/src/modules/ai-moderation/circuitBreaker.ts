@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { fileURLToPath } from "node:url";
 import { Piscina } from "piscina";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 import type { MessageRecord } from "../message-capture/types.js";
 
 // ---------------------------------------------------------------------------

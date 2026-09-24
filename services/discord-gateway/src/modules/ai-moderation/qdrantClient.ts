@@ -13,7 +13,7 @@
 import { createHash } from "node:crypto";
 
 import { createChildLogger } from "@/shared/logger/index";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 
 const log = createChildLogger("qdrant");
 

@@ -1,6 +1,6 @@
 import type { Client } from "discord.js-selfbot-v13";
 import { createChildLogger } from "@/shared/logger/index";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 import type { MessageRecord } from "../message-capture/types.js";
 
 const logger = createChildLogger("auto-delete-notify");

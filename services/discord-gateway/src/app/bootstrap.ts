@@ -31,7 +31,7 @@ import { startDigestScheduler } from "../modules/monitor/digestScheduler.js";
 import { registerReactionCapture } from "../modules/reaction-tracking/index.js";
 import { registerThreadCapture } from "../modules/thread-tracking/index.js";
 import { registerPresenceCapture } from "../modules/user-presence/index.js";
-import { config } from "../shared/config/config.js";
+import { config } from "../shared/config/index.js";
 import {
   closeDatabase,
   initializeDatabase,

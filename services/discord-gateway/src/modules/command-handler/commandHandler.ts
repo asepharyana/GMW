@@ -1,6 +1,6 @@
 import type { Client } from "discord.js-selfbot-v13";
 import Redis from "ioredis";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 import {
   BACKEND_COMMAND,
   type CommandMessage,

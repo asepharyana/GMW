@@ -1,6 +1,6 @@
 import { createChildLogger } from "@/shared/logger/index";
 import { retryWithBackoff } from "@/shared/utils/index";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 import { uploadToTele } from "../../shared/uploader.js";
 import { messageStore } from "../message-capture/messageStore.js";
 

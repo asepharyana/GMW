@@ -20,7 +20,7 @@
 
 import { createChildLogger } from "@/shared/logger/index";
 import { createAbortControllerWithTimeout } from "@/shared/utils/index";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 import { cacheGet, cacheSet, makeCacheKey } from "./cacheStore.js";
 import {
   cleanContent,

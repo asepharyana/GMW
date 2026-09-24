@@ -7,7 +7,7 @@
 
 import { LRUCache } from "lru-cache";
 import { createChildLogger } from "@/shared/logger/index";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 import { incrementCounterBy } from "../gateway-metrics/index.js";
 import { extractMessageMediaEvidence } from "../message-capture/messageMetadata.js";
 import type {

@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { createChildLogger } from "@/shared/logger/index";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import { messagesTable } from "../../shared/database/schema.js";
 import { llmChat } from "./llmClient.js";

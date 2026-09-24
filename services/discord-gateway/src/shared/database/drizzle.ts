@@ -7,7 +7,7 @@ import {
   withDatabaseClient as sharedWithClient,
 } from "@/shared/database/init";
 import { createChildLogger } from "@/shared/logger/index";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 import * as schema from "./schema.js";
 
 const logger = createChildLogger("drizzle");

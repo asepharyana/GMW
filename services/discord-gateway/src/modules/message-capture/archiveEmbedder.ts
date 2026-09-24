@@ -8,7 +8,7 @@ import {
   upsertQdrantPointV2,
 } from "@/modules/ai-moderation/qdrantClient";
 import { createChildLogger } from "@/shared/logger/index";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 
 const log = createChildLogger("archive-embedder");
 

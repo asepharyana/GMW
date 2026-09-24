@@ -13,7 +13,7 @@
 import type { ChatCompletion } from "openai/resources/chat/completions";
 import { createChildLogger } from "@/shared/logger/index";
 import { delay, retryWithBackoff } from "@/shared/utils/index";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 import { incrementCounterBy } from "../gateway-metrics/index.js";
 import type { AnalysisResult } from "../message-capture/types.js";
 import { llmChat } from "./llmClient.js";

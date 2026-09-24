@@ -1,6 +1,6 @@
 import http from "node:http";
 import { createChildLogger } from "@/shared/logger/index";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 
 const logger = createChildLogger("gateway-metrics");
 

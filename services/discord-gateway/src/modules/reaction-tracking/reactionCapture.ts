@@ -6,7 +6,7 @@ import type {
   User,
 } from "discord.js-selfbot-v13";
 import { createChildLogger } from "@/shared/logger/index";
-import { config } from "../../shared/config/config.js";
+import { config } from "../../shared/config/index.js";
 import { getDatabase } from "../../shared/database/drizzle.js";
 import { reactionsTable } from "../../shared/database/schema.js";
 import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";
