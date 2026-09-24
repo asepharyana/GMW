@@ -15,41 +15,78 @@ import { config } from "../../shared/config/index.js";
 const log = createChildLogger("llm-client");
 
 // ---------------------------------------------------------------------------
-// Concurrency limiter for LLM API calls (inlined from concurrencyLimiter.ts)
+// Concurrency limiters for LLM API calls (inlined from concurrencyLimiter.ts)
 // ---------------------------------------------------------------------------
+//
+// Split into TWO independent semaphores (2026-09-24): the text lane and the
+// media lane (vision + media batches) no longer share one global cap. A slow
+// vision call used to occupy a slot of the SINGLE pLimit(AI_LLM_MAX_CONCURRENT)
+// semaphore, so a media-heavy burst could starve text inference. Now each lane
+// has its own cap — media churn can never consume text slots, and vice versa.
 
-// The limiter is cached per configured concurrency value so it can be tuned
-// (env / BWS) without a code change and always reflects the current config —
-// a module-level `pLimit(config.X)` would freeze the cap at import time.
-let llmSemaphore = pLimit(config.AI_LLM_MAX_CONCURRENT ?? 5);
-let llmSemaphoreLimit = config.AI_LLM_MAX_CONCURRENT ?? 5;
+type LlmLane = "text" | "media";
 
-function getLlmSemaphore() {
-  const wanted = config.AI_LLM_MAX_CONCURRENT ?? 5;
-  if (wanted !== llmSemaphoreLimit) {
-    llmSemaphore = pLimit(wanted);
-    llmSemaphoreLimit = wanted;
+interface LaneSemaphore {
+  limiter: ReturnType<typeof pLimit>;
+  limit: number;
+}
+
+const laneSemaphores: Record<LlmLane, LaneSemaphore> = {
+  text: {
+    limiter: pLimit(config.AI_LLM_MAX_CONCURRENT ?? 5),
+    limit: config.AI_LLM_MAX_CONCURRENT ?? 5,
+  },
+  media: {
+    limiter: pLimit(config.AI_LLM_MEDIA_MAX_CONCURRENT ?? 4),
+    limit: config.AI_LLM_MEDIA_MAX_CONCURRENT ?? 4,
+  },
+};
+
+function getLaneSemaphore(lane: LlmLane): ReturnType<typeof pLimit> {
+  const wanted =
+    lane === "media"
+      ? (config.AI_LLM_MEDIA_MAX_CONCURRENT ?? 4)
+      : (config.AI_LLM_MAX_CONCURRENT ?? 5);
+  const slot = laneSemaphores[lane];
+  if (wanted !== slot.limit) {
+    slot.limiter = pLimit(wanted);
+    slot.limit = wanted;
   }
-  return llmSemaphore;
+  return slot.limiter;
 }
 
 let activeCount = 0;
 let pendingCount = 0;
 
-export async function withLlmConcurrency<T>(fn: () => Promise<T>): Promise<T> {
+/**
+ * Run `fn` under the per-lane LLM concurrency cap.
+ *
+ * `lane: "text"` uses `AI_LLM_MAX_CONCURRENT`; `lane: "media"` uses
+ * `AI_LLM_MEDIA_MAX_CONCURRENT`. Defaults to "text" so the existing text
+ * moderation path is unchanged.
+ */
+export async function withLlmConcurrency<T>(
+  fn: () => Promise<T>,
+  opts: { lane?: LlmLane } = {},
+): Promise<T> {
+  const lane = opts.lane ?? "text";
+  const maxConcurrent =
+    lane === "media"
+      ? (config.AI_LLM_MEDIA_MAX_CONCURRENT ?? 4)
+      : (config.AI_LLM_MAX_CONCURRENT ?? 5);
   pendingCount++;
   log.debug(
-    { activeCount, pendingCount, maxConcurrent: config.AI_LLM_MAX_CONCURRENT },
+    { activeCount, pendingCount, maxConcurrent, lane },
     "Queuing LLM request",
   );
 
-  return getLlmSemaphore()(async () => {
+  return getLaneSemaphore(lane)(async () => {
     pendingCount--;
     activeCount++;
 
-    if (activeCount >= (config.AI_LLM_MAX_CONCURRENT ?? 5)) {
+    if (activeCount >= maxConcurrent) {
       log.warn(
-        { activeCount, maxConcurrent: config.AI_LLM_MAX_CONCURRENT },
+        { activeCount, maxConcurrent, lane },
         "LLM concurrency limit reached",
       );
     }
@@ -177,6 +214,11 @@ export interface LlmCallOpts {
    * so a single large-image call isn't killed early by the shared default.
    */
   timeout?: number;
+  /**
+   * Concurrency lane. "text" uses AI_LLM_MAX_CONCURRENT; "media" (vision,
+   * media batches) uses AI_LLM_MEDIA_MAX_CONCURRENT. Defaults to "text".
+   */
+  lane?: "text" | "media";
 }
 
 /**
@@ -255,78 +297,84 @@ export async function llmChat(
 
   return retryWithBackoff(
     async () => {
-      return withLlmConcurrency(async () => {
-        const execute = async (
-          currentParams: OpenAI.Chat.Completions.ChatCompletionCreateParams,
-        ) => {
-          const response = await client.chat.completions.create(currentParams, {
-            signal,
-            ...(opts.timeout ? { timeout: opts.timeout } : {}),
-          });
-          if (currentParams.stream) {
-            let content = "";
-            let finishReason = "stop";
-            for await (const chunk of response as unknown as AsyncIterable<LLMResponseChunk>) {
-              const choice = chunk?.choices?.[0];
-              content += extractChunkText(chunk);
-              const fr = choice?.finish_reason || chunk?.finish_reason;
-              if (fr) finishReason = fr;
-            }
-            return {
-              id: "stream-aggregated",
-              choices: [
-                {
-                  message: { role: "assistant", content, refusal: null },
-                  finish_reason: finishReason,
-                  index: 0,
-                  logprobs: null,
-                },
-              ],
-              created: Math.floor(Date.now() / 1000),
-              model: currentParams.model,
-              object: "chat.completion",
-            } as OpenAI.Chat.Completions.ChatCompletion;
-          }
-          return response as OpenAI.Chat.Completions.ChatCompletion;
-        };
-
-        try {
-          return await execute(params);
-        } catch (error: any) {
-          const rawResponse =
-            error.error || error.body || error.response?.data || "N/A";
-          const errorStr = (
-            JSON.stringify(rawResponse) + String(error.message)
-          ).toLowerCase();
-
-          // Auto-fallback: If provider strictly demands streaming (400 Bad Request on stream params)
-          if (
-            error.status === 400 &&
-            errorStr.includes("stream") &&
-            !params.stream
-          ) {
-            log.warn(
-              { model },
-              "Provider rejected non-streaming request. Fallback to stream: true initiated.",
+      return withLlmConcurrency(
+        async () => {
+          const execute = async (
+            currentParams: OpenAI.Chat.Completions.ChatCompletionCreateParams,
+          ) => {
+            const response = await client.chat.completions.create(
+              currentParams,
+              {
+                signal,
+                ...(opts.timeout ? { timeout: opts.timeout } : {}),
+              },
             );
-            (
-              params as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming
-            ).stream = true;
-            return await execute(params);
-          }
+            if (currentParams.stream) {
+              let content = "";
+              let finishReason = "stop";
+              for await (const chunk of response as unknown as AsyncIterable<LLMResponseChunk>) {
+                const choice = chunk?.choices?.[0];
+                content += extractChunkText(chunk);
+                const fr = choice?.finish_reason || chunk?.finish_reason;
+                if (fr) finishReason = fr;
+              }
+              return {
+                id: "stream-aggregated",
+                choices: [
+                  {
+                    message: { role: "assistant", content, refusal: null },
+                    finish_reason: finishReason,
+                    index: 0,
+                    logprobs: null,
+                  },
+                ],
+                created: Math.floor(Date.now() / 1000),
+                model: currentParams.model,
+                object: "chat.completion",
+              } as OpenAI.Chat.Completions.ChatCompletion;
+            }
+            return response as OpenAI.Chat.Completions.ChatCompletion;
+          };
 
-          log.error(
-            {
-              error: error.message,
-              status: error.status,
-              rawResponse,
-              model,
-            },
-            "LLM API request failed",
-          );
-          throw error;
-        }
-      });
+          try {
+            return await execute(params);
+          } catch (error: any) {
+            const rawResponse =
+              error.error || error.body || error.response?.data || "N/A";
+            const errorStr = (
+              JSON.stringify(rawResponse) + String(error.message)
+            ).toLowerCase();
+
+            // Auto-fallback: If provider strictly demands streaming (400 Bad Request on stream params)
+            if (
+              error.status === 400 &&
+              errorStr.includes("stream") &&
+              !params.stream
+            ) {
+              log.warn(
+                { model },
+                "Provider rejected non-streaming request. Fallback to stream: true initiated.",
+              );
+              (
+                params as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming
+              ).stream = true;
+              return await execute(params);
+            }
+
+            log.error(
+              {
+                error: error.message,
+                status: error.status,
+                rawResponse,
+                model,
+              },
+              "LLM API request failed",
+            );
+            throw error;
+          }
+        },
+        { lane: opts.lane ?? "text" },
+      );
     },
     {
       retries,
@@ -356,7 +404,7 @@ export async function llmVision(
   promptText: string,
   imageUrl: { url: string },
 ): Promise<string | null> {
-  const params = {
+  const params: LlmCallOpts = {
     messages: [
       {
         role: "user" as const,
@@ -372,6 +420,7 @@ export async function llmVision(
     top_p: 0.9,
     retries: 0,
     timeout: config.AI_LLM_VISION_ANALYSIS_TIMEOUT_MS ?? 60_000,
+    lane: "media",
   };
 
   // Streaming first (the router always streams SSE; a non-stream request

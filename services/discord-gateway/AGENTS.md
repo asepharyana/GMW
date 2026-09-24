@@ -69,8 +69,14 @@ textBatchProcessor.ts    mediaBatchProcessor.ts         llmClient.ts
 ```
 
 - Entry: `aiAnalyzer.ts` (`queueMessageAnalysis`, `startPendingAIAnalysisWorker`)
-- Concurrency: LLM semaphore (`AI_LLM_MAX_CONCURRENT`, default 5)
+- Concurrency: **two per-lane LLM semaphores** (2026-09-24) — text
+  (`AI_LLM_MAX_CONCURRENT`, default 8) and media/vision
+  (`AI_LLM_MEDIA_MAX_CONCURRENT`, default 4); a media backlog can never
+  consume text slots
 - Piscina: text pool (4 threads) + media pool (2 threads)
+- Locks are **per conversation per lane** (`conversationProcessing` maps key →
+  lane → startedAt): the text lane of a conversation never waits on that
+  conversation's media lane (this was the "image blocks the queue" bug)
 - **Each worker thread has its own pg Pool** (min 0, grows to `POSTGRES_POOL_MAX`)
 
 ## Module: message-capture

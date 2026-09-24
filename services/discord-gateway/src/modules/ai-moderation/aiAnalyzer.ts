@@ -5,7 +5,9 @@ import type { EventBroadcaster } from "../event-broadcaster/index.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type { AnalysisQueueStatus } from "../message-capture/types.js";
 import {
+  activeMediaRequests,
   activeRequests,
+  activeTextRequests,
   buildAgeRestrictedSkipResult,
   buildSkipAnalysisUserResult,
   isAgeRestrictedMessage,
@@ -16,6 +18,9 @@ import {
 import { scheduleConversationAnalysis } from "./batchScheduler.js";
 import { getConversationKey } from "./circuitBreaker.js";
 import {
+  ANALYSIS_LANES,
+  type AnalysisLane,
+  clearConversationProcessing,
   conversationConsecutiveErrors,
   conversationDebounceTimers,
   conversationErrorCooldown,
@@ -129,6 +134,8 @@ export function getAnalysisQueueStatus(): AnalysisQueueStatus {
   return {
     queuedConversations: conversationDebounceTimers.size,
     activeRequests,
+    activeTextRequests,
+    activeMediaRequests,
     activeIndividualRequests,
     individualInFlightCount: individualInFlight.size,
     individualCircuitBreakerActive: Date.now() < individualCooldownUntil,
@@ -204,9 +211,18 @@ export function startPendingAIAnalysisWorker(
         for (const [key, expiry] of conversationErrorCooldown) {
           if (now >= expiry) conversationErrorCooldown.delete(key);
         }
-        for (const [key, startedAt] of conversationProcessing) {
-          if (now - startedAt >= config.AI_ANALYSIS_PROCESSING_TIMEOUT_MS) {
-            conversationProcessing.delete(key);
+        // conversationProcessing is now a Partial<Record<lane, startedAt>>.
+        // Prune stale lane slots individually so one stale lane never clears
+        // the other lane's healthy lock.
+        for (const [key, record] of conversationProcessing) {
+          for (const lane of ANALYSIS_LANES as readonly AnalysisLane[]) {
+            const startedAt = record?.[lane];
+            if (
+              startedAt &&
+              now - startedAt >= config.AI_ANALYSIS_PROCESSING_TIMEOUT_MS
+            ) {
+              clearConversationProcessing(key, lane);
+            }
           }
         }
 
@@ -235,12 +251,23 @@ export function startPendingAIAnalysisWorker(
 
         // --- Batch recovery for pending messages ---
         for (const key of pendingKeys) {
-          if (conversationDebounceTimers.has(key)) continue;
+          if (
+            ANALYSIS_LANES.some((lane) =>
+              conversationDebounceTimers.has(`${key}::${lane}`),
+            )
+          ) {
+            continue;
+          }
+          // Batch recovery must not race ANY in-flight batch lane, so the
+          // lock check is lane-agnostic here (individual fallback handles
+          // error rows separately).
           if (isConversationProcessingLocked(key)) continue;
           if (individualInFlightByConversation.has(key)) continue;
           if (incompleteKeySet.has(key)) continue;
           const cooldownUntil = conversationErrorCooldown.get(key);
           if (cooldownUntil && now < cooldownUntil) continue;
+          // No lane specified → schedule BOTH lanes; each fetches its own
+          // pending subset from the DB.
           scheduleConversationAnalysis(key);
         }
 

@@ -46,24 +46,38 @@ services/discord-gateway/
 ## AI moderation pipeline (`ai-moderation/`)
 
 LLM-only judge — no regex/heuristic classification. One orchestrator call
-handles a whole batch (text + media split internally, parallel paths).
+handles a whole batch. **Independent text/media lanes** (2026-09-24): a
+conversation batch is split into a text lane (messages with no media) and a
+media lane (attachments/stickers/embeds) that are dispatched to separate
+pools, hold SEPARATE per-lane processing locks, and run under SEPARATE LLM
+concurrency semaphores. The text lane frees its lock and saves+broadcasts the
+moment text analysis finishes — it never waits on a slow vision/media batch
+of the same conversation, and vice versa.
 
 - `aiAnalyzer.ts` — public API: `queueMessageAnalysis`, `getAnalysisQueueStatus`,
   `startPendingAIAnalysisWorker` (recovery worker + cache-prune).
-- `batchScheduler.ts` — per-conversation debounce → `processBatch`.
-- `batchProcessor.ts` — batch lock/circuit-breaker, fans failed targets to
-  individual fallback.
+- `batchScheduler.ts` — per-conversation per-LANE debounce → `processBatch`
+  (lane-aware). `splitMessagesByLane` / `laneOfMessage` live in
+  `analysisLanes.ts` (pure, unit-testable).
+- `batchProcessor.ts` — per-lane batch lock/circuit-breaker, fans failed
+  targets to individual fallback. `processBatch` releases ITS lane's lock the
+  moment that lane's worker job finishes; the other lane owns its own lock.
 - `individualFallbackProcessor.ts` — one-message-at-a-time retry path, own CB.
-- `conversationState.ts` / `circuitBreaker.ts` — per-conversation state,
-  Piscina `workerPool`, `getConversationKey`.
-- `ai-analysis-worker.ts` — Piscina entry point (`batch` / `individual` jobs).
-  Runs `runModerationAnalysis` off the main thread.
+- `conversationState.ts` / `circuitBreaker.ts` — per-conversation PER-LANE
+  state (`conversationProcessing` holds a lane → startedAt map per key),
+  Piscina `textWorkerPool`/`mediaWorkerPool`, `getConversationKey`.
+- `ai-analysis-worker.ts` — Piscina entry point (`batch` (lane) /
+  `individual` jobs). Runs `runModerationAnalysis` off the main thread.
 - `moderationOrchestrator.ts` — exact-hash cache → batched semantic (Qdrant)
   cache → LLM. Text and media paths run in parallel.
 - `textBatchProcessor.ts` / `mediaBatchProcessor.ts` — actual LLM calls
-  (one call per sub-batch, not per message).
+  (one call per sub-batch, not per message). `mediaBatchProcessor` routes its
+  moderation LLM call through the MEDIA semaphore.
 - `llmClient.ts` — central OpenAI-compatible chat client (streaming, retries,
-  thinking-disable injection). `visionAnalyzer.ts` / `mediaAnalysisClient.ts`
+  thinking-disable injection). TWO concurrency semaphores:
+  `AI_LLM_MAX_CONCURRENT` (text lane, default 8) and
+  `AI_LLM_MEDIA_MAX_CONCURRENT` (media lane, default 4) — a vision backlog
+  can never consume text slots. `visionAnalyzer.ts` / `mediaAnalysisClient.ts`
   share the same router/base URL (different model alias for vision).
 - `embeddingClient.ts` + `qdrantClient.ts` — semantic cache (one embed call +
   one batched Qdrant search for all uncached targets).
@@ -72,16 +86,16 @@ handles a whole batch (text + media split internally, parallel paths).
 
 ### Concurrency model
 
-- Main thread owns the LLM semaphore (`AI_LLM_MAX_CONCURRENT`, default 5) via
-  `llmClient.withLlmConcurrency`.
+- Main thread owns TWO per-lane LLM semaphores (2026-09-24):
+  `AI_LLM_MAX_CONCURRENT` (text, default 8) and `AI_LLM_MEDIA_MAX_CONCURRENT`
+  (media, default 4) via `llmClient.withLlmConcurrency(fn, { lane })`.
 - Two Piscina pools run the heavy LLM work off the event loop: a text pool
   (`PISCINA_MAX_THREADS`, default 4) and a dedicated media pool
-  (`PISCINA_MEDIA_MAX_THREADS`, default 2). A batch is routed to the media
-  pool if ANY of its messages carries an attachment/sticker/embed — this
-  keeps a slow image/vision batch from occupying every thread and blocking
-  unrelated text-only batches behind it. **Each worker thread (in either
-  pool) initializes its own pg Pool** (min 0, grows to `POSTGRES_POOL_MAX`).
-  See "Memory & connections" below.
+  (`PISCINA_MEDIA_MAX_THREADS`, default 2). A batch is routed by lane to the
+  matching pool — this keeps a slow image/vision batch from occupying every
+  thread and blocking unrelated text-only batches behind it. **Each worker
+  thread (in either pool) initializes its own pg Pool** (min 0, grows to
+  `POSTGRES_POOL_MAX`).  See "Memory & connections" below.
 
 ## Memory & DB connections
 

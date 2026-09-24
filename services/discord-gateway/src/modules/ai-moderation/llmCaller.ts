@@ -58,6 +58,9 @@ export async function callModerationLLM(
   // callers pass a prompt-derived ceiling so small batches don't reserve a
   // 16k completion budget (some routers pre-allocate KV cache per max_tokens).
   maxTokens?: number,
+  // Concurrency lane: "text" (default) uses AI_LLM_MAX_CONCURRENT; "media"
+  // uses AI_LLM_MEDIA_MAX_CONCURRENT.
+  lane: "text" | "media" = "text",
 ): Promise<{
   results: AnalysisResult[];
   raw: ChatCompletion | null;
@@ -96,6 +99,7 @@ export async function callModerationLLM(
             // consumes chunks incrementally — timeout only fires on a real
             // stall. llmClient aggregates the stream into a ChatCompletion.
             stream: true,
+            lane,
           });
 
           if (!completion)

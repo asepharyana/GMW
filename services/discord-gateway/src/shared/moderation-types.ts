@@ -146,6 +146,10 @@ export interface AnalysisQueueStatus {
   individualInFlightCount: number;
   individualCircuitBreakerActive: boolean;
   lastError: string | null;
+  /** Active batch worker jobs on the text lane (2026-09-24). */
+  activeTextRequests?: number;
+  /** Active batch worker jobs on the media lane (2026-09-24). */
+  activeMediaRequests?: number;
 }
 
 export type ReviewStatus = "pending" | "approved" | "rejected" | "escalated";
