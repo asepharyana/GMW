@@ -1,6 +1,4 @@
 import { createChildLogger } from "@/shared/logger/index";
-import { config } from "../../shared/config/index.js";
-import { deleteExpiredQdrantPoints } from "./qdrantClient.js";
 import { pruneExpiredTexts } from "./textCacheStore.js";
 
 const logger = createChildLogger("cache-prune");
@@ -11,7 +9,7 @@ const CACHE_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000; // every 6 hours
 let lastCachePruneAt = 0;
 
 /**
- * Cache hygiene: purge expired moderation verdicts from Postgres and Qdrant.
+ * Cache hygiene: purge expired moderation verdicts from Postgres.
  *
  * Expired entries are never reused (read filters check `expires_at`) but they
  * accumulate forever without a sweep. Called from the recovery interval; the
@@ -21,13 +19,10 @@ export function runCachePruneIfDue(now: number = Date.now()): void {
   if (now - lastCachePruneAt < CACHE_PRUNE_INTERVAL_MS) return;
   lastCachePruneAt = now;
 
-  Promise.all([pruneExpiredTexts(), deleteExpiredQdrantPoints()])
-    .then(([pgDeleted, qdDeleted]) => {
-      if (pgDeleted > 0 || qdDeleted > 0) {
-        logger.info(
-          { pgDeleted, qdDeleted },
-          "Expired moderation cache pruned",
-        );
+  Promise.resolve(pruneExpiredTexts())
+    .then((pgDeleted) => {
+      if (pgDeleted > 0) {
+        logger.info({ pgDeleted }, "Expired moderation cache pruned");
       }
     })
     .catch((err: unknown) => {

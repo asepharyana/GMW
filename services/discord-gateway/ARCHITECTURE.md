@@ -68,8 +68,8 @@ of the same conversation, and vice versa.
   (re-scheduled per lane) and `error`/`analysis_incomplete` messages
   (individual fallback queue); prunes stale lane locks, per-conversation CB
   counters and individual in-flight markers.
-- `cache-prune.ts` — throttled (6h) expired-verdict sweep across Postgres and
-  Qdrant, driven from the recovery interval.
+- `cache-prune.ts` — throttled (6h) expired-verdict sweep across Postgres,
+  driven from the recovery interval.
 - `batchScheduler.ts` — per-conversation per-LANE debounce → `processBatch`
   (lane-aware). `splitMessagesByLane` / `laneOfMessage` live in
   `analysisLanes.ts` (pure, unit-testable).
@@ -82,8 +82,8 @@ of the same conversation, and vice versa.
   Piscina `textWorkerPool`/`mediaWorkerPool`, `getConversationKey`.
 - `ai-analysis-worker.ts` — Piscina entry point (`batch` (lane) /
   `individual` jobs). Runs `runModerationAnalysis` off the main thread.
-- `moderationOrchestrator.ts` — exact-hash cache → batched semantic (Qdrant)
-  cache → LLM. Text and media paths run in parallel.
+- `moderationOrchestrator.ts` — exact-hash cache → LLM. Text and media paths
+  run in parallel.
 - `textBatchProcessor.ts` / `mediaBatchProcessor.ts` — actual LLM calls
   (one call per sub-batch, not per message). `mediaBatchProcessor` routes its
   moderation LLM call through the MEDIA semaphore.
@@ -93,8 +93,6 @@ of the same conversation, and vice versa.
   `AI_LLM_MEDIA_MAX_CONCURRENT` (media lane, default 4) — a vision backlog
   can never consume text slots. `visionAnalyzer.ts` / `mediaAnalysisClient.ts`
   share the same router/base URL (different model alias for vision).
-- `embeddingClient.ts` + `qdrantClient.ts` — semantic cache (one embed call +
-  one batched Qdrant search for all uncached targets).
 - `textCacheStore.ts` / `channelCultureStore.ts` / `userProfileStore.ts` /
   `userProfileStore.ts` — caches learned user profile summaries (optional).
 
@@ -192,7 +190,5 @@ pipeline gauges registered by `app/metrics-collector.ts` —
 - **Discord tokens are sanitized** (`discordTokens.ts`: `<:emoji:id>` →
   `[emoji:name]`, `<@id>` → `@user`, etc.) before content reaches the LLM, so
   numeric snowflake IDs never trigger false positives.
-- **Semantic cache is batched** (one embed call + one Qdrant batch search),
-  not N sequential round-trips. `ensureQdrantCollection` is memoized.
 - **Streaming is mandatory** against the router base URL (non-stream waits for
   the full body and times out). `llmClient` aggregates SSE chunks.

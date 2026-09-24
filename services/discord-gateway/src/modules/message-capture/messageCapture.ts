@@ -4,12 +4,10 @@ import { config } from "../../shared/config/index.js";
 import { queueMessageAnalysis } from "../ai-moderation/aiAnalyzer.js";
 import { processAttachmentUpload } from "../attachment-upload/attachmentUploader.js";
 import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js";
-import { archiveMessageEmbedded } from "../message-capture/archiveEmbedder.js";
 import {
   getDisplayContent,
   getMessageLocation,
   getMessageMetadata,
-  isAgeRestrictedMessage,
 } from "../message-capture/messageMetadata.js";
 import { messageStore } from "../message-capture/messageStore.js";
 import type {
@@ -211,16 +209,6 @@ export async function captureMessage(
   const inserted = await messageStore.upsertMessageForCapture(messageRecord);
   if (!inserted) {
     return;
-  }
-
-  // Fire-and-forget: make the captured message searchable in the persistent
-  // archive (public semantic search). Never blocks capture/moderation.
-  // NSFW/age-restricted messages are kept OUT of the public archive.
-  if (!isBacklog && messageRecord.content) {
-    archiveMessageEmbedded({
-      ...messageRecord,
-      isAgeRestricted: isAgeRestrictedMessage(message),
-    });
   }
 
   if (_eventBroadcaster && !isBacklog) {

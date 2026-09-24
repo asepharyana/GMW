@@ -25,7 +25,6 @@ export {
   useRecentEdits,
   useReview,
   useReviewWsSync,
-  useSemanticSearch,
   useTextChannels,
 } from "./use-messages";
 export {

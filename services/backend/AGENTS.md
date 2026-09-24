@@ -60,7 +60,7 @@ src/
 | moderation | Moderation actions & metrics | `ai_moderations`, `moderation_actions` |
 | media | Media file management | `media_attachments` |
 | dashboard | Stats aggregation | Various (read-only) |
-| knowledge | Semantic search | Qdrant vector DB |
+| knowledge | Channel cultures & glossary browser | `channel_cultures`, `term_glossary_cache` |
 | chatbot | AI chatbot with tools | `chatbot_history` |
 | health | Health checks + metrics | Various |
 | analysis | Text analysis cache | `text_analysis_cache` |

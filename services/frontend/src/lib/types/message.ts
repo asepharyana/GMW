@@ -166,29 +166,9 @@ export interface AttachmentRecord {
   uploaded_at?: number | null;
 }
 
-// ── Semantic Search (read-only public archive search) ──────────
-
-export interface SemanticSearchResult {
-  message_id: string | null;
-  content: string;
-  score: number;
-  created_at: number;
-  username: string | null;
-  channel_id: string | null;
-  guild_id: string | null;
-  thread_id: string | null;
-  channel_name: string | null;
-  thread_name: string | null;
-}
-
 export interface MessageActivityBucket {
   channelId: string;
   channelName: string;
   hour: number;
   count: number;
-}
-
-export interface SemanticSearchResponse {
-  results: SemanticSearchResult[];
-  nextCursor: null;
 }

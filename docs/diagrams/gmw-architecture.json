@@ -14,7 +14,7 @@
     { "id": "gateway", "type": "backend", "label": "discord-gateway", "sublabel": "selfbot :4016", "pos": [260, 240], "size": [140, 60], "tag": "discord.js-selfbot-v13" },
     { "id": "backend", "type": "backend", "label": "gmw-backend", "sublabel": "Express · oRPC · WS :4001", "pos": [640, 240], "size": [140, 60], "tag": "Drizzle ORM" },
     { "id": "proxy", "type": "cloud", "label": "nginx proxy", "sublabel": "reverse proxy :4009", "pos": [960, 240], "size": [140, 60], "tag": "nginx" },
-    { "id": "ai", "type": "backend", "label": "AI Moderation", "sublabel": "LLM caller · embeddings", "pos": [260, 400], "size": [140, 60] },
+    { "id": "ai", "type": "backend", "label": "AI Moderation", "sublabel": "LLM caller · vision", "pos": [260, 400], "size": [140, 60] },
     { "id": "frontend", "type": "frontend", "label": "gmw-frontend", "sublabel": "Next.js 16 SSR :4017", "pos": [960, 400], "size": [140, 60], "tag": "React 19 · Tailwind v4" },
     { "id": "llm", "type": "cloud", "label": "9router LLM", "sublabel": "text + vision API", "pos": [260, 540], "size": [140, 60], "tag": "AI_LLM_BASE_URL" },
     { "id": "browser", "type": "external", "label": "Dashboard Users", "sublabel": "browser · partysocket", "pos": [960, 540], "size": [140, 60] }

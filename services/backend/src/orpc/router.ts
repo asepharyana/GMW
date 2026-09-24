@@ -5,10 +5,7 @@ import { chatRequestSchema } from "../modules/chatbot/chatbot.schema";
 import { chatbotService } from "../modules/chatbot/chatbot.service";
 import { dashboardService } from "../modules/dashboard/dashboard.service";
 import { knowledgeService } from "../modules/knowledge/knowledge.service";
-import {
-  messageQuerySchema,
-  semanticSearchSchema,
-} from "../modules/messages/messages.schema";
+import { messageQuerySchema } from "../modules/messages/messages.schema";
 import { messagesService } from "../modules/messages/messages.service";
 import { moderationService } from "../modules/moderation/moderation.service";
 import { uiStateService } from "../modules/ui-state/ui-state.service";
@@ -123,10 +120,6 @@ const messagesRouter = {
       );
       return { results: rows, limit: input.limit, cursor: null };
     }),
-  // Public, read-only semantic search over the message archive.
-  semanticSearch: os
-    .input(semanticSearchSchema)
-    .handler(({ input }) => messagesService.semanticSearch(input)),
   // Public, read-only activity heatmap data (per-hour volume by channel).
   activity: os
     .input(

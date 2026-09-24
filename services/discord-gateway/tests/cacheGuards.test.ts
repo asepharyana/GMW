@@ -1,11 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Semantic two-band acceptance + global exact-cache reuse guard
+// Global exact-cache reuse guard
 // ═══════════════════════════════════════════════════════════════════════════
 // Design (2026-08-24): cache hits may be served MORE aggressively for
 // verdicts that cannot trigger enforcement actions, and NEVER more
-// aggressively for actionable ones. Two layers enforce this:
-//   - isSemanticBandAccepted: similarity thresholds differ by verdict class
-//     (clean band 0.92 default vs strict actionable band 0.97 default).
+// aggressively for actionable ones:
 //   - isGloballyReusableCleanVerdict: context-free (cross-channel) reuse of
 //     the legacy bare key only for clean / flagless / action=none verdicts
 //     with high confidence and bounded age.
@@ -30,64 +28,6 @@ function makeVerdict(
     ...overrides,
   };
 }
-
-describe("isSemanticBandAccepted", () => {
-  it("accepts a non-actionable clean verdict at the loose clean band", () => {
-    // Default AI_LLM_EMBEDDING_MIN_SIMILARITY_CLEAN = 0.92.
-    expect(isBandAccept(makeVerdict(), 0.93)).toBe(true);
-  });
-
-  it("accepts a clean verdict exactly at the clean band boundary", () => {
-    expect(isBandAccept(makeVerdict({ confidence: 0.99 }), 0.92)).toBe(true);
-  });
-
-  it("rejects a clean verdict below the clean band", () => {
-    expect(isBandAccept(makeVerdict(), 0.91)).toBe(false);
-  });
-
-  it("rejects an actionable flagged verdict between the bands", () => {
-    // 0.93 >= clean band BUT < strict band → must NOT be served.
-    expect(
-      isBandAccept(
-        makeVerdict({ status: "flagged", flags: ["hate_speech"] }),
-        0.93,
-      ),
-    ).toBe(false);
-  });
-
-  it("accepts a flagged verdict at the strict band", () => {
-    expect(
-      isBandAccept(
-        makeVerdict({ status: "flagged", flags: ["hate_speech"] }),
-        0.98,
-      ),
-    ).toBe(true);
-  });
-
-  it("rejects a warn verdict below the strict band", () => {
-    expect(
-      isBandAccept(
-        makeVerdict({ status: "warn", recommendedAction: "warn" }),
-        0.96,
-      ),
-    ).toBe(false);
-  });
-
-  it("treats a clean verdict WITH flags as actionable (strict band)", () => {
-    expect(isBandAccept(makeVerdict({ flags: ["borderline"] }), 0.93)).toBe(
-      false,
-    );
-  });
-
-  it("treats a clean verdict with a non-none action as actionable", () => {
-    expect(
-      isBandAccept(makeVerdict({ recommendedAction: "review" }), 0.93),
-    ).toBe(false);
-  });
-});
-
-// Import indirection so the describe block reads cleanly.
-import { isSemanticBandAccepted as isBandAccept } from "../src/modules/ai-moderation/textCacheStore.js";
 
 describe("isGloballyReusableCleanVerdict", () => {
   it("accepts a fresh, confident, flagless clean verdict", () => {

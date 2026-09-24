@@ -167,34 +167,6 @@ export const configSchema = z
       .describe(
         "Disable LLM chain-of-thought (reasoning/thinking) to speed up AI analysis. Set false to restore thinking.",
       ),
-    AI_LLM_EMBEDDING_MODEL: z.string().optional(),
-    AI_LLM_EMBEDDING_MIN_SIMILARITY: z.coerce
-      .number()
-      .min(0)
-      .max(1)
-      .default(0.97),
-    // Two-band semantic acceptance (2026-08-24): non-actionable verdicts
-    // (clean, no flags, action=none) may be reused from a LOOSER similarity
-    // band than actionable ones (warn/flagged). Actionable verdicts keep the
-    // strict gate above; anything between the two bands falls through to the
-    // LLM (fail-open toward accuracy).
-    AI_LLM_EMBEDDING_MIN_SIMILARITY_CLEAN: z.coerce
-      .number()
-      .min(0)
-      .max(1)
-      .default(0.92),
-    AI_LLM_EMBEDDING_MAX_CANDIDATES: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(50),
-    // Qdrant vector store for the semantic moderation cache. When
-    // QDRANT_URL is set, embeddings are stored/searched there (Postgres
-    // embedding column remains as a legacy fallback).
-    QDRANT_URL: z.string().optional(),
-    QDRANT_COLLECTION: z.string().default("gmw_text_moderation"),
-    QDRANT_ARCHIVE_COLLECTION: z.string().default("gmw_message_archive"),
-    QDRANT_API_KEY: z.string().optional(),
     AI_LLM_MAX_CONCURRENT: z.coerce.number().int().positive().default(8),
     // Media-lane LLM concurrency cap (2026-09-24): vision + media-batch calls
     // use their OWN semaphore instead of sharing AI_LLM_MAX_CONCURRENT, so a

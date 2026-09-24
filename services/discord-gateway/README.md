@@ -59,5 +59,5 @@ Callers outside a module import its `index.ts` facade, never an internal file.
 ## Testing
 
 Vitest, tests in `tests/`. Config supplies dummy env vars so the suite runs
-without live Postgres/Redis/Qdrant; external services are mocked. `llmE2e.test.ts`
+without live Postgres/Redis; external services are mocked. `llmE2e.test.ts`
 is skipped by default and needs real credentials (`pnpm test:e2e:live`).

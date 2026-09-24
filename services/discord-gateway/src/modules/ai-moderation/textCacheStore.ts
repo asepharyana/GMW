@@ -2,15 +2,6 @@ import { createHash } from "node:crypto";
 import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../../shared/config/index.js";
 import { executeAll, executeGet } from "../../shared/database/drizzle.js";
-import { findBestEmbeddingMatch } from "./embeddingClient.js";
-import {
-  deleteQdrantPoint,
-  deleteQdrantPointsByContentHash,
-  isQdrantConfigured,
-  type QdrantVerdictPayload,
-  searchQdrant,
-  upsertQdrantPoint,
-} from "./qdrantClient.js";
 
 const logger = createChildLogger("text-cache-store");
 
@@ -263,8 +254,8 @@ export function makeModerationContextKey(message: {
 
 /**
  * Invalidate cached moderation verdicts for a piece of content: removes
- * matching Postgres rows AND Qdrant points. Called when a moderator
- * corrects a verdict so a stale/wrong cached decision cannot resurface.
+ * matching Postgres rows. Called when a moderator corrects a verdict so a
+ * stale/wrong cached decision cannot resurface.
  *
  * Handles both key formats:
  * - legacy `text_mod:<hash>` (content-only, pre-context keys)
@@ -277,20 +268,10 @@ export async function invalidateTextModerationCache(
     .update(content)
     .digest("hex")
     .slice(0, 16);
-  const legacyKey = `text_mod:${bareHash}`;
 
-  const queries: Promise<unknown>[] = [
-    executeAll(`DELETE FROM text_analysis_cache WHERE text LIKE $1`, [
-      `text_mod:%${bareHash}`,
-    ]).catch(() => {}),
-  ];
-  if (isQdrantConfigured()) {
-    queries.push(
-      deleteQdrantPoint(legacyKey).catch(() => {}),
-      deleteQdrantPointsByContentHash(bareHash).catch(() => {}),
-    );
-  }
-  await Promise.all(queries).catch(() => {});
+  await executeAll(`DELETE FROM text_analysis_cache WHERE text LIKE $1`, [
+    `text_mod:%${bareHash}`,
+  ]).catch(() => {});
 }
 
 /**
@@ -489,31 +470,6 @@ export function bumpTextModerationHitCounts(cacheKeys: string[]): void {
 }
 
 // ---------------------------------------------------------------------------
-// Semantic two-band acceptance
-// ---------------------------------------------------------------------------
-
-/**
- * True when a semantic-cache hit may be reused given its verdict class.
- * Two bands (2026-08-24): non-actionable verdicts (clean / flagless /
- * action=none) are accepted from the LOOSER clean band; actionable verdicts
- * (warn/flagged or any flags/action) keep the strict historical gate.
- * Between the bands → reject → the message falls through to the LLM
- * (fail-open toward accuracy).
- */
-export function isSemanticBandAccepted(
-  verdict: StoredModerationVerdict,
-  similarity: number,
-): boolean {
-  const isNonActionable =
-    verdict.status === "clean" &&
-    verdict.flags.length === 0 &&
-    (verdict.recommendedAction ?? "none") === "none";
-  return isNonActionable
-    ? similarity >= config.AI_LLM_EMBEDDING_MIN_SIMILARITY_CLEAN
-    : similarity >= config.AI_LLM_EMBEDDING_MIN_SIMILARITY;
-}
-
-// ---------------------------------------------------------------------------
 // Global exact-cache reuse guard (context-free fallback)
 // ---------------------------------------------------------------------------
 
@@ -543,180 +499,8 @@ export function isGloballyReusableCleanVerdict(
 }
 
 /**
- * Parse a Qdrant verdict payload into the result shape shared by the
- * semantic cache lookups. Returns null on malformed payloads (callers then
- * fall through to the LLM).
- */
-export function parseQdrantVerdict(
-  payload: QdrantVerdictPayload,
-  similarity: number,
-):
-  | (StoredModerationVerdict & {
-      text: string;
-      similarity: number;
-    })
-  | null {
-  const parsed = parseStoredVerdictRow({ flags: payload.flags });
-  if (!parsed) return null;
-
-  return {
-    ...parsed,
-    text: payload.text,
-    similarity,
-  };
-}
-
-/**
- * Semantic moderation cache lookup.
- *
- * Primary: Qdrant vector search (when QDRANT_URL configured) — nearest
- * unexpired verdict above `minSimilarity`. Fallback: Postgres embedding
- * column (legacy rows written before Qdrant was wired in).
- * Returns null on no match or any failure — callers then proceed to the LLM.
- */
-export async function findSimilarTextModeration(
-  embedding: number[],
-  minSimilarity: number,
-  limit: number,
-): Promise<
-  (StoredModerationVerdict & { text: string; similarity: number }) | null
-> {
-  // Qdrant path (primary)
-  if (isQdrantConfigured()) {
-    const hits = await searchQdrant(embedding, limit, minSimilarity);
-    if (hits.length > 0) {
-      const hit = hits[0];
-      return parseQdrantVerdict(hit.payload, hit.score);
-    }
-    // No Qdrant hit — fall through to Postgres legacy rows.
-  }
-
-  try {
-    const rows = await executeAll(
-      `SELECT text, flags, embedding
-       FROM text_analysis_cache
-       WHERE source = 'user_moderation'
-         AND embedding IS NOT NULL
-         AND expires_at > $1
-       ORDER BY analyzed_at DESC
-       LIMIT $2`,
-      [Date.now(), limit],
-    );
-    if (!rows || rows.length === 0) return null;
-
-    const candidates = rows.flatMap((row) => {
-      let embeddingArr: number[] = [];
-      let parsed: Record<string, unknown>;
-      try {
-        embeddingArr = JSON.parse(row.embedding) as number[];
-        parsed = JSON.parse(row.flags) as Record<string, unknown>;
-      } catch {
-        return [];
-      }
-      // Skip processing locks / malformed entries — never reuse an
-      // in-flight or non-verdict row.
-      const storedStatus = parsed.status as string | undefined;
-      if (storedStatus === "processing" || storedStatus === undefined) {
-        return [];
-      }
-      if (!Array.isArray(parsed.flags)) return [];
-      return [
-        {
-          text: row.text,
-          embedding: embeddingArr,
-          parsed,
-        },
-      ];
-    });
-
-    const match = findBestEmbeddingMatch(
-      embedding,
-      candidates.map((c) => c.embedding),
-      minSimilarity,
-    );
-    if (!match) return null;
-
-    const hit = candidates[match.index];
-    const parsed = hit.parsed;
-    const flags = (parsed.flags as string[]) ?? [];
-    const status = normalizeStoredStatus(
-      parsed.status as string | undefined,
-      flags,
-    );
-    return {
-      text: hit.text,
-      similarity: match.similarity,
-      status,
-      flags,
-      score: (parsed.score as number) ?? 0,
-      analysis: (parsed.analysis as string) ?? "",
-      categories: (parsed.categories as string[]) ?? [],
-      severity: (parsed.severity as string) ?? "none",
-      confidence: (parsed.confidence as number) ?? 0,
-      recommendedAction: (parsed.recommendedAction as string) ?? "none",
-    };
-  } catch (error) {
-    logger.error(
-      { error: error instanceof Error ? error.message : String(error) },
-      "Failed semantic text moderation lookup",
-    );
-    return null;
-  }
-}
-
-/**
- * Upsert a bare (context-free) clean verdict to the Qdrant vector store,
- * making global-reuse clean verdicts discoverable by semantic search.
- *
- * Why: the main `setCachedTextModeration` writes bare-key rows to Postgres
- * with embedding=null (deliberate — no duplicate PG embedding column), but
- * a bare clean verdict that never reaches Qdrant is invisible to
- * searchQdrantBatch. So two messages with identical clean content in
- * DIFFERENT channels never match semantically — the semantic hit-rate is
- * capped below the exact-cache hit-rate. This helper shares the embedding
- * already computed at lookup time so the bare point is semantically
- * findable.
- *
- * Guard: only non-actionable clean verdicts qualify (same guard as the
- * read path and as the orchestrator's bare-key write-back). No-op when
- * Qdrant is disabled or no embedding is available.
- */
-export async function upsertBareKeyToQdrant(
-  bareKey: string,
-  result: {
-    status: string;
-    flags: string[];
-    score: number;
-    analysis: string;
-    categories: string[];
-    severity: string;
-    confidence: number;
-    recommendedAction: string;
-  },
-  embedding: number[] | null | undefined,
-): Promise<void> {
-  if (!isQdrantConfigured() || !embedding || embedding.length === 0) return;
-  if (!isGloballyReusableCleanVerdict(result, undefined)) return;
-  const now = Date.now();
-  const USER_MOD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-  await upsertQdrantPoint(bareKey, embedding, {
-    text: bareKey,
-    flags: JSON.stringify(result),
-    analyzed_at: now,
-    expires_at: now + USER_MOD_CACHE_TTL_MS,
-    content_hash: bareKey.split(":").pop() ?? "",
-  }).catch((err: unknown) => {
-    logger.error(
-      { error: err instanceof Error ? err.message : String(err), bareKey },
-      "Failed to upsert bare-key clean verdict to Qdrant",
-    );
-  });
-}
-
-/**
  * Store a moderation result for a (user, content) pair.
  * The `flags` field stores the full result object as JSON.
- * `embedding` (optional) is stored for semantic near-duplicate lookups.
  */
 export async function setCachedTextModeration(
   cacheKey: string,
@@ -730,41 +514,25 @@ export async function setCachedTextModeration(
     recommendedAction: string;
     status?: "clean" | "warn" | "flagged" | "processing";
   },
-  embedding?: number[] | null,
 ): Promise<void> {
   const now = Date.now();
   const USER_MOD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
   try {
-    // Qdrant is the primary vector store when configured: upsert the point
-    // with the verdict payload; skip the Postgres embedding column entirely.
-    if (isQdrantConfigured() && embedding && embedding.length > 0) {
-      await upsertQdrantPoint(cacheKey, embedding, {
-        text: cacheKey,
-        flags: JSON.stringify(result),
-        analyzed_at: now,
-        expires_at: now + USER_MOD_CACHE_TTL_MS,
-        content_hash: cacheKey.split(":").pop() ?? "",
-      });
-    }
-
     await executeAll(
-      `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count, embedding)
-       VALUES ($1, $2, $3, $4, $5, 0, $6)
+      `INSERT INTO text_analysis_cache (text, flags, source, analyzed_at, expires_at, hit_count)
+       VALUES ($1, $2, $3, $4, $5, 0)
        ON CONFLICT (text) DO UPDATE SET
         flags = EXCLUDED.flags,
         source = EXCLUDED.source,
         analyzed_at = EXCLUDED.analyzed_at,
-        expires_at = EXCLUDED.expires_at,
-        embedding = COALESCE(EXCLUDED.embedding, text_analysis_cache.embedding)`,
+        expires_at = EXCLUDED.expires_at`,
       [
         cacheKey,
         JSON.stringify(result),
         "user_moderation",
         now,
         now + USER_MOD_CACHE_TTL_MS,
-        // Postgres embedding stays as legacy fallback; Qdrant is primary.
-        embedding && embedding.length > 0 ? JSON.stringify(embedding) : null,
       ],
     );
   } catch (error) {
@@ -833,11 +601,10 @@ export async function getRecentCorrectedModerations(
 /**
  * Store a corrected moderation entry for future few-shot injection.
  *
- * Also invalidates any cached verdicts for the corrected content (both
- * Postgres rows and Qdrant points) so the corrected decision propagates
- * immediately instead of being shadowed by a stale cache entry. Full
- * content is looked up by message_id when available — more precise than
- * the (possibly truncated) snippet.
+ * Also invalidates any cached verdicts for the corrected content so the
+ * corrected decision propagates immediately instead of being shadowed by a
+ * stale cache entry. Full content is looked up by message_id when available
+ * — more precise than the (possibly truncated) snippet.
  */
 export async function insertCorrectedModeration(entry: {
   messageId: string;

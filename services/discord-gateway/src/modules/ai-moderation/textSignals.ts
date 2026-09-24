@@ -75,7 +75,7 @@ export const KNOWN_SAFE_TERMS = new Set(
   (
     "discord youtube google facebook instagram twitter tiktok whatsapp telegram netflix spotify steam github gitlab bitbucket chatgpt openai anthropic claude deepseek gemini llama copilot cursor vscode vscodium jetbrains intellij pycharm webstorm sublime codeblocks" +
     " docker kubernetes k8s linux ubuntu debian arch fedora manjaro kali windows macos android ios chrome firefox safari edge opera brave" +
-    " react nextjs next vue svelte angular node nodejs deno bun pnpm yarn npm javascript typescript python golang go rust java kotlin swift cplusplus cpp css html json xml yaml toml regex backend frontend database mysql postgres postgresql mongodb redis qdrant sqlite nosql graphql rest websocket webhook" +
+    " react nextjs next vue svelte angular node nodejs deno bun pnpm yarn npm javascript typescript python golang go rust java kotlin swift cplusplus cpp css html json xml yaml toml regex backend frontend database mysql postgres postgresql mongodb redis sqlite nosql graphql rest websocket webhook" +
     " bug crash error debug fix issue pr merge commit push pull branch main master dev staging production server client app website web browser" +
     " stream streaming video audio voice call camera screen share screenshare gameplay gaming game play steam epic xbox playstation nintendo switch console" +
     " bot discordbot moderation moderator admin member user profile avatar channel server guild message chat dm reply forward embed sticker emoji role permission" +

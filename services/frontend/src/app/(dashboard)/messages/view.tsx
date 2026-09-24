@@ -11,7 +11,6 @@ import {
   Paperclip,
   Search,
   ShieldAlert,
-  Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityHeatmap } from "@/components/ActivityHeatmap";
@@ -42,7 +41,6 @@ import {
   useMessagesWsSync,
   useRecentEdits,
   useReviewWsSync,
-  useSemanticSearch,
 } from "@/hooks";
 import { useStaggerReveal } from "@/hooks/use-gsap-animation";
 import { aiTone } from "@/lib/ai-status";
@@ -85,9 +83,6 @@ export function MessagesView({
   const [channelId, setChannelId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  // Search mode: "exact" (substring match over captured messages) or
-  // "semantic" (vector similarity over the persistent Qdrant archive).
-  const [semanticMode, setSemanticMode] = useState(false);
   // feed | timeline: "timeline" groups messages into date-grouped cards.
   const [viewMode, setViewMode] = useState<"feed" | "timeline">("feed");
   // Guard against loading the entire history on a long scroll: cap how many
@@ -123,15 +118,7 @@ export function MessagesView({
   const loadMore = useLoadMore();
   useMessagesWsSync(ws, guildId ?? "");
   useReviewWsSync(ws);
-  const search = useMessageSearch(
-    query,
-    query.trim().length >= 2 && !semanticMode,
-  );
-  const semantic = useSemanticSearch(
-    query,
-    query.trim().length >= 2 && semanticMode,
-    guildId,
-  );
+  const search = useMessageSearch(query, query.trim().length >= 2);
   const activity = useMessageActivity(30);
   const edits = useRecentEdits(50, undefined, initialEdits);
   const detail = useMessageDetail(selected);
@@ -161,8 +148,7 @@ export function MessagesView({
     ambient.set(query ? "amber" : "signal", 0.3, query ? "search" : "messages");
   }, [query, ambient]);
 
-  const searching = query.trim().length >= 2 && !semanticMode;
-  const semanticSearching = query.trim().length >= 2 && semanticMode;
+  const searching = query.trim().length >= 2;
   const list = searching ? (search.data ?? []) : (messages ?? []);
   // Discord-style order: oldest at the top, newest at the bottom. The backend
   // returns DESC (newest first); reverse so the feed reads top→bottom like DC.
@@ -286,32 +272,6 @@ export function MessagesView({
         <div className="flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 p-0.5">
           <button
             type="button"
-            onClick={() => setSemanticMode(false)}
-            className={`rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
-              !semanticMode
-                ? "bg-surface text-ink border border-hairline-focus shadow-xs"
-                : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            EXACT
-          </button>
-          <button
-            type="button"
-            onClick={() => setSemanticMode(true)}
-            className={`flex items-center gap-1 rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
-              semanticMode
-                ? "bg-signal/20 text-signal border border-signal/40 shadow-xs"
-                : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            <Sparkles className="size-3" />
-            SEMANTIC
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1.5 rounded-[6px] border border-hairline bg-surface-2 p-0.5">
-          <button
-            type="button"
             onClick={() => setViewMode("feed")}
             className={`rounded-[4px] px-2.5 py-1 font-mono text-[10px] font-medium transition-all ${
               viewMode === "feed"
@@ -336,76 +296,6 @@ export function MessagesView({
       </GlassPanel>
 
       <div className="grid gap-3 lg:grid-cols-5">
-        {semanticSearching && (
-          <GlassPanel className="lg:col-span-5">
-            <SectionHeader
-              eyebrow="semantic archive"
-              title={`Vector Matches for “${query}”`}
-              action={
-                <span className="mono text-xs text-[#8a8f98]">
-                  {semantic.data?.length ?? 0} matches
-                </span>
-              }
-            />
-            {semantic.isLoading ? (
-              <SkeletonRows rows={4} />
-            ) : semantic.data && semantic.data.length > 0 ? (
-              <div className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1">
-                {semantic.data.map((r, i) => (
-                  <div
-                    key={r.message_id ?? i}
-                    className="hud-card animate-stagger flex items-start gap-3 p-3"
-                    style={staggerDelay(i)}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[10px] font-semibold text-signal">
-                          {(r.score * 100).toFixed(0)}% RELEVANCE
-                        </span>
-                        {r.username && (
-                          <span className="font-mono text-[10px] font-medium text-ink">
-                            {r.username}
-                          </span>
-                        )}
-                        {r.thread_name && (
-                          <span className="font-mono text-[10px] text-ink-muted">
-                            ▶ {r.thread_name}
-                          </span>
-                        )}
-                        {!r.thread_name && r.channel_name && (
-                          <span className="font-mono text-[10px] text-ink-muted">
-                            #{r.channel_name}
-                          </span>
-                        )}
-                        {!r.thread_name && !r.channel_name && r.channel_id && (
-                          <span className="font-mono text-[10px] text-ink-faint">
-                            #{r.channel_id}
-                          </span>
-                        )}
-                        <span
-                          className="ml-auto font-mono text-[10px] text-ink-muted"
-                          suppressHydrationWarning
-                        >
-                          {formatRelativeTime(r.created_at)}
-                        </span>
-                      </div>
-                      <div className="mt-1 text-xs text-ink-soft leading-relaxed">
-                        {r.content}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                icon={<Search className="size-7" />}
-                title="No semantic matches"
-                description="Try different phrasing — vector search inspects contextual semantics."
-              />
-            )}
-          </GlassPanel>
-        )}
-
         {/* Message Stream Deck */}
         <GlassPanel className="lg:col-span-3">
           <SectionHeader

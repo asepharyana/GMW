@@ -6,7 +6,6 @@ import type {
   Guild,
   MessageActivityBucket,
   MessageRecord,
-  SemanticSearchResult,
 } from "@/lib/types";
 
 export const messagesApi = {
@@ -74,17 +73,6 @@ export const messagesApi = {
   search: (q: string, limit?: number) =>
     orpc.analysis.search({ q, limit }) as unknown as Promise<{
       results: MessageRecord[];
-    }>,
-
-  // Public semantic search over the persistent message archive (Qdrant).
-  semanticSearch: (query: string, limit?: number, guildId?: string) =>
-    orpc.messages.semanticSearch({
-      query,
-      limit,
-      ...(guildId ? { guildId } : {}),
-    }) as unknown as Promise<{
-      results: SemanticSearchResult[];
-      nextCursor: null;
     }>,
 
   // Public, read-only activity heatmap data (per-hour volume by channel).

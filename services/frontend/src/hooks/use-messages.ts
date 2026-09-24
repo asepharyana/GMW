@@ -8,7 +8,6 @@ import type {
   EditHistoryRow,
   MessageActivityBucket,
   MessageRecord,
-  SemanticSearchResult,
 } from "@/lib/types";
 import type { WsHook } from "@/lib/ws-hook";
 
@@ -207,29 +206,6 @@ export function useMessageSearch(query: string, enabled: boolean) {
       const res = await messagesApi.search(query, 50);
       return res.results;
     },
-  );
-}
-
-// ── Semantic Search (public archive, Qdrant) ──────
-
-export function useSemanticSearch(
-  query: string,
-  enabled: boolean,
-  guildId?: string | null,
-) {
-  return useSWR<SemanticSearchResult[]>(
-    enabled && query.trim().length >= 2
-      ? ["semantic-search", query.trim(), guildId ?? ""]
-      : null,
-    async () => {
-      const res = await messagesApi.semanticSearch(
-        query.trim(),
-        10,
-        guildId ?? undefined,
-      );
-      return res.results;
-    },
-    { keepPreviousData: true },
   );
 }
 

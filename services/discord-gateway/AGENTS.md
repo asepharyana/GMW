@@ -53,19 +53,16 @@ src/
 1. **LLM is the only judge.** Failed LLM → `status:"error"` + recovery retry.
    **Never** reintroduce regex/heuristic content classification.
 2. **Discord tokens sanitized** before reaching LLM (`discordTokens.ts`).
-3. **Semantic cache is batched** — one embed call + one Qdrant batch search.
-4. **Streaming is mandatory** against the router base URL.
+3. **Streaming is mandatory** against the router base URL.
 
 ## AI moderation pipeline
 
 ```
 aiAnalyzer.ts → batchScheduler.ts → batchProcessor.ts → individualFallbackProcessor.ts
     ↓                  ↓                    ↓                        ↓
-moderationOrchestrator.ts → (hash cache → Qdrant → LLM)
+moderationOrchestrator.ts → (hash cache → LLM)
     ↓                          ↓                              ↓
 textBatchProcessor.ts    mediaBatchProcessor.ts         llmClient.ts
-                                                     embeddingClient.ts
-                                                     qdrantClient.ts
 ```
 
 - Entry: `aiAnalyzer.ts` (`queueMessageAnalysis`, `startPendingAIAnalysisWorker`)
@@ -85,7 +82,6 @@ textBatchProcessor.ts    mediaBatchProcessor.ts         llmClient.ts
 - `messageStore.ts` — DB operations
 - `messageMetadata.ts` — metadata extraction
 - `messagesDb.ts` / `messagesCrud.ts` — DB schema operations
-- `archiveEmbedder.ts` — Qdrant embedding (respect age-restricted guard)
 - `retentionDb.ts` / `reviewsDb.ts` / `attachmentsDb.ts` — auxiliary tables
 
 ## Redis channels (outbound to backend)

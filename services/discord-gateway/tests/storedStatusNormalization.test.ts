@@ -6,10 +6,10 @@
 // ["conflict_instigation"]) fell into the legacy `flags.length === 0 ?
 // clean : flagged` branch and was read back as FLAGGED. Downstream this
 // broke auto-delete eligibility gating and mislabelled warnings on the
-// dashboard. parseQdrantVerdict had the same narrowing (warn → clean).
+// dashboard.
 //
-// Fix: normalizeStoredStatus() accepts the full clean/warn/flagged union in
-// BOTH readers; unknown/legacy values still derive from flags.
+// Fix: normalizeStoredStatus() accepts the full clean/warn/flagged union;
+// unknown/legacy values still derive from flags.
 import { describe, expect, it } from "vitest";
 import { normalizeStoredStatus } from "../src/modules/ai-moderation/textCacheStore.js";
 
