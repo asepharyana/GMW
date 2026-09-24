@@ -97,10 +97,18 @@ function scheduleLaneTimer(
     conversationDebounceTimers.delete(tKey);
 
     if (isConversationProcessingLocked(conversationKey, lane)) {
+      logger.warn(
+        { conversationKey, lane, tKey },
+        "scheduleLaneTimer: lane locked, skipping dispatch",
+      );
       return;
     }
     const processingStartedAt = Date.now();
     setConversationProcessing(conversationKey, lane, processingStartedAt);
+    logger.debug(
+      { conversationKey, lane, processingStartedAt },
+      "scheduleLaneTimer: lock acquired, dispatching batch fetch",
+    );
 
     messageStore
       .getPendingMessagesByConversation(
