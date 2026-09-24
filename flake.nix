@@ -132,7 +132,7 @@ WRAPPER
           # libvips download), so no cmake or rust toolchain is needed.
           # python3/gnumake/gcc stay as node-gyp fallback for @discordjs/opus.
           nativeBuildInputs = [
-            nodejs pnpm
+            nodejs bun
             pkgs.python3 pkgs.gnumake pkgs.gcc
             pkgs.pkg-config
             pkgs.openssl
