@@ -151,9 +151,17 @@ jobs:
 
           attic_push_vps_hop() {
             echo "Fallback: VPS-hop attic push"
+            # Recover the client binary BEFORE the fallback can use it: the
+            # bootstrap cascade below resets ATTIC_BIN="" and never restores it
+            # in the fallback branch, so `sudo $ATTIC_BIN push` used to run as
+            # `sudo  push` -> "sudo: 'push': command not found". On the VPS the
+            # closure lives at the canonical ATTIC_DIR path.
+            VPS_ATTIC="/nix/store/fygyy3yk4rqdknxkiwkqambpnhyax0k4-attic-0.1.0/bin/attic"
+            ssh "$VPS_USER@$VPS_HOST" "test -x '$VPS_ATTIC'" \
+              || ssh "$VPS_USER@$VPS_HOST" "sudo /nix/var/nix/profiles/default/bin/nix-store --realise '$ATTIC_DIR'"
             # Copy closure to VPS (fast if attic already has it via substitute)
             ssh "$VPS_USER@$VPS_HOST" "sudo /nix/var/nix/profiles/default/bin/nix-store --realise '$STORE_PATH'" 2>/dev/null \
-              || nix copy --to "ssh://$VPS_USER@$VPS_HOST" "$STORE_PATH"
+              || nix copy --to "ssh://***@$VPS_HOST" "$STORE_PATH"
             # Push from VPS → Attic over Tailscale.
             # --ignore-upstream-cache-filter is REQUIRED: without it, attic skips
             # writing the narinfo to gmw when chunks exist in the upstream
@@ -162,7 +170,7 @@ jobs:
             # sudo: attic must read root's config (~/.config/attic), which has
             # the imrnes-ts server → Tailscale. Non-root users' configs only
             # have the public `pub` server → "Server imrnes-ts does not exist".
-            ssh "$VPS_USER@$VPS_HOST" "sudo $ATTIC_BIN push imrnes-ts:gmw '$STORE_PATH' --jobs 4 --ignore-upstream-cache-filter" \
+            ssh "$VPS_USER@$VPS_HOST" "sudo $VPS_ATTIC push imrnes-ts:gmw '$STORE_PATH' --jobs 4 --ignore-upstream-cache-filter" \
               || echo "attic push failed (non-fatal; ssh copy fallback below)"
           }
 
