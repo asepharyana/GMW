@@ -50,6 +50,8 @@ interface UrlFetchResult {
   text: Map<string, string>;
   image: Map<string, { data: Buffer; mimeType: string }>;
   title: Map<string, string>;
+  /** URL → reason the fetch failed (HTTP status / throw / unsupported). */
+  error: Map<string, string>;
 }
 
 /** Provider-reported token usage from a raw LLM payload (may be absent). */
@@ -169,6 +171,7 @@ export async function runTextOnlyBatch(
         text: new Map(),
         image: new Map(),
         title: new Map(),
+        error: new Map(),
       } satisfies UrlFetchResult;
     }
     const results = await Promise.allSettled(
@@ -177,9 +180,13 @@ export async function runTextOnlyBatch(
     const textMap = new Map<string, string>();
     const imageMap = new Map<string, { data: Buffer; mimeType: string }>();
     const titleMap = new Map<string, string>();
+    const errorMap = new Map<string, string>();
     for (let i = 0; i < urlArr.length; i++) {
       const r = results[i];
-      if (r.status !== "fulfilled") continue;
+      if (r.status !== "fulfilled") {
+        errorMap.set(urlArr[i], "fetch threw");
+        continue;
+      }
       const v = r.value;
       if (v.type === "text" && v.textContent) {
         textMap.set(urlArr[i], v.textContent);
@@ -188,9 +195,11 @@ export async function runTextOnlyBatch(
         // Direct image link (or og:image followed from an HTML page) —
         // kept for vision analysis below.
         imageMap.set(urlArr[i], { data: v.data, mimeType: v.mimeType });
+      } else {
+        errorMap.set(urlArr[i], v.error ?? "unsupported content");
       }
     }
-    return { text: textMap, image: imageMap, title: titleMap };
+    return { text: textMap, image: imageMap, title: titleMap, error: errorMap };
   })();
 
   const webSearchPromise = (async () => {
@@ -224,6 +233,7 @@ export async function runTextOnlyBatch(
     glossaryPromise,
   ]);
   const urlFetchMap = urlFetchMaps.text;
+  const urlFetchErrors = urlFetchMaps.error;
 
   // Deduplicate identical short messages
   const shortContentGroups = new Map<string, MessageRecord[]>();
@@ -368,10 +378,16 @@ export async function runTextOnlyBatch(
             const urlContexts = msgUrls
               .map((url) => {
                 const ft = urlFetchMap.get(url);
-                if (!ft) return null;
-                const title = urlTitles.get(url);
-                const titleAttr = title ? ` title="${escapeXml(title)}"` : "";
-                return `<web_content url="${escapeXml(url)}"${titleAttr}>${escapeXml(ft)}</web_content>`;
+                if (ft) {
+                  const title = urlTitles.get(url);
+                  const titleAttr = title ? ` title="${escapeXml(title)}"` : "";
+                  return `<web_content url="${escapeXml(url)}"${titleAttr}>${escapeXml(ft)}</web_content>`;
+                }
+                const fetchError = urlFetchErrors.get(url);
+                if (fetchError) {
+                  return `<web_content url="${escapeXml(url)}" fetch_error="true">Konten tidak dapat diambil otomatis (${escapeXml(fetchError)}). Analisis hanya dari teks pesan; JANGAN mengarang isi halaman.</web_content>`;
+                }
+                return null;
               })
               .filter(Boolean)
               .join("\n");

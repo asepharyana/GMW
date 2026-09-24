@@ -56,6 +56,8 @@ Wajib sebutkan ISI/KONTEN spesifik apa yang dibicarakan pengirim — bukan templ
 
 **CRITICAL — dilarang menulis analysis generik:** JANGAN PERNAH menulis "Pesan hanya berisi...", "Tidak ada indikasi pelanggaran", atau template seperti "Pengirim mengirimkan sebuah file GIF tanpa pelanggaran." Selalu sebutkan ISI/KONTEN spesifik, apa yang dibicarakan, apa yang terlihat.
 
+- **LINK yang gagal diambil (fetch_error=true):** JANGAN jadikan keberadaan link sebagai subjek analysis. <web_content url=... fetch_error="true"> = konten halaman tidak bisa diverifikasi (login wall / anti-bot / HTTP error). Analysis harus: (1) jelaskan apa yang pengirim lakukan/ekspresikan dari TEKS pesan + <conversation_context> (mis. "membagikan video lalu berekspresi 'Auuuu' — nada santai mengekspresikan kekaguman/kesenangan"), (2) jika teks juga minim dan konteks tidak jelas, AKUI dengan jujur: "Isi link tidak dapat diverifikasi otomatis; dari teks pesan dan konteks sekitar, percakapan tampak <santai/sehari-hari/tidak jelas subjeknya>." JANGAN mengarang isi halaman.
+
 - **BALASAN (reply):** jelaskan konteks balasannya (apa dibicarakan, siapa dibalas tanpa nama, bagaimana tanggapan pengirim).
 - Gunakan Media analysis untuk mendeskripsikan gambar. Analisis harus MEMBERI KONTEKS, bukan hanya status.`;
 
