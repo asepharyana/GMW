@@ -12,28 +12,14 @@ import {
   buildSkipAnalysisUserResult,
   isAgeRestrictedMessage,
   isSkipAnalysisUser,
-  skipAgeRestrictedMessages,
-  skipAnalysisUserMessages,
 } from "./batchProcessor.js";
 import { scheduleConversationAnalysis } from "./batchScheduler.js";
 import { getConversationKey } from "./circuitBreaker.js";
-import {
-  ANALYSIS_LANES,
-  type AnalysisLane,
-  clearConversationProcessing,
-  conversationConsecutiveErrors,
-  conversationDebounceTimers,
-  conversationErrorCooldown,
-  conversationProcessing,
-  isConversationProcessingLocked,
-} from "./conversationState.js";
+import { conversationDebounceTimers } from "./conversationState.js";
 import {
   activeIndividualRequests,
-  enqueueIndividualFallbacks,
   individualCooldownUntil,
   individualInFlight,
-  individualInFlightByConversation,
-  individualInFlightLastTouched,
 } from "./individualFallbackProcessor.js";
 import {
   broadcastAnalysisCompleted,
@@ -41,31 +27,20 @@ import {
   setModerationClient,
   setSharedEventBroadcaster,
 } from "./moderationState.js";
-import { deleteExpiredQdrantPoints } from "./qdrantClient.js";
-import { pruneExpiredTexts } from "./textCacheStore.js";
+import { startRecoveryWorker } from "./recovery-worker.js";
 
 const logger = createChildLogger("ai-analyzer");
 
 // ---------------------------------------------------------------------------
-// Cache hygiene (expired verdict sweep)
-// ---------------------------------------------------------------------------
-const CACHE_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000; // every 6 hours
-let lastCachePruneAt = 0;
-
-// ---------------------------------------------------------------------------
-// Re-exports from sub-modules (preserving original public API)
-// ---------------------------------------------------------------------------
-
-export { pickBatchWithinBudget } from "./batchProcessor.js";
-export { getConversationKey } from "./circuitBreaker.js";
-export { onCircuitBreakerAlert } from "./conversationState.js";
-
-// ---------------------------------------------------------------------------
-// Public API
+// Public API — queueing, status, worker startup
 // ---------------------------------------------------------------------------
 
 /**
  * Queues a message for analysis (debounced by conversation).
+ *
+ * Messages that never need an LLM call are short-circuited here and recorded
+ * with their skip verdict: age-restricted messages and configured skip-list
+ * users.
  */
 export async function queueMessageAnalysis(messageId: string): Promise<void> {
   if (!config.AI_ANALYSIS_ENABLED) return;
@@ -78,13 +53,7 @@ export async function queueMessageAnalysis(messageId: string): Promise<void> {
     }
 
     if (isAgeRestrictedMessage(message)) {
-      const updated = await messageStore.updateMessageAIAnalysis(
-        message.id,
-        buildAgeRestrictedSkipResult(),
-      );
-      if (updated) {
-        broadcastAnalysisCompleted(updated);
-      }
+      await recordSkip(message.id, buildAgeRestrictedSkipResult());
       logger.debug(
         { messageId },
         "Skipped AI analysis for age-restricted message",
@@ -93,13 +62,7 @@ export async function queueMessageAnalysis(messageId: string): Promise<void> {
     }
 
     if (isSkipAnalysisUser(message)) {
-      const updated = await messageStore.updateMessageAIAnalysis(
-        message.id,
-        buildSkipAnalysisUserResult(),
-      );
-      if (updated) {
-        broadcastAnalysisCompleted(updated);
-      }
+      await recordSkip(message.id, buildSkipAnalysisUserResult());
       logger.debug(
         { messageId, userId: message.user_id },
         "Skipped AI analysis for configured skip-list user",
@@ -116,6 +79,17 @@ export async function queueMessageAnalysis(messageId: string): Promise<void> {
       },
       "Failed to queue message for analysis",
     );
+  }
+}
+
+/** Persist a skip verdict and broadcast it so the dashboard reflects it. */
+async function recordSkip(
+  messageId: string,
+  result: Parameters<typeof messageStore.updateMessageAIAnalysis>[1],
+): Promise<void> {
+  const updated = await messageStore.updateMessageAIAnalysis(messageId, result);
+  if (updated) {
+    broadcastAnalysisCompleted(updated);
   }
 }
 
@@ -144,11 +118,12 @@ export function getAnalysisQueueStatus(): AnalysisQueueStatus {
 }
 
 /**
- * Starts the periodic recovery worker.
+ * Starts the background workers behind the analysis pipeline:
+ *  - the recovery worker (stranded pending / incomplete messages + cache prune)
+ *  - the optional culture and user-profile learners.
  *
- * Now also recovers messages stuck in `error/analysis_incomplete`
- * state (not just `pending`), and skips conversations that already have
- * individual fallback work in progress to avoid DB last-write-wins races.
+ * Also injects the Discord client and event broadcaster into the pipeline
+ * state so downstream modules can act and publish.
  */
 export function startPendingAIAnalysisWorker(
   client?: Client,
@@ -167,151 +142,5 @@ export function startPendingAIAnalysisWorker(
       .catch(console.error);
   }
 
-  setInterval(() => {
-    // [D] Periodic cache hygiene: purge expired moderation verdicts from
-    // Postgres and Qdrant. Expired entries are never reused (filters check
-    // expires_at) but accumulate forever without this sweep.
-    const now = Date.now();
-    if (now - lastCachePruneAt >= CACHE_PRUNE_INTERVAL_MS) {
-      lastCachePruneAt = now;
-      Promise.all([pruneExpiredTexts(), deleteExpiredQdrantPoints()])
-        .then(([pgDeleted, qdDeleted]) => {
-          if (pgDeleted > 0 || qdDeleted > 0) {
-            logger.info(
-              { pgDeleted, qdDeleted },
-              "Expired moderation cache pruned",
-            );
-          }
-        })
-        .catch((err: unknown) => {
-          logger.warn({ error: String(err) }, "Moderation cache prune failed");
-        });
-    }
-
-    // Only revert stuck processing messages if there's active processing.
-    // Avoids a DB query every recovery interval when the pipeline is idle.
-    if (conversationProcessing.size > 0) {
-      messageStore
-        .revertStuckProcessingMessages(300000)
-        .catch((err: unknown) => {
-          logger.error(
-            { error: String(err) },
-            "Failed to run stuck processing recovery",
-          );
-        });
-    }
-
-    Promise.all([
-      messageStore.getPendingConversationKeys(500),
-      messageStore.getConversationKeysWithIncompleteAnalysis(200),
-    ])
-      .then(([pendingKeys, incompleteKeys]) => {
-        const now = Date.now();
-
-        for (const [key, expiry] of conversationErrorCooldown) {
-          if (now >= expiry) conversationErrorCooldown.delete(key);
-        }
-        // conversationProcessing is now a Partial<Record<lane, startedAt>>.
-        // Prune stale lane slots individually so one stale lane never clears
-        // the other lane's healthy lock.
-        for (const [key, record] of conversationProcessing) {
-          for (const lane of ANALYSIS_LANES as readonly AnalysisLane[]) {
-            const startedAt = record?.[lane];
-            if (
-              startedAt &&
-              now - startedAt >= config.AI_ANALYSIS_PROCESSING_TIMEOUT_MS
-            ) {
-              clearConversationProcessing(key, lane);
-            }
-          }
-        }
-
-        const staleThreshold = config.AI_ANALYSIS_PROCESSING_TIMEOUT_MS * 2;
-        for (const [key, lastTouched] of individualInFlightLastTouched) {
-          if (now - lastTouched >= staleThreshold) {
-            individualInFlightLastTouched.delete(key);
-            individualInFlightByConversation.delete(key);
-            logger.warn(
-              { key },
-              "Pruned stale individualInFlightByConversation entry",
-            );
-          }
-        }
-
-        // Also prune stale per-conversation CB error counts that have cooled
-        // down so old conversations can be retried.
-        for (const [key] of conversationConsecutiveErrors) {
-          const cbExpire = conversationErrorCooldown.get(key) ?? 0;
-          if (cbExpire && now >= cbExpire) {
-            conversationConsecutiveErrors.delete(key);
-          }
-        }
-
-        const incompleteKeySet = new Set(incompleteKeys);
-
-        // --- Batch recovery for pending messages ---
-        for (const key of pendingKeys) {
-          if (
-            ANALYSIS_LANES.some((lane) =>
-              conversationDebounceTimers.has(`${key}::${lane}`),
-            )
-          ) {
-            continue;
-          }
-          // Batch recovery must not race ANY in-flight batch lane, so the
-          // lock check is lane-agnostic here (individual fallback handles
-          // error rows separately).
-          if (isConversationProcessingLocked(key)) continue;
-          if (individualInFlightByConversation.has(key)) continue;
-          if (incompleteKeySet.has(key)) continue;
-          const cooldownUntil = conversationErrorCooldown.get(key);
-          if (cooldownUntil && now < cooldownUntil) continue;
-          // No lane specified → schedule BOTH lanes; each fetches its own
-          // pending subset from the DB.
-          scheduleConversationAnalysis(key);
-        }
-
-        // --- Individual recovery for error/analysis_incomplete messages ---
-        // Circuit breaker check: no point iterating if individual CB is active.
-        if (now >= individualCooldownUntil) {
-          const promises: Promise<void>[] = [];
-          for (const key of incompleteKeys) {
-            // Skip if individual work is already running for this conversation.
-            if (individualInFlightByConversation.has(key)) continue;
-            // Skip if batch processing is running.
-            if (isConversationProcessingLocked(key)) continue;
-
-            promises.push(
-              messageStore
-                .getIncompleteMessagesByConversation(key, 500)
-                .then(async (msgs) => {
-                  const processableMessages = await skipAnalysisUserMessages(
-                    await skipAgeRestrictedMessages(msgs),
-                  );
-                  return processableMessages;
-                })
-                .then((msgs) => {
-                  if (msgs.length > 0) {
-                    enqueueIndividualFallbacks(msgs);
-                  }
-                })
-                .catch((err: unknown) => {
-                  logger.error(
-                    { key, error: String(err) },
-                    "Failed to fetch incomplete messages for recovery",
-                  );
-                }),
-            );
-          }
-          // Errors are handled per-key; return the combined promise for observability.
-          return Promise.all(promises);
-        }
-      })
-      .catch((err: unknown) => {
-        logger.error(
-          { error: err instanceof Error ? err.message : String(err) },
-          "Pending AI analysis recovery worker failed",
-        );
-      });
-  }, config.AI_ANALYSIS_RECOVERY_INTERVAL_MS);
+  startRecoveryWorker();
 }
