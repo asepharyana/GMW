@@ -108,6 +108,7 @@ export async function runMediaBatch(
       `media-batch:${targetIds.length}msgs`,
       abortController.signal,
       dynamicMaxTokens,
+      "media",
     );
     log.info(
       { mediaCount: targets.length, resultCount: result.results.length },

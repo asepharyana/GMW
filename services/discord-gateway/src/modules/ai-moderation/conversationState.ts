@@ -24,6 +24,19 @@ import { LAST_ERROR } from "./moderationState.js";
  * - Alert system: `CircuitBreakerAlert` type, `fireAlert()`, and
  *   `onCircuitBreakerAlert()` for pluggable handler registration.
  *
+ * ## Processing lanes (2026-09-24)
+ * A conversation batch splits into a **text lane** (messages with no media)
+ * and a **media lane** (messages with attachments/stickers/embeds). The two
+ * lanes are dispatched to separate Piscina pools and MUST NOT block each
+ * other: a fast text sub-batch must be free to finish while the slow
+ * vision/media sub-batch of the SAME conversation is still running.
+ *
+ * The lock is therefore per-lane: `conversationProcessing` maps a
+ * conversation key to its current processing record which carries the lane
+ * name. `isConversationProcessingLocked(key, lane)` reports locked only when
+ * the SAME lane (or all lanes when lane is omitted) is active — a media
+ * sub-batch in flight never blocks scheduling the text sub-batch.
+ *
  * ## Relationship with moderationState.ts
  * - `moderationState.ts` owns **infrastructure references** (event broadcaster,
  *   Discord client), the auto-delete guard, the `LAST_ERROR` tracker, and
@@ -32,6 +45,14 @@ import { LAST_ERROR } from "./moderationState.js";
  *   `moderationState.ts` to include the latest pipeline error in alerts.
  * - These are **separate concerns** — do not merge them.
  */
+
+/** Processing lanes for conversation analysis. */
+export type AnalysisLane = "text" | "media";
+
+export const ANALYSIS_LANES: readonly AnalysisLane[] = [
+  "text",
+  "media",
+] as const;
 
 const logger = createChildLogger("conversation-state");
 
@@ -60,23 +81,105 @@ export const conversationDebounceTimers = new LRUCache<string, NodeJS.Timeout>({
   },
 });
 
-/** Timestamp of when processing started per conversation key. */
-export const conversationProcessing = new LRUCache<string, number>({
-  max: 10000,
-});
+/**
+ * Per-conversation processing lock, keyed by lane.
+ *
+ * A conversation can hold TWO locks at once — one for its text sub-batch and
+ * one for its media sub-batch — because the two lanes run on separate pools
+ * and finish independently. The value is a partial record of lane →
+ * startedAt; clearing one lane leaves the other lane's lock intact.
+ */
+export const conversationProcessing = new LRUCache<
+  string,
+  Partial<Record<AnalysisLane, number>>
+>({ max: 10000 });
+
+/**
+ * Locks a conversation for the given lane.
+ * The same conversation can be locked in both lanes simultaneously (text and
+ * media sub-batches run independently); locking an already-locked lane
+ * replaces its startedAt (last writer wins, matching the old single-lock
+ * semantics).
+ */
+export function setConversationProcessing(
+  conversationKey: string,
+  lane: AnalysisLane,
+  startedAt: number,
+): void {
+  const record = conversationProcessing.get(conversationKey) ?? {};
+  conversationProcessing.set(conversationKey, { ...record, [lane]: startedAt });
+}
+
+/**
+ * Releases the processing lock for a conversation in a SINGLE lane.
+ * The other lane's lock (if any) is preserved.
+ */
+export function clearConversationProcessing(
+  conversationKey: string,
+  lane: AnalysisLane,
+): void {
+  const record = conversationProcessing.get(conversationKey);
+  if (!record) return;
+  const next = { ...record };
+  delete next[lane];
+  if (Object.keys(next).length === 0) {
+    conversationProcessing.delete(conversationKey);
+  } else {
+    conversationProcessing.set(conversationKey, next);
+  }
+}
+
+/**
+ * Clears the processing lock for a conversation regardless of lane.
+ * Used by the recovery worker when a lock is stale. If only ONE lane of a
+ * two-lane processing conversation is stale, prefer clearConversationProcessing
+ * with the specific lane to keep the healthy lane's lock intact.
+ */
+export function clearConversationProcessingAll(conversationKey: string): void {
+  conversationProcessing.delete(conversationKey);
+}
+
+/**
+ * Returns the startedAt for a conversation in a lane, or undefined.
+ * Consumers use this to verify a processing slot is still owned by them
+ * before releasing it (guards against clearing a newer slot).
+ */
+export function getConversationProcessingStartedAt(
+  conversationKey: string,
+  lane: AnalysisLane,
+): number | undefined {
+  return conversationProcessing.get(conversationKey)?.[lane];
+}
 
 // ---------------------------------------------------------------------------
 // Conversation lock helper
 // ---------------------------------------------------------------------------
 
+/**
+ * Reports whether the conversation is currently processing.
+ *
+ * When `lane` is provided, only that lane's lock counts — a media sub-batch
+ * in flight does NOT lock the text lane, so the text lane can be scheduled
+ * and vice versa. When `lane` is omitted, any active lane locks it (used by
+ * recovery/individual fallback which must not race ANY batch work).
+ */
 export function isConversationProcessingLocked(
   conversationKey: string,
+  lane?: AnalysisLane,
 ): boolean {
-  const startedAt = conversationProcessing.get(conversationKey);
-  return Boolean(
-    startedAt &&
-      Date.now() - startedAt < config.AI_ANALYSIS_PROCESSING_TIMEOUT_MS,
-  );
+  const now = Date.now();
+  if (lane) {
+    const startedAt = conversationProcessing.get(conversationKey)?.[lane];
+    return Boolean(
+      startedAt && now - startedAt < config.AI_ANALYSIS_PROCESSING_TIMEOUT_MS,
+    );
+  }
+  const record = conversationProcessing.get(conversationKey);
+  if (!record) return false;
+  return ANALYSIS_LANES.some((l) => {
+    const s = record[l];
+    return Boolean(s && now - s < config.AI_ANALYSIS_PROCESSING_TIMEOUT_MS);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -86,6 +189,7 @@ export function isConversationProcessingLocked(
 export type CircuitBreakerAlert = {
   type: "conversation_cb" | "individual_cb" | "sustained_error";
   conversationKey?: string;
+  lane?: AnalysisLane;
   consecutiveErrors: number;
   message: string;
   lastError?: string | null;
@@ -117,7 +221,10 @@ export function fireAlert(alert: CircuitBreakerAlert): void {
 // Circuit breaker helpers
 // ---------------------------------------------------------------------------
 
-export function recordConversationBatchFailure(conversationKey: string): void {
+export function recordConversationBatchFailure(
+  conversationKey: string,
+  lane?: AnalysisLane,
+): void {
   const nextCount =
     (conversationConsecutiveErrors.get(conversationKey) ?? 0) + 1;
   conversationConsecutiveErrors.set(conversationKey, nextCount);
@@ -130,6 +237,7 @@ export function recordConversationBatchFailure(conversationKey: string): void {
     fireAlert({
       type: "conversation_cb",
       conversationKey,
+      lane,
       consecutiveErrors: nextCount,
       message: `Conversation ${conversationKey} circuit breaker triggered after ${nextCount} consecutive errors`,
       lastError: LAST_ERROR.value,
@@ -138,6 +246,9 @@ export function recordConversationBatchFailure(conversationKey: string): void {
   }
 }
 
-export function resetConversationBatchFailures(conversationKey: string): void {
+export function resetConversationBatchFailures(
+  conversationKey: string,
+  _lane?: AnalysisLane,
+): void {
   conversationConsecutiveErrors.delete(conversationKey);
 }

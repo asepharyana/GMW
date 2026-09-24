@@ -214,6 +214,14 @@ export async function initializeDiscordGateway() {
       setGauge("ai_analysis_queued_conversations", status.queuedConversations);
       setGauge("ai_analysis_active_batch_requests", status.activeRequests);
       setGauge(
+        "ai_analysis_active_text_requests",
+        status.activeTextRequests ?? status.activeRequests,
+      );
+      setGauge(
+        "ai_analysis_active_media_requests",
+        status.activeMediaRequests ?? 0,
+      );
+      setGauge(
         "ai_analysis_active_individual_requests",
         status.activeIndividualRequests,
       );

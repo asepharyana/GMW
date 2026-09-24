@@ -86,7 +86,12 @@ export interface MessageBatch {
 
 // Worker job types (Piscina entry point)
 type WorkerJob =
-  | { type: "batch"; conversationKey: string; messages: MessageRecord[] }
+  | {
+      type: "batch";
+      conversationKey: string;
+      lane: "text" | "media";
+      messages: MessageRecord[];
+    }
   | { type: "individual"; message: MessageRecord; skipNormalAnalysis: boolean };
 
 type BatchOkResponse = {
@@ -263,6 +268,7 @@ function normalizeResult(
 async function processBatch(job: {
   type: "batch";
   conversationKey: string;
+  lane: "text" | "media";
   messages: MessageRecord[];
 }): Promise<BatchOkResponse | BatchErrorResponse> {
   const { conversationKey, messages } = job;

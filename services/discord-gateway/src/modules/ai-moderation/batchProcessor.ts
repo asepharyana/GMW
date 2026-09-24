@@ -8,13 +8,14 @@ import { partitionBatchOutcome } from "./batchOutcomeClassifier.js";
 import { mediaWorkerPool, textWorkerPool } from "./circuitBreaker.js";
 import { estimateTokens } from "./conversationContext.js";
 import {
+  type AnalysisLane,
+  clearConversationProcessing,
   conversationErrorCooldown,
-  conversationProcessing,
+  getConversationProcessingStartedAt,
   recordConversationBatchFailure,
   resetConversationBatchFailures,
 } from "./conversationState.js";
 import { enqueueIndividualFallbacks } from "./individualFallbackProcessor.js";
-import { hasMediaContent } from "./mediaAnalysisClient.js";
 import {
   broadcastAnalysisCompleted,
   LAST_ERROR,
@@ -34,10 +35,12 @@ export interface AnalysisWorkerResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Observability
+// Observability (per-lane counters live alongside the aggregate)
 // ---------------------------------------------------------------------------
 
 export let activeRequests = 0;
+export let activeTextRequests = 0;
+export let activeMediaRequests = 0;
 
 // ---------------------------------------------------------------------------
 // Exported helpers
@@ -182,32 +185,36 @@ export async function skipAnalysisUserMessages(
 // ---------------------------------------------------------------------------
 
 /**
- * Runs one worker job (either the text-only or the media sub-batch of a
+ * Runs ONE worker job for a single lane (text-only or media sub-batch of a
  * conversation) end-to-end: dispatch → broadcast/save → fallback routing.
- * Returns whether the *caller* should schedule the next debounce pass for
- * this conversation (mirrors the old single-job semantics, now evaluated
- * per queue).
  *
- * Broadcasting happens here, inside each queue's own call — NOT after
- * waiting on the other queue. That's the actual fix for "text menunggu
- * image": previously one mixed conversation batch made ONE worker call
- * with both text and media targets, and `runModerationAnalysis` only
- * resolves (so results only get saved/broadcast) once BOTH finish — so a
- * fast text verdict sat unused until the slow vision/image verdict was
- * ready too. Splitting into two independent jobs means the text queue
- * saves+broadcasts its rows the moment IT finishes, regardless of how long
- * the media queue takes.
+ * The lock for this conversation+lane is RELEASED here as soon as THIS lane's
+ * worker job resolves — never after waiting on the other lane. That's the
+ * core fix for "text menunggu image": previously one conversation batch made
+ * ONE worker call with both text and media targets, and processing finished
+ * only once BOTH lanes completed, so a fast text verdict sat unused until the
+ * slow vision/image verdict was ready. Now each lane's results save+broadcast
+ * the moment ITS job finishes, and the conversation lock for that lane is
+ * freed independently.
+ *
+ * Returns whether the *caller* should schedule the next debounce pass for
+ * this conversation's LANE.
  */
 async function runQueueBatch(
   pool: typeof textWorkerPool,
   conversationKey: string,
+  lane: AnalysisLane,
   messages: MessageRecord[],
 ): Promise<boolean> {
   activeRequests++;
+  if (lane === "media") activeMediaRequests++;
+  else activeTextRequests++;
+
   try {
     const result = (await pool.run({
       type: "batch",
       conversationKey,
+      lane,
       messages,
     })) as AnalysisWorkerResponse;
 
@@ -222,12 +229,13 @@ async function runQueueBatch(
     }
 
     if (!result.ok) {
-      recordConversationBatchFailure(conversationKey);
+      recordConversationBatchFailure(conversationKey, lane);
 
       // Batch failed entirely -- fall back all messages to individual queue
       logger.warn(
         {
           conversationKey,
+          lane,
           messageCount: messages.length,
           error: result.error,
         },
@@ -243,6 +251,7 @@ async function runQueueBatch(
       logger.error(
         {
           conversationKey,
+          lane,
           error: LAST_ERROR.value,
           messageCount: messages.length,
           messageIds: messages.map((m) => m.id),
@@ -284,6 +293,7 @@ async function runQueueBatch(
       logger.warn(
         {
           conversationKey,
+          lane,
           count: messagesForIndividualQueue.length,
           ids: messagesForIndividualQueue.map((m) => m.id),
           totalBatchSize: messages.length,
@@ -297,6 +307,7 @@ async function runQueueBatch(
       logger.warn(
         {
           conversationKey,
+          lane,
           count: apiFailedMessages.length,
           ids: apiFailedMessages.map((m) => m.id),
         },
@@ -335,7 +346,7 @@ async function runQueueBatch(
       }
 
       // Trigger conversation cooldown
-      recordConversationBatchFailure(conversationKey);
+      recordConversationBatchFailure(conversationKey, lane);
       const existingCooldown =
         conversationErrorCooldown.get(conversationKey) ?? 0;
       const newCooldown = Date.now() + config.AI_ANALYSIS_ERROR_COOLDOWN_MS;
@@ -347,14 +358,14 @@ async function runQueueBatch(
       return false;
     }
 
-    resetConversationBatchFailures(conversationKey);
+    resetConversationBatchFailures(conversationKey, lane);
     conversationErrorCooldown.delete(conversationKey);
     return true;
   } catch (error) {
-    recordConversationBatchFailure(conversationKey);
+    recordConversationBatchFailure(conversationKey, lane);
 
     logger.warn(
-      { conversationKey, messageCount: messages.length },
+      { conversationKey, lane, messageCount: messages.length },
       "Batch threw exception -- routing all messages to individual fallback queue",
     );
     enqueueIndividualFallbacks(messages);
@@ -370,6 +381,7 @@ async function runQueueBatch(
     logger.error(
       {
         conversationKey,
+        lane,
         error: LAST_ERROR.value,
         stack: errorStack,
         messageCount: messages.length,
@@ -384,59 +396,67 @@ async function runQueueBatch(
     return false;
   } finally {
     activeRequests--;
+    if (lane === "media") activeMediaRequests--;
+    else activeTextRequests--;
   }
 }
 
 export async function processBatch(
   conversationKey: string,
+  lane: AnalysisLane,
   messages: MessageRecord[],
   processingStartedAt: number,
 ): Promise<void> {
+  // Release this lane's lock immediately when there's nothing to do. The
+  // messages array was already labelled with the lane it belongs to by the
+  // scheduler (which fetched them from the DB), so an empty array means this
+  // lane has no work — free it so the debounce can re-arm right away.
   if (messages.length === 0) {
-    if (conversationProcessing.get(conversationKey) === processingStartedAt) {
-      conversationProcessing.delete(conversationKey);
+    if (
+      getConversationProcessingStartedAt(conversationKey, lane) ===
+      processingStartedAt
+    ) {
+      clearConversationProcessing(conversationKey, lane);
     }
     return;
   }
   const cooldownUntil = conversationErrorCooldown.get(conversationKey) ?? 0;
   if (Date.now() < cooldownUntil) {
-    if (conversationProcessing.get(conversationKey) === processingStartedAt) {
-      conversationProcessing.delete(conversationKey);
+    if (
+      getConversationProcessingStartedAt(conversationKey, lane) ===
+      processingStartedAt
+    ) {
+      clearConversationProcessing(conversationKey, lane);
     }
     return;
   }
 
-  // Split the batch itself — not just route it — so text and media never
-  // share one worker call. A conversation batch commonly mixes plain-text
-  // messages with an image/sticker from someone else; without this split,
-  // ALL of it (including the plain-text messages) would ride along on the
-  // media job and wait for vision analysis to finish. Each sub-batch is now
-  // dispatched to its own pool AND handled independently below, so the text
-  // queue's results land as soon as text analysis completes, full stop.
-  const textMessages = messages.filter((m) => !hasMediaContent(m));
-  const mediaMessages = messages.filter((m) => hasMediaContent(m));
-
-  const jobs: Promise<boolean>[] = [];
-  if (textMessages.length > 0) {
-    jobs.push(runQueueBatch(textWorkerPool, conversationKey, textMessages));
-  }
-  if (mediaMessages.length > 0) {
-    jobs.push(runQueueBatch(mediaWorkerPool, conversationKey, mediaMessages));
-  }
-
-  const outcomes = await Promise.allSettled(jobs);
-  const shouldScheduleNext = outcomes.every(
-    (o) => o.status === "fulfilled" && o.value,
+  const result = await runQueueBatch(
+    lane === "media" ? mediaWorkerPool : textWorkerPool,
+    conversationKey,
+    lane,
+    messages,
   );
 
-  if (conversationProcessing.get(conversationKey) === processingStartedAt) {
-    conversationProcessing.delete(conversationKey);
+  // Release THIS lane's lock now — the other lane (if any) is dispatched
+  // separately by the scheduler and owns its own lock. The old code awaited
+  // BOTH lanes (Promise.allSettled) before releasing the single conversation
+  // lock, so the text sub-batch of a conversation blocked its own lock until
+  // the slow media sub-batch finished. Now each lane is independent: the text
+  // lane frees its lock and re-schedules the moment the text worker returns.
+  if (
+    getConversationProcessingStartedAt(conversationKey, lane) ===
+    processingStartedAt
+  ) {
+    clearConversationProcessing(conversationKey, lane);
   }
-  if (shouldScheduleNext) {
+
+  if (result) {
     setImmediate(() => {
-      // Dynamic import to avoid circular dependency at module scope
+      // Dynamic import to avoid circular dependency at module scope.
+      // Re-schedule ONLY this lane — the other lane schedules itself.
       import("./batchScheduler.js").then((m) =>
-        m.scheduleConversationAnalysis(conversationKey),
+        m.scheduleConversationAnalysis(conversationKey, lane),
       );
     });
   }

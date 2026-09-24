@@ -194,6 +194,12 @@ export const configSchema = z
     QDRANT_ARCHIVE_COLLECTION: z.string().default("gmw_message_archive"),
     QDRANT_API_KEY: z.string().optional(),
     AI_LLM_MAX_CONCURRENT: z.coerce.number().int().positive().default(8),
+    // Media-lane LLM concurrency cap (2026-09-24): vision + media-batch calls
+    // use their OWN semaphore instead of sharing AI_LLM_MAX_CONCURRENT, so a
+    // slow image backlog can never consume the text lane's concurrency slots.
+    // Default 4 keeps media churn from saturating the router; text inference
+    // keeps its full AI_LLM_MAX_CONCURRENT (default 8) regardless.
+    AI_LLM_MEDIA_MAX_CONCURRENT: z.coerce.number().int().positive().default(4),
     AI_LLM_IMAGE_MAX_DIMENSION: z.coerce
       .number()
       .int()
