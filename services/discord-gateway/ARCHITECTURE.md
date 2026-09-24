@@ -5,10 +5,9 @@ messages/attachments/reactions/threads/presence, runs LLM-based AI
 moderation, and publishes everything to Redis pub/sub for the backend to
 consume. The backend serves the HTTP/WS API to the frontend.
 
-> NOTE: this doc is the source of truth for the module layout. The older
-> `MODULE_STRUCTURE.md` was stale (referenced `winston`, `mock-crc.ts`,
-> `indonesianTextNormalizer.ts`, and `aiAnalysisWorker.ts`/`llmModerationClient.ts`
-> which were renamed/merged). If they disagree, this file wins.
+> NOTE: this doc is the source of truth for the module layout. The old
+> `MODULE_STRUCTURE.md` was a stale duplicate and has been removed. `README.md`
+> only covers how to run the service.
 
 ## Top-level layout
 
@@ -16,32 +15,40 @@ consume. The backend serves the HTTP/WS API to the frontend.
 services/discord-gateway/
 ├── src/
 │   ├── index.ts                     # Entry point → initializeDiscordGateway()
-│   ├── app/
-│   │   ├── bootstrap.ts             # Wires client, DB, Redis, workers, schedulers
-│   │   ├── shutdown.ts              # Graceful shutdown (SIGINT/SIGTERM + transient errors)
+│   ├── app/                         # Process lifecycle
+│   │   ├── bootstrap.ts             # Startup order: config → DB → services → metrics → login
+│   │   ├── lifecycle.ts             # Everything wired on the Discord 'ready' hook
+│   │   ├── process-guards.ts        # SIGINT/SIGTERM + uncaught-error policy
+│   │   ├── metrics-collector.ts     # AI pipeline Prometheus gauges
+│   │   ├── shutdown.ts              # Graceful shutdown sequence
 │   │   └── retention.ts             # Expired-record cleanup scheduler
-│   ├── shared/
+│   ├── shared/                      # Infrastructure — never imports from modules/
 │   │   ├── config/                  # Zod-validated env (index.ts = schema+loader)
 │   │   ├── database/                # Drizzle ORM + pg Pool + migrations
 │   │   │   ├── init.ts drizzle.ts pool.ts migrate.ts migrateCli.ts
 │   │   │   └── schema/              # messages, cache, meta, analytics
 │   │   ├── logger/                  # pino wrapper + createChildLogger()
-│   │   ├── errors/                  # AppError / ConfigError ...
+│   │   ├── errors/                  # AppError / ConfigError ... + errorMessage()
+│   │   │                            #   + isTransientStreamError()
 │   │   ├── utils/                   # retry, pagination
 │   │   ├── discord/clientOptions.ts # discord.js-selfbot-v13 client options
 │   │   ├── uploader.ts              # Shared attachment upload helper
-│   │   ├── redis-channels.ts        # Redis channel-name constants
+│   │   ├── redis-channels.ts        # Redis channel + command constants
 │   │   └── moderation-types.ts      # Shared AI analysis domain types
-│   └── modules/
+│   └── modules/                     # Feature modules, each with an index.ts facade
 │       ├── message-capture/         # Discord event listeners + DB store
 │       ├── ai-moderation/           # LLM moderation pipeline (see below)
 │       ├── attachment-upload/       # Download + (sharp) resize + upload
-│       ├── event-broadcaster/        # RedisEventPublisher + EventBroadcaster
+│       ├── event-broadcaster/       # RedisEventPublisher + EventBroadcaster
 │       ├── command-handler/         # Redis-subscribed backend→gateway commands
 │       ├── reaction-tracking/ thread-tracking/ user-presence/
-│       ├── channel-topic/ guild-member-events/
+│       ├── channel-topic/ guild-member-events/ monitor/
 │       └── gateway-metrics/         # Prometheus /metrics endpoint (port 4016)
 ```
+
+Dependency direction is one-way: `index.ts` → `app/` → `modules/` → `shared/`.
+Code outside a module imports its `index.ts` facade, never an internal file;
+deep imports stay valid inside the module itself.
 
 ## AI moderation pipeline (`ai-moderation/`)
 
@@ -54,8 +61,15 @@ concurrency semaphores. The text lane frees its lock and saves+broadcasts the
 moment text analysis finishes — it never waits on a slow vision/media batch
 of the same conversation, and vice versa.
 
-- `aiAnalyzer.ts` — public API: `queueMessageAnalysis`, `getAnalysisQueueStatus`,
-  `startPendingAIAnalysisWorker` (recovery worker + cache-prune).
+- `aiAnalyzer.ts` — public API: `queueMessageAnalysis`, `queueConversationAnalysis`,
+  `getAnalysisQueueStatus`, `startPendingAIAnalysisWorker`. Short-circuits
+  age-restricted and skip-list messages before any LLM work.
+- `recovery-worker.ts` — periodic sweep for stranded `pending` messages
+  (re-scheduled per lane) and `error`/`analysis_incomplete` messages
+  (individual fallback queue); prunes stale lane locks, per-conversation CB
+  counters and individual in-flight markers.
+- `cache-prune.ts` — throttled (6h) expired-verdict sweep across Postgres and
+  Qdrant, driven from the recovery interval.
 - `batchScheduler.ts` — per-conversation per-LANE debounce → `processBatch`
   (lane-aware). `splitMessagesByLane` / `laneOfMessage` live in
   `analysisLanes.ts` (pure, unit-testable).
@@ -123,28 +137,51 @@ See `src/shared/redis-channels.ts` for the canonical names.
 
 ## Initialization flow
 
+`bootstrap.ts` runs these steps in order (each is a named function):
+
 1. Validate env (Zod). Refuse to start if `AI_ANALYSIS_ENABLED` but no key.
-2. `AUTO_MIGRATE_ON_STARTUP` → run pending Drizzle migrations.
-3. `initializeDatabase()` (pg Pool, min 0).
-4. Create discord.js-selfbot-v13 client; register listeners on `ready`.
-5. Start `gmw-discord-gateway` metrics server (port `METRICS_PORT`, default 4016).
-6. `client.login(token)`.
+   → `assertConfigIsUsable()`
+2. Build long-lived services: Discord client, `RedisEventPublisher` +
+   `EventBroadcaster`, `CommandHandler`; install the shutdown handler.
+3. Connect infrastructure → `connectDatabase()`:
+   `AUTO_MIGRATE_ON_STARTUP` runs pending Drizzle migrations, then
+   `initializeDatabase()` (pg Pool, min 0).
+4. `registerClientDebugLogging()` — only client debug lines carrying signal.
+5. Install process guards (`registerProcessGuards`).
+6. Register pipeline gauges + start the metrics server (port `METRICS_PORT`,
+   default 4016).
+7. `client.login(token)`.
+
+On the Discord `ready` event, `lifecycle.ts` runs `startGatewayLifecycle()`:
+
+1. Inject the event broadcaster into message-capture and moderation-actions
+   (before any listener can fire).
+2. Register Discord listeners: message-capture, reaction, thread, presence,
+   channel-topic, guild-member.
+3. Start background work: AI analysis worker + recovery worker, command
+   handler, retention cleanup, weekly digest.
 
 ## Graceful shutdown
 
-`SIGINT`/`SIGTERM` (and uncaught transient stream errors: EPIPE / ECONNRESET /
-ERR_STREAM_DESTROYED / ERR_STREAM_WRITE_AFTER_END are treated as non-fatal):
-stop metrics → close event broadcaster (Redis) → close command handler →
-close DB → destroy client → exit.
+`process-guards.ts` owns the policy. `SIGINT`/`SIGTERM` and non-transient
+uncaught exceptions/rejections run `shutdown.ts`; transient stream errors
+(EPIPE / ECONNRESET / ERR_STREAM_DESTROYED / ERR_STREAM_WRITE_AFTER_END, see
+`isTransientStreamError()`) are logged and IGNORED so the bot stays online.
+
+Shutdown order: stop metrics → close event broadcaster (Redis) → close command
+handler → close DB → destroy client → exit.
 
 ## Observability
 
 Prometheus scrapes `127.0.0.1:4016/metrics` (`bete_*` prefix). Collectors run
 per-scrape and expose: process memory/uptime, and (when AI analysis is on) live
-pipeline gauges — `ai_analysis_queued_conversations`,
-`ai_analysis_active_batch_requests`, `ai_analysis_active_individual_requests`,
-`ai_analysis_individual_in_flight`, `ai_analysis_individual_circuit_breaker_active`,
-`ai_analysis_worker_threads`, `ai_analysis_worker_threads_active`.
+pipeline gauges registered by `app/metrics-collector.ts` —
+`ai_analysis_queued_conversations`, `ai_analysis_active_batch_requests`,
+`ai_analysis_active_text_requests`, `ai_analysis_active_media_requests`,
+`ai_analysis_active_individual_requests`, `ai_analysis_individual_in_flight`,
+`ai_analysis_individual_circuit_breaker_active`,
+`ai_analysis_worker_threads_{text,media}`,
+`ai_analysis_worker_threads_active_{text,media}`.
 
 ## Key invariants (do not break)
 
