@@ -158,23 +158,6 @@ export const configSchema = z
     // (AI_LLM_BASE_URL) but a different model alias. The dedicated NVIDIA
     // multimodal endpoint was removed.
     AI_LLM_VISION_MODEL: z.string().default("multimodal"),
-    // ── Jev (TypeSafe System One) — primary text analyzer ────────────────
-    // Jev evaluates typed questions against a state and returns calibrated
-    // structured answers (no text generation). Runs on 9router's
-    // /v1/systemone (free model oc/jev-1.13-free). The existing LLM remains
-    // the fallback for anything Jev cannot decide confidently and for media.
-    AI_LLM_JEV_ENABLED: z
-      .string()
-      .optional()
-      .default("false")
-      .transform((v) => v === "true"),
-    AI_LLM_JEV_API_KEY: z.string().optional().default(""),
-    AI_LLM_JEV_BASE_URL: z.string().url().default("http://127.0.0.1:4014"),
-    AI_LLM_JEV_MODEL: z.string().default("oc/jev-1.13-free"),
-    // Per-message acceptance threshold on the status choice confidence.
-    // Below this the message falls back to the LLM (fail-open).
-    AI_LLM_JEV_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.9),
-    AI_LLM_JEV_TIMEOUT_MS: z.coerce.number().int().positive().default(45_000),
     AI_LLM_DISABLE_THINKING: z
       .string()
       .default("true")
