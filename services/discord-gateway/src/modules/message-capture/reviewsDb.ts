@@ -2,8 +2,11 @@ import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "../../shared/database/schema.js";
 import { messageReviewsTable } from "../../shared/database/schema.js";
-import { buildCursorCondition, pageResult } from "../../shared/index.js";
 import { createChildLogger, type Logger } from "../../shared/logger/index.js";
+import {
+  buildCursorCondition,
+  pageResult,
+} from "../../shared/utils/pagination.js";
 import type { MessageReview, PageResult } from "../message-capture/types.js";
 
 // ─── ReviewsDb Class ────────────────────────────────────────────────────────

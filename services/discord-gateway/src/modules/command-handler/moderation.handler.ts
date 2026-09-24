@@ -1,6 +1,9 @@
 import type { Client } from "discord.js-selfbot-v13";
-import type { CommandMessage, CommandReply } from "../../shared/index.js";
 import { createChildLogger } from "../../shared/logger/index.js";
+import type {
+  CommandMessage,
+  CommandReply,
+} from "../../shared/redis-channels.js";
 import { messageStore } from "../message-capture/messageStore.js";
 
 // ---------------------------------------------------------------------------

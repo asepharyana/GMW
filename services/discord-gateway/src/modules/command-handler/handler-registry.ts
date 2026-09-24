@@ -4,7 +4,7 @@ import {
   COMMAND_MODERATION_ACTION,
   type CommandMessage,
   type CommandReply,
-} from "../../shared/index.js";
+} from "../../shared/redis-channels.js";
 import type { GuildHandler } from "./guild.handler.js";
 import type { ModerationHandler } from "./moderation.handler.js";
 

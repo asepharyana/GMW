@@ -2,8 +2,11 @@ import { and, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "../../shared/database/schema.js";
 import { messagesTable } from "../../shared/database/schema.js";
-import { buildCursorCondition, pageResult } from "../../shared/index.js";
 import { createChildLogger, type Logger } from "../../shared/logger/index.js";
+import {
+  buildCursorCondition,
+  pageResult,
+} from "../../shared/utils/pagination.js";
 import type {
   MessageQuery,
   MessageRecord,

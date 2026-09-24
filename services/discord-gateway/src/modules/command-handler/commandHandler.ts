@@ -1,12 +1,12 @@
 import type { Client } from "discord.js-selfbot-v13";
 import Redis from "ioredis";
 import { config } from "../../shared/config/index.js";
+import { createChildLogger } from "../../shared/logger/index.js";
 import {
   BACKEND_COMMAND,
   type CommandMessage,
   type CommandReply,
-} from "../../shared/index.js";
-import { createChildLogger } from "../../shared/logger/index.js";
+} from "../../shared/redis-channels.js";
 import { GuildHandler } from "./guild.handler.js";
 import {
   type CommandHandlerFn,

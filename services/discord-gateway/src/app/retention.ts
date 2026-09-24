@@ -1,8 +1,5 @@
 import { inArray, lt } from "drizzle-orm";
-import type {
-  NodePgDatabase,
-  NodePgQueryResultHKT,
-} from "drizzle-orm/node-postgres";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { createChildLogger } from "@/shared/logger/index";
 import { config } from "../shared/config/index.js";
 import { getDatabase } from "../shared/database/drizzle.js";

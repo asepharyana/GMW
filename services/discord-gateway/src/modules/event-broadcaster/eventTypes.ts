@@ -17,7 +17,7 @@ import {
   DISCORD_THREAD_DELETED,
   DISCORD_THREAD_UPDATED,
   type DiscordGatewayEvent,
-} from "../../shared/index.js";
+} from "../../shared/redis-channels.js";
 
 export type { DiscordGatewayEvent };
 

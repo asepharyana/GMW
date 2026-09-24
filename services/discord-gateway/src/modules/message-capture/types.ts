@@ -2,8 +2,7 @@ import type {
   AnalysisQueueStatus,
   AttachmentRecord,
   MessageRecord,
-  UserMetadata,
-} from "../../shared/index.js";
+} from "../../shared/moderation-types.js";
 
 // Re-export all shared types for backward compatibility
 export type {
@@ -26,7 +25,7 @@ export type {
   ReviewStatus,
   RoleMetadata,
   UserMetadata,
-} from "../../shared/index.js";
+} from "../../shared/moderation-types.js";
 
 // Local-only types (not shared across services)
 export type ModerationWsEvent =
