@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { tools } from "../src/modules/chatbot/chatbot.toolDefs.js";
 
 const names = tools.map((t) => t.function.name);

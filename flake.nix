@@ -35,9 +35,11 @@
 
         # ---- Shared build tools ----
         nodejs = pkgs.nodejs_22;
-        pnpm = pkgs.pnpm.override { nodejs = nodejs; };
+        # Bun for deps/install (replaces pnpm); keeps nodejs for the tsc +
+        # fix-imports.mjs build path (Bun's own bundler is not used for dist).
+        bun = pkgs.bun;
 
-        pnpmInstall = ''
+        bunInstall = ''
           export HOME=$TMPDIR/home
           export npm_config_cache=$TMPDIR/npm-cache
           mkdir -p $npm_config_cache
@@ -48,15 +50,9 @@
           export GIT_SSL_CAINFO=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
           export NIX_SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
 
-          # pnpm uses node-gyp for native addons — provide build tools (kept for
-          # the rare case a prebuilt is unavailable and it falls back to compile).
-          export CPPFLAGS="-I${pkgs.lib.getDev pkgs.openssl}/include"
-          export LDFLAGS="-L${pkgs.lib.getLib pkgs.openssl}/lib"
-
-          pnpm install --no-frozen-lockfile --ignore-scripts 2>&1
-
-          # Build native addons that need compilation
-          pnpm rebuild 2>&1 || true
+          # Build native addons (bun install runs postinstall scripts for
+          # @discordjs/opus / sharp unless trustedDependencies restricts).
+          bun install 2>&1
         '';
 
         # Shrink the shipped node_modules to production deps only. The full
@@ -74,28 +70,15 @@
         # Must run AFTER tsc (typescript is a devDep) and after native builds.
         pruneProd = ''
           echo "=== Pruning devDependencies (production-only node_modules) ==="
-          pnpm list --prod --depth 999 --parseable 2>/dev/null \
-            | grep -o '\.pnpm/[^/]*' | sort -u > $TMPDIR/prod-pnms.txt
-          ( cd node_modules/.pnpm \
-              && for d in */; do \
-                   d="''${d%/}"; \
-                   [ "$d" = "node_modules" ] && continue; \
-                   grep -qF ".pnpm/$d" $TMPDIR/prod-pnms.txt || rm -rf "$d"; \
-                 done ) || true
-          # Drop runtime-dead packages that still land in the prod graph:
-          #   - `@types/*` (pure TypeScript declarations) get pulled in as
-          #     REAL dependencies by type-aware deps (discord-api-types ->
-          #     @types/node, pg-protocol -> @types/pg, ...) even though nothing
-          #     ever `require`s them at runtime. Safe to strip.
-          #   - `opusscript` is only a pure-JS fallback Opus engine that
-          #     prism-media's loader uses IF `@discordjs/opus` (native, always
-          #     present/prebuilt) fails to load. Since the native engine loads,
-          #     opusscript is never executed — dead weight pulled in via
-          #     discord.js-selfbot-v13's dependency. Strip it too.
-          ( cd node_modules/.pnpm && rm -rf @types+* opusscript@* 2>/dev/null ) || true
-          # Drop symlinks whose .pnpm target was pruned (top-level, scoped dirs,
-          # hoist, .bin — any depth). Mirrors stdenv's noBrokenSymlinks check,
-          # which would otherwise fail the fixupPhase.
+          # bun install's layout: node_modules/<pkg> for prod deps; devDeps are
+          # also present during build (needed for tsc). Keep only what the prod
+          # graph needs: simplest robust approach is `bun install --production`
+          # semantics — but bun keeps the same flat layout; since the Nix build
+          # already ran `bun install` (full, scripts on), prune dev-only top
+          # entries that were only pulled by devDeps (typescript, biome, vitest,
+          # drizzle-kit, tsx, @types/*).
+          find node_modules -maxdepth 2 -type d \( -name 'typescript' -o -name '@biomejs' -o -name 'vitest' -o -name 'drizzle-kit' -o -name 'tsx' -o -name 'esbuild' \) -prune -exec rm -rf {} + 2>/dev/null || true
+          rm -rf node_modules/.bin/tsc node_modules/.bin/vitest node_modules/.bin/biome node_modules/.bin/drizzle-kit 2>/dev/null || true
           find node_modules -type l ! -exec test -e {} \; -delete 2>/dev/null || true
           du -sh node_modules
         '';
@@ -107,11 +90,11 @@
 
           src = ./services/backend;
 
-          nativeBuildInputs = [ nodejs pnpm pkgs.python3 pkgs.gnumake pkgs.gcc pkgs.cacert ];
+          nativeBuildInputs = [ nodejs bun pkgs.python3 pkgs.gnumake pkgs.gcc pkgs.cacert ];
 
-          buildPhase = pnpmInstall + ''
+          buildPhase = bunInstall + ''
             echo "=== Compiling TypeScript ==="
-            npx tsc 2>&1
+            ./node_modules/.bin/tsc 2>&1
             echo "=== Fixing @/ path aliases + extensionless relative imports for node ESM ==="
             node scripts/fix-imports.mjs
             echo "=== Build complete ==="
@@ -177,22 +160,11 @@ WRAPPER
           # neither needed nor wanted here. Skip it entirely.
           dontFixup = true;
 
-          buildPhase = pnpmInstall + ''
-            echo "=== Building native voice deps ==="
-            # pnpm rebuild aborts on the first failing package and runs scripts
-            # from the wrong cwd — build each native dep explicitly with its own
-            # install script. Each failure is tolerated (|| true); the packages
-            # @discordjs/opus ships prebuilt binaries for Node 22 (ABI node-v127,
-            # linux-x64-glibc-2.35) — node-pre-gyp downloads the prebuilt .node
-            # instead of compiling C++ from source. With build_from_source unset
-            # (above), `pnpm rebuild` runs the package's own install script which
-            # fetches the matching prebuilt; it only falls back to a source build
-            # if the download fails. This keeps voice working without a per-build
-            # native compile.
+          buildPhase = bunInstall + ''
             echo "=== Rebuilding @discordjs/opus (prebuilt download) ==="
-            pnpm rebuild @discordjs/opus 2>&1 || true
+            bun pm rebuild @discordjs/opus 2>&1 || true
             echo "=== Compiling TypeScript ===="
-            npx tsc 2>&1
+            ./node_modules/.bin/tsc 2>&1
             echo "=== Fixing @/ path aliases + extensionless relative imports for node ESM ==="
             node scripts/fix-imports.mjs
             echo "=== Build complete ==="
@@ -228,13 +200,13 @@ WRAPPER
 
           src = frontendSrc;
 
-          nativeBuildInputs = [ nodejs pnpm pkgs.gnumake pkgs.gcc pkgs.cacert ];
+          nativeBuildInputs = [ nodejs bun pkgs.gnumake pkgs.gcc pkgs.cacert ];
 
-          buildPhase = pnpmInstall + ''
+          buildPhase = bunInstall + ''
             echo "=== Building Next.js SSR (standalone) ==="
             export NEXT_TELEMETRY_DISABLED=1
             export GMW_BACKEND_URL=http://127.0.0.1:4001
-            npx next build 2>&1
+            ./node_modules/.bin/next build 2>&1
           '';
 
           installPhase = ''
@@ -312,13 +284,13 @@ WRAPPER
 
         devShells.default = pkgs.mkShell {
           buildInputs = [
-            nodejs pnpm
+            nodejs bun
             pkgs.python3 pkgs.gnumake pkgs.gcc
             pkgs.rustc pkgs.cargo
             pkgs.ffmpeg-headless
           ];
           shellHook = ''
-            echo "GMW dev shell ready — node $(node --version), pnpm $(pnpm --version)"
+            echo "GMW dev shell ready — node $(node --version), bun $(bun --version)"
           '';
         };
       });

@@ -6,12 +6,12 @@ GMW (Guild Moderation Watcher) is a Discord bot + web dashboard for AI-powered m
 
 ```bash
 # Per-service — cd into the service first
-pnpm install              # install deps (pnpm 11, not npm or bun)
-pnpm typecheck            # tsc --noEmit
-pnpm lint                 # biome check
-pnpm format               # biome format --write
-pnpm build                # gateway/backend: tsc + fix-imports.mjs; frontend: next build
-pnpm test                 # vitest run (gateway & backend only — frontend has no tests)
+bun install              # install deps (bun 1.3.14, not pnpm/npm)
+bun typecheck            # tsc --noEmit
+bun lint                 # biome check
+bun format               # biome format --write
+bun build                # gateway/backend: tsc + fix-imports.mjs; frontend: next build
+bun test                 # bun test tests/ (gateway & backend only — frontend has no tests)
 ```
 
 No monorepo-level scripts exist. Run each command from inside the service directory.
@@ -40,18 +40,19 @@ services/
 │
 └── frontend/          Next.js 16 App Router, React 19, Tailwind v4 (:4017).
     ├── src/
-    │   ├── app/            Pages — route groups under (dashboard)/
+    │   ├── src/            Pages — route groups under (dashboard)/
     │   ├── components/     UI components (primitives, shell, charts, etc.)
     │   ├── hooks/          React hooks
     │   └── lib/            API clients, types, utils, WebSocket, audio
-    └── pnpm-workspace.yaml  Build-script approvals (sharp only)
-```
+    ```
 
-## Conventions
+    ## Conventions
 
-### Package manager & runtime
+    ### Package manager & runtime
 
-- **pnpm** (v11), not npm or bun. Lockfiles are committed. Node ≥ 22.
+    - **bun** (v1.3.14), package manager + test runner. Lockfiles (`bun.lock`) are committed. Node 22 is still used at runtime for the tsc-built `dist/` (via `fix-imports.mjs`), plus bun for dev/install/test. Bun is NOT the production runtime for gateway/backend — the Nix wrapper execs `node dist/index.js` — so native modules resolve against the Node ABI (e.g. `@discordjs/opus` prebuilds for node-v127).
+    - ESM throughout (`"type": "module"` in all package.json files).
+    - Test runner: **bun test** (`bun test tests/`). The old vitest configs are replaced by `bunfig.toml` `[test] preload = ["./tests/setup-env.ts"]` — note bun 1.3.14 **ignores `[test] env`**, so env vars for tests go in the preload file. Bun's jest-compat layer aliases most vitest APIs (`vi.fn`→`jest.fn`, `vi.useFakeTimers`→`jest.useFakeTimers`, `vi.spyOn`→`spyOn`, `vi.mock`→`mock.module`), but there is no `vi.waitFor` or `jest` global — use the small `waitForCompat` helper in `tests/placeholder.test.ts`.
 - ESM throughout (`"type": "module"` in all package.json files).
 
 ### Import style

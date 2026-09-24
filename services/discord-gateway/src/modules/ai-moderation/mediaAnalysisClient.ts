@@ -14,10 +14,12 @@ export {
   downloadAndExtractFrame,
   sniffImageMimeType,
 } from "./mediaDownloader.js";
+export type {
+  MessageImagePart,
+  PreparedMediaMessage,
+} from "./visionAnalyzer.js";
 export {
   analyzeSingleMediaImage,
   hasMediaContent,
-  MessageImagePart,
-  PreparedMediaMessage,
   prepareMediaMessage,
 } from "./visionAnalyzer.js";

@@ -1,6 +1,32 @@
 // ─── Shared Error Classes ────────────────────────────────────────────────────
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+// bun:test compat facade — vitest's `vi` maps onto bun's `jest`/`mock`/`spyOn`.
+// bun:test 1.3.14 exports both `jest` (fn, useFakeTimers, spyOn) and `mock`
+// (module, restore). `vi.fn` -> `jest.fn`, `vi.useFakeTimers` -> `jest.useFakeTimers`,
+// `vi.waitFor` -> waitForCompat (poll until the assertion passes).
+
+import { afterEach, describe, expect, it, jest } from "bun:test";
+
+const useFakeTimers = () => jest.useFakeTimers();
+const useRealTimers = () => jest.useRealTimers();
+const advanceTimersByTime = (ms: number) => jest.advanceTimersByTime(ms);
+async function waitForCompat(fn: () => Promise<unknown>, timeoutMs = 2_000) {
+  const start = Date.now();
+  let lastErr: unknown;
+  while (Date.now() - start < timeoutMs) {
+    try {
+      await fn();
+      return;
+    } catch (err) {
+      lastErr = err;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error("waitForCompat timed out");
+}
+
 import {
   AppError,
   ConfigError,
@@ -94,41 +120,41 @@ describe("AppError subclasses", () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 describe("delay", () => {
   afterEach(() => {
-    vi.useRealTimers();
+    useRealTimers();
   });
 
   it("resolves after the given time", async () => {
-    vi.useFakeTimers();
+    useFakeTimers();
     const promise = delay(500);
-    vi.advanceTimersByTime(500);
+    advanceTimersByTime(500);
     await expect(promise).resolves.toBeUndefined();
   });
 
   it("rejects are not triggered on non-matching timer", async () => {
-    vi.useFakeTimers();
+    useFakeTimers();
     const promise = delay(1000);
     // Advance only part way — the timer should NOT fire yet
-    vi.advanceTimersByTime(500);
+    advanceTimersByTime(500);
     // The timer is still pending; the promise has not resolved yet
     // We advance the rest
-    vi.advanceTimersByTime(500);
+    advanceTimersByTime(500);
     await expect(promise).resolves.toBeUndefined();
   });
 });
 
 describe("retryWithBackoff", () => {
   afterEach(() => {
-    vi.useRealTimers();
+    useRealTimers();
   });
 
   it("returns the result on first success without retrying", async () => {
-    const fn = vi.fn().mockResolvedValue("ok");
+    const fn = jest.fn().mockResolvedValue("ok");
     await expect(retryWithBackoff(fn)).resolves.toBe("ok");
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
   it("re-throws after exhausting all retries", async () => {
-    const fn = vi.fn().mockRejectedValue(new Error("persistent"));
+    const fn = jest.fn().mockRejectedValue(new Error("persistent"));
     await expect(
       retryWithBackoff(fn, { retries: 1, minTimeout: 1, maxTimeout: 5 }),
     ).rejects.toThrow("persistent");
@@ -139,7 +165,7 @@ describe("retryWithBackoff", () => {
   it("throws AbortError immediately when signal is already aborted", async () => {
     const ac = new AbortController();
     ac.abort();
-    const fn = vi.fn().mockResolvedValue("ok");
+    const fn = jest.fn().mockResolvedValue("ok");
     await expect(
       retryWithBackoff(fn, { retries: 3, signal: ac.signal }),
     ).rejects.toThrow("Aborted");
@@ -147,9 +173,9 @@ describe("retryWithBackoff", () => {
   });
 
   it("respects abort signal during retry", async () => {
-    vi.useFakeTimers();
+    useFakeTimers();
     const ac = new AbortController();
-    const fn = vi.fn().mockRejectedValue(new Error("fail"));
+    const fn = jest.fn().mockRejectedValue(new Error("fail"));
 
     const promise = retryWithBackoff(fn, {
       retries: 5,
@@ -159,8 +185,8 @@ describe("retryWithBackoff", () => {
 
     // Schedule abort after first failure + backoff starts
     setTimeout(() => ac.abort(), 150);
-    vi.advanceTimersByTime(200);
-    await vi.waitFor(async () => {
+    advanceTimersByTime(200);
+    await waitForCompat(async () => {
       await expect(promise).rejects.toThrow("Aborted");
     });
   });
@@ -232,7 +258,7 @@ describe("asyncHandler", () => {
     const wrapped = asyncHandler(async () => {
       throw error;
     });
-    const next = vi.fn();
+    const next = jest.fn();
 
     wrapped({} as any, {} as any, next);
 
@@ -246,7 +272,7 @@ describe("asyncHandler", () => {
     const wrapped = asyncHandler(async (_req: any, _res: any, _next: any) => {
       // no-op
     });
-    const next = vi.fn();
+    const next = jest.fn();
 
     wrapped({} as any, {} as any, next);
     await Promise.resolve();

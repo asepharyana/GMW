@@ -6,12 +6,12 @@
 // single-key getter: unexpired rows only, malformed rows skipped, verdicts
 // normalized through the shared parser. The DB layer is mocked — no live
 // Postgres in unit tests.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, jest, mock } from "bun:test";
 
-const executeAll = vi.fn();
-const executeGet = vi.fn();
+const executeAll = jest.fn();
+const executeGet = jest.fn();
 
-vi.mock("../src/shared/database/drizzle.js", () => ({
+mock.module("../src/shared/database/drizzle.js", () => ({
   executeAll: (...args: unknown[]) => executeAll(...args),
   executeGet: (...args: unknown[]) => executeGet(...args),
 }));

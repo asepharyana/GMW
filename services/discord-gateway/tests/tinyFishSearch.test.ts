@@ -45,7 +45,7 @@ describe("tinyFishSearch fallback", () => {
     // Pin the live config object to a known-disabled state: the shell may
     // export a real TINYFISH_API_KEY (dev box), which would flip
     // isTinyFishEnabled() and let tests hit the network.
-    const { config } = await import("../../src/shared/config/index.js");
+    const { config } = await import("../src/shared/config/index.js");
     prevKey = config.TINYFISH_API_KEY;
     prevEnabled = config.TINYFISH_SEARCH_ENABLED;
     (config as Record<string, unknown>).TINYFISH_API_KEY = "";
@@ -54,7 +54,7 @@ describe("tinyFishSearch fallback", () => {
 
   afterEach(async () => {
     vi.restoreAllMocks();
-    const { config } = await import("../../src/shared/config/index.js");
+    const { config } = await import("../src/shared/config/index.js");
     (config as Record<string, unknown>).TINYFISH_API_KEY = prevKey;
     (config as Record<string, unknown>).TINYFISH_SEARCH_ENABLED = prevEnabled;
   });
@@ -63,7 +63,7 @@ describe("tinyFishSearch fallback", () => {
     config: Record<string, unknown>;
     prev: string;
   }> {
-    const { config } = await import("../../src/shared/config/index.js");
+    const { config } = await import("../src/shared/config/index.js");
     const prev = config.TINYFISH_API_KEY;
     (config as Record<string, unknown>).TINYFISH_API_KEY = "sk-test-key";
     return { config: config as unknown as Record<string, unknown>, prev };
