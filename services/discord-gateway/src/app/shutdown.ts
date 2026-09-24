@@ -1,5 +1,9 @@
 import type { Client } from "discord.js-selfbot-v13";
 import type { createChildLogger } from "@/shared/logger/index";
+import {
+  mediaWorkerPool,
+  textWorkerPool,
+} from "../modules/ai-moderation/circuitBreaker.js";
 import type { CommandHandler } from "../modules/command-handler/commandHandler.js";
 import type { EventBroadcaster } from "../modules/event-broadcaster/index.js";
 import type { stopMetricsServer } from "../modules/gateway-metrics/index.js";
@@ -44,6 +48,30 @@ export function createGracefulShutdown(
 
       options.logger.info("Closing command handler...");
       await options.commandHandler.close();
+
+      // ½. Tear down AI-analysis worker pools BEFORE closing the DB.
+      // Piscina worker threads survive process.exit() as orphans otherwise —
+      // they keep holding DB connections/locks after the main process is gone.
+      // (Two live gateways fighting over the same rows was the root cause of
+      // messages stuck in ai_status='processing'.)
+      options.logger.info("Destroying AI worker pools...");
+      const destroyPool = (pool: { destroy: () => Promise<void> }) =>
+        Promise.race([
+          pool.destroy(),
+          new Promise<void>((resolve) =>
+            setTimeout(() => {
+              options.logger.warn(
+                "Timed out destroying worker pool; exiting anyway",
+              );
+              resolve();
+            }, 5000),
+          ),
+        ]);
+      await Promise.allSettled([
+        destroyPool(textWorkerPool),
+        destroyPool(mediaWorkerPool),
+      ]);
+      options.logger.info("AI worker pools destroyed");
 
       // 2. DB pool
       options.logger.info("Closing database...");
