@@ -221,7 +221,7 @@ jobs:
           push: true
           platforms: ${{ matrix.image.platforms || 'linux/amd64' }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.image.package }}:${{ needs.release.outputs.version }}
+            ghcr.io/mytheclipse/${{ matrix.image.package }}:${{ needs.release.outputs.version }}
           # Newline-separated KEY=VALUE, which is what this action parses.
           # Passing a JSON object is accepted and handed through literally, so
           # every ARG in the Dockerfile resolves empty and the build still
@@ -241,7 +241,7 @@ jobs:
       # overwriting this tag.
       - name: Verify the published tag resolves
         env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.package }}:${{ needs.release.outputs.version }}
+          IMAGE: ghcr.io/mytheclipse/${{ matrix.image.package }}:${{ needs.release.outputs.version }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           set -Eeuo pipefail
