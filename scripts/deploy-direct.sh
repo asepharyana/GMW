@@ -19,7 +19,7 @@ set -euo pipefail
 #   bash scripts/deploy-direct.sh [branch|sha]
 #
 # Env:
-#   REMOTE_REPO       — git remote to fetch (default: https://github.com/asepharyana/GMW.git)
+#   REMOTE_REPO       — git remote to fetch (default: https://github.com/MythEclipse/GMW.git)
 #   DEPLOY_REF        — branch, tag, or sha to deploy (default: main)
 #   Runtime data           — NEVER touched. This script does not drop, truncate
 #                            or migrate the database; `scripts/reset-data.sh` is
@@ -29,7 +29,7 @@ set -euo pipefail
 #                       (default 2 = the live one + one rollback). Step 10
 #                       prunes the rest.
 
-REMOTE_REPO="${REMOTE_REPO:-https://github.com/asepharyana/GMW.git}"
+REMOTE_REPO="${REMOTE_REPO:-https://github.com/MythEclipse/GMW.git}"
 DEPLOY_REF="${1:-${DEPLOY_REF:-main}}"
 INSTALL_ROOT="/opt/gmw"
 RELEASES_DIR="$INSTALL_ROOT/releases"
