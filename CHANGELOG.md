@@ -1,3 +1,10 @@
+## [1.3.12](https://github.com/MythEclipse/GMW/compare/v1.3.11...v1.3.12) (2026-11-01)
+
+
+### Bug Fixes
+
+* **deploy:** fetch the deploy ref from MythEclipse ([4d4ecf8](https://github.com/MythEclipse/GMW/commit/4d4ecf80363556bba0023f577ac712d32eaf378f))
+
 ## [1.3.11](https://github.com/MythEclipse/GMW/compare/v1.3.10...v1.3.11) (2026-11-01)
 
 ## [1.3.10](https://github.com/asepharyana/GMW/compare/v1.3.9...v1.3.10) (2026-10-30)
