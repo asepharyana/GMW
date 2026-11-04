@@ -1,26 +1,26 @@
 {
   "name": "gmw",
+  "version": "1.3.12",
   "description": "GMW — pnpm workspace root: Discord moderation dashboard, backend service and SPA frontend",
   "private": true,
   "workspaces": [
     "apps/*"
   ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
-    "typecheck": "moon run :typecheck",
+    "build": "moon run :build",
+    "dev": "moon run :dev",
+    "format": "moon run :format",
     "lint": "moon run :lint",
     "lint:design": "moon run frontend:lint-design",
-    "format": "moon run :format",
     "test": "moon run :test",
-    "build": "moon run :build",
-    "dev": "moon run :dev"
+    "typecheck": "moon run :typecheck"
   },
   "devDependencies": {
     "@moonrepo/cli": "^2.6.5",
     "@types/bun": "1.4.4"
   },
-  "packageManager": "pnpm@10.33.2",
-  "engines": {
-    "node": ">=22.12.0"
-  },
-  "version": "1.3.12"
+  "packageManager": "pnpm@10.33.2"
 }
