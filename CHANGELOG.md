@@ -1,3 +1,10 @@
+## [1.3.13](https://github.com/MythEclipse/GMW/compare/v1.3.12...v1.3.13) (2026-11-05)
+
+
+### Bug Fixes
+
+* **deps:** stop the auto-merge gate reading its own check run ([308e04c](https://github.com/MythEclipse/GMW/commit/308e04c138479157ab18bef1d6331ab8d91fa618))
+
 ## [1.3.12](https://github.com/MythEclipse/GMW/compare/v1.3.11...v1.3.12) (2026-11-01)
 
 
