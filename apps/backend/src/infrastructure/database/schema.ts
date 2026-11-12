@@ -405,6 +405,28 @@ export const pgTermGlossaryCacheTable = pgTable(
 
 export const termGlossaryCacheTable = pgTermGlossaryCacheTable
 
+/**
+ * Media Vision Cache Table (PostgreSQL)
+ * Caches image/media descriptions across messages, channels, and restarts.
+ */
+export const pgMediaVisionCacheTable = pgTable(
+	"media_vision_cache",
+	{
+		fingerprint: pgText("fingerprint").primaryKey(),
+		description: pgText("description").notNull(),
+		resolved_at: pgBigint("resolved_at", { mode: "number" }).notNull(),
+		hit_count: pgInteger("hit_count").notNull().default(0),
+	},
+	(table) => ({
+		resolvedAtIdx: pgIndex("idx_media_vision_cache_resolved_at").on(
+			table.resolved_at,
+		),
+	}),
+)
+
+export const mediaVisionCacheTable = pgMediaVisionCacheTable
+export type MediaVisionCache = typeof mediaVisionCacheTable.$inferSelect
+
 // =============================================================================
 // Meta / System
 // =============================================================================

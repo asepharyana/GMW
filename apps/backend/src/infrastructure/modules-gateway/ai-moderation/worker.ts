@@ -25,6 +25,7 @@
  */
 
 import { randomUUID } from "node:crypto"
+import { LRUCache } from "lru-cache"
 import pLimit from "p-limit"
 import type { Pool, PoolClient } from "pg"
 import { createChildLogger } from "../../logger/index.js"
@@ -41,7 +42,18 @@ import {
 	formatLinkEvidenceForPrompt,
 } from "../message-capture/messageMetadata.js"
 import type { LlmGateway } from "./llmGateway.js"
-import { buildSystemPrompt } from "./policy.js"
+import {
+	batchDedupeKey,
+	extractMediaItems,
+	isVisionCapable,
+	type MediaItem,
+	mediaSignature,
+} from "./mediaFingerprint.js"
+import {
+	MediaVisionCacheService,
+	type VisionCacheEntry,
+} from "./mediaVisionCache.js"
+import { buildSystemPrompt, POLICY_VERSION } from "./policy.js"
 import {
 	logBatchResult,
 	logClaimed,
@@ -55,7 +67,16 @@ import {
 import type { ParseBatchResult, ParsedVerdict } from "./verdictParser.js"
 import { parseVerdicts } from "./verdictParser.js"
 
-export { escapeMessageBody, escapeXmlAttr }
+export { escapeMessageBody, escapeXmlAttr, isVisionCapable }
+
+interface CachedSpamViolation {
+	readonly flags: string[]
+	readonly categories: string[]
+	readonly reason: string
+	readonly analysis: string
+	readonly action: ParsedVerdict["action"]
+	readonly authorId: string
+}
 
 const log = createChildLogger("ai-moderation")
 
@@ -386,46 +407,71 @@ export function stickerAndEmojiUrls(metadata: string | null): string[] {
  * miss is not cached, so a transient vision failure is retried rather than
  * pinned as "this image has no description".
  */
-async function describeImages(
+async function describeMediaItems(
 	vision: LlmGateway,
-	urls: readonly string[],
+	items: readonly MediaItem[],
 	timeoutMs: number,
-	cache: Map<string, string>,
+	cacheService: MediaVisionCacheService,
 ): Promise<string> {
-	const pending = urls.filter((u) => !cache.has(u))
-	const parts: string[] = []
-	const seen = new Set<string>()
-
-	for (const url of urls) {
-		if (seen.has(url)) continue
-		seen.add(url)
-		const cached = cache.get(url)
-		if (cached) parts.push(cached)
-	}
+	if (items.length === 0) return ""
+	const fingerprints = items.map((i) => i.fingerprint)
+	const cached = await cacheService.getMany(fingerprints)
+	const pending = items.filter((i) => !cached.has(i.fingerprint))
 
 	if (pending.length > 0) {
-		const description = await vision.complete({
-			system: VISION_SYSTEM_PROMPT,
-			user: `Deskripsikan ${pending.length} gambar berikut.`,
-			images: pending.map((url) => ({ url })),
-			timeoutMs,
-		})
-		const text = description.trim()
-		if (text.length > 0) {
-			// One entry per image, so a later message citing the same URL gets the
-			// same sentence instead of the whole batch's paragraph. The model is
-			// asked for a JSON array of one string per image; anything else is
-			// stored verbatim as a single shared description, which is still far
-			// better than re-paying for it.
-			const perImage = splitVisionDescriptions(text, pending.length)
-			for (const [i, url] of pending.entries()) {
-				const line = perImage[i]
-				if (!line) continue
-				const rendered = `\n[Media description: ${line}]\n`
-				cache.set(url, rendered)
-				parts.push(rendered)
+		const uniqueByFp = new Map<string, MediaItem>()
+		for (const p of pending) {
+			if (!uniqueByFp.has(p.fingerprint)) {
+				uniqueByFp.set(p.fingerprint, p)
 			}
 		}
+		const uniqueList = Array.from(uniqueByFp.values())
+		const newEntries: VisionCacheEntry[] = []
+
+		await Promise.all(
+			uniqueList.map((item) =>
+				cacheService.coalesce(item.fingerprint, async () => {
+					const doubleCheck = cacheService.get(item.fingerprint)
+					if (doubleCheck) {
+						cached.set(item.fingerprint, doubleCheck)
+						return doubleCheck
+					}
+
+					const description = await vision.complete({
+						system: VISION_SYSTEM_PROMPT,
+						user: "Deskripsikan 1 gambar berikut.",
+						images: [{ url: item.url }],
+						timeoutMs,
+					})
+					const text = description.trim()
+					if (text.length > 0) {
+						const perImage = splitVisionDescriptions(text, 1)
+						const line = perImage[0] ?? text
+						const rendered = `\n[Media description: ${line}]\n`
+						cached.set(item.fingerprint, rendered)
+						newEntries.push({
+							fingerprint: item.fingerprint,
+							description: rendered,
+						})
+						return rendered
+					}
+					return ""
+				}),
+			),
+		)
+
+		if (newEntries.length > 0) {
+			await cacheService.setMany(newEntries)
+		}
+	}
+
+	const parts: string[] = []
+	const seen = new Set<string>()
+	for (const item of items) {
+		if (seen.has(item.fingerprint)) continue
+		seen.add(item.fingerprint)
+		const desc = cached.get(item.fingerprint)
+		if (desc) parts.push(desc)
 	}
 
 	return parts.join("")
@@ -468,11 +514,15 @@ async function generateVisionDescription(
 	message: ClaimedMessage,
 	visionTimeoutMs: number,
 	visionGateway?: LlmGateway,
-	preloadedAttachments?: ReadonlyArray<{
-		discord_url: string | null
-		type: string | null
-	}>,
-	visionCache?: Map<string, string>,
+	preloaded?:
+		| readonly MediaItem[]
+		| ReadonlyArray<{
+				discord_url: string | null
+				type?: string | null
+				filename?: string | null
+				size?: number | null
+		  }>,
+	cacheService?: MediaVisionCacheService,
 ): Promise<string> {
 	try {
 		let vision = visionGateway
@@ -481,32 +531,39 @@ async function generateVisionDescription(
 			vision = createDefaultVisionGateway()
 		}
 
-		const attachmentRows =
-			preloadedAttachments ??
-			(
-				await pool.query<{
-					discord_url: string | null
-					type: string | null
-				}>(`SELECT discord_url, type FROM attachments WHERE message_id = $1`, [
-					message.id,
-				])
-			).rows
+		let items: readonly MediaItem[]
+		if (preloaded && preloaded.length > 0 && "fingerprint" in preloaded[0]) {
+			items = preloaded as readonly MediaItem[]
+		} else {
+			const attachmentRows =
+				(preloaded as
+					| ReadonlyArray<{
+							discord_url: string | null
+							type?: string | null
+							filename?: string | null
+							size?: number | null
+					  }>
+					| undefined) ??
+				(
+					await pool.query<{
+						discord_url: string | null
+						type: string | null
+						filename: string | null
+						size: number | null
+					}>(
+						`SELECT discord_url, type, filename, size
+						   FROM attachments
+						  WHERE message_id = $1`,
+						[message.id],
+					)
+				).rows
+			items = extractMediaItems(attachmentRows, message.metadata)
+		}
 
-		const urls = [
-			...attachmentRows
-				.filter((a) => isVisionCapable(a.type, a.discord_url))
-				.map((a) => a.discord_url as string),
-			// Stickers and custom emoji, which are not attachment rows at all.
-			...stickerAndEmojiUrls(message.metadata),
-		].filter((u): u is string => typeof u === "string" && u.length > 0)
+		if (!items.length) return ""
 
-		if (!urls.length) return ""
-		return await describeImages(
-			vision,
-			urls,
-			visionTimeoutMs,
-			visionCache ?? new Map(),
-		)
+		const cache = cacheService ?? new MediaVisionCacheService(pool)
+		return await describeMediaItems(vision, items, visionTimeoutMs, cache)
 	} catch (e) {
 		log.warn(
 			{ messageId: message.id, error: String(e) },
@@ -530,35 +587,6 @@ export async function generateVisionDescriptionForTest(
 	visionTimeoutMs = 120_000,
 ): Promise<string> {
 	return generateVisionDescription(pool, message, visionTimeoutMs, vision)
-}
-
-/**
- * Whether an attachment can be handed to a vision model as an image part.
- *
- * Providers reject the entire request on an unsupported media type, so
- * guessing is not an option: a single .zip in the batch would blank out the
- * description for every image alongside it.
- */
-export function isVisionCapable(
-	contentType: string | null | undefined,
-	url?: string | null,
-): boolean {
-	const type = (contentType ?? "").toLowerCase().split(";")[0].trim()
-	if (type.startsWith("image/")) {
-		// SVG and the AVIF/HEIC variants are not universally accepted either.
-		return !type.includes("svg") && !type.includes("avif")
-	}
-	if (type) return false
-	// No content type recorded: fall back to the file extension.
-	const ext = (url ?? "")
-		.split("?")[0]
-		.split("#")[0]
-		.split(".")
-		.pop()
-		?.toLowerCase()
-	return ext
-		? ["png", "jpg", "jpeg", "gif", "webp", "bmp"].includes(ext)
-		: false
 }
 
 /** One message from the recent past, as the prompt's history block. */
@@ -748,17 +776,12 @@ export class ModerationWorker {
 	 */
 	private readonly vision: LlmGateway | undefined
 	private readonly config: WorkerConfig
-	/**
-	 * Vision descriptions already paid for, keyed on the Discord CDN URL.
-	 *
-	 * Per process and bounded: the fan-out is per message, so a re-posted image
-	 * or a sticker the guild uses all day used to cost a full vision call every
-	 * time. A CDN URL is stable for the life of the resource, and a description
-	 * of that resource cannot change under it.
-	 */
-	private readonly visionCache = new Map<string, string>()
-	/** Evicted in insertion order, so the cache cannot grow without bound. */
-	private static readonly VISION_CACHE_MAX = 500
+	private readonly mediaVisionCache: MediaVisionCacheService
+	private readonly recentSpamViolations = new LRUCache<
+		string,
+		CachedSpamViolation
+	>({ max: 500, ttl: 15 * 60 * 1000 })
+	private static readonly VISION_CACHE_MAX = 2000
 	readonly workerId: string
 	private stopped = false
 	private loop: Promise<void> | null = null
@@ -775,6 +798,7 @@ export class ModerationWorker {
 		this.vision = vision
 		this.config = { ...DEFAULT_WORKER_CONFIG, ...config }
 		assertLeaseCoversLlmTimeout(this.config)
+		this.mediaVisionCache = new MediaVisionCacheService(pool)
 		// A fresh id per process is the point: a restarted worker must not be able
 		// to reclaim its own previous leases and reprocess them.
 		this.workerId = `w-${randomUUID().slice(0, 8)}`
@@ -1049,12 +1073,18 @@ export class ModerationWorker {
 		// times over. A failure for one message is contained: the description is
 		// empty and that message is still judged on its text.
 		const visionById = new Map<string, string>()
+		const mediaItemsByMsgId = new Map<string, readonly MediaItem[]>()
 		if (hasMedia) {
 			const mediaMessages = messages.filter((m) => m.hasMedia)
 			let attachmentsByMsgId:
 				| Map<
 						string,
-						Array<{ discord_url: string | null; type: string | null }>
+						Array<{
+							discord_url: string | null
+							type: string | null
+							filename: string | null
+							size: number | null
+						}>
 				  >
 				| undefined
 
@@ -1063,8 +1093,10 @@ export class ModerationWorker {
 					message_id: string
 					discord_url: string | null
 					type: string | null
+					filename: string | null
+					size: number | null
 				}>(
-					`SELECT message_id, discord_url, type
+					`SELECT message_id, discord_url, type, filename, size
              FROM attachments
             WHERE message_id = ANY($1::text[])`,
 					[mediaMessages.map((m) => m.id)],
@@ -1076,7 +1108,12 @@ export class ModerationWorker {
 						list = []
 						attachmentsByMsgId.set(row.message_id, list)
 					}
-					list.push({ discord_url: row.discord_url, type: row.type })
+					list.push({
+						discord_url: row.discord_url,
+						type: row.type,
+						filename: row.filename,
+						size: row.size,
+					})
 				}
 			} catch (err) {
 				log.warn(
@@ -1085,18 +1122,18 @@ export class ModerationWorker {
 				)
 			}
 
+			for (const m of messages) {
+				const items = extractMediaItems(
+					attachmentsByMsgId?.get(m.id) ?? [],
+					m.metadata,
+				)
+				if (items.length > 0) mediaItemsByMsgId.set(m.id, items)
+			}
+
 			// Bounded, not one call per message at once. The concurrency ceiling keeps
 			// a 40-message image batch from arriving at the provider as a 40-way
 			// burst; p-limit preserves the "all descriptions resolved concurrently"
 			// property the old Promise.all comment claimed, up to the cap.
-			//
-			// Sticker and custom emoji URLs join the set here. They were captured
-			// into `messages.metadata` (with name, description and pack) but never
-			// read by anything, and they are NOT rows in `attachments` — Discord
-			// models them separately, so `hasMedia` was false for a sticker-only
-			// message and the whole vision pre-pass skipped it. A message that is
-			// nothing but a sticker reached the moderator with no visual evidence
-			// at all, and `MEDIA_RULES` promised one.
 			const limit = pLimit(
 				this.config.visionConcurrency ??
 					DEFAULT_WORKER_CONFIG.visionConcurrency ??
@@ -1105,10 +1142,10 @@ export class ModerationWorker {
 			const described = await Promise.all(
 				messages.map((m) =>
 					limit(async () => {
-						if (!m.hasMedia && stickerAndEmojiUrls(m.metadata).length === 0) {
+						const items = mediaItemsByMsgId.get(m.id)
+						if (!items || items.length === 0) {
 							return [m.id, ""] as const
 						}
-						const preloaded = attachmentsByMsgId?.get(m.id)
 						return [
 							m.id,
 							await generateVisionDescription(
@@ -1116,8 +1153,8 @@ export class ModerationWorker {
 								m,
 								this.config.visionTimeoutMs,
 								this.vision,
-								preloaded,
-								this.visionCache,
+								items,
+								this.mediaVisionCache,
 							),
 						] as const
 					}),
@@ -1126,14 +1163,78 @@ export class ModerationWorker {
 			for (const [id, desc] of described) {
 				if (desc) visionById.set(id, desc)
 			}
-			// Insertion-ordered eviction. A busy guild will outrun any fixed cap
-			// over a long shift, and an unbounded map of image descriptions is a
-			// slow leak in a process designed to be restarted rarely.
-			while (this.visionCache.size > ModerationWorker.VISION_CACHE_MAX) {
-				const oldest = this.visionCache.keys().next().value
-				if (oldest === undefined) break
-				this.visionCache.delete(oldest)
+		}
+
+		// Fast path: identical spam media. A scammer who blasts the SAME images
+		// across every channel pays one vision call and one moderation call for
+		// the whole blast, not one per channel.
+		//
+		// Keyed on media fingerprints ONLY (no author, no channel, no text):
+		// screenshots of one casino promo are byte-identical whoever re-posts
+		// them, and a fresh account per channel is exactly how these blasts are
+		// sent. Gated on a verdict that already said `deleted` with media
+		// evidence, inside a 15-minute window, so a legitimate image can never
+		// inherit an old judgement.
+		const shortCircuited = new Map<string, ParsedVerdict>()
+		for (const m of messages) {
+			const items = mediaItemsByMsgId.get(m.id)
+			if (!items || items.length === 0) continue
+			const signature = mediaSignature(items)
+			if (!signature) continue
+			const seen = this.recentSpamViolations.get(signature)
+			if (!seen) continue
+			shortCircuited.set(m.id, {
+				messageId: m.id,
+				status: "deleted",
+				action: seen.action,
+				reason: seen.reason,
+				flags: [...seen.flags],
+				categories: [...seen.categories],
+				confidence: 1,
+				score: 1,
+				analysis: seen.analysis,
+				evidence: [
+					`media_signature=${signature}`,
+					"duplicate of a message already deleted in this window",
+				],
+				policyVersion: POLICY_VERSION,
+			})
+		}
+		if (shortCircuited.size > 0) {
+			log.info(
+				{
+					count: shortCircuited.size,
+					ids: [...shortCircuited.keys()].map(traceId),
+				},
+				"short-circuited duplicate spam media — no model call",
+			)
+		}
+
+		// Identical messages INSIDE this batch are judged once. A blast is the
+		// same text and the same media posted to N channels, so N-1 of them are
+		// pure duplicate spend: same prompt tokens, same answer.
+		const groupBySignature = new Map<string, ClaimedMessage[]>()
+		const toJudge: ClaimedMessage[] = []
+		for (const m of messages) {
+			if (shortCircuited.has(m.id)) continue
+			const sig = batchDedupeKey(m, mediaItemsByMsgId.get(m.id))
+			if (!sig) {
+				toJudge.push(m)
+				continue
 			}
+			const group = groupBySignature.get(sig)
+			if (group) {
+				group.push(m)
+			} else {
+				groupBySignature.set(sig, [m])
+				toJudge.push(m)
+			}
+		}
+		const judgeMessages = toJudge
+		const judgeVisionById = new Map<string, string>()
+		for (const m of judgeMessages) {
+			const desc = visionById.get(m.id)
+			if (desc) judgeVisionById.set(m.id, desc)
 		}
 
 		// Recent predecessors, loaded before the prompt is built so the block can
@@ -1141,7 +1242,7 @@ export class ModerationWorker {
 		// messages, so it degrades to no history rather than throwing.
 		const historyBlock = await loadContextHistorySafely(
 			this.pool,
-			messages,
+			judgeMessages,
 			this.config.contextWindow,
 		)
 
@@ -1152,7 +1253,7 @@ export class ModerationWorker {
 			history: historyBlock.length > 0,
 		})
 
-		const body = messages
+		const body = judgeMessages
 			.map((m) => {
 				// Identity, in full. `username (user_id)` was not enough: the same
 				// person is "Zulfikar", "zulfik_dev" or "Zul" depending on which name
@@ -1191,66 +1292,106 @@ export class ModerationWorker {
 			})
 			.join("\n")
 
-		const userPrompt =
-			`Analisis ${messages.length} pesan berikut dan kembalikan JSON ` +
-			`dengan satu entri per message_id di dalam field results.\n\n` +
-			// History sits ABOVE the batch so the model reads it as background, not
-			// as one more message to judge. Empty when the window is 0 or there is no
-			// preceding message — then the prompt is exactly what it was before this
-			// feature existed. Every row in it is explicitly marked
-			// `context="history"` so the model does not return a verdict for one.
-			(historyBlock ? `${historyBlock}\n\n` : "") +
-			`${body}`
+		const allVerdicts: ParsedVerdict[] = Array.from(shortCircuited.values())
+		let llmMs = 0
+		let missingIds: string[] = []
+		let batchFailed = false
+		let batchError: string | undefined
 
-		const llmStart = Date.now()
-		const raw = await this.llm.complete({
-			system,
-			user: userPrompt,
-			timeoutMs: this.config.llmTimeoutMs,
-		})
-		const llmMs = Date.now() - llmStart
+		if (judgeMessages.length > 0) {
+			const requestedIds = judgeMessages.map((m) => m.id)
+			const userPrompt =
+				`Analisis ${judgeMessages.length} pesan berikut dan kembalikan JSON ` +
+				`dengan satu entri per message_id di dalam field results.\n\n` +
+				(historyBlock ? `${historyBlock}\n\n` : "") +
+				`${body}`
 
-		// The batch's trace id is the FIRST message's id. That is deliberate: one
-		// grep for it returns this whole model call, and `ids` below lists every
-		// message that went into it, so the sibling ids are discoverable from the
-		// same line.
-		const trace = traceId(messages[0].id)
-		logLlmDone({
-			trace,
-			batchSize: messages.length,
-			model: this.llm.modelLabel ?? "unknown",
-			durationMs: llmMs,
-			promptChars: system.length + userPrompt.length,
-			completionChars: raw.length,
-			streamed: true,
-			content: raw,
-			ids: messages.map((m) => traceId(m.id)),
-		})
+			const llmStart = Date.now()
+			const raw = await this.llm.complete({
+				system,
+				user: userPrompt,
+				timeoutMs: this.config.llmTimeoutMs,
+			})
+			llmMs = Date.now() - llmStart
 
-		const parseStart = Date.now()
-		// The real attempt number, not a literal 1. Every message in a batch
-		// shares the same `attempts` value (claim_messages increments once per
-		// claim), so the first message carries it. It reaches the stored `analysis`
-		// of every error verdict, where it used to read "Percobaan 1" no matter how
-		// many times the message had actually been tried — so a message dying on its
-		// fifth attempt looked identical to one dying on its first, which is exactly
-		// the distinction an operator greps that column to make.
-		const attempt = Math.max(...messages.map((m) => m.attempts))
-		const result = parseVerdicts(raw, requestedIds, attempt)
-		logBatchResult({
-			trace,
-			requested: requestedIds.length,
-			ok: result.verdicts.length,
-			errored: result.verdicts.filter((v) => v.status === "error").length,
-			missing: result.missing.length,
-			batchFailed: result.batchFailed,
-			batchError: result.batchError,
-			durationMs: Date.now() - parseStart,
-		})
-		// The vision descriptions were consumed here and have no further reader:
-		// they existed to be interpolated into the prompt, and every message in
-		// the batch is judged before this returns.
-		return { result, llmMs }
+			const trace = traceId(judgeMessages[0].id)
+			logLlmDone({
+				trace,
+				batchSize: judgeMessages.length,
+				model: this.llm.modelLabel ?? "unknown",
+				durationMs: llmMs,
+				promptChars: system.length + userPrompt.length,
+				completionChars: raw.length,
+				streamed: true,
+				content: raw,
+				ids: judgeMessages.map((m) => traceId(m.id)),
+			})
+
+			const parseStart = Date.now()
+			const attempt = Math.max(...judgeMessages.map((m) => m.attempts))
+			const parsed = parseVerdicts(raw, requestedIds, attempt)
+			missingIds = parsed.missing
+			batchFailed = parsed.batchFailed ?? false
+			batchError = parsed.batchError
+
+			logBatchResult({
+				trace,
+				requested: requestedIds.length,
+				ok: parsed.verdicts.length,
+				errored: parsed.verdicts.filter((v) => v.status === "error").length,
+				missing: parsed.missing.length,
+				batchFailed: parsed.batchFailed,
+				batchError: parsed.batchError,
+				durationMs: Date.now() - parseStart,
+			})
+
+			for (const v of parsed.verdicts) {
+				allVerdicts.push(v)
+
+				const repMsg = judgeMessages.find((m) => m.id === v.messageId)
+				if (repMsg) {
+					const sig = batchDedupeKey(repMsg, mediaItemsByMsgId.get(repMsg.id))
+					if (sig) {
+						const siblings = groupBySignature.get(sig) ?? []
+						for (const s of siblings) {
+							if (s.id !== v.messageId) {
+								allVerdicts.push({
+									...v,
+									messageId: s.id,
+								})
+							}
+						}
+					}
+
+					if (v.status === "deleted") {
+						const mItems = mediaItemsByMsgId.get(v.messageId)
+						if (mItems && mItems.length > 0) {
+							const mSig = mediaSignature(mItems)
+							if (mSig) {
+								this.recentSpamViolations.set(mSig, {
+									flags: v.flags,
+									categories: v.categories,
+									reason: v.reason ?? "Media spam terdeteksi",
+									analysis: v.analysis,
+									action: v.action,
+									authorId: repMsg.authorId,
+								})
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return {
+			result: {
+				verdicts: allVerdicts,
+				missing: missingIds,
+				batchFailed,
+				batchError,
+			},
+			llmMs,
+		}
 	}
 
 	/**
