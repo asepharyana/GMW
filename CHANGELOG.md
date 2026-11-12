@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/MythEclipse/GMW/compare/v1.3.13...v1.4.0) (2026-11-12)
+
+
+### Features
+
+* **ai-moderation:** deduplicate media vision analysis and short-circuit spam images ([0b7e7f5](https://github.com/MythEclipse/GMW/commit/0b7e7f5abf893a32c560f991c3abdea83e9895bc))
+
 ## [1.3.13](https://github.com/MythEclipse/GMW/compare/v1.3.12...v1.3.13) (2026-11-05)
 
 
