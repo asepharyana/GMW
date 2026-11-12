@@ -42,7 +42,7 @@ let reachable = false
 
 async function seed(n: number, state = "pending") {
 	await pool.query(
-		"TRUNCATE messages, verdicts, analysis_attempts, attachments",
+		"TRUNCATE messages, verdicts, analysis_attempts, attachments, media_vision_cache",
 	)
 	await pool.query(
 		`INSERT INTO messages (id,guild_id,channel_id,user_id,username,content,created_at,ai_status,ready_for_work_at)

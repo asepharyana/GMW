@@ -63,6 +63,7 @@ const MIRRORED_TABLES = [
 	"verdicts",
 	"analysis_attempts",
 	"attachments",
+	"media_vision_cache",
 ] as const
 
 export interface IsolatedPool {
