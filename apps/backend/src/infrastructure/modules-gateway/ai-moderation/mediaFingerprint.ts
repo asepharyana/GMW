@@ -121,8 +121,9 @@ export function batchDedupeKey(
 	msg: { authorId: string; content: string },
 	items?: readonly MediaItem[],
 ): string | null {
-	const sig = items ? mediaSignature(items) : ""
+	if (!items || items.length === 0) return null
+	const sig = mediaSignature(items)
+	if (!sig) return null
 	const text = msg.content.trim().toLowerCase()
-	if (!sig && !text) return null
 	return `${msg.authorId}::${text}::${sig}`
 }

@@ -115,5 +115,6 @@ describe("mediaFingerprint", () => {
 		expect(key1).toBe("u1::check this out!::meta:p.png:500")
 		expect(key1).toBe(key2)
 		expect(key1).not.toBe(key3)
+		expect(batchDedupeKey(msg1, [])).toBeNull()
 	})
 })

@@ -299,6 +299,15 @@ CREATE TABLE public.term_glossary_cache (
     hit_count integer DEFAULT 0 NOT NULL
 );
 --
+-- Name: media_vision_cache; Type: TABLE; Schema: public; Owner: -
+--
+CREATE TABLE IF NOT EXISTS public.media_vision_cache (
+    fingerprint text NOT NULL,
+    description text NOT NULL,
+    resolved_at bigint NOT NULL,
+    hit_count integer DEFAULT 0 NOT NULL
+);
+--
 -- Name: ui_state; Type: TABLE; Schema: public; Owner: -
 --
 CREATE TABLE public.ui_state (
@@ -399,6 +408,11 @@ ALTER TABLE ONLY public.retention_policies
 --
 ALTER TABLE ONLY public.term_glossary_cache
     ADD CONSTRAINT term_glossary_cache_pkey PRIMARY KEY (term);
+--
+-- Name: media_vision_cache media_vision_cache_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+ALTER TABLE ONLY public.media_vision_cache
+    ADD CONSTRAINT media_vision_cache_pkey PRIMARY KEY (fingerprint);
 --
 -- Name: ui_state ui_state_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
@@ -574,6 +588,10 @@ CREATE INDEX idx_retention_policies_guild_id ON public.retention_policies USING 
 -- Name: idx_term_glossary_cache_resolved_at; Type: INDEX; Schema: public; Owner: -
 --
 CREATE INDEX idx_term_glossary_cache_resolved_at ON public.term_glossary_cache USING btree (resolved_at);
+--
+-- Name: idx_media_vision_cache_resolved_at; Type: INDEX; Schema: public; Owner: -
+--
+CREATE INDEX idx_media_vision_cache_resolved_at ON public.media_vision_cache USING btree (resolved_at);
 --
 -- Name: idx_user_profiles_guild_id; Type: INDEX; Schema: public; Owner: -
 --
