@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/MythEclipse/GMW/compare/v1.4.0...v1.4.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **ai-moderation:** squash migration into baseline and scope batch dedupe to media ([d0ebe7b](https://github.com/MythEclipse/GMW/commit/d0ebe7beecd623dcc3bc1409ff24e9e65be78d3c))
+
 # [1.4.0](https://github.com/MythEclipse/GMW/compare/v1.3.13...v1.4.0) (2026-11-12)
 
 
