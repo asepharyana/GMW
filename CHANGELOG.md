@@ -1,3 +1,10 @@
+## [1.4.3](https://github.com/MythEclipse/GMW/compare/v1.4.2...v1.4.3) (2026-11-14)
+
+
+### Bug Fixes
+
+* **watchdog:** observe the gateway from inside instead of probing Discord with the token ([#3](https://github.com/MythEclipse/GMW/issues/3)) ([3b27c87](https://github.com/MythEclipse/GMW/commit/3b27c87e2c6505195bbf11afe1ec83af6824116b))
+
 ## [1.4.2](https://github.com/MythEclipse/GMW/compare/v1.4.1...v1.4.2) (2026-11-12)
 
 ## [1.4.1](https://github.com/MythEclipse/GMW/compare/v1.4.0...v1.4.1) (2026-11-12)
