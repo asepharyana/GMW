@@ -1,0 +1,15 @@
+export {
+	type GatewayClientLike,
+	type GatewayState,
+	type GatewayStatusSnapshot,
+	gatewayStatusSnapshot,
+	markGatewayDisconnected,
+	markGatewayError,
+	markGatewayInvalidated,
+	markGatewayPacket,
+	markGatewayReady,
+	markGatewayReconnecting,
+	markLoginFailed,
+	resetGatewayStatus,
+	setGatewayClient,
+} from "./gatewayStatus.js"

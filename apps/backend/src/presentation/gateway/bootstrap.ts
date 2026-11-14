@@ -18,6 +18,16 @@ import {
 	RedisEventPublisher,
 } from "../../infrastructure/modules-gateway/event-broadcaster/index.js"
 import {
+	markGatewayDisconnected,
+	markGatewayError,
+	markGatewayInvalidated,
+	markGatewayPacket,
+	markGatewayReady,
+	markGatewayReconnecting,
+	markLoginFailed,
+	setGatewayClient,
+} from "../../infrastructure/modules-gateway/gateway-health/index.js"
+import {
 	startMetricsServer,
 	stopMetricsServer,
 } from "../../infrastructure/modules-gateway/gateway-metrics/index.js"
@@ -100,6 +110,12 @@ export async function initializeDiscordGateway() {
 	logger.info("Creating Discord client")
 	const client = new Client(createDiscordClientOptions())
 
+	// Publish this connection's own health before anything can go wrong with it,
+	// so `/api/discord/status` has something to report during boot. The watched
+	// guilds come from the same derived list capture filters on — one source of
+	// truth, so the status can never name a guild the gateway ignores.
+	setGatewayClient(client, config.EFFECTIVE_MONITOR_GUILD_IDS)
+
 	// Long-lived services: the Redis event broadcaster, which carries
 	// captured events from the gateway modules to the backend's bridge.
 	//
@@ -114,7 +130,27 @@ export async function initializeDiscordGateway() {
 
 	registerClientDebugLogging(client)
 
+	// Gateway liveness, recorded where the credential lives.
+	//
+	// Every frame the library receives is re-emitted as `raw` — heartbeats
+	// included — so this is the difference between "the socket is open" and
+	// "Discord is still talking to us". A wedged connection keeps the socket and
+	// reports READY while delivering nothing, which is invisible to every other
+	// check. Nothing here leaves the box: it is all local state, which is the
+	// whole reason the watchdog stopped probing Discord's REST API.
+	client.on("raw", () => markGatewayPacket())
+	client.on("shardResume", () => markGatewayReady())
+	client.on("shardReconnecting", () => markGatewayReconnecting())
+	client.on("shardDisconnect", (event) =>
+		markGatewayDisconnected(event.code, event.reason),
+	)
+	client.on("shardError", (err) => markGatewayError(err))
+	// Emitted when re-identifying fails outright. Only a restart recovers, so
+	// this must be loud: capture is dead while the dashboard stays healthy.
+	client.on("invalidated", () => markGatewayInvalidated())
+
 	client.on("ready", () => {
+		markGatewayReady()
 		logger.info({ user: client.user?.tag }, "Bot logged in")
 		startGatewayLifecycle({
 			client,
@@ -129,6 +165,7 @@ export async function initializeDiscordGateway() {
 	})
 
 	client.on("error", (err) => {
+		markGatewayError(err)
 		logger.error({ err, errorMsg: errorMessage(err) }, "Client error")
 	})
 
@@ -141,6 +178,11 @@ export async function initializeDiscordGateway() {
 		await client.login(token)
 		logger.info("Discord client logged in successfully")
 	} catch (err) {
+		// Recorded, not just logged: this is the only in-process evidence that
+		// the stored token is dead, and `/api/discord/status` is what the
+		// watchdog reads to say so. Without it the process would look merely
+		// "not connected yet" forever.
+		markLoginFailed(err)
 		logger.fatal({ err }, "Failed to login Discord client")
 		throw err
 	}
