@@ -1,3 +1,15 @@
+# [1.6.0](https://github.com/MythEclipse/GMW/compare/v1.5.1...v1.6.0) (2026-11-15)
+
+
+### Bug Fixes
+
+* auto-fix code quality ([3a5c169](https://github.com/MythEclipse/GMW/commit/3a5c16972dea2b5fadc01f19ad645ee36da23517))
+
+
+### Features
+
+* **diagram:** add analysis flow diagram for message processing ([faac7b2](https://github.com/MythEclipse/GMW/commit/faac7b268143be1b928e5ab1f5c12ed58447e442))
+
 ## [1.5.1](https://github.com/MythEclipse/GMW/compare/v1.5.0...v1.5.1) (2026-11-15)
 
 
