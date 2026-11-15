@@ -86,24 +86,28 @@ export function RankedBars({
 export function HourHeatmap({
 	values,
 	className,
+	/** Accessible description. The panel that renders it owns the wording. */
+	label = "Moderation actions by hour of day",
+	emptyLabel = "No moderation activity in this window",
+	/** What one cell counts, for the tooltip. */
+	unit = "actions",
 }: {
 	values: Array<{ hour: number; total: number }>
 	className?: string
+	label?: string
+	emptyLabel?: string
+	unit?: string
 }) {
 	const max = Math.max(1, ...values.map((v) => v.total))
 	const hasAny = values.some((v) => v.total > 0)
 
 	if (!hasAny) {
-		return <EmptyState title="No moderation activity in this window" />
+		return <EmptyState title={emptyLabel} />
 	}
 
 	return (
 		<div className={cn("space-y-2", className)}>
-			<div
-				className="flex items-end gap-0.5"
-				role="img"
-				aria-label="Moderation actions by hour of day"
-			>
+			<div className="flex items-end gap-0.5" role="img" aria-label={label}>
 				{values.map((bucket) => {
 					// Intensity travels as an OPACITY, not a colour: the cell is painted
 					// with the `--color-signal` token and faded. Interpolating a
@@ -120,7 +124,7 @@ export function HourHeatmap({
 									"--heat-intensity": intensity.toFixed(3),
 								} as React.CSSProperties
 							}
-							title={`${String(bucket.hour).padStart(2, "0")}:00 — ${formatNumber(bucket.total)} actions`}
+							title={`${String(bucket.hour).padStart(2, "0")}:00 — ${formatNumber(bucket.total)} ${unit}`}
 						/>
 					)
 				})}

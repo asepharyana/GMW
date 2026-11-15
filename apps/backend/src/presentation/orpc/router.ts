@@ -44,6 +44,12 @@ export function buildRouter(useCases: UseCases) {
 				z.object({ limit: z.coerce.number().int().positive().default(20) }),
 			)
 			.handler(({ input }) => dashboardService.getTopReactors(input.limit)),
+		// Everything the panels above cannot express: what the model acts on,
+		// how sure it is, whether enforcement followed through, plus edits,
+		// media and pipeline freshness.
+		insights: os
+			.input(z.object({ limit: z.coerce.number().int().positive().default(8) }))
+			.handler(({ input }) => dashboardService.getInsights(input.limit)),
 	}
 
 	// ── Messages ─────────────────────────────────────────────────────

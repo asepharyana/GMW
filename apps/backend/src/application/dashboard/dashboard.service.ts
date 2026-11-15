@@ -30,4 +30,9 @@ export class DashboardService {
 		logger.debug({ limit }, "Fetching top reactors")
 		return this.repository.getTopReactors(limit)
 	}
+
+	async getInsights(limit: number) {
+		logger.debug({ limit }, "Fetching dashboard insights")
+		return this.repository.getInsights(limit)
+	}
 }

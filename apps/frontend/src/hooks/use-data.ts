@@ -9,6 +9,7 @@ import {
 import { browserApi } from "#/libs/api/browser"
 import type {
 	IDashboardActivity,
+	IDashboardInsights,
 	IDashboardLeaderboards,
 	IDashboardStats,
 	IFlaggedChannel,
@@ -74,6 +75,7 @@ export const qk = {
 	leaderboards: (limit: number) =>
 		["dashboard", "leaderboards", limit] as const,
 	reactors: (limit: number) => ["dashboard", "reactors", limit] as const,
+	insights: (limit: number) => ["dashboard", "insights", limit] as const,
 	guilds: ["messages", "guilds"] as const,
 	textChannels: (guildId: string) =>
 		["messages", "textChannels", guildId] as const,
@@ -147,6 +149,24 @@ export function useTopReactors(limit: number) {
 			browserApi.dashboard.reactors(limit) as Promise<ITopReactor[]>,
 		...shared,
 		refetchInterval: LIVE,
+	})
+}
+
+/**
+ * Insights: categories, confidence, enforcement, edits, media, freshness.
+ *
+ * No polling. Every one of these numbers is derived from a verdict or an
+ * upload, so the socket already knows when they move — see the dashboard view's
+ * `message_analyzed` handler. `placeholderData` keeps the panels populated while
+ * a refetch is in flight, so a push does not blank the page.
+ */
+export function useInsights(limit: number) {
+	return useQuery({
+		queryKey: qk.insights(limit),
+		queryFn: () =>
+			browserApi.dashboard.insights(limit) as Promise<IDashboardInsights>,
+		...shared,
+		placeholderData: (prev) => prev,
 	})
 }
 

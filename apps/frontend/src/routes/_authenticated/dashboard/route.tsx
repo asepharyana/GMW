@@ -7,6 +7,7 @@ import { useRouteSeed } from "#/hooks/use-route-seed"
 import { browserApi } from "#/libs/api/browser"
 import type {
 	IDashboardActivity,
+	IDashboardInsights,
 	IDashboardLeaderboards,
 	IDashboardStats,
 	ITopReaction,
@@ -15,6 +16,8 @@ import type {
 import { DashboardView } from "./_components/view.tsx"
 
 const DAYS = 14
+/** How many ranked rows each member/channel/editor list carries. */
+const LIMIT = 8
 
 /**
  * Client route for /dashboard — was an async React Server Component that
@@ -28,13 +31,14 @@ const DAYS = 14
 export function DashboardPage() {
 	const fetcher = useCallback(async () => {
 		// Independent reads, so they go in parallel rather than in sequence.
-		const [stats, activity, leaderboards, reactions, reactors] =
+		const [stats, activity, leaderboards, reactions, reactors, insights] =
 			await Promise.all([
 				browserApi.dashboard.stats(),
 				browserApi.dashboard.activity(DAYS),
-				browserApi.dashboard.leaderboards(8),
+				browserApi.dashboard.leaderboards(LIMIT),
 				browserApi.dashboard.reactions(10),
 				browserApi.dashboard.reactors(10),
+				browserApi.dashboard.insights(LIMIT),
 			])
 
 		return {
@@ -43,13 +47,14 @@ export function DashboardPage() {
 			leaderboards: leaderboards as unknown as IDashboardLeaderboards,
 			reactions: reactions as unknown as ITopReaction[],
 			reactors: reactors as unknown as ITopReactor[],
+			insights: insights as unknown as IDashboardInsights,
 		}
 	}, [])
 
 	// Prime the cache under the exact keys `useStats` / `useActivity` /
-	// `useLeaderboards` / `useTopReactions` / `useTopReactors` read, so those
-	// hooks mount onto this data instead of firing five identical requests one
-	// frame later.
+	// `useLeaderboards` / `useTopReactions` / `useTopReactors` / `useInsights`
+	// read, so those hooks mount onto this data instead of firing six identical
+	// requests one frame later.
 	const prime = useCallback(
 		(r: {
 			stats: IDashboardStats
@@ -57,12 +62,14 @@ export function DashboardPage() {
 			leaderboards: IDashboardLeaderboards
 			reactions: ITopReaction[]
 			reactors: ITopReactor[]
+			insights: IDashboardInsights
 		}) => [
 			{ key: qk.stats, data: r.stats },
 			{ key: qk.activity(DAYS), data: r.activity },
-			{ key: qk.leaderboards(8), data: r.leaderboards },
+			{ key: qk.leaderboards(LIMIT), data: r.leaderboards },
 			{ key: qk.reactions(10), data: r.reactions },
 			{ key: qk.reactors(10), data: r.reactors },
+			{ key: qk.insights(LIMIT), data: r.insights },
 		],
 		[],
 	)

@@ -25,6 +25,7 @@ export const browserApi = {
 		leaderboards: (limit: number) => client().dashboard.leaderboards({ limit }),
 		reactions: (limit: number) => client().dashboard.reactions({ limit }),
 		reactors: (limit: number) => client().dashboard.reactors({ limit }),
+		insights: (limit: number) => client().dashboard.insights({ limit }),
 	},
 	messages: {
 		guilds: () => client().messages.guilds({}),

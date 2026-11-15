@@ -53,7 +53,26 @@ export function AreaChart({
 
 		const area = `${line} L${width},100 L0,100 Z`
 
-		return { points, line, area, max }
+		// The overlay series is scaled to ITS OWN peak, and the footer says so.
+		//
+		// On the message axis a deletion is 1-2% of a day's volume, which puts
+		// the line a pixel above the baseline for every day — drawn, and
+		// unreadable. The choice is therefore between a second scale or no
+		// overlay at all, and the panel exists to show the two series together.
+		// It is labelled rather than hidden, because an unlabelled dual axis is
+		// how a chart lies.
+		const flaggedMax = Math.max(0, ...data.map((d) => d.flagged ?? 0))
+		const flaggedLine =
+			flaggedMax > 0
+				? data
+						.map((d, i) => {
+							const y = 96 - ((d.flagged ?? 0) / flaggedMax) * 88
+							return `${i === 0 ? "M" : "L"}${(i * step).toFixed(2)},${y.toFixed(2)}`
+						})
+						.join(" ")
+				: null
+
+		return { points, line, area, max, flaggedLine, flaggedMax }
 	}, [data])
 
 	if (!geometry || data.length === 0) {
@@ -71,7 +90,11 @@ export function AreaChart({
 					preserveAspectRatio="none"
 					className="h-full w-full"
 					role="img"
-					aria-label={`Messages per day, peak ${formatCompact(geometry.max)}`}
+					aria-label={
+						geometry.flaggedMax > 0
+							? `Messages per day, peak ${formatCompact(geometry.max)}, with daily deletions overlaid on their own scale, deleted peak ${formatCompact(geometry.flaggedMax)}`
+							: `Messages per day, peak ${formatCompact(geometry.max)}`
+					}
 				>
 					<defs>
 						<linearGradient id="area-fill" x1="0" y1="0" x2="0" y2="1">
@@ -123,6 +146,22 @@ export function AreaChart({
 						strokeLinejoin="round"
 						strokeLinecap="round"
 					/>
+					{/* Deleted per day. Dashed and in the deletion colour, so the two
+              series are told apart by shape as well as hue — the palette is
+              low-chroma by design and colour alone is not a reliable
+              distinguisher on it. */}
+					{geometry.flaggedLine && (
+						<path
+							d={geometry.flaggedLine}
+							fill="none"
+							stroke="var(--color-danger)"
+							strokeWidth="0.8"
+							strokeDasharray="3 2"
+							vectorEffect="non-scaling-stroke"
+							strokeLinejoin="round"
+							strokeLinecap="round"
+						/>
+					)}
 				</svg>
 			</div>
 
@@ -141,6 +180,18 @@ export function AreaChart({
 						{formatCompact(geometry.max)}
 					</span>
 				</span>
+				{/* The overlay's scale, stated. Without this the dashed line is a
+            shape with no magnitude, and the reader is entitled to assume it
+            shares the message axis. */}
+				{geometry.flaggedMax > 0 && (
+					<span className="text-xs text-ink-muted">
+						Deleted peak{" "}
+						<span className="font-mono text-ink-soft">
+							{formatCompact(geometry.flaggedMax)}
+						</span>{" "}
+						<span className="text-ink-faint">(own scale)</span>
+					</span>
+				)}
 				<span className="font-mono text-micro text-ink-faint">
 					{formatCompact(data.reduce((total, point) => total + point.value, 0))}{" "}
 					total

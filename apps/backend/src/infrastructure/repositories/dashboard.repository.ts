@@ -8,6 +8,7 @@ import {
 	inArray,
 	sql,
 } from "drizzle-orm"
+import { buildInsights } from "../../domain/dashboard/insights.js"
 import { buildLeaderboards } from "../../domain/dashboard/leaderboards.js"
 import {
 	rawChannelName,
@@ -16,6 +17,8 @@ import {
 import { localDay, localHour } from "../../domain/utils/localTime.js"
 import type { DatabaseHandle } from "../database/handle.js"
 import {
+	attachmentsTable,
+	messageEditsTable,
 	messagesTable,
 	reactionsTable,
 	userProfilesTable,
@@ -401,6 +404,108 @@ export class DashboardRepository {
 				top_emojis: (emojiByMessage.get(id) ?? []).slice(0, 3),
 			}
 		})
+	}
+
+	/**
+	 * Insights: categories, confidence, enforcement follow-through, edits, the
+	 * media archive, and pipeline freshness.
+	 *
+	 * Four reads in parallel, each one already at the granularity its reduction
+	 * needs — the alternative (a GROUP BY per panel) cannot express any of these
+	 * shapes without a cast: `verdicts.categories` is an array to unnest, the
+	 * confidence histogram is a computed bucket, and "newest username per member"
+	 * is not an aggregate.
+	 *
+	 * The verdict scan feeds FOUR panels (categories, confidence, enforcement,
+	 * last verdict time) so it is paid for once. It reads `confidence` and
+	 * `categories` for every verdict — bounded by messages judged, not by
+	 * messages captured, and the worker only ever writes one verdict per message.
+	 */
+	async getInsights(limit: number) {
+		const cap = Math.min(Math.max(limit || 8, 1), 25)
+
+		const [verdictRows, editRows, mediaRows, messageAgg] = await Promise.all([
+			this.db
+				.select({
+					status: verdictsTable.status,
+					confidence: verdictsTable.confidence,
+					categories: verdictsTable.categories,
+					auto_delete_state: verdictsTable.auto_delete_state,
+					updated_at: verdictsTable.updated_at,
+				})
+				.from(verdictsTable),
+			// Newest-first is part of the contract, not decoration: the reduction
+			// keeps the newest name per member with a strict `>`, so equal
+			// timestamps resolve to whichever row came back first — and
+			// newest-first is what makes that the current name.
+			this.db
+				.select({
+					message_id: messageEditsTable.message_id,
+					edited_at: messageEditsTable.edited_at,
+					user_id: messagesTable.user_id,
+					username: messagesTable.username,
+					created_at: messagesTable.created_at,
+				})
+				.from(messageEditsTable)
+				// LEFT JOIN, not INNER: retention purges `messages` and
+				// `message_edits` has no foreign key, so an edit can outlive its
+				// message. An INNER JOIN would silently shrink the edit total the
+				// Edits tab reports.
+				.leftJoin(
+					messagesTable,
+					eq(messagesTable.id, messageEditsTable.message_id),
+				)
+				.orderBy(desc(messagesTable.created_at)),
+			this.db
+				.select({
+					status: attachmentsTable.upload_status,
+					n: count(),
+					// `size` is integer but SUM() widens to bigint, which pg hands
+					// back as a string; `buildMediaArchive` coerces.
+					bytes: sql<number>`coalesce(sum(${attachmentsTable.size}), 0)`,
+				})
+				.from(attachmentsTable)
+				.groupBy(attachmentsTable.upload_status),
+			// Freshness in one pass over `messages`. Three aggregates, because
+			// three different rows carry the three timestamps: the newest message,
+			// the newest deletion, and the OLDEST still-waiting message. `FILTER`
+			// keeps the third out of a second query.
+			this.db
+				.select({
+					last_message_at: sql<number | null>`max(${messagesTable.created_at})`,
+					last_deletion_at: sql<
+						number | null
+					>`max(${messagesTable.deleted_at})`,
+					oldest_waiting_at: sql<
+						number | null
+					>`min(${messagesTable.created_at}) FILTER (WHERE ${messagesTable.ai_status} IN ('pending', 'retry_wait'))`,
+				})
+				.from(messagesTable),
+		])
+
+		return buildInsights(
+			{
+				verdicts: verdictRows.map((v) => ({
+					status: String(v.status),
+					confidence: Number(v.confidence),
+					categories: v.categories ?? [],
+					auto_delete_state: v.auto_delete_state,
+					updated_at: Number(v.updated_at),
+				})),
+				edits: editRows,
+				media: mediaRows.map((m) => ({
+					status: String(m.status),
+					count: m.n,
+					bytes: Number(m.bytes),
+				})),
+				messages: messageAgg[0] ?? {
+					last_message_at: null,
+					last_deletion_at: null,
+					oldest_waiting_at: null,
+				},
+			},
+			cap,
+		)
 	}
 
 	async getTopReactors(limit: number) {

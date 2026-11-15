@@ -275,6 +275,91 @@ export interface ITopReactor {
 	emojis_used: number
 }
 
+/**
+ * Insights.
+ *
+ * The three questions the headline counters cannot answer — what the model acts
+ * on, how sure it is, and whether enforcement followed through — plus the two
+ * activity trails with no other view (edits, media) and the freshness numbers.
+ *
+ * Every timestamp here is epoch milliseconds or `null`. `null` means "never",
+ * which is a real answer on a guild with no messages; rendering it as 1970 is
+ * the bug this type is shaped to prevent.
+ */
+export interface ICategoryCount {
+	name: string
+	count: number
+}
+
+export interface IConfidenceBucket {
+	/** Inclusive lower bound, in percent. */
+	min: number
+	/** Exclusive upper bound, in percent. */
+	max: number
+	count: number
+	deleted: number
+}
+
+export interface IConfidenceSummary {
+	buckets: IConfidenceBucket[]
+	/** Mean confidence over judged verdicts, 0..1. */
+	mean: number | null
+	/** Share of DELETIONS made below 0.6 confidence, in percent. */
+	low_share: number | null
+	judged: number
+}
+
+export interface IEnforcementSummary {
+	enforced: number
+	failed: number
+	in_flight: number
+	/** `deleted` verdicts nothing has enforced yet. */
+	queued: number
+	clean: number
+	error: number
+	deleted_total: number
+}
+
+export interface IEditorEntry {
+	user_id: string
+	username: string
+	edits: number
+}
+
+export interface IEditActivity {
+	total: number
+	messages: number
+	last_7d: number
+	/** Edits whose message retention already purged; attributable to nobody. */
+	orphaned: number
+	top_editors: IEditorEntry[]
+}
+
+export interface IMediaArchive {
+	total: number
+	uploaded: number
+	pending: number
+	failed: number
+	bytes: number
+	uploaded_bytes: number
+}
+
+export interface IFreshness {
+	last_message_at: number | null
+	last_verdict_at: number | null
+	last_deletion_at: number | null
+	oldest_waiting_at: number | null
+}
+
+export interface IDashboardInsights {
+	categories: ICategoryCount[]
+	confidence: IConfidenceSummary
+	enforcement: IEnforcementSummary
+	edits: IEditActivity
+	media: IMediaArchive
+	freshness: IFreshness
+}
+
 // ── Moderation ──────────────────────────────────────────────────────────────
 
 export interface IModerationStats {
