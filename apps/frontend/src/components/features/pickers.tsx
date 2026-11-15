@@ -62,7 +62,7 @@ export function GuildPicker({
 			<Select disabled>
 				<SelectTrigger
 					size="sm"
-					className="min-h-11 sm:min-h-8 w-full sm:w-52"
+					className="min-h-11 sm:min-h-8 w-full"
 					aria-label="Guild"
 				>
 					No guilds yet
@@ -89,7 +89,7 @@ export function GuildPicker({
 		>
 			<SelectTrigger
 				size="sm"
-				className="min-h-11 sm:min-h-8 w-full sm:w-52"
+				className="min-h-11 sm:min-h-8 w-full"
 				aria-label="Guild"
 			>
 				<SelectValue placeholder="Select a guild" />
@@ -146,7 +146,7 @@ export function ChannelPicker({
 		>
 			<SelectTrigger
 				size="sm"
-				className="min-h-11 sm:min-h-8 w-full sm:w-56"
+				className="min-h-11 sm:min-h-8 w-full"
 				aria-label="Channel"
 			>
 				<SelectValue placeholder="Select a channel" />

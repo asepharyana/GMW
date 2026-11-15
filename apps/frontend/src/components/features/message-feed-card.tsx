@@ -1,3 +1,4 @@
+import { cn } from "cn"
 import { useMemo, useState } from "react"
 import { MessageMedia } from "#/components/features/message-media"
 import { Badge, type TTone } from "#/components/ui/tone"
@@ -86,7 +87,7 @@ function EmbeddedPreview({ message }: { message: IMessage }) {
 	if (body.length > 0) {
 		return (
 			<>
-				<p className="mt-1.5 text-sm break-words whitespace-pre-wrap text-ink-soft">
+				<p className="mt-2 text-base leading-relaxed break-words whitespace-pre-wrap text-ink">
 					{body}
 				</p>
 				{hasMedia && (
@@ -106,15 +107,15 @@ function EmbeddedPreview({ message }: { message: IMessage }) {
 	// Nothing was posted, not even a link: a bare embed message.
 	if (pairs.length === 0 && embeds.length === 0) {
 		return (
-			<p className="mt-1.5 text-sm break-words whitespace-pre-wrap text-ink-soft">
+			<p className="mt-2 text-base break-words whitespace-pre-wrap text-ink-muted">
 				—
 			</p>
 		)
 	}
 
 	return (
-		<div className="mt-1.5 space-y-1.5">
-			<p className="text-micro text-ink-faint italic">
+		<div className="mt-2 space-y-2">
+			<p className="text-micro text-ink-muted italic">
 				{pairs.length > 0
 					? "Link diposting tanpa teks — isi dari pratinjau bot:"
 					: "Pesan tanpa teks — isi dari embed:"}
@@ -124,7 +125,7 @@ function EmbeddedPreview({ message }: { message: IMessage }) {
 				return (
 					<div
 						key={`${embed.url ?? "embed"}-${index}`}
-						className="rounded-md border border-hairline bg-surface-2/40 px-2.5 py-2"
+						className="hud-card px-3 py-2.5"
 					>
 						{pair && (
 							<a
@@ -137,7 +138,7 @@ function EmbeddedPreview({ message }: { message: IMessage }) {
 							</a>
 						)}
 						{embed.provider?.name && (
-							<p className="text-micro text-ink-faint">{embed.provider.name}</p>
+							<p className="field-label">{embed.provider.name}</p>
 						)}
 						{embed.title && (
 							<p className="text-sm font-medium break-words text-ink">
@@ -181,93 +182,122 @@ export function MessageFeedCard({
 	const deletedBy = resolveDeletedBy(message)
 	const edited = message.edited_at != null
 
+	// The node on the wire carries the verdict, so a column of fifty can be
+	// scanned on the nodes alone. A message with no verdict is hollow unless it is
+	// still in the queue, where it takes the live lime: waiting is not deciding.
+	const inQueue =
+		message.ai_status === "pending" || message.ai_status === "claimed"
+	const nodeTone =
+		verdict === "deleted"
+			? "wire-node-deleted"
+			: verdict === "clean"
+				? "wire-node-clean"
+				: verdict === "error"
+					? "wire-node-error"
+					: inQueue
+						? "wire-node-live"
+						: ""
+
 	return (
-		<article className="msg-feed-card hud-card px-3 py-2.5">
-			<div className="flex flex-wrap items-center gap-2">
-				<Avatar
-					src={message.avatar_url}
-					name={message.server_nick ?? message.username}
-				/>
-				<span className="truncate text-sm font-medium text-ink">
-					{message.server_nick ?? message.username}
-				</span>
-				<span
-					className="truncate font-mono text-micro-lg text-ink-faint"
-					title="Discord user ID of the author (not the message ID)"
-				>
-					user {message.user_id}
-				</span>
-				<span className="ml-auto shrink-0 text-micro-lg text-ink-faint">
-					{formatRelative(message.created_at, now)}
-				</span>
-			</div>
+		// A two-column entry: the time in a gutter, the message on the wire. The
+		// right column is pulled out over the entry's own padding (`-my-4`) and
+		// padded back in, so its left rule runs unbroken from one entry into the
+		// next instead of stopping at each one.
+		<article className="msg-feed-card grid grid-cols-[4rem_minmax(0,1fr)] gap-x-4 border-b border-hairline py-4 sm:grid-cols-[6rem_minmax(0,1fr)] sm:gap-x-6">
+			<p className="pt-1 text-right font-mono text-micro-lg text-ink-muted">
+				{formatRelative(message.created_at, now)}
+			</p>
 
-			<EmbeddedPreview message={message} />
+			<div className="relative -my-4 min-w-0 border-l-2 border-rule py-4 pl-5 sm:pl-7">
+				<span className={cn("wire-node", nodeTone)} aria-hidden />
 
-			<div className="mt-2 flex flex-wrap items-center gap-1.5">
-				{/* The verdict pill is only meaningful once a verdict row exists. A
+				<div className="flex flex-wrap items-center gap-2">
+					<Avatar
+						src={message.avatar_url}
+						name={message.server_nick ?? message.username}
+					/>
+					<span className="truncate text-sm font-bold text-ink">
+						{message.server_nick ?? message.username}
+					</span>
+					<span
+						className="truncate font-mono text-micro text-ink-faint"
+						title="Discord user ID of the author (not the message ID)"
+					>
+						user {message.user_id}
+					</span>
+				</div>
+
+				<EmbeddedPreview message={message} />
+
+				<div className="mt-3 flex flex-wrap items-center gap-1.5">
+					{/* The verdict pill is only meaningful once a verdict row exists. A
             message that was skipped, or is still queued, has no verdict at
             all — showing "Unjudged" there claimed the worker had looked and
             found nothing, which is a different statement from "never ran". */}
-				{verdict !== "unjudged" && (
-					<Badge tone={verdictTone(verdict)}>{verdictLabel(verdict)}</Badge>
-				)}
+					{verdict !== "unjudged" && (
+						<Badge tone={verdictTone(verdict)}>{verdictLabel(verdict)}</Badge>
+					)}
 
-				{showPipeline && (
-					<Badge tone={pipelineTone(message.ai_status)}>
-						{pipelineLabelFor(message)}
-					</Badge>
-				)}
+					{showPipeline && (
+						<Badge tone={pipelineTone(message.ai_status)}>
+							{pipelineLabelFor(message)}
+						</Badge>
+					)}
 
-				{deletedBy !== null && (
-					<Badge tone={deletedBy === "bot" ? "danger" : "neutral"}>
-						{deletedBy === "bot" ? "Deleted by bot" : "Deleted by moderator"}
-					</Badge>
-				)}
-				{edited && !deleted && <Badge tone="neutral">Edited</Badge>}
+					{deletedBy !== null && (
+						<Badge tone={deletedBy === "bot" ? "danger" : "neutral"}>
+							{deletedBy === "bot" ? "Deleted by bot" : "Deleted by moderator"}
+						</Badge>
+					)}
+					{edited && !deleted && <Badge tone="neutral">Edited</Badge>}
 
-				{(message.verdict_flags ?? []).slice(0, 3).map((flag) => (
-					<span
-						key={flag}
-						className="rounded-full bg-surface-2 px-2 py-0.5 font-mono text-micro text-ink-muted"
-					>
-						{flag}
-					</span>
-				))}
-			</div>
-
-			{message.verdict_analysis && (
-				// The analysis is the model's reasoning, and it is the most valuable
-				// thing on the card — but it is long-form prose, so showing it expanded
-				// on every row turns a 50-message feed into a wall of text that buries
-				// the rows that need a human. It is held to two lines until opened.
-				//
-				// `<details>` rather than a `div` with `tabIndex`: the element really
-				// is interactive, and `a11y/noNoninteractiveTabindex` rejects the div
-				// version for good reason. A native disclosure also gets keyboard
-				// support and the `open` state for free.
-				//
-				// The summary is BOTH the click target and a clamped copy of the text,
-				// so it must be HIDDEN once open — `group-open/analysis:hidden` does
-				// that. Without it both nodes render the same prose and expanding a
-				// row shows the analysis twice, which is exactly what shipped. A
-				// colour-only variant (`group-open/analysis:text-ink-soft`) reads like
-				// it is doing this job and is not.
-				//
-				// `open` is deliberately NOT set as an attribute: that is the *result*
-				// of a click, not the input. Hardcoding it would render every card
-				// expanded with the summary hidden — an invisible disclosure.
-				<details className="group/analysis mt-2 border-l-2 border-hairline pl-2">
-					<summary className="cursor-pointer list-none text-xs text-ink-muted transition-colors hover:text-ink-soft marker:content-none group-open/analysis:hidden [&::-webkit-details-marker]:hidden">
-						<span className="line-clamp-2 whitespace-pre-wrap break-words">
-							{message.verdict_analysis}
+					{(message.verdict_flags ?? []).slice(0, 3).map((flag) => (
+						<span key={flag} className="verdict-chip text-ink-muted">
+							{flag}
 						</span>
-					</summary>
-					<p className="mt-1 text-xs text-ink-soft whitespace-pre-wrap break-words">
-						{message.verdict_analysis}
-					</p>
-				</details>
-			)}
+					))}
+				</div>
+
+				{message.verdict_analysis && (
+					// The analysis is the model's reasoning, and it is the most valuable
+					// thing on the card — but it is long-form prose, so showing it expanded
+					// on every row turns a 50-message feed into a wall of text that buries
+					// the rows that need a human. It is held to two lines until opened.
+					//
+					// `<details>` rather than a `div` with `tabIndex`: the element really
+					// is interactive, and `a11y/noNoninteractiveTabindex` rejects the div
+					// version for good reason. A native disclosure also gets keyboard
+					// support and the `open` state for free.
+					//
+					// The summary is BOTH the click target and a clamped copy of the text,
+					// so it must be HIDDEN once open — `group-open/analysis:hidden` does
+					// that. Without it both nodes render the same prose and expanding a
+					// row shows the analysis twice, which is exactly what shipped. A
+					// colour-only variant (`group-open/analysis:text-ink-soft`) reads like
+					// it is doing this job and is not.
+					//
+					// `open` is deliberately NOT set as an attribute: that is the *result*
+					// of a click, not the input. Hardcoding it would render every card
+					// expanded with the summary hidden — an invisible disclosure.
+					<details
+						className={cn(
+							"group/analysis mt-3 border-l-4 bg-surface px-3 py-2",
+							verdict === "deleted" ? "border-vermilion" : "border-ink-faint",
+						)}
+					>
+						<summary className="cursor-pointer list-none text-xs text-ink-muted transition-colors hover:text-ink-soft marker:content-none group-open/analysis:hidden [&::-webkit-details-marker]:hidden">
+							<span className="field-label mr-2">Why</span>
+							<span className="line-clamp-2 whitespace-pre-wrap break-words">
+								{message.verdict_analysis}
+							</span>
+						</summary>
+						<p className="text-xs text-ink-soft whitespace-pre-wrap break-words">
+							<span className="field-label mr-2">Why</span>
+							{message.verdict_analysis}
+						</p>
+					</details>
+				)}
+			</div>
 		</article>
 	)
 }

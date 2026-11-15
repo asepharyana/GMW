@@ -1,52 +1,50 @@
 import { cn } from "cn"
 
 /**
- * A moderation record, as a slip in the decision column.
+ * A moderation record, as a dossier.
  *
- * This was "the Record Office" — paper stock, oxblood stamp, an accession
- * number. The treatment is now the console's: a hairline panel with the verdict
- * colour on the left tab, and the quotable id in mono. The evidence model did
- * not change, and it is still the point.
+ * This was "the Record Office" (paper, oxblood stamp), then a hairline slip with
+ * a coloured left tab. It is now a full-height page-within-the-page: the
+ * verdict is the largest word on it, the message is quoted, and the evidence
+ * follows. The evidence model did not change, and it is still the point.
  *
  * PRODUCT.md makes the evidence trail the product's positioning: a deletion is
- * only defensible in public if nothing in it is unexplained. So this component
- * renders the three things a member needs to judge the call themselves — the
- * message as posted, the policy clause it was judged against, and the reason
- * the model gave — and it never collapses them into a single "status" word.
+ * only defensible in public if nothing in it is unexplained. So this renders the
+ * things a member needs to judge the call themselves — the message as posted,
+ * the policy clause it was judged against, and the reason the model gave — and
+ * it never collapses them into a single "status" word.
  *
  * TWO DIFFERENT QUESTIONS, TWO DIFFERENT PLACES. `ai_status` is where a message
- * sits in the queue and `verdicts.status` is what was decided. A slip shows the
- * decision; the queue lives in the band beneath it. Rendering both in one pill
- * is the flattening PRODUCT.md forbids.
+ * sits in the queue and `verdicts.status` is what was decided. A dossier shows
+ * the decision; the queue lives in the band beneath it. Rendering both in one
+ * pill is the flattening PRODUCT.md forbids.
  *
  * An `error` verdict is NOT a soft delete: it means the model could not read
- * the message, so nothing was removed and nothing is stamped. The record is
- * honest about that rather than quietly showing a deletion.
+ * the message, so nothing was removed. The record is honest about that rather
+ * than quietly showing a deletion — the headline reads "Not judged" and the
+ * reason fields are withheld.
  */
 
 /** Verdict statuses, exactly as the backend emits them. */
 export type TSlipVerdict = "clean" | "deleted" | "error"
 
 /**
- * The tab colour per verdict. This is the ONE place a slip's left edge takes its
- * colour, so a column of ten can be scanned on the tabs alone.
- *
- * Coral is spent only on `deleted`, slate on `clean` (nothing was done, which is
- * not praise), and `error` takes the neutral ink — an unread message is not an
- * alert, it is an absence. Each is applied via a named token class, never a raw
- * hex: the `shadcn/no-raw-colors` gate forbids one at the JSX site.
+ * The verdict colour per outcome. Coral is spent only on `deleted`, slate on
+ * `clean` (nothing was done, which is not praise), and `error` takes the muted
+ * ink — an unread message is not an alert, it is an absence. Each is a named
+ * token class, never a raw hex: `shadcn/no-raw-colors` forbids one at the JSX
+ * site.
  */
-const SLIP_TAB: Record<TSlipVerdict, string> = {
-	deleted: "border-l-vermilion",
-	clean: "border-l-success",
-	error: "border-l-ink-faint",
-}
-
-/** The ink dot inside a slip's status line. Same discipline as the tab. */
-const SLIP_DOT: Record<TSlipVerdict, string> = {
+const VERDICT_BAR: Record<TSlipVerdict, string> = {
 	deleted: "bg-vermilion",
 	clean: "bg-success",
 	error: "bg-ink-faint",
+}
+
+const VERDICT_TEXT: Record<TSlipVerdict, string> = {
+	deleted: "text-vermilion",
+	clean: "text-success",
+	error: "text-ink-muted",
 }
 
 /**
@@ -54,36 +52,46 @@ const SLIP_DOT: Record<TSlipVerdict, string> = {
  * a trained moderation team, so `error` must never surface as the bare word:
  * the honest sentence is that nothing was removed, and why.
  */
-const SLIP_STATUS_COPY: Record<TSlipVerdict, string> = {
+const VERDICT_COPY: Record<TSlipVerdict, string> = {
 	deleted: "Removed",
 	clean: "Kept — no rule matched",
 	error: "Not judged — nothing was removed",
 }
 
-function SlipStatus({ verdict }: { verdict: TSlipVerdict }) {
+/** The headline word on the dossier. Shorter than the status line on purpose. */
+const VERDICT_HEADLINE: Record<TSlipVerdict, string> = {
+	deleted: "Removed",
+	clean: "Kept",
+	error: "Not judged",
+}
+
+function SlipStatus({
+	verdict,
+	className,
+}: {
+	verdict: TSlipVerdict
+	className?: string
+}) {
 	return (
-		<span className="inline-flex items-center gap-1.5">
+		<span className={cn("inline-flex items-center gap-1.5", className)}>
 			<span
 				aria-hidden
-				className={cn("size-1.5 shrink-0 rounded-full", SLIP_DOT[verdict])}
+				className={cn("size-1.5 shrink-0 rounded-full", VERDICT_BAR[verdict])}
 			/>
-			<span className="font-medium">{SLIP_STATUS_COPY[verdict]}</span>
+			<span className="font-medium">{VERDICT_COPY[verdict]}</span>
 		</span>
 	)
 }
 
 /**
- * One labelled field on a slip. `value` is rendered as given: this component
+ * One labelled field on a dossier. `value` is rendered as given: this component
  * never fabricates a missing field, so callers pass an explicit "—" or an
  * honest sentence rather than letting an empty cell imply the field was blank
  * on the record.
  *
- * The label WRAPS rather than widening the column. `.field-label` is
- * `white-space: nowrap` with 0.12em tracking, so the longest label ("Reason
- * given by the model") renders 198px wide — wider than any sane label column,
- * and at a fixed 9rem it overran the value beside it. A wrapped two-line label
- * keeps the mono-caps voice and lets the column stay narrow enough to give the
- * value real room.
+ * The label sits above the value, not in a fixed column: the longest label
+ * ("Reason given by the model") is 198px of tracked mono, wider than any sane
+ * label column, and stacking it lets the value take the full measure.
  */
 function SlipField({
 	label,
@@ -95,33 +103,84 @@ function SlipField({
 	mono?: boolean
 }) {
 	return (
-		<div className="grid grid-cols-[9rem_minmax(0,1fr)] gap-3 border-b border-hairline py-2 last:border-b-0">
-			<span className="field-label whitespace-normal pt-0.5 leading-tight">
-				{label}
-			</span>
-			<span
+		<div className="border-t border-hairline py-3 first:border-t-0">
+			<dt className="field-label">{label}</dt>
+			<dd
 				className={cn(
-					"min-w-0 text-sm text-ink-soft",
+					"mt-1.5 text-sm leading-relaxed text-ink-soft",
 					mono && "font-mono text-xs tracking-wide",
 				)}
 			>
 				{value}
-			</span>
+			</dd>
 		</div>
 	)
 }
 
 /**
- * The consulted slip: the one record pulled forward out of the drawer.
+ * A 0..1 confidence on a ruled scale, with an optional delete-threshold mark.
  *
- * `active` is what makes it a slip rather than a card — it leaves the drawer's
- * plane and gains a cast shadow, and nothing else on the page carries that
- * treatment, so "what am I reading" is answered by weight before position.
+ * A bare "0.92" asks the reader to know whether that is high; the scale puts it
+ * against the ends, and the coral tick puts it against the line the auto-delete
+ * actually used. Positions travel as custom properties (`--gauge-pos`,
+ * `--gauge-threshold`), because the design gate rejects inline widths.
+ */
+function ConfidenceGauge({
+	confidence,
+	threshold,
+}: {
+	confidence: number
+	threshold: number | null | undefined
+}) {
+	const clamp = (n: number) => Math.min(100, Math.max(0, n * 100))
+	return (
+		<div className="border-t border-hairline py-3">
+			<p className="field-label">Confidence</p>
+			<div
+				className="gauge-track mt-3"
+				style={
+					{ "--gauge-pos": `${clamp(confidence)}%` } as React.CSSProperties
+				}
+				role="img"
+				aria-label={`Confidence ${confidence.toFixed(2)} out of 1`}
+			>
+				<div className="gauge-fill" />
+				{threshold != null && (
+					<div
+						className="gauge-mark"
+						style={
+							{
+								"--gauge-threshold": `${clamp(threshold)}%`,
+							} as React.CSSProperties
+						}
+					/>
+				)}
+			</div>
+			<div className="mt-1.5 flex justify-between font-mono text-micro text-ink-faint">
+				<span>0</span>
+				<span>1</span>
+			</div>
+			<p className="mt-1 font-mono text-xs tracking-wide text-ink-soft">
+				{threshold != null
+					? `${confidence.toFixed(2)} · delete threshold ${threshold.toFixed(2)}`
+					: confidence.toFixed(2)}
+			</p>
+		</div>
+	)
+}
+
+/**
+ * The consulted record: the one the reader has opened.
+ *
+ * `active` marks it as the page's subject — it takes a lime rule under the
+ * header, and nothing else on the page does, so "what am I reading" is answered
+ * before the type is.
  */
 export function RecordSlip({
 	caseId,
 	channel,
 	verdict,
+	message,
 	reason,
 	clause,
 	evidence,
@@ -135,6 +194,8 @@ export function RecordSlip({
 	caseId: string
 	channel: string
 	verdict: TSlipVerdict
+	/** The message as it was posted. Omitted when no text was captured. */
+	message?: string | null
 	/** Why the model decided this. Empty is rendered honestly, never hidden. */
 	reason: string | null | undefined
 	/** The policy clause it was judged against, e.g. "3.4 Scam links". */
@@ -148,37 +209,49 @@ export function RecordSlip({
 	active?: boolean
 	className?: string
 }) {
-	const removed = verdict === "deleted"
-	// The stamp attests a DECISION, so it is withheld from an unjudged record
-	// rather than stamped "not judged" — a stamp on an absent decision would
-	// read as an attestation that never happened.
-	const showStamp = verdict !== "error"
-
 	return (
-		<article
-			className={cn(
-				active ? "verdict-slip-active" : "verdict-slip",
-				SLIP_TAB[verdict],
-				className,
-			)}
-		>
-			<header className="flex flex-wrap items-start justify-between gap-2 border-b border-hairline px-4 py-3">
-				<div className="min-w-0">
-					<p className="case-id">{caseId}</p>
-					<p className="mt-0.5 truncate text-sm text-ink-muted">
-						{channel}
-						<span className="mx-1.5 text-ink-faint">·</span>
-						{decidedAt}
-					</p>
-				</div>
-				{showStamp ? (
-					<span className={cn("verdict-stamp", !removed && "opacity-70")}>
-						{removed ? "Removed" : "Kept"}
-					</span>
-				) : null}
+		<article className={cn("desk-section", className)}>
+			<header
+				className={cn(
+					"flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 pb-3",
+					active && "border-b-4 border-lime",
+				)}
+			>
+				<p className="case-id">{caseId}</p>
+				<p className="case-id">{decidedAt}</p>
 			</header>
 
-			<div className="px-4 py-3">
+			<div className="pt-6">
+				<p className="field-label">{channel}</p>
+				{/*
+				 * The verdict is the largest word on the dossier. A member who arrived
+				 * to ask "was my message removed?" gets the answer before reading
+				 * anything else — and the three states are three different words, not
+				 * a colour change on one.
+				 */}
+				<p className={cn("mega-md mt-3", VERDICT_TEXT[verdict])}>
+					{VERDICT_HEADLINE[verdict]}
+				</p>
+				{/* The headline already says "Removed"; repeating it as a status line
+				    is noise. The other two verdicts need their sentence, because
+				    "Kept" and "Not judged" are not self-explanatory to a member. */}
+				{verdict !== "deleted" && (
+					<p className="mt-3 text-sm text-ink-muted">
+						<SlipStatus verdict={verdict} />
+					</p>
+				)}
+			</div>
+
+			{message && (
+				<figure className="mt-8">
+					<figcaption className="field-label">The message</figcaption>
+					<blockquote className="mt-2 border-l-4 border-rule py-1 pl-4 text-lg leading-snug break-words whitespace-pre-wrap text-ink">
+						{message}
+					</blockquote>
+				</figure>
+			)}
+
+			<div className="mt-8">
 				{/*
 				 * Three verdicts need three different questions, not two.
 				 *
@@ -188,7 +261,7 @@ export function RecordSlip({
 				 * invites the reader to believe a decision was made that never was,
 				 * which is the exact flattening PRODUCT.md forbids.
 				 */}
-				<h3 className="text-sm font-medium tracking-wide text-ink">
+				<h3 className="text-base font-extrabold tracking-tight text-ink">
 					{verdict === "deleted"
 						? "Why this message was removed"
 						: verdict === "clean"
@@ -197,7 +270,7 @@ export function RecordSlip({
 				</h3>
 				<p
 					className={cn(
-						"mt-1.5 text-sm",
+						"mt-2 max-w-prose text-sm leading-relaxed",
 						verdict === "error" ? "text-ink-muted" : "text-ink-soft",
 					)}
 				>
@@ -206,7 +279,7 @@ export function RecordSlip({
 						: (reason ?? "—")}
 				</p>
 
-				<dl className="mt-3">
+				<dl className="mt-5">
 					{/*
 					 * The clause and the reason are the two fields a member needs to
 					 * challenge the call, so they come first.
@@ -233,32 +306,21 @@ export function RecordSlip({
 							value={reason ?? "The message was not read."}
 						/>
 					)}
-					{verdict !== "error" && confidence != null && (
-						<SlipField
-							label="Confidence"
-							mono
-							value={
-								threshold != null
-									? `${confidence.toFixed(2)} · delete threshold ${threshold.toFixed(2)}`
-									: confidence.toFixed(2)
-							}
-						/>
-					)}
 				</dl>
+				{verdict !== "error" && confidence != null && (
+					<ConfidenceGauge confidence={confidence} threshold={threshold} />
+				)}
 			</div>
 
 			{/* Evidence is quoted spans the model cited. Rendered as text, never
 			    as HTML: message content is author-supplied and React escapes it. */}
 			{evidence && evidence.length > 0 && (
-				<div className="border-t border-hairline px-4 py-3">
+				<div className="mt-6 border-t border-hairline pt-4">
 					<p className="field-label">Evidence kept</p>
-					<ul className="mt-1.5 space-y-1">
+					<ul className="mt-3 space-y-2">
 						{evidence.map((span) => (
-							<li
-								key={span}
-								className="border-l-2 border-hairline pl-2 font-mono text-xs text-ink-muted"
-							>
-								{span}
+							<li key={span} className="font-mono text-xs leading-relaxed">
+								<span className="marker break-words">{span}</span>
 							</li>
 						))}
 					</ul>
@@ -269,9 +331,8 @@ export function RecordSlip({
 }
 
 /**
- * A column of decided records. The slip being consulted is lifted out and shown
- * beside it, so the grid holds only the *other* records — which is what makes
- * "pulled forward of" mean something rather than being a highlight colour.
+ * The index of decided records. The consulted one stays in the list, marked, so
+ * the reader never loses their place among its neighbours.
  */
 export function RecordDrawer({
 	children,
@@ -279,13 +340,13 @@ export function RecordDrawer({
 	className,
 }: {
 	children: React.ReactNode
-	/** The case id currently consulted, excluded from the drawer. */
+	/** The case id currently consulted. */
 	activeCaseId?: string
 	className?: string
 }) {
 	return (
 		<div
-			className={cn("grid grid-cols-1 gap-2 sm:grid-cols-2", className)}
+			className={cn("border-t border-rule", className)}
 			data-active-case-id={activeCaseId}
 		>
 			{children}
@@ -294,9 +355,10 @@ export function RecordDrawer({
 }
 
 /**
- * A compact slip for the drawer: enough to recognise a record and see its
- * outcome, never so much that it competes with the consulted slip. The whole
- * card is a button, so a keyboard reaches every record.
+ * An index row: enough to recognise a record and see its outcome, never so much
+ * that it competes with the dossier. The whole row is a button, so a keyboard
+ * reaches every record. The active row is the lime block — the same "you are
+ * here" mark the navigation uses.
  */
 export function RecordSlipCompact({
 	caseId,
@@ -321,40 +383,64 @@ export function RecordSlipCompact({
 			onClick={onSelect}
 			aria-current={isActive || undefined}
 			className={cn(
-				"verdict-slip w-full px-3 py-2.5 text-left transition-colors",
-				SLIP_TAB[verdict],
-				"hover:border-hairline-focus focus-visible:outline-2",
+				"grid w-full grid-cols-[0.375rem_minmax(0,1fr)] gap-3 border-b border-hairline py-3 pr-3 pl-0 text-left transition-colors",
+				isActive ? "bg-lime text-lime-ink" : "hover:bg-surface-2",
 			)}
 		>
-			<div className="flex items-baseline justify-between gap-2">
-				<span className="case-id">{caseId}</span>
-				<span className="font-mono text-micro-lg text-ink-faint tabular-nums">
-					{decidedAt}
+			<span
+				aria-hidden
+				className={cn("block self-stretch", VERDICT_BAR[verdict])}
+			/>
+			<span className="min-w-0">
+				<span className="flex items-baseline justify-between gap-2">
+					<span className={cn("case-id", isActive && "text-lime-ink")}>
+						{caseId}
+					</span>
+					<span
+						className={cn(
+							"font-mono text-micro-lg tabular-nums",
+							isActive ? "text-lime-ink" : "text-ink-faint",
+						)}
+					>
+						{decidedAt}
+					</span>
 				</span>
-			</div>
-			<p className="mt-1 truncate text-sm text-ink">
-				{summary}
-				{/*
+				<span
+					className={cn(
+						"mt-1 block truncate text-sm",
+						isActive ? "text-lime-ink" : "text-ink",
+					)}
+				>
+					{summary}
+					{/*
           The separator is a SEPARATOR, so it may not lead the line. When the
           summary is the "nothing was typed" fallback there is no left-hand part
           to separate from, and rendering it unconditionally put an orphan "·"
           at the start of the row — the visible scar of a message whose only
           content was a gateway placeholder.
         */}
-				{summary ? <span className="mx-1.5 text-ink-faint">·</span> : null}
-				<span className="text-ink-muted">{channel}</span>
-			</p>
-			<p className="mt-1 text-micro-lg text-ink-muted">
-				<SlipStatus verdict={verdict} />
-			</p>
+					{summary ? <span className="mx-1.5 opacity-60">·</span> : null}
+					<span className={isActive ? "text-lime-ink" : "text-ink-muted"}>
+						{channel}
+					</span>
+				</span>
+				<span
+					className={cn(
+						"mt-1 block text-micro-lg",
+						isActive ? "text-lime-ink" : "text-ink-muted",
+					)}
+				>
+					<SlipStatus verdict={verdict} />
+				</span>
+			</span>
 		</button>
 	)
 }
 
 /**
- * The queue band. Its own surface, below the records, for one reason:
+ * The queue band. Its own ruled strip, below the records, for one reason:
  * `ai_status` answers "where is this in the queue", which is a DIFFERENT
- * question from the verdict above. A member reading a `deleted` slip should
+ * question from the verdict above. A member reading a `deleted` dossier should
  * never have to wonder whether the number beside it is part of that decision.
  */
 export function QueueBand({
@@ -369,25 +455,30 @@ export function QueueBand({
 }) {
 	return (
 		<section
-			className={cn("hud-card mt-4 px-4 py-3", className)}
+			className={cn(
+				"flex flex-wrap items-end justify-between gap-x-10 gap-y-4 border-y border-rule py-5",
+				className,
+			)}
 			aria-label="Message queue"
 		>
-			<div className="flex flex-wrap items-baseline justify-between gap-2">
-				<h2 className="text-sm font-medium tracking-wide text-ink">
-					Message queue
-					<span className="ml-2 text-xs font-normal text-ink-muted">
-						position in the queue is not a decision
-					</span>
-				</h2>
-				<p className="metric text-lg text-ink">{waiting}</p>
+			<div className="flex items-end gap-5">
+				<p className="mega-md ghost-numeral">{waiting}</p>
+				<div className="pb-1">
+					<h2 className="text-base font-extrabold tracking-tight text-ink">
+						Message queue
+					</h2>
+					<p className="mt-0.5 max-w-xs text-xs text-ink-muted">
+						Position in the queue is not a decision
+					</p>
+				</div>
 			</div>
-			<ul className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5">
+			<ul className="flex flex-wrap gap-x-8 gap-y-3">
 				{states.map((state) => (
-					<li key={state.label} className="flex items-baseline gap-1.5">
-						<span className="field-label">{state.label}</span>
-						<span className="metric text-sm text-ink-soft tabular-nums">
+					<li key={state.label} className="border-l-2 border-rule pl-3">
+						<p className="field-label">{state.label}</p>
+						<p className="metric mt-1 text-2xl leading-none text-ink tabular-nums">
 							{state.value}
-						</span>
+						</p>
 					</li>
 				))}
 			</ul>

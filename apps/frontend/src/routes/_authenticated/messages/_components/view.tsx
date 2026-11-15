@@ -1,8 +1,13 @@
 import { useNavigate, useSearch } from "@tanstack/react-router"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+	useSyncExternalStore,
+} from "react"
 import { MessageFeedCard } from "#/components/features/message-feed-card"
 import { ChannelPicker, GuildPicker } from "#/components/features/pickers"
-import { Badge } from "#/components/ui/badge"
 import {
 	InfiniteScrollSentinel,
 	LoadMoreFallback,
@@ -10,13 +15,6 @@ import {
 	useScrollReset,
 } from "#/components/ui/infinite-scroll"
 import { Input } from "#/components/ui/input"
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/ui/select"
 import { EmptyState, ErrorState, NoResultsState } from "#/components/ui/states"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs"
 import {
@@ -38,11 +36,9 @@ import type { IMessage, IMessageEdit } from "#/libs/types"
 import { useWsEvent } from "#/libs/ws/context"
 
 /**
- * Sentinel for "no filter" in the shadcn Select. A Select cannot hold "" —
- * base-ui reads it as "nothing selected" and shows the placeholder — so the
- * unfiltered state needs an explicit token. It is mapped back to undefined
- * before it reaches the backend and is never shown to the user, because each
- * Select below passes an `items` label map so the trigger renders text.
+ * Sentinel for "no filter". The URL layer and the state both speak it, and it is
+ * mapped back to undefined before it reaches the backend. It is never shown to
+ * the user: the "All" chip renders its own label.
  */
 const ANY = "__any__"
 const FEED_LIMIT = 50
@@ -53,37 +49,91 @@ const REVIEW_LIMIT = 20
 const EDIT_LIMIT = 25
 
 /**
- * Label maps for the two filter Selects.
+ * A single-choice filter, as a row of toggle chips.
  *
- * Without `items`, `<Select.Value>` falls back to printing the raw item value,
- * so the trigger showed the literal "__any__". Passing the map on the Root
- * lets base-ui resolve the label on the server too, where the item portal is
- * not mounted.
+ * These were two `Select`s. A select hides its options behind a click, which is
+ * the wrong trade for a filter with three or six values: the reader should see
+ * that "Error" exists without opening anything. `aria-pressed` makes each chip a
+ * real toggle for assistive tech, and the group is a `fieldset` so the legend is
+ * its name.
  */
-const PIPELINE_ITEMS: Record<string, string> = {
-	[ANY]: "Any queue state",
-	...Object.fromEntries(
-		PIPELINE_STATUSES.map((status) => [status, humanize(status)]),
-	),
+function ChipFilter({
+	legend,
+	value,
+	options,
+	onChange,
+}: {
+	legend: string
+	value: string
+	options: ReadonlyArray<{ value: string; label: string }>
+	onChange: (value: string) => void
+}) {
+	return (
+		<fieldset className="min-w-0 space-y-2">
+			<legend className="field-label mb-2">{legend}</legend>
+			<div className="flex flex-wrap gap-1.5">
+				{options.map((option) => (
+					<button
+						key={option.value}
+						type="button"
+						className="chip-toggle"
+						aria-pressed={value === option.value}
+						onClick={() => onChange(option.value)}
+					>
+						{option.label}
+					</button>
+				))}
+			</div>
+		</fieldset>
+	)
 }
 
-const VERDICT_ITEMS: Record<string, string> = {
-	[ANY]: "Any verdict",
-	...Object.fromEntries(
-		VERDICT_STATUSES.map((verdict) => [verdict, humanize(verdict)]),
-	),
+/**
+ * `lg` and up, where the filters live in a sticky margin and are always open.
+ * Below it they are a fold-out, so a phone gets the feed in its first screen
+ * instead of two screens of chips. Read through `useSyncExternalStore` so the
+ * value is correct on the first client render and follows a window resize.
+ */
+const DESKTOP_QUERY = "(width >= 64rem)"
+
+function useIsDesktop(): boolean {
+	return useSyncExternalStore(
+		(notify) => {
+			const mql = window.matchMedia(DESKTOP_QUERY)
+			mql.addEventListener("change", notify)
+			return () => mql.removeEventListener("change", notify)
+		},
+		() => window.matchMedia(DESKTOP_QUERY).matches,
+		() => true,
+	)
 }
+
+const PIPELINE_OPTIONS = [
+	{ value: ANY, label: "All" },
+	...PIPELINE_STATUSES.map((status) => ({
+		value: status,
+		label: humanize(status),
+	})),
+]
+
+const VERDICT_OPTIONS = [
+	{ value: ANY, label: "All" },
+	...VERDICT_STATUSES.map((verdict) => ({
+		value: verdict,
+		label: humanize(verdict),
+	})),
+]
 
 export function MessagesView({
 	defaultGuildId,
 }: {
 	defaultGuildId: string | null
 }) {
-	// Drill-down filters arrive in the URL (W2). Every stat tile on the
-	// dashboard links here with `?status=` or `?verdict=`, so the view has to
-	// seed its filter state from the query string -- otherwise the link lands on
-	// an unfiltered list, which is what made the app's one pre-existing
-	// drill-down (`/messages?status=dead`) a dead link.
+	// Drill-down filters arrive in the URL (W2). Every readout on the dashboard
+	// links here with `?status=` or `?verdict=`, so the view has to seed its
+	// filter state from the query string -- otherwise the link lands on an
+	// unfiltered list, which is what made the app's one pre-existing drill-down
+	// (`/messages?status=dead`) a dead link.
 	const navigate = useNavigate()
 	// `from` pins the search shape to this route, so a hand-edited or unknown
 	// `?status=` cannot smuggle a value past the filter below.
@@ -96,6 +146,15 @@ export function MessagesView({
 	const [search, setSearch] = useState("")
 	const [pipelineFilter, setPipelineFilter] = useState<string>(urlStatus)
 	const [verdictFilter, setVerdictFilter] = useState<string>(urlVerdict)
+	const isDesktop = useIsDesktop()
+	const [filtersOpen, setFiltersOpen] = useState(false)
+	const showFilters = isDesktop || filtersOpen
+	// What the fold-out button reports while it is closed, so a collapsed filter
+	// bar never hides the fact that the list is filtered.
+	const activeFilters =
+		(pipelineFilter !== ANY ? 1 : 0) +
+		(verdictFilter !== ANY ? 1 : 0) +
+		(channelId ? 1 : 0)
 
 	// Keep the address bar in step with the filters so a reload -- or a shared
 	// link -- reproduces the same list. Written back only when something
@@ -188,9 +247,9 @@ export function MessagesView({
 		[edits.data?.pages],
 	)
 
-	// The tab badges count what is LOADED, not what the backend holds — a badge
+	// The tab counts are what is LOADED, not what the backend holds — a count
 	// reading 400 on a 12-row list was the tell that this data used to be
-	// unpaginated. Labelled with the count so it is honest about that.
+	// unpaginated.
 	const reviewCount = reviewRows.length
 	const editCount = editRows.length
 
@@ -209,110 +268,114 @@ export function MessagesView({
 	}, [feedRows, search])
 
 	return (
-		<Reveal className="space-y-4">
-			{/* Hero: a mono eyebrow names the surface, the title sits at the display
-          step so the page has a top, one line of context underneath. */}
-			<header className="flex flex-wrap items-end justify-between gap-3">
+		<Reveal className="space-y-10">
+			<header className="grid items-end gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,1fr)_auto]">
 				<div className="min-w-0">
 					<p className="field-label">Captured traffic</p>
-					<h1 className="display mt-1 text-ink">Messages</h1>
-					<p className="mt-2 text-sm text-ink-muted">
-						Live feed, enforcement log, and edit history
-					</p>
+					<h1 className="mega-md mt-4 text-ink">Messages</h1>
 				</div>
-
-				<div className="flex flex-wrap items-center gap-2">
-					<GuildPicker
-						guilds={guilds.data ?? []}
-						value={guildId}
-						onChange={onGuildChange}
-					/>
-					<ChannelPicker
-						channels={channels.data ?? []}
-						value={channelId}
-						onChange={setChannelId}
-						disabled={!guildId}
-					/>
-				</div>
+				<p className="max-w-xs text-sm leading-relaxed text-ink-muted">
+					Live feed, enforcement log, and edit history.{" "}
+					<span className="marker font-bold whitespace-nowrap">
+						{feedRows.length} loaded
+					</span>
+				</p>
 			</header>
 
-			<Tabs defaultValue="feed">
-				<TabsList className="tabs-touch">
-					<TabsTrigger value="feed">Feed</TabsTrigger>
-					<TabsTrigger value="enforced">
-						Enforced
-						{reviewCount > 0 && (
-							<Badge variant="secondary" className="ml-1.5">
-								{reviewCount}
-							</Badge>
-						)}
-					</TabsTrigger>
-					<TabsTrigger value="edits">
-						Edits
-						{editCount > 0 && (
-							<Badge variant="outline" className="ml-1.5">
-								{editCount}
-							</Badge>
-						)}
-					</TabsTrigger>
-				</TabsList>
+			{/*
+        Two columns from `lg`: the filters in a sticky margin, the wire to the
+        right. The filters used to be a toolbar above the list, which meant they
+        scrolled away exactly when the list got long enough to need them.
+      */}
+			<div className="grid gap-x-12 gap-y-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
+				<aside
+					className="desk-section min-w-0 space-y-6 self-start lg:sticky lg:top-20"
+					aria-label="Filters"
+				>
+					{!isDesktop && (
+						<button
+							type="button"
+							className="flex min-h-11 w-full items-center justify-between gap-3 text-left"
+							aria-expanded={filtersOpen}
+							aria-controls="message-filters"
+							onClick={() => setFiltersOpen((open) => !open)}
+						>
+							<span className="field-label text-ink">
+								Filters
+								{activeFilters > 0 ? ` · ${activeFilters} active` : ""}
+							</span>
+							<span className="font-mono text-sm text-ink" aria-hidden>
+								{filtersOpen ? "−" : "+"}
+							</span>
+						</button>
+					)}
 
-				<TabsContent value="feed" className="mt-4">
-					<div className="space-y-3">
-						<div className="flex flex-wrap items-center gap-2">
+					<div id="message-filters" hidden={!showFilters} className="space-y-6">
+						<div className="space-y-2">
+							<p className="field-label">Scope</p>
+							<GuildPicker
+								guilds={guilds.data ?? []}
+								value={guildId}
+								onChange={onGuildChange}
+							/>
+							<ChannelPicker
+								channels={channels.data ?? []}
+								value={channelId}
+								onChange={setChannelId}
+								disabled={!guildId}
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<label htmlFor="message-filter" className="field-label">
+								Find
+							</label>
 							<Input
+								id="message-filter"
 								value={search}
 								onChange={(event) => setSearch(event.target.value)}
 								placeholder="Filter loaded messages…"
-								aria-label="Filter messages"
-								className="w-full sm:w-64"
+								className="w-full"
 							/>
-
-							<Select
-								items={PIPELINE_ITEMS}
-								value={pipelineFilter}
-								onValueChange={(v) => setPipelineFilter(v ?? ANY)}
-							>
-								<SelectTrigger
-									size="sm"
-									className="min-h-11 sm:min-h-8 w-44"
-									aria-label="Queue state"
-								>
-									<SelectValue placeholder="Queue state" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value={ANY}>Any queue state</SelectItem>
-									{PIPELINE_STATUSES.map((status) => (
-										<SelectItem key={status} value={status}>
-											{humanize(status)}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-
-							<Select
-								items={VERDICT_ITEMS}
-								value={verdictFilter}
-								onValueChange={(v) => setVerdictFilter(v ?? ANY)}
-							>
-								<SelectTrigger
-									size="sm"
-									className="min-h-11 sm:min-h-8 w-44"
-									aria-label="Verdict"
-								>
-									<SelectValue placeholder="Verdict" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value={ANY}>Any verdict</SelectItem>
-									{VERDICT_STATUSES.map((verdict) => (
-										<SelectItem key={verdict} value={verdict}>
-											{humanize(verdict)}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
 						</div>
 
+						<ChipFilter
+							legend="Verdict"
+							value={verdictFilter}
+							options={VERDICT_OPTIONS}
+							onChange={setVerdictFilter}
+						/>
+						<ChipFilter
+							legend="Queue state"
+							value={pipelineFilter}
+							options={PIPELINE_OPTIONS}
+							onChange={setPipelineFilter}
+						/>
+					</div>
+				</aside>
+
+				<Tabs defaultValue="feed" className="min-w-0">
+					<TabsList variant="line" className="tabs-touch">
+						<TabsTrigger value="feed">Feed</TabsTrigger>
+						<TabsTrigger value="enforced">
+							Enforced
+							{reviewCount > 0 && (
+								<span className="font-mono text-micro text-ink-muted">
+									{reviewCount}
+								</span>
+							)}
+						</TabsTrigger>
+						<TabsTrigger value="edits">
+							Edits
+							{editCount > 0 && (
+								<span className="font-mono text-micro text-ink-muted">
+									{editCount}
+								</span>
+							)}
+						</TabsTrigger>
+					</TabsList>
+
+					<TabsContent value="feed" className="mt-6">
 						{messages.error && !messages.data ? (
 							<ErrorState
 								error={messages.error}
@@ -332,7 +395,7 @@ export function MessagesView({
 						) : (
 							<>
 								<ul
-									className="space-y-2"
+									className="border-t border-rule"
 									aria-busy={messages.isFetching || undefined}
 								>
 									{feed.map((message) => (
@@ -357,33 +420,33 @@ export function MessagesView({
 								/>
 							</>
 						)}
-					</div>
-				</TabsContent>
+					</TabsContent>
 
-				<TabsContent value="enforced" className="mt-4">
-					<EnforcementLog
-						messages={reviewRows}
-						loading={review.isFetching}
-						error={review.error}
-						onRetry={() => void review.refetch()}
-						hasMore={review.hasNextPage}
-						onLoadMore={() => void review.fetchNextPage()}
-						isLoadingMore={review.isFetchingNextPage}
-					/>
-				</TabsContent>
+					<TabsContent value="enforced" className="mt-6">
+						<EnforcementLog
+							messages={reviewRows}
+							loading={review.isFetching}
+							error={review.error}
+							onRetry={() => void review.refetch()}
+							hasMore={review.hasNextPage}
+							onLoadMore={() => void review.fetchNextPage()}
+							isLoadingMore={review.isFetchingNextPage}
+						/>
+					</TabsContent>
 
-				<TabsContent value="edits" className="mt-4">
-					<EditHistory
-						edits={editRows}
-						loading={edits.isFetching}
-						error={edits.error}
-						onRetry={() => void edits.refetch()}
-						hasMore={edits.hasNextPage}
-						onLoadMore={() => void edits.fetchNextPage()}
-						isLoadingMore={edits.isFetchingNextPage}
-					/>
-				</TabsContent>
-			</Tabs>
+					<TabsContent value="edits" className="mt-6">
+						<EditHistory
+							edits={editRows}
+							loading={edits.isFetching}
+							error={edits.error}
+							onRetry={() => void edits.refetch()}
+							hasMore={edits.hasNextPage}
+							onLoadMore={() => void edits.fetchNextPage()}
+							isLoadingMore={edits.isFetchingNextPage}
+						/>
+					</TabsContent>
+				</Tabs>
+			</div>
 		</Reveal>
 	)
 }
@@ -445,14 +508,14 @@ function EnforcementLog({
 
 	return (
 		<>
-			<ul className="space-y-2" aria-busy={loading || undefined}>
+			<ul className="border-t border-rule" aria-busy={loading || undefined}>
 				{messages.map((message) => (
 					<li key={message.id}>
 						<MessageFeedCard message={message} />
 					</li>
 				))}
 			</ul>
-			<p className="mt-2 text-center text-xs text-ink-muted">
+			<p className="mt-4 text-center font-mono text-micro text-ink-muted uppercase">
 				{progress.label}
 			</p>
 			<InfiniteScrollSentinel
@@ -472,10 +535,13 @@ function EnforcementLog({
 }
 
 /**
- * Recent edits, newest first.
+ * Recent edits, newest first, each set as a before/after diff.
  *
  * Worth its own tab because an edit that changes a message AFTER it was
  * judged is the signature of someone cleaning up before a moderator looks.
+ * The `−` and `+` gutters make the direction of the change legible without
+ * colour: the removed text is also struck through, so it survives a monochrome
+ * screenshot and a colour-blind reader.
  */
 function EditHistory({
 	edits,
@@ -505,30 +571,38 @@ function EditHistory({
 
 	return (
 		<>
-			<ul className="space-y-2" aria-busy={loading || undefined}>
+			<ul className="border-t border-rule" aria-busy={loading || undefined}>
 				{edits.map((edit) => (
-					<li key={edit.id} className="hud-card px-3 py-2.5 text-sm">
-						<div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-							<span className="text-ink-soft">
+					<li key={edit.id} className="border-b border-hairline py-4">
+						<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+							<span className="text-sm font-bold text-ink">
 								{edit.username ?? "unknown"}
 							</span>
-							<span>in {edit.channel_name ?? `#${edit.channel_id}`}</span>
-							<span className="ml-auto font-mono">
+							<span className="text-xs text-ink-muted">
+								in {edit.channel_name ?? `#${edit.channel_id}`}
+							</span>
+							<span className="ml-auto font-mono text-micro-lg text-ink-muted">
 								{formatRelative(edit.edited_at)}
 							</span>
 						</div>
-						<div className="mt-1.5 space-y-1">
-							<p className="text-xs text-vermilion break-words line-through">
-								{edit.old_content}
+						<div className="mt-3 space-y-1.5 font-mono text-xs">
+							<p className="grid grid-cols-[1rem_minmax(0,1fr)] gap-2 break-words text-vermilion line-through">
+								<span aria-hidden className="no-underline">
+									−
+								</span>
+								<span>{edit.old_content}</span>
 							</p>
-							<p className="text-xs text-ink-soft break-words">
-								{edit.new_content}
+							<p className="grid grid-cols-[1rem_minmax(0,1fr)] gap-2 break-words text-ink">
+								<span aria-hidden className="text-signal">
+									+
+								</span>
+								<span>{edit.new_content}</span>
 							</p>
 						</div>
 					</li>
 				))}
 			</ul>
-			<p className="mt-2 text-center text-xs text-ink-muted">
+			<p className="mt-4 text-center font-mono text-micro text-ink-muted uppercase">
 				{progress.label}
 			</p>
 			<InfiniteScrollSentinel

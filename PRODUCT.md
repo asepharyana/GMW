@@ -119,7 +119,8 @@ Explicitly undecided, recorded rather than invented:
 - `README.md` at the repo root is substantial, current product documentation
   and is treated as authoritative for architecture and data-path questions.
 - An established visual system exists in `apps/frontend/src/styles.css`
-  ("Quiet Ops Room"), with tokens, a `@shadcn/lint` design gate
+  ("Signal Desk" — type-led, ruled sections instead of cards, one lime
+    highlighter accent), with tokens, a `@shadcn/lint` design gate
   (`pnpm run lint:design`) and documented non-negotiables.
 
 Future work must not fabricate: testimonials, customer names, benchmark numbers,

@@ -39,148 +39,145 @@
 }
 
 /*
- * GMW — "Instrument" design tokens
+ * GMW — "Signal Desk" design tokens
  * ---------------------------------------------------------------------------
- * Replaces "The Record Office" (manila stock, oxblood stamps, filing tabs).
- * That metaphor described the ARCHIVE. This product is a live LLM moderation
- * console, and the interface now says so.
+ * Replaces "Instrument" (boxed hairline panels on a grid field). That system
+ * was correct and anonymous: every surface was the same rounded rectangle with
+ * a title bar, so the dashboard read as a template. Signal Desk is a newsroom
+ * wire desk crossed with a Swiss poster: type does the structuring, rules do
+ * the separating, and the boxes are gone.
  *
- * The six rules that govern this file:
+ * The rules that govern this file:
  *
- *  1. THE VERDICT IS THE PRODUCT. Every surface resolves to a decision: status,
- *     score, confidence, categories, evidence. A surface that hides one of
- *     those is broken, not styled.
- *  2. ONE ACCENT, EARNED. `--accent-signal` (mint) means "the model is looking"
- *     or "this is live". Never a decorative fill, never a second brand colour,
- *     never a verdict colour.
- *  3. VERDICT COLOURS ARE SEMANTIC AND FIXED. `clean` is slate (no action was
+ *  1. TYPE IS THE LAYOUT. Numbers are set at poster scale and the page is
+ *     divided by full-width rules and a margin column, not by cards. If a
+ *     surface needs a border on all four sides, it is probably the wrong shape.
+ *  2. THE VERDICT IS STILL THE PRODUCT. Every surface resolves to a decision:
+ *     status, reason, evidence. Nothing here may hide one of those.
+ *  3. ONE ACCENT, EARNED. `--lime` is the highlighter: it marks "live", "you are
+ *     here" and "the number that matters". Never a verdict colour, never a
+ *     second brand colour.
+ *  4. VERDICT COLOURS ARE SEMANTIC AND FIXED. `clean` is slate (no action was
  *     taken, which is not praise), `deleted` is coral, `error` is violet, amber
  *     is a warning. They keep their meaning across themes.
- *  4. FLAT INSTRUMENT, NOT PAPER. Depth comes from a 1px hairline, the grid
- *     field behind the chrome, and glow on live state — never from a resting
- *     drop shadow.
- *  5. MOTION IS DATA. GSAP animates entrance order and changing values; nothing
+ *  5. SHARP, NOT SOFT. 2px corners everywhere. Pills are reserved for chips,
+ *     which are small facts, not containers.
+ *  6. MOTION IS DATA. GSAP animates entrance order and changing values; nothing
  *     loops for decoration. All of it is off under `prefers-reduced-motion`
  *     (see the end of this file and libs/motion.tsx).
- *  6. THE OXLINT `shadcn/*` GATE OWNS PRIMITIVE APPEARANCE. It forbids raw hex
+ *  7. THE OXLINT `shadcn/*` GATE OWNS PRIMITIVE APPEARANCE. It forbids raw hex
  *     in components, inline styles and arbitrary values, so new colour, spacing
  *     or sizing must be a token or a named class HERE rather than a utility
  *     assembled in a component.
  *
- * Standing instructions that survived: `nav-rail.tsx` keeps the plain vertical
- * rail (the constellation nav was reverted in eda5c752 — it shipped green and
- * was rejected for usability, not for taste), and this file stays the only
- * place that declares colour.
+ * Standing instruction that survived: `nav-rail.tsx` is a plain vertical rail
+ * with a visible label per destination (the constellation nav was reverted in
+ * eda5c752 — it shipped green and was rejected for usability, not for taste),
+ * and this file stays the only place that declares colour.
  */
 
 :root {
-  /* -- Light: daylight console -------------------------------------------- */
-  /* Cool paper, not warm: the ground reads as a lit display surface, not a
-     folder. Every text token below is contrast-checked against --canvas-base. */
-  --canvas-base: #edf1f7;
-  --canvas-subtle: #e2e8f2;
-  --panel-bg: #ffffff;
-  --panel-bg-subtle: #f1f5fb;
-  --panel-border: rgba(15, 23, 42, 0.12);
-  --panel-border-hover: rgba(15, 118, 110, 0.45);
-  /* A control's border has to read as "this is a field", which a panel hairline
-     (0.09 alpha) does not at dark-mode contrast. Inputs and selects get this step
-     instead of --panel-border. */
-  --input-border: rgba(15, 23, 42, 0.18);
-  /* Chart reference lines: visible, but never mistaken for data, and never
-     picking up the accent hue. */
-  --chart-grid: rgba(15, 23, 42, 0.14);
+  /* -- Light: bone paper ---------------------------------------------------- */
+  --canvas-base: #f0eee4;
+  --canvas-subtle: #e7e4d6;
+  --panel-bg: #faf9f3;
+  --panel-bg-subtle: #e9e6d8;
+  --panel-border: rgba(24, 22, 10, 0.16);
+  --panel-border-hover: rgba(24, 22, 10, 0.55);
+  --input-border: rgba(24, 22, 10, 0.28);
+  --chart-grid: rgba(24, 22, 10, 0.16);
+  /* The heavy rule: section tops and the rail edge. Reads as ink, not hairline. */
+  --rule-strong: rgba(24, 22, 10, 0.82);
 
-  --text-primary: #0b1220;
-  --text-secondary: #33405a;
+  --text-primary: #12120d;
+  --text-secondary: #3a392e;
   /* `muted` and `faint` both carry real content (timestamps, field labels,
-     axis labels), so both clear 4.5:1 on the light canvas: 6.2 and 4.8. */
-  --text-muted: #55637c;
-  --text-faint: #5a6779;
+     axis labels), so both clear 4.5:1 on the light canvas: 6.0 and 5.1. */
+  --text-muted: #5a594b;
+  --text-faint: #66655a;
 
-  /* Teal-700, not teal-500: the 500 step measures ~3.4:1 on this canvas and is
-     used for TEXT (active destination, focus ring, live labels). */
-  --accent-brand: #0f766e;
-  /* Foreground for text sitting ON --accent-brand. Per theme, because the dark
-     accent is a light mint and needs ink on it, not white. */
+  /* Olive, not lime, for TEXT: the highlighter lime has no contrast on paper.
+     Text uses --accent-signal, fills use --lime. */
+  --accent-brand: #4a6800;
   --color-on-brand-light: #ffffff;
-  --accent-signal: #0f766e;
-  --accent-signal-bg: rgba(15, 118, 110, 0.1);
-  --accent-signal-border: rgba(15, 118, 110, 0.28);
-  --accent-signal-glow: rgba(15, 118, 110, 0.2);
+  --accent-signal: #4a6800;
+  --accent-signal-bg: rgba(74, 104, 0, 0.1);
+  --accent-signal-border: rgba(74, 104, 0, 0.3);
+  --accent-signal-glow: rgba(74, 104, 0, 0.2);
+
+  /* The highlighter. Same in both themes, always carries --lime-ink on it. */
+  --lime: #c8f031;
+  --lime-ink: #11140a;
 
   /* Verdict colours. Used as TEXT, so each clears 4.5:1 on the canvas. */
-  --success-base: #475569;
-  --success-wash: rgba(71, 85, 105, 0.1);
-  --color-warning: #9a5b06;
-  --color-warning-bg: rgba(154, 91, 6, 0.12);
-  --color-danger: #c2382f;
-  --color-danger-bg: rgba(194, 56, 47, 0.1);
+  --success-base: #4d5a68;
+  --success-wash: rgba(77, 90, 104, 0.12);
+  --color-warning: #8f5400;
+  --color-warning-bg: rgba(143, 84, 0, 0.12);
+  --color-danger: #c4301f;
+  --color-danger-bg: rgba(196, 48, 31, 0.1);
   /* Named `--error-base`, not `--color-error`: a raw token under the exact name
      a @theme alias would take is a self-reference, and the utility generates
      nothing. Same trap `--color-success` documents below. */
   --error-base: #6d28d9;
   --error-wash: rgba(109, 40, 217, 0.1);
 
-  /* No cast shadows on resting surfaces: elevation is the hairline plus the
-     surface step. Only floating chrome (palette, sheets, launcher) lifts. */
-  --shadow-hud: 0 0 0 1px rgba(15, 23, 42, 0.06);
-  --shadow-raised: 0 0 0 1px rgba(15, 23, 42, 0.08);
-  --shadow-floating: 0 12px 32px -12px rgba(15, 23, 42, 0.24), 0 0 0 1px rgba(15, 23, 42, 0.08);
+  /* No cast shadows on resting surfaces. Only floating chrome lifts. */
+  --shadow-hud: 0 0 0 1px rgba(24, 22, 10, 0.06);
+  --shadow-raised: 0 0 0 1px rgba(24, 22, 10, 0.1);
+  --shadow-floating: 0 14px 34px -14px rgba(24, 22, 10, 0.32), 0 0 0 1px rgba(24, 22, 10, 0.14);
 
-  /* The grid field behind the chrome: cell lines, plus the accent bloom that
-     marks where live data enters the page. */
-  --field-grid-line: rgba(15, 23, 42, 0.055);
-  --field-glow: rgba(15, 118, 110, 0.1);
-  --field-glow-2: rgba(109, 40, 217, 0.06);
+  /* The ground: a dot matrix, plus a lime bloom where live data enters. */
+  --field-dot: rgba(24, 22, 10, 0.2);
+  --field-glow: rgba(200, 240, 49, 0.32);
+  --field-glow-2: rgba(196, 48, 31, 0.07);
 }
 
 .dark {
-  /* -- Dark: the console at night ----------------------------------------- */
-  /* Near-black graphite with a cool cast — not the archival brown the previous
-     system used. The surface step stays clearly visible so a panel still reads
-     as a panel at a glance; losing that step is what turns a console into a
-     flat dark page. */
-  --canvas-base: #07090c;
-  --canvas-subtle: #0b0f14;
-  --panel-bg: #0e1319;
-  --panel-bg-subtle: #141b23;
-  --panel-border: rgba(214, 232, 255, 0.09);
-  --panel-border-hover: rgba(94, 234, 212, 0.45);
-  --input-border: rgba(214, 232, 255, 0.18);
-  --chart-grid: rgba(214, 232, 255, 0.14);
+  /* -- Dark: the desk at night ---------------------------------------------- */
+  /* Warm black, not blue-grey: the lime accent and the coral verdict both sit
+     on warm hues, and a cool ground made them look pasted on. */
+  --canvas-base: #0a0a09;
+  --canvas-subtle: #10100e;
+  --panel-bg: #141412;
+  --panel-bg-subtle: #1c1c19;
+  --panel-border: rgba(240, 238, 222, 0.12);
+  --panel-border-hover: rgba(240, 238, 222, 0.5);
+  --input-border: rgba(240, 238, 222, 0.24);
+  --chart-grid: rgba(240, 238, 222, 0.16);
+  --rule-strong: rgba(240, 238, 222, 0.82);
 
-  --text-primary: #e8eef7;
-  --text-secondary: #afbcce;
-  --text-muted: #7e8ca0;
-  /* 5.2:1 on this canvas. Faint carries timestamps and axis labels — real
+  --text-primary: #f1efe4;
+  --text-secondary: #c0bdad;
+  --text-muted: #8f8d7e;
+  /* 5.0:1 on this canvas. Faint carries timestamps and axis labels — real
      content, so AA applies and it may not be decoration-grey. */
-  --text-faint: #74839b;
+  --text-faint: #858374;
 
-  --accent-brand: #5eead4;
-  /* Ink on mint: white on #5eead4 measures 1.4:1, which is unreadable. */
-  --color-on-brand-light: #06231f;
-  --accent-signal: #5eead4;
-  --accent-signal-bg: rgba(94, 234, 212, 0.12);
-  --accent-signal-border: rgba(94, 234, 212, 0.34);
-  --accent-signal-glow: rgba(94, 234, 212, 0.3);
+  --accent-brand: #c8f031;
+  /* Ink on lime: white on #c8f031 measures 1.3:1, which is unreadable. */
+  --color-on-brand-light: #11140a;
+  --accent-signal: #c8f031;
+  --accent-signal-bg: rgba(200, 240, 49, 0.12);
+  --accent-signal-border: rgba(200, 240, 49, 0.4);
+  --accent-signal-glow: rgba(200, 240, 49, 0.32);
 
-  --success-base: #94a3b8;
-  --success-wash: rgba(148, 163, 184, 0.12);
+  --success-base: #9aa5b1;
+  --success-wash: rgba(154, 165, 177, 0.13);
   --color-warning: #ffb454;
   --color-warning-bg: rgba(255, 180, 84, 0.13);
-  --color-danger: #ff6b5a;
-  --color-danger-bg: rgba(255, 107, 90, 0.13);
+  --color-danger: #ff6a52;
+  --color-danger-bg: rgba(255, 106, 82, 0.14);
   --error-base: #b98cff;
   --error-wash: rgba(185, 140, 255, 0.13);
 
-  --shadow-hud: 0 0 0 1px rgba(214, 232, 255, 0.05);
-  --shadow-raised: 0 0 0 1px rgba(214, 232, 255, 0.07);
-  --shadow-floating: 0 18px 44px -16px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(214, 232, 255, 0.09);
+  --shadow-hud: 0 0 0 1px rgba(240, 238, 222, 0.06);
+  --shadow-raised: 0 0 0 1px rgba(240, 238, 222, 0.08);
+  --shadow-floating: 0 18px 44px -16px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(240, 238, 222, 0.12);
 
-  --field-grid-line: rgba(214, 232, 255, 0.045);
-  --field-glow: rgba(94, 234, 212, 0.1);
-  --field-glow-2: rgba(124, 58, 237, 0.1);
+  --field-dot: rgba(240, 238, 222, 0.16);
+  --field-glow: rgba(200, 240, 49, 0.1);
+  --field-glow-2: rgba(255, 106, 82, 0.07);
 }
 
 @theme {
@@ -189,19 +186,21 @@
   --color-surface: var(--panel-bg);
   --color-surface-2: var(--panel-bg-subtle);
   --color-hairline: var(--panel-border);
-  /* Hover/focus border for interactive panels (navigable stat tiles, rows).
-     Named so a control can opt in without hardcoding a hex. */
+  /* Hover/focus border for interactive rows. Named so a control can opt in
+     without hardcoding a hex. */
   --color-hairline-focus: var(--panel-border-hover);
+  --color-rule: var(--rule-strong);
 
   /* -- Type scale ---------------------------------------------------------
-   * The previous system topped out at 20px for a page title and rendered 74
-   * nodes at 12px on one screen, so nothing on the page outranked anything
-   * else. Three deliberate steps now: a display line that owns the page, a
-   * metric step for the number a panel is about, and a title step for panels.
+   * Poster scale on purpose. A dashboard whose biggest number is 28px has no
+   * hierarchy; here the number a page is about is set 5-10x larger than the
+   * text around it, and everything else steps down in clear jumps.
    * `--text-micro` stays the 11px floor — an 8px label is not legible. */
-  --text-display: clamp(1.75rem, 1.15rem + 1.7vw, 2.5rem);
-  --text-metric: 1.75rem;
-  --text-title: 1.0625rem;
+  --text-mega: clamp(4.25rem, 2.2rem + 9.5vw, 10.5rem);
+  --text-mega-md: clamp(2.75rem, 1.6rem + 4.4vw, 5.5rem);
+  --text-display: clamp(2.25rem, 1.2rem + 3.6vw, 4.25rem);
+  --text-metric: 2.5rem;
+  --text-title: 1.125rem;
   --text-micro: 0.6875rem; /* 11px */
   --text-micro-lg: 0.75rem; /* 12px */
 
@@ -214,6 +213,8 @@
   --color-brand-accent: var(--accent-signal);
   --color-signal: var(--accent-signal);
   --color-signal-glow: var(--accent-signal-glow);
+  --color-lime: var(--lime);
+  --color-lime-ink: var(--lime-ink);
 
   --color-status-success: var(--success-base);
   --color-amber: var(--color-warning);
@@ -260,14 +261,14 @@
   --color-foreground: var(--text-primary);
   --color-card: var(--panel-bg);
   --color-card-foreground: var(--text-primary);
-  --color-popover: color-mix(in oklab, var(--panel-bg) 82%, var(--canvas-base));
+  --color-popover: color-mix(in oklab, var(--panel-bg) 94%, var(--canvas-base));
   --color-popover-foreground: var(--text-primary);
 
   /* Low-emphasis fills. muted is the weakest (mostly hover states), secondary
    * sits one step above it. */
-  --color-muted: color-mix(in oklab, var(--text-primary) 5%, var(--canvas-base));
+  --color-muted: color-mix(in oklab, var(--text-primary) 6%, var(--canvas-base));
   --color-muted-foreground: var(--text-muted);
-  --color-secondary: color-mix(in oklab, var(--text-primary) 8%, var(--canvas-base));
+  --color-secondary: color-mix(in oklab, var(--text-primary) 9%, var(--canvas-base));
   --color-secondary-foreground: var(--text-secondary);
 
   /* Note the name collision: in shadcn `accent` means "hover fill", but in this
@@ -278,7 +279,7 @@
 
   /* Brand. `primary-foreground` is the only foreground the system hardcodes, and
        it is a token so it can be contrast-checked rather than guessed: white on
-       the light teal reads 4.9:1, ink on the dark mint reads 12.6:1. */
+       the light olive reads 6.6:1, ink on the dark lime reads 15:1. */
   --color-primary: var(--accent-brand);
   --color-on-brand: var(--color-on-brand-light);
   --color-primary-foreground: var(--color-on-brand);
@@ -306,20 +307,20 @@
    * Tailwind's namespace tree (--radius-r-panel makes `r` a branch, not a
    * leaf). A bare --radius is also required by the shadcn Input.
    *
-   * 6px panels, not 4: a 4px corner plus a hairline reads as a table cell, and
-   * these are instruments. */
-  --radius: 0.375rem;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
+   * Sharp: 2px controls, 3px floating surfaces. Rounded rectangles are what
+   * made the previous system read as a template. */
+  --radius: 0.125rem;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
   /* The shadcn primitives use Tailwind's rounded-2xl/3xl/4xl scale (badge is
    * `rounded-4xl`, alert-dialog/sheet/carousel use 2xl and 3xl). Those compile
    * to `var(--radius-2xl|3xl|4xl)`, and with the scale stopping at xl the
    * variable was undefined — so every pill and large surface silently rendered
    * with the browser default 0px radius. */
-  --radius-2xl: 12px;
-  --radius-3xl: 16px;
+  --radius-2xl: 4px;
+  --radius-3xl: 6px;
   --radius-4xl: 9999px;
 
   --shadow-sm: var(--shadow-raised);
@@ -340,10 +341,10 @@
   --background: var(--canvas-base);
   --foreground: var(--text-primary);
   --card: var(--panel-bg);
-  --popover: color-mix(in oklab, var(--panel-bg) 82%, var(--canvas-base));
+  --popover: color-mix(in oklab, var(--panel-bg) 94%, var(--canvas-base));
   --primary: var(--accent-brand);
   --on-primary: var(--color-on-brand);
-  --secondary: color-mix(in oklab, var(--text-primary) 8%, var(--canvas-base));
+  --secondary: color-mix(in oklab, var(--text-primary) 9%, var(--canvas-base));
   --muted: var(--color-muted);
   --accent: var(--accent-signal-bg);
   --destructive: var(--color-danger);
@@ -376,8 +377,8 @@
   }
 
   ::selection {
-    background: var(--accent-signal-bg);
-    color: var(--accent-signal);
+    background: var(--lime);
+    color: var(--lime-ink);
   }
 
   ::-webkit-scrollbar {
@@ -403,150 +404,178 @@
 }
 
 @layer components {
-  /* -- Surfaces ------------------------------------------------------------
-   * One panel treatment, flat: hairline, 6px corner, surface step. The
-   * instrument look comes from the grid field behind it and the accent that
-   * only appears on live state — not from a shadow.
-   *
-   * `hud-card` keeps its name because eleven call sites read it; what changed
-   * is that it no longer pretends to be card stock.
-   */
+  /* -- Legacy surface hooks ------------------------------------------------
+   * `glass` is the floating-chrome surface (chatbot, "more" sheet). It is the
+   * ONLY surface left that carries a shadow, because it is the only one that
+   * floats. `hud-card` survives for the few sub-surfaces that genuinely are a
+   * contained object (an embed preview, an attachment) — sections are not. */
   .hud-card {
     position: relative;
     background: var(--panel-bg);
     border: 1px solid var(--panel-border);
-    border-radius: 6px;
-    transition:
-      border-color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
-      background-color 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  /* The top edge catches the light: a 1px accent gradient that fades out at
-     both ends. This is the panel's "powered on" tell and the only decoration a
-     resting panel carries. */
-  .hud-card::before {
-    content: "";
-    position: absolute;
-    inset: -1px -1px auto -1px;
-    height: 1px;
-    border-radius: 6px 6px 0 0;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      color-mix(in oklab, var(--accent-signal) 42%, transparent),
-      transparent
-    );
-    opacity: 0.45;
-    pointer-events: none;
-    transition: opacity 0.18s ease;
-  }
-
-  .hud-card:hover {
-    border-color: var(--panel-border-hover);
-  }
-
-  .hud-card:hover::before {
-    opacity: 1;
+    border-radius: 2px;
   }
 
   .glass {
-    background: color-mix(in oklab, var(--panel-bg) 92%, transparent);
+    background: color-mix(in oklab, var(--panel-bg) 94%, transparent);
     border: 1px solid var(--panel-border);
-    border-radius: 8px;
+    border-radius: 3px;
     box-shadow: var(--shadow-floating);
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(14px);
   }
 
-  /* -- Consulted decision ---------------------------------------------------
-   * A record the moderator has opened: full-opacity surface with a 2px tab on
-   * the left edge carrying the verdict colour, so a column of ten can be
-   * scanned on the tab alone without reading a word.
-   *
-   * Still named `verdict-slip` — see the rename note in the delivery report; the
-   * treatment is no longer paper, and the name is the only part still saying so.
-   */
-  .verdict-slip {
-    background: var(--panel-bg);
-    border: 1px solid var(--panel-border);
-    border-left: 2px solid var(--record-tab, var(--panel-border));
-    border-radius: 4px;
+  /* -- Voice ---------------------------------------------------------------
+   * Mono caps is the desk's label voice: "what kind of thing this is". Never
+   * used for prose. */
+  .field-label {
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    white-space: nowrap;
   }
 
-  /* The open decision is pulled forward: it leaves the column's plane and gains
-     the accent hairline. Nothing else on the page gets this treatment, so "what
-     am I reading" is answered by weight before position or type. */
-  .verdict-slip-active {
-    background: var(--panel-bg);
-    border: 1px solid var(--panel-border-hover);
-    border-left: 2px solid var(--record-tab, var(--accent-signal));
-    border-radius: 4px;
-    box-shadow: var(--shadow-floating);
-  }
-
-  /* The case id: typewriter mono, letter-spaced, small. It is the one identifier
-     a member is expected to quote back, so it is set as an address rather than
-     as a badge. */
+  /* The case id: set as an address, because it is the one identifier a member
+     is expected to quote back. */
   .case-id {
     font-family: var(--font-mono);
     font-size: var(--text-micro);
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     font-variant-numeric: tabular-nums;
     color: var(--text-muted);
   }
 
-  /* Field labels. Tiny uppercase mono is the console's voice for "what kind of
-     thing this is" — never used for prose. */
-  .field-label {
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    white-space: nowrap;
+  /* -- Poster type --------------------------------------------------------- */
+  .mega {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--text-mega);
+    letter-spacing: -0.07em;
+    line-height: 0.8;
+    font-variant-numeric: tabular-nums;
   }
 
-  /* The verdict stamp: hairline box, letter-spaced caps, verdict colour. It sits
-     in the card's header margin, in flow — a stamp must never cover the evidence
-     it attests. */
-  .verdict-stamp {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.1875rem 0.5rem;
-    border: 1px solid var(--color-vermilion);
-    border-radius: 3px;
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--color-vermilion);
-    white-space: nowrap;
+  .mega-md {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--text-mega-md);
+    letter-spacing: -0.06em;
+    line-height: 0.88;
+    font-variant-numeric: tabular-nums;
   }
 
-  /* -- Verdict chip ---------------------------------------------------------
-   * The product's smallest unit of meaning: a dot, a label, a hairline. The dot
-   * is the only place a verdict colour is allowed to be a fill — it is 6px and
-   * carries no text. Static modifier classes rather than an inline custom
-   * property, because the design gate forbids inline styles.
-   */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.055em;
+    line-height: 0.92;
+    font-size: var(--text-display);
+  }
+
+  /* A number rendered as an outline only. Reserved for the SECONDARY figure in a
+     pair (the 12 behind the 1,204), so the eye reads the filled number first. */
+  .ghost-numeral {
+    color: transparent;
+    -webkit-text-stroke: 1.5px var(--text-primary);
+    paint-order: stroke fill;
+  }
+
+  /* Tabular figures for anything that will re-render on a WS push, so a
+     changing number does not reflow the line around it. */
+  .metric {
+    font-family: var(--font-display);
+    font-weight: 750;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .metric-xl {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--text-metric);
+    letter-spacing: -0.055em;
+    line-height: 0.95;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The highlighter. A lime block behind type, in flow, wrapping with the line. */
+  .marker {
+    background: var(--lime);
+    color: var(--lime-ink);
+    padding: 0 0.14em;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
+  /* Reversed block: ink ground, paper type. Used sparingly, for the one band on
+     a page that has to be read before anything else. */
+  .block-ink {
+    background: var(--text-primary);
+    color: var(--canvas-base);
+  }
+
+  /* -- Sections ------------------------------------------------------------
+   * A section is a heavy rule, a margin column and a body. The `+` at the left
+   * end of the rule is a registration mark: a small thing that says "this was
+   * laid out", and costs one pseudo-element. */
+  .desk-section {
+    position: relative;
+    border-top: 2px solid var(--rule-strong);
+    padding-top: 1rem;
+  }
+
+  .desk-section::before {
+    content: "+";
+    position: absolute;
+    top: -0.78rem;
+    right: 0;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1;
+    color: var(--text-faint);
+    background: var(--canvas-base);
+    padding-left: 0.4rem;
+  }
+
+  /* Section index: the folio. Outlined so it is architecture, not content. */
+  .folio {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 2.75rem;
+    letter-spacing: -0.06em;
+    line-height: 0.8;
+    color: transparent;
+    -webkit-text-stroke: 1.25px var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A row of readouts divided by vertical rules instead of boxes. */
+  .readout-row > * + * {
+    border-left: 1px solid var(--panel-border);
+  }
+
+  /* -- Chips ----------------------------------------------------------------
+   * A chip is a small fact: a dot, a label, a hairline. Square-ish, so it never
+   * reads as a button. The dot is the only place a verdict colour is a fill. */
   .verdict-chip {
     display: inline-flex;
     align-items: center;
-    gap: 0.375rem;
-    padding: 0.125rem 0.4375rem;
+    gap: 0.4rem;
+    padding: 0.15rem 0.45rem;
     border: 1px solid var(--panel-border);
-    border-radius: 9999px;
+    border-radius: 2px;
     font-family: var(--font-mono);
     font-size: var(--text-micro);
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--text-secondary);
     white-space: nowrap;
   }
 
   .verdict-dot {
-    width: 0.375rem;
-    height: 0.375rem;
+    width: 0.4375rem;
+    height: 0.4375rem;
     border-radius: 9999px;
     background: var(--text-faint);
     flex: none;
@@ -556,7 +585,67 @@
   .verdict-dot-deleted { background: var(--color-danger); }
   .verdict-dot-error { background: var(--error-base); }
   .verdict-dot-warning { background: var(--color-warning); }
-  .verdict-dot-live { background: var(--accent-signal); }
+  .verdict-dot-live { background: var(--lime); box-shadow: 0 0 0 1px var(--lime-ink), 0 0 10px var(--accent-signal-glow); }
+
+  /* A toggle chip: a filter option. Same square corner as a chip, but it is a
+     control, so it keeps a 44px target on touch widths and states its pressed
+     state with the lime block (which also survives a monochrome screenshot). */
+  .chip-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.75rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--input-border);
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-size: var(--text-micro-lg);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    background: transparent;
+    cursor: pointer;
+    transition:
+      background-color 0.12s ease,
+      color 0.12s ease;
+  }
+
+  @media (width >= 40rem) {
+    .chip-toggle {
+      min-height: 2rem;
+    }
+  }
+
+  .chip-toggle:hover {
+    background: var(--panel-bg-subtle);
+    color: var(--text-primary);
+  }
+
+  .chip-toggle[aria-pressed="true"] {
+    background: var(--lime);
+    color: var(--lime-ink);
+    border-color: var(--lime-ink);
+  }
+
+  /* A solid, filled tag in a verdict colour. Used for the one word that states
+     what happened, never for decoration. */
+  .tag-solid {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0.5rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .tag-solid-deleted { background: var(--color-danger); color: var(--canvas-base); }
+  .tag-solid-clean { background: var(--success-base); color: var(--canvas-base); }
+  .tag-solid-error { background: var(--error-base); color: var(--canvas-base); }
+  .tag-solid-live { background: var(--lime); color: var(--lime-ink); }
 
   /* -- Data-driven motion --------------------------------------------------
    * The one CSS entrance primitive, shared by every route: each route gets its
@@ -564,7 +653,7 @@
    * buys. GSAP handles the choreographed part (libs/motion.tsx); this covers the
    * case where JS is still loading. */
   .route-in {
-    animation: route-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: route-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   @keyframes route-in {
@@ -576,33 +665,6 @@
       opacity: 1;
       transform: translateY(0);
     }
-  }
-
-  /* -- Typography ---------------------------------------------------------- */
-  .display {
-    font-family: var(--font-display);
-    font-weight: 700;
-    letter-spacing: -0.035em;
-    line-height: 1.05;
-    font-size: var(--text-display);
-  }
-
-  /* Tabular figures for anything that will re-render on a WS push, so a
-     changing number does not reflow the tile around it. */
-  .metric {
-    font-family: var(--font-display);
-    font-weight: 650;
-    letter-spacing: -0.03em;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .metric-xl {
-    font-family: var(--font-display);
-    font-weight: 650;
-    font-size: var(--text-metric);
-    letter-spacing: -0.035em;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -644,85 +706,232 @@
   .bg-surface { background-color: var(--panel-bg); }
   .bg-surface-2 { background-color: var(--panel-bg-subtle); }
   .border-hairline { border-color: var(--panel-border); }
+  .border-rule { border-color: var(--rule-strong); }
 
-  /* Reading-width container (W5). The shell had NO max-width at all, so on a
-   * 2560px display the grid stretched edge to edge and every ranked bar became
-   * an unreadable 2000px hairline. 92rem keeps a four-column grid comfortable
-   * while still filling a laptop. */
+  /* Reading-width container. 92rem keeps a twelve-column layout comfortable on
+   * a 2560px display instead of stretching every rule across the monitor. */
   .measure { max-width: var(--measure, 92rem); }
 
-  /* -- Grid field -----------------------------------------------------------
-   * The console's ground: a 32px cell grid that fades before it reaches the
-   * content, plus two accent blooms marking where live data enters. Pure CSS on
-   * a fixed layer — no JS, no repaint on scroll, nothing to disable.
-   */
-  .field-grid {
+  /* -- Field ----------------------------------------------------------------
+   * The desk's ground: a 22px dot matrix that dissolves before it reaches the
+   * content, plus a lime bloom where live data enters. Pure CSS on a fixed
+   * layer — no JS, no repaint on scroll, nothing to disable. */
+  .field-dots {
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
     background-image:
-      radial-gradient(60rem 30rem at 12% -8%, var(--field-glow), transparent 70%),
-      radial-gradient(50rem 28rem at 88% 0%, var(--field-glow-2), transparent 72%),
-      linear-gradient(to right, var(--field-grid-line) 1px, transparent 1px),
-      linear-gradient(to bottom, var(--field-grid-line) 1px, transparent 1px);
+      radial-gradient(52rem 26rem at 8% -10%, var(--field-glow), transparent 70%),
+      radial-gradient(44rem 24rem at 96% 4%, var(--field-glow-2), transparent 72%),
+      radial-gradient(circle, var(--field-dot) 1px, transparent 1.4px);
     background-size:
       100% 100%,
       100% 100%,
-      32px 32px,
-      32px 32px;
-    /* A full-strength grid behind 12px type is noise, not texture. */
-    mask-image: radial-gradient(120% 90% at 50% 0%, black 0%, transparent 78%);
+      22px 22px;
+    mask-image: radial-gradient(130% 80% at 50% 0%, black 0%, transparent 76%);
   }
 
-  /* Queue ribbon (W3). Its colour and fill are driven entirely by
-   * `analysis_queue_status`; these are the states it can be in, including the
-   * neutral "we do not know" state the socket-down case must fall back to.
-   * See components/layout/queue-ribbon.tsx. */
+  /* -- Queue ribbon ---------------------------------------------------------
+   * Its colour and fill are driven entirely by `analysis_queue_status`; these
+   * are the states it can be in, including the neutral "we do not know" state
+   * the socket-down case must fall back to. See layout/queue-ribbon.tsx. */
   .ribbon-ok { background-color: var(--color-success); }
   .ribbon-busy { background-color: var(--color-warning); }
   .ribbon-alert { background-color: var(--color-danger); }
   .ribbon-unknown { background-color: var(--text-faint); }
 
-  /* Ranked-list bar. The track has to be visible against the panel it sits on,
-   * and the fill has to read as data rather than as decoration: 5px tall, a
-   * signal gradient that fades toward the tail, no rounding on the track so the
-   * row's baseline stays flat. */
-  .bar-track {
-    height: 5px;
-    width: 100%;
+  /* -- Rank rows ------------------------------------------------------------
+   * A ranked list as a highlighted ledger: the bar is the row's own background,
+   * so the label and the magnitude share one baseline and nothing is a thin
+   * progress line floating under text. */
+  .rank-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 2.25rem;
+    padding: 0 0.5rem;
+    border-bottom: 1px solid var(--panel-border);
     overflow: hidden;
-    border-radius: 9999px;
-    background: color-mix(in oklab, var(--text-primary) 9%, transparent);
   }
 
-  .bar-fill {
-    height: 100%;
-    border-radius: 9999px;
-    background: linear-gradient(
-      90deg,
-      color-mix(in oklab, var(--color-signal) 90%, transparent),
-      color-mix(in oklab, var(--color-signal) 55%, transparent)
-    );
+  .rank-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--meter-width, 0%);
+    background: color-mix(in oklab, var(--lime) 26%, transparent);
+    border-right: 2px solid var(--accent-signal);
+    pointer-events: none;
   }
 
-  /* Per-item values that must stay dynamic (meter fills, heat cells, motes)
-   * are passed in as custom properties and read here, so the components carry
-   * no inline width/opacity/left declarations. */
+  .rank-num {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.125rem;
+    letter-spacing: -0.04em;
+    width: 1.5rem;
+    flex: none;
+    color: transparent;
+    -webkit-text-stroke: 1px var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Per-item values that must stay dynamic (meter fills, motes) are passed in
+   * as custom properties and read here, so the components carry no inline
+   * width/opacity/left declarations. */
   .meter-fill {
     width: var(--meter-width, 0%);
     opacity: var(--meter-opacity, 1);
   }
-  .heat-cell {
-    /* Intensity arrives as a 0..1 number and is mapped onto the token ramp in
-     * CSS, so the cell never hardcodes a colour and follows a theme change.
-     * Zero keeps the muted surface so an empty hour still reads as a cell. */
-    background-color: color-mix(
-      in oklch,
-      var(--color-signal) calc(var(--heat-intensity, 0) * 85%),
-      var(--color-surface-2)
-    );
+
+  /* -- Verdict spectrum -----------------------------------------------------
+   * One bar for the whole population, split by verdict. Segments are flex
+   * children sized by `--seg-grow`; `no verdict yet` is hatched, because an
+   * unjudged message is an absence, not a colour. */
+  .spectrum {
+    display: flex;
+    gap: 2px;
+    height: 3.25rem;
   }
+
+  .spectrum-seg {
+    flex: var(--seg-grow, 1) 1 0;
+    min-width: 3px;
+  }
+
+  .seg-clean { background: var(--success-base); }
+  .seg-deleted { background: var(--color-danger); }
+  .seg-error { background: var(--error-base); }
+  .seg-none {
+    background: repeating-linear-gradient(
+      135deg,
+      var(--text-faint) 0 1.5px,
+      transparent 1.5px 6px
+    );
+    outline: 1px solid var(--panel-border);
+    outline-offset: -1px;
+  }
+
+  /* -- Pipeline ---------------------------------------------------------------
+   * The queue as a flow: stations on a line, each carrying its own count. */
+  .pipe-line {
+    position: absolute;
+    left: 0.5rem;
+    right: 0.5rem;
+    top: 0.5rem;
+    height: 0;
+    border-top: 2px dashed var(--panel-border-hover);
+  }
+
+  .pipe-node {
+    display: block;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    border: 2px solid var(--text-primary);
+    background: var(--canvas-base);
+    flex: none;
+  }
+  .pipe-node-live { background: var(--lime); border-color: var(--lime-ink); }
+  .pipe-node-warn { background: var(--color-warning); border-color: var(--color-warning); }
+  .pipe-node-bad { background: var(--color-danger); border-color: var(--color-danger); }
+  .pipe-node-done { background: var(--text-primary); }
+
+  /* -- Volume chart -----------------------------------------------------------
+   * Daily columns in two lanes, each on its OWN scale and labelled so. A dual
+   * axis drawn on one plot is how a chart lies; two lanes cannot. */
+  .col-lane {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.25rem;
+    height: var(--lane-height, 8rem);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+
+  .col-cell {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .col-bar {
+    width: 100%;
+    height: var(--bar-h, 2px);
+    min-height: 2px;
+    background: color-mix(in oklab, var(--text-primary) 80%, transparent);
+    transition: background-color 0.15s ease;
+  }
+
+  .col-bar-hot { background: var(--lime); box-shadow: inset 0 2px 0 var(--lime-ink); }
+  .col-bar-del { background: var(--color-danger); }
+
+  .col-cell:hover .col-bar,
+  .col-cell:focus-visible .col-bar {
+    background: var(--accent-signal);
+  }
+  .col-cell:hover .col-bar-del { background: var(--color-danger); opacity: 0.75; }
+
+  /* -- Hour dial ---------------------------------------------------------------
+   * 24 spokes on a ring; length carries the count. */
+  .dial {
+    width: 100%;
+    max-width: 20rem;
+    aspect-ratio: 1;
+  }
+
+  /* -- Gauge -------------------------------------------------------------------
+   * A 0..1 scale with a marker. `--gauge-pos` is a percentage; the optional
+   * threshold marker reads `--gauge-threshold`. */
+  .gauge-track {
+    position: relative;
+    height: 0.625rem;
+    background:
+      repeating-linear-gradient(
+        90deg,
+        var(--panel-border-hover) 0 1px,
+        transparent 1px 10%
+      ),
+      color-mix(in oklab, var(--text-primary) 10%, transparent);
+  }
+
+  .gauge-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--gauge-pos, 0%);
+    background: var(--text-primary);
+  }
+
+  .gauge-mark {
+    position: absolute;
+    top: -0.3rem;
+    bottom: -0.3rem;
+    left: var(--gauge-threshold, 0%);
+    width: 2px;
+    background: var(--color-danger);
+  }
+
+  /* -- Wire (message timeline) -------------------------------------------------
+   * The feed is a line with nodes. The node carries the verdict, the gutter
+   * carries the time, and the body is plain type: no card per message. */
+  .wire-node {
+    position: absolute;
+    left: -0.4375rem;
+    top: 0.45rem;
+    width: 0.8125rem;
+    height: 0.8125rem;
+    border-radius: 9999px;
+    border: 2px solid var(--text-faint);
+    background: var(--canvas-base);
+  }
+  .wire-node-deleted { background: var(--color-danger); border-color: var(--color-danger); }
+  .wire-node-clean { background: var(--canvas-base); border-color: var(--success-base); }
+  .wire-node-error { background: var(--error-base); border-color: var(--error-base); }
+  .wire-node-live { background: var(--lime); border-color: var(--lime-ink); }
+
   /* Avatar fallback box. Sized from a per-instance custom property rather than
    * an inline width/height, which the design gate forbids. */
   .avatar-fallback {
@@ -745,16 +954,8 @@
     transition: opacity 0.15s ease;
   }
 
-  /* SVG charts: measured size for the hand-rolled area chart. */
-  .chart-frame { height: var(--chart-height, auto); }
-
   /* Layout hooks. Semantic names the views attach to regions so the treatment
-   * lives in one place; the utility classes alongside them handle the box.
-   *
-   * `channel-row` and `glossary-entry` were dropped with the channels and
-   * glossary pages — a selector with no element is dead weight, not a slot to
-   * keep warm. */
-  .linear-tile,
+   * lives in one place; the utility classes alongside them handle the box. */
   .msg-feed-card,
   .nav-dock-item {
     min-width: 0;
@@ -788,6 +989,25 @@
     }
   }
   .bottom-safe-nav-rail { margin-bottom: calc(0.75rem + env(safe-area-inset-bottom)); }
+
+  /* The opened record, pinned beside the index. Capped to what is left under the
+     sticky strip so its own bottom edge is never below the fold, and scrolls
+     inside itself when a record is longer than the screen. */
+  @media (width >= 64rem) {
+    .dossier-pin {
+      position: sticky;
+      top: 4.5rem;
+      max-height: calc(100dvh - 5.5rem);
+      overflow-y: auto;
+    }
+  }
+
+  /* Vertical running text for the rail wordmark. */
+  .vertical-text {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+  }
 }
 
 /* == Keyframes & Animations == */

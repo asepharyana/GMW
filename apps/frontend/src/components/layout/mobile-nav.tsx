@@ -18,6 +18,10 @@ import { navItems } from "#/libs/navigation"
  * sizes itself to what is there. The split is still derived from `navItems` and
  * PRIMARY rather than hardcoded twice, so a fourth route re-introduces the
  * sheet with no other edit: anything not in PRIMARY lands in it automatically.
+ *
+ * Dressed like the desktop rail: a heavy top rule, a mono index, and a lime
+ * block for the active destination, so "you are here" is one shape across
+ * breakpoints.
  */
 
 /** Tabs that always sit on the bar. */
@@ -33,16 +37,16 @@ export function MobileNav() {
 
 	return (
 		<nav
-			className="fixed inset-x-0 bottom-0 z-40 border-t border-hairline bg-canvas/90 backdrop-blur-md lg:hidden"
+			className="fixed inset-x-0 bottom-0 z-40 border-t border-rule bg-canvas/95 backdrop-blur-md lg:hidden"
 			aria-label="Primary"
 		>
 			<ul
 				className={cn(
-					"grid gap-0.5 px-2 pt-1.5",
+					"grid divide-x divide-hairline",
 					overflow.length > 0 ? "grid-cols-5" : "grid-cols-3",
 				)}
 			>
-				{primary.map((item) => {
+				{primary.map((item, index) => {
 					const active = item.href === normalized
 					return (
 						<li key={item.href}>
@@ -50,24 +54,22 @@ export function MobileNav() {
 								to={item.href}
 								aria-current={active ? "page" : undefined}
 								className={cn(
-									"nav-dock-item flex min-w-0 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-micro transition-colors",
-									active ? "text-ink" : "text-ink-muted hover:text-ink-soft",
+									"nav-dock-item flex min-w-0 flex-col items-start gap-0.5 px-3 py-2 transition-colors",
+									active
+										? "bg-lime text-lime-ink"
+										: "text-ink-soft hover:bg-surface-2",
 								)}
 							>
-								{/*
-                  A top rule rather than a filled pill: at this size a filled
-                  background turns the whole bar into a row of buttons and
-                  competes with the page. The rule is the same mark the desktop
-                  rail uses, so active state is one shape across breakpoints.
-                */}
 								<span
 									className={cn(
-										"h-0.5 w-5 rounded-full transition-colors",
-										active ? "bg-signal" : "bg-transparent",
+										"font-mono text-micro tracking-widest",
+										active ? "text-lime-ink" : "text-ink-faint",
 									)}
 									aria-hidden
-								/>
-								<span className="w-full truncate text-center">
+								>
+									{String(index + 1).padStart(2, "0")}
+								</span>
+								<span className="w-full truncate text-micro-lg font-bold tracking-wider uppercase">
 									{item.shortLabel}
 								</span>
 							</Link>
@@ -85,19 +87,12 @@ export function MobileNav() {
 						<details className="group/more relative">
 							<summary
 								className={cn(
-									"nav-dock-item flex min-w-0 cursor-pointer list-none flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-micro transition-colors [&::-webkit-details-marker]:hidden",
+									"nav-dock-item flex min-w-0 cursor-pointer list-none flex-col items-start gap-0.5 px-3 py-2 text-micro-lg font-bold tracking-wider uppercase transition-colors [&::-webkit-details-marker]:hidden",
 									overflowActive
-										? "text-ink"
-										: "text-ink-muted hover:text-ink-soft",
+										? "bg-lime text-lime-ink"
+										: "text-ink-soft hover:bg-surface-2",
 								)}
 							>
-								<span
-									className={cn(
-										"h-0.5 w-5 rounded-full transition-colors",
-										overflowActive ? "bg-signal" : "bg-transparent",
-									)}
-									aria-hidden
-								/>
 								More
 							</summary>
 
@@ -116,7 +111,7 @@ export function MobileNav() {
 													// forgiving targets in the app.
 													"block min-h-11 truncate rounded-sm px-2 py-2 text-micro-lg transition-colors",
 													active
-														? "bg-accent text-accent-foreground"
+														? "bg-lime text-lime-ink"
 														: "text-ink-soft hover:bg-accent hover:text-accent-foreground",
 												)}
 											>
@@ -130,9 +125,7 @@ export function MobileNav() {
 					</li>
 				)}
 			</ul>
-			{/* Keeps the bar clear of the iOS home indicator. The class is defined in
-          styles.css; it was previously referenced under a name that did not
-          exist, which made this a no-op. */}
+			{/* Keeps the bar clear of the iOS home indicator. */}
 			<div className="bottom-safe-nav-rail" aria-hidden />
 		</nav>
 	)

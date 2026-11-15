@@ -6,19 +6,24 @@ import { cn } from "cn"
 import type { ReactNode } from "react"
 
 /**
- * Section wrapper: a titled panel with an optional action slot.
+ * A section of the page: a heavy rule, a heading, a body. No box.
  *
- * The `hud-card` treatment (hairline, accent top edge, hover border) lives in
- * the CSS layer so a panel never has to restate it, and so the oxlint
- * `shadcn/no-restyle` rule has a single class to recognise.
+ * The previous panel wore a hairline on four sides, a title bar and a hover
+ * border, and ten of them in a grid is what made the dashboard read as a
+ * template. A section is now divided from its neighbours by a single ink rule
+ * (`desk-section` in styles.css) and the reader's eye is led by type size and
+ * whitespace instead of by containers.
  *
- * The title sits at the page's title step (17px, semibold) rather than at body
- * size. Every band used to be 12-14px, which is why nothing on the page
- * outranked anything else.
+ * Two layouts, chosen by where the section sits:
  *
- * No "PANEL" eyebrow above it: ten panels all labelled "Panel" is noise, not
- * structure. A section that needs to say what kind of thing it is says it in its
- * own title.
+ *  - `stack`  — heading above body. For a section inside a column (the
+ *               default, and what `SectionGrid` children want).
+ *  - `split`  — heading in a left margin column, body on the right, from `lg`.
+ *               For a full-width section; the margin is where the explanation
+ *               lives, so the body gets the whole measure.
+ *
+ * `index` is the outlined folio ("02"). It is optional because a section
+ * nested inside another one should not number itself.
  */
 export function Section({
 	title,
@@ -27,6 +32,8 @@ export function Section({
 	children,
 	className,
 	bodyClassName,
+	index,
+	layout = "stack",
 }: {
 	title?: string
 	description?: string
@@ -34,32 +41,64 @@ export function Section({
 	children: ReactNode
 	className?: string
 	bodyClassName?: string
+	index?: string
+	layout?: "stack" | "split"
 }) {
-	return (
-		<section className={cn("hud-card flex flex-col", className)}>
-			{(title || action) && (
-				<header className="flex items-start justify-between gap-3 border-b border-hairline px-4 py-3">
-					<div className="min-w-0">
-						{title && (
-							<h2 className="truncate text-title font-semibold tracking-tight text-ink">
-								{title}
-							</h2>
-						)}
-						{description && (
-							<p className="mt-1 text-xs leading-relaxed text-ink-muted">
-								{description}
-							</p>
-						)}
-					</div>
-					{action && <div className="shrink-0">{action}</div>}
-				</header>
+	const hasHeader = Boolean(title || action || index)
+
+	const header = hasHeader && (
+		<header
+			className={cn(
+				"min-w-0",
+				layout === "split" ? "lg:pr-2" : "mb-5 flex items-start gap-4",
 			)}
-			<div className={cn("flex-1 p-4", bodyClassName)}>{children}</div>
+		>
+			{index && <p className="folio shrink-0">{index}</p>}
+			<div
+				className={cn(
+					"min-w-0",
+					layout === "split" ? "mt-3 lg:mt-4" : "flex-1 pt-0.5",
+				)}
+			>
+				{title && (
+					<h2 className="text-title leading-tight font-extrabold tracking-tight text-ink">
+						{title}
+					</h2>
+				)}
+				{description && (
+					<p className="mt-1.5 max-w-prose text-xs leading-relaxed text-ink-muted">
+						{description}
+					</p>
+				)}
+				{action && layout === "split" && <div className="mt-3">{action}</div>}
+			</div>
+			{action && layout === "stack" && <div className="shrink-0">{action}</div>}
+		</header>
+	)
+
+	if (layout === "split") {
+		return (
+			<section
+				className={cn(
+					"desk-section grid grid-cols-1 gap-x-10 gap-y-5 lg:grid-cols-[14rem_minmax(0,1fr)]",
+					className,
+				)}
+			>
+				{header}
+				<div className={cn("min-w-0", bodyClassName)}>{children}</div>
+			</section>
+		)
+	}
+
+	return (
+		<section className={cn("desk-section", className)}>
+			{header}
+			<div className={cn("min-w-0", bodyClassName)}>{children}</div>
 		</section>
 	)
 }
 
-/** A responsive grid of panels. `cols` is the desktop column count. */
+/** A responsive grid of sections. `cols` is the desktop column count. */
 export function SectionGrid({
 	children,
 	cols = 2,
@@ -79,12 +118,10 @@ export function SectionGrid({
 	return (
 		<div
 			className={cn(
-				// `items-start` so a panel is as tall as its own content. The default
-				// `stretch` forced every panel in a row to the height of the tallest,
-				// which left the short ranked list wearing a 15-row panel's height
-				// and ~60% of it was empty space. Panels with similar content height
-				// look identical either way, so this only changes the mismatched case.
-				"grid grid-cols-1 items-start gap-4 md:grid-cols-2",
+				// `items-start` so a section is as tall as its own content. The default
+				// `stretch` forced every section in a row to the height of the tallest,
+				// which left a short ranked list sitting above a long empty run.
+				"grid grid-cols-1 items-start gap-x-12 gap-y-12 md:grid-cols-2",
 				gridCols,
 				className,
 			)}

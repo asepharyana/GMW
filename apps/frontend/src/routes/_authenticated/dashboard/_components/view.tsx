@@ -1,11 +1,17 @@
 import { Link } from "@tanstack/react-router"
 import { cn } from "cn"
+import { ArrowUpRight } from "lucide-react"
 import { type ReactNode, useMemo } from "react"
 import { AreaChart } from "#/components/features/charts/area-activity"
 import { HourHeatmap, RankedBars } from "#/components/features/charts/bars"
 import { Avatar } from "#/components/features/message-feed-card"
 import { PanelStats } from "#/components/features/panel-stats"
+import { PipelineFlow } from "#/components/features/pipeline-flow"
 import { StatGrid, StatTile } from "#/components/features/stat-tile"
+import {
+	type ISpectrumSegment,
+	VerdictSpectrum,
+} from "#/components/features/verdict-spectrum"
 import { Section, SectionGrid } from "#/components/layout/section"
 import { ErrorState } from "#/components/ui/states"
 import {
@@ -27,12 +33,21 @@ import {
 	humanize,
 	messageLabel,
 } from "#/libs/format"
-import { Reveal } from "#/libs/motion"
-import type { IDashboardStats, IFreshness } from "#/libs/types"
+import { Reveal, Ticker } from "#/libs/motion"
+import type { IFreshness } from "#/libs/types"
 import { useWsEvent } from "#/libs/ws/context"
 
 /** Rows each ranked list carries — the same number the route seeds with. */
 const LIMIT = 8
+
+/**
+ * The poster numbers are set at 10rem, so they get the exact figure for as long
+ * as it fits and the compact one only past a million. The compact form renders
+ * 49,724 as "49,7 rb" (*ribu*), which is correct localisation and a real
+ * comprehension barrier at a size where nothing else on the page explains it.
+ */
+const formatHero = (n: number) =>
+	n >= 1_000_000 ? formatCompact(n) : formatNumber(n)
 
 export function DashboardView({ days }: { days: number }) {
 	const stats = useStats()
@@ -75,7 +90,7 @@ export function DashboardView({ days }: { days: number }) {
 				value: d.messages,
 				// The overlay: what the model deleted that day. This is the
 				// verdict count, not `messages.deleted_at` — the same definition
-				// the "Deleted" tile and the offender list use, so the three
+				// the "Deleted" figure and the offender list use, so the three
 				// cannot disagree about what "deleted" means.
 				flagged: d.flagged,
 			})),
@@ -86,36 +101,22 @@ export function DashboardView({ days }: { days: number }) {
 	// question from queue health's "where is each message in the pipeline". They
 	// disagree on purpose, and the gap between them — captured vs judged — is the
 	// number that says whether the worker is keeping up.
-	const verdictMix = useMemo(() => {
+	const verdictSegments = useMemo<ISpectrumSegment[]>(() => {
 		const total = stats.data?.total_messages ?? 0
 		if (total === 0) return []
-		const rows = [
+		const clean = stats.data?.total_clean ?? 0
+		const deleted = stats.data?.total_flagged ?? 0
+		const errored = stats.data?.total_error ?? 0
+		return [
+			{ label: "Clean", value: clean, kind: "clean" },
+			{ label: "Deleted", value: deleted, kind: "deleted" },
+			{ label: "Errored", value: errored, kind: "error" },
 			{
-				label: "Clean",
-				value: stats.data?.total_clean ?? 0,
-				dot: "verdict-dot-clean",
-			},
-			{
-				label: "Deleted",
-				value: stats.data?.total_flagged ?? 0,
-				dot: "verdict-dot-deleted",
-			},
-			{
-				label: "Errored",
-				value: stats.data?.total_error ?? 0,
-				dot: "verdict-dot-error",
+				label: "No verdict yet",
+				value: Math.max(0, total - clean - deleted - errored),
+				kind: "none",
 			},
 		]
-		const judged = rows.reduce((sum, r) => sum + r.value, 0)
-		rows.push({
-			label: "No verdict yet",
-			value: Math.max(0, total - judged),
-			dot: "verdict-dot",
-		})
-		return rows.map((r) => ({
-			...r,
-			secondary: formatPercent((r.value / total) * 100),
-		}))
 	}, [stats.data])
 
 	const judgedShare = useMemo(() => {
@@ -128,20 +129,10 @@ export function DashboardView({ days }: { days: number }) {
 		return (judged / total) * 100
 	}, [stats.data])
 
-	// Peak hour and busiest day are reduced from the activity series that is
-	// already on the page. A second endpoint for a max() over the same buckets
-	// would be a second way for the two numbers to disagree.
-	const peakHour = useMemo(() => {
-		const best = (activity.data?.hourly ?? []).reduce<{
-			hour: number
-			messages: number
-		} | null>(
-			(acc, row) => (acc === null || row.messages > acc.messages ? row : acc),
-			null,
-		)
-		return best !== null && best.messages > 0 ? best : null
-	}, [activity.data?.hourly])
-
+	// Busiest day is reduced from the activity series that is already on the
+	// page. A second endpoint for a max() over the same buckets would be a
+	// second way for the two numbers to disagree. (Peak hour is read off the dial
+	// for the same reason.)
 	const busiestDay = useMemo(
 		() =>
 			daily.reduce<{ day: string; messages: number } | null>(
@@ -178,8 +169,8 @@ export function DashboardView({ days }: { days: number }) {
 	}, [stats.data])
 
 	// The hour-of-day series is sparse — only hours with messages come back —
-	// and the heatmap draws a fixed 24 columns, so the empty hours are filled
-	// here rather than left to shift every later bucket one column left.
+	// and the dial draws a fixed 24 spokes, so the empty hours are filled here
+	// rather than left to shift every later bucket one spoke over.
 	const hourlyHeat = useMemo(() => {
 		const byHour = new Map<number, number>()
 		for (const row of activity.data?.hourly ?? [])
@@ -231,37 +222,122 @@ export function DashboardView({ days }: { days: number }) {
 	}
 
 	return (
-		<Reveal className="space-y-4">
-			{/* Hero. The page title is the one element at the display step, so the
-          page has a top; the eyebrow is the console's own voice about what the
-          reader is looking at, not a second heading. */}
-			<header className="flex flex-wrap items-end justify-between gap-3">
-				<div className="min-w-0">
-					<p className="field-label">Live moderation console</p>
-					<h1 className="display mt-1 text-ink">Overview</h1>
-					<p className="mt-2 text-sm text-ink-muted">
-						Last {days} days of activity across the monitored guild
-					</p>
+		<Reveal className="space-y-16">
+			{/*
+        THE FRONT PAGE. One number at poster scale, a second beside it in outline,
+        and the sentence that says what they are. The old page opened with eight
+        equal tiles, which answered nothing first; this one answers "is moderation
+        happening, and how much" before anything else is read.
+
+        Every figure here is also the drill-down it always was: captured links to
+        the whole feed, removed to the deleted filter, queued to the pending one.
+        A headline number is a claim about a list, and the list is one click away.
+      */}
+			<header className="space-y-8">
+				<div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+					<p className="field-label">Overview · last {days} days</p>
+					<p className="field-label">Every deletion carries its reason</p>
 				</div>
-				<div className="flex flex-wrap items-center gap-1.5">
-					<span className="verdict-chip">
-						<span className="verdict-dot verdict-dot-live" aria-hidden />
-						{formatNumber(stats.data?.total_messages)} captured
-					</span>
-					<span className="verdict-chip">
-						<span className="verdict-dot verdict-dot-deleted" aria-hidden />
-						{formatNumber(stats.data?.total_flagged)} deleted
-					</span>
-					<span className="verdict-chip">
-						<span
-							className={cn(
-								"verdict-dot",
-								backlogged > 0 ? "verdict-dot-warning" : "verdict-dot-clean",
-							)}
-							aria-hidden
-						/>
-						{formatNumber(backlogged)} in queue
-					</span>
+				<h1 className="sr-only">Overview</h1>
+
+				<div className="grid items-end gap-x-14 gap-y-10 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+					<Link
+						to="/messages"
+						className="group block min-w-0"
+						aria-label={`Messages watched: ${formatNumber(stats.data?.total_messages)}. ${formatNumber(stats.data?.today_messages)} today`}
+					>
+						<p className="field-label flex items-center gap-2">
+							Messages watched
+							<ArrowUpRight
+								className="size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+								aria-hidden
+							/>
+						</p>
+						<p className="mega mt-5 text-ink">
+							<Ticker value={stats.data?.total_messages} format={formatHero} />
+						</p>
+						<p className="mt-6 max-w-md text-base leading-snug text-ink-soft">
+							captured from the guild,{" "}
+							<span className="marker font-bold">
+								{formatNumber(stats.data?.today_messages)} today
+							</span>
+						</p>
+					</Link>
+
+					<div className="min-w-0 space-y-7">
+						<Link
+							to="/messages"
+							search={{ verdict: "deleted" }}
+							className="group block"
+							aria-label={`Removed by the model: ${formatNumber(stats.data?.total_flagged)}${flaggedRate === null ? "" : `, ${formatPercent(flaggedRate, 2)} of all messages`}`}
+						>
+							<p className="field-label flex items-center gap-2">
+								Removed by the model
+								<ArrowUpRight
+									className="size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+									aria-hidden
+								/>
+							</p>
+							<p className="mega-md ghost-numeral mt-3">
+								<Ticker value={stats.data?.total_flagged} format={formatHero} />
+							</p>
+							<p className="mt-3 text-sm text-ink-muted">
+								{flaggedRate === null
+									? "Nothing captured yet"
+									: `${formatPercent(flaggedRate, 2)} of all messages`}
+							</p>
+						</Link>
+
+						<dl className="grid grid-cols-2 gap-6 border-t border-rule pt-4">
+							<Link
+								to="/messages"
+								search={{ status: "pending" }}
+								className="group block min-w-0"
+								aria-label={`In queue: ${formatNumber(backlogged)}. ${queue?.dead ? `${formatNumber(queue.dead)} abandoned` : "Awaiting a verdict"}`}
+							>
+								<dt className="field-label flex items-center gap-1.5">
+									<span
+										className={cn(
+											"verdict-dot",
+											backlogged > 500
+												? "verdict-dot-warning"
+												: backlogged > 0
+													? "verdict-dot-live"
+													: "verdict-dot-clean",
+										)}
+										aria-hidden
+									/>
+									In queue
+								</dt>
+								<dd className="metric mt-1.5 text-4xl leading-none text-ink group-hover:underline group-hover:underline-offset-4">
+									<Ticker value={backlogged} format={formatNumber} />
+								</dd>
+								<dd className="mt-1.5 truncate text-xs text-ink-muted">
+									{queue?.dead
+										? `${formatNumber(queue.dead)} abandoned`
+										: "Awaiting a verdict"}
+								</dd>
+							</Link>
+							<div className="min-w-0">
+								<dt className="field-label">Judged</dt>
+								<dd
+									className={cn(
+										"metric mt-1.5 text-4xl leading-none",
+										judgedShare !== null && judgedShare < 90
+											? "text-amber"
+											: "text-ink",
+									)}
+								>
+									{judgedShare === null ? "—" : formatPercent(judgedShare)}
+								</dd>
+								<dd className="mt-1.5 truncate text-xs text-ink-muted">
+									{judgedShare === null
+										? "Nothing captured yet"
+										: "of everything captured"}
+								</dd>
+							</div>
+						</dl>
+					</div>
 				</div>
 			</header>
 
@@ -272,139 +348,85 @@ export function DashboardView({ days }: { days: number }) {
         a date, because a guild with nothing captured has no last message and
         1970 is not an answer.
       */}
-			<FreshnessChips freshness={insightData?.freshness} />
-
-			<StatGrid cols={4}>
-				<StatTile
-					label="Messages"
-					value={stats.data?.total_messages}
-					format={formatCompact}
-					exact={formatNumber(stats.data?.total_messages)}
-					hint={`${formatNumber(stats.data?.today_messages)} today`}
-					to="/messages"
-				/>
-				<StatTile
-					label="Deleted"
-					value={stats.data?.total_flagged}
-					format={formatCompact}
-					hint={
-						flaggedRate === null
-							? undefined
-							: `${formatPercent(flaggedRate, 2)} of all messages`
-					}
-					tone={flaggedRate !== null && flaggedRate > 2 ? "warning" : "neutral"}
-					to="/messages?verdict=deleted"
-				/>
-				<StatTile
-					label="In queue"
-					value={backlogged}
-					hint={
-						queue?.dead
-							? `${formatNumber(queue.dead)} abandoned`
-							: "Awaiting a verdict"
-					}
-					tone={backlogged > 500 ? "warning" : "neutral"}
-					to="/messages?status=pending"
-				/>
-				<StatTile
-					label="Judged"
-					value={judgedShare}
-					format={(n) => formatPercent(n)}
-					hint={
-						judgedShare === null
-							? "Nothing captured yet"
-							: "of everything captured"
-					}
-					tone={
-						judgedShare !== null && judgedShare < 90 ? "warning" : "neutral"
-					}
-				/>
-				<StatTile
-					label="Active members"
-					value={stats.data?.active_users_24h}
-					hint={`${formatNumber(stats.data?.total_users)} total`}
-				/>
-				<StatTile
-					label="Peak hour"
-					value={
-						peakHour === null
-							? "—"
-							: `${String(peakHour.hour).padStart(2, "0")}:00`
-					}
-					hint={
-						peakHour === null
-							? "No messages in 24h"
-							: `${formatNumber(peakHour.messages)} messages`
-					}
-				/>
-				<StatTile
-					label="Average per day"
-					value={averagePerDay}
-					hint={`Last ${days} days`}
-				/>
-				<StatTile
-					label="Busiest day"
-					value={busiestDay?.messages}
-					format={formatCompact}
-					exact={
-						busiestDay === null ? undefined : formatNumber(busiestDay.messages)
-					}
-					hint={
-						busiestDay
-							? formatDay(busiestDay.day)
-							: "No messages in this window"
-					}
-				/>
-			</StatGrid>
-
-			{/* ── Row A: volume and verdict mix ─────────────────────────── */}
-			<SectionGrid cols={2}>
-				<Section
-					title="Message volume"
-					description={`Daily, last ${days} days, with deletions overlaid`}
-				>
-					{activity.error && !activity.data ? (
-						<ErrorState
-							error={activity.error}
-							onRetry={() => void activity.refetch()}
-						/>
-					) : (
-						<AreaChart data={chartData} />
-					)}
-				</Section>
-
-				<Section
-					title="Verdict mix"
-					description="Every captured message by how it was judged"
-				>
-					<div className="mb-4 flex flex-wrap gap-1.5">
-						{verdictMix.map((v) => (
-							<span key={v.label} className="verdict-chip">
-								<span className={cn("verdict-dot", v.dot)} aria-hidden />
-								{v.label}
-								<span className="text-ink-faint">{v.secondary}</span>
-							</span>
-						))}
-					</div>
-					<RankedBars data={verdictMix} emptyLabel="Nothing captured yet" />
-				</Section>
-			</SectionGrid>
-
-			{/* ── Row B: hour of day, flag categories ───────────────────── */}
-			<SectionGrid cols={2}>
-				<Section
-					title="Activity by hour"
-					description="Messages captured in the last 24 hours, by hour of day"
-				>
-					<HourHeatmap
-						values={hourlyHeat}
-						label="Messages captured by hour of day"
-						unit="messages"
-						emptyLabel="No messages in the last 24 hours"
+			<div>
+				<FreshnessChips freshness={insightData?.freshness} />
+				<StatGrid cols={4}>
+					<StatTile
+						label="Active members"
+						value={stats.data?.active_users_24h}
+						hint={`${formatNumber(stats.data?.total_users)} total`}
 					/>
-				</Section>
+					<StatTile
+						label="Average per day"
+						value={averagePerDay}
+						hint={`Last ${days} days`}
+					/>
+					<StatTile
+						label="Busiest day"
+						value={busiestDay?.messages}
+						format={formatCompact}
+						exact={
+							busiestDay === null
+								? undefined
+								: formatNumber(busiestDay.messages)
+						}
+						hint={
+							busiestDay
+								? formatDay(busiestDay.day)
+								: "No messages in this window"
+						}
+					/>
+					<StatTile
+						label="Deleted today"
+						value={stats.data?.today_flagged}
+						tone={(stats.data?.today_flagged ?? 0) > 0 ? "warning" : "neutral"}
+						hint="By the model, since midnight"
+						to="/messages?verdict=deleted"
+					/>
+				</StatGrid>
+			</div>
 
+			{/* ── 01 · health first: is the pipeline moving? ──────────────── */}
+			<Section
+				index="01"
+				layout="split"
+				title="Queue health"
+				description="Where every captured message is on its way to a verdict. A node is empty at zero."
+			>
+				<PipelineFlow queue={queue} />
+			</Section>
+
+			{/* ── 02 · what was decided ───────────────────────────────────── */}
+			<Section
+				index="02"
+				layout="split"
+				title="Verdict mix"
+				description="Every captured message by how it was judged. Hatched means no verdict yet — not clean."
+			>
+				<VerdictSpectrum segments={verdictSegments} />
+			</Section>
+
+			{/* ── 03 · volume ─────────────────────────────────────────────── */}
+			<Section
+				index="03"
+				layout="split"
+				title="Message volume"
+				description={`One column per day, last ${days} days. Deletions get their own lane and their own scale.`}
+			>
+				{activity.error && !activity.data ? (
+					<ErrorState
+						error={activity.error}
+						onRetry={() => void activity.refetch()}
+					/>
+				) : (
+					<AreaChart data={chartData} />
+				)}
+			</Section>
+
+			{/* ── 04 · what for, and when ─────────────────────────────────── */}
+			<SectionGrid cols={2}>
 				<Section
+					index="04"
 					title="Flag categories"
 					description="What the model deleted for, all time"
 				>
@@ -420,9 +442,22 @@ export function DashboardView({ days }: { days: number }) {
 						/>
 					</PanelGuard>
 				</Section>
+
+				<Section
+					index="05"
+					title="Activity by hour"
+					description="Messages captured in the last 24 hours, by hour of day"
+				>
+					<HourHeatmap
+						values={hourlyHeat}
+						label="Messages captured by hour of day"
+						unit="messages"
+						emptyLabel="No messages in the last 24 hours"
+					/>
+				</Section>
 			</SectionGrid>
 
-			{/* ── Row C: confidence and enforcement ─────────────────────── */}
+			{/* ── 06 · how sure, and did it happen ────────────────────────── */}
 			<SectionGrid cols={2}>
 				{/*
           Confidence is the number that separates "we delete this" from "we are
@@ -432,6 +467,7 @@ export function DashboardView({ days }: { days: number }) {
           hesitant deletion is what a human should look at.
         */}
 				<Section
+					index="06"
 					title="Model confidence"
 					description="How sure the model was, every judged message"
 				>
@@ -440,7 +476,7 @@ export function DashboardView({ days }: { days: number }) {
 						hasData={Boolean(insightData)}
 						onRetry={() => void insights.refetch()}
 					>
-						<div className="space-y-4">
+						<div className="space-y-6">
 							<PanelStats
 								items={[
 									{
@@ -477,9 +513,10 @@ export function DashboardView({ days }: { days: number }) {
 				{/*
           The verdict says "delete this"; `auto_delete_state` says whether it
           happened. A failed enforcement is the only number here that needs a
-          human, so it is the only one that changes the panel's tone.
+          human, so it is the only one that changes the section's tone.
         */}
 				<Section
+					index="07"
 					title="Enforcement outcomes"
 					description="What happened to the messages the model deleted"
 				>
@@ -488,8 +525,9 @@ export function DashboardView({ days }: { days: number }) {
 						hasData={Boolean(insightData)}
 						onRetry={() => void insights.refetch()}
 					>
-						<div className="space-y-4">
+						<div className="space-y-6">
 							<PanelStats
+								cols={4}
 								items={[
 									{
 										label: "Enforced",
@@ -518,7 +556,7 @@ export function DashboardView({ days }: { days: number }) {
 								data={enforcementBars}
 								emptyLabel="No deletions to enforce"
 							/>
-							<p className="text-xs leading-relaxed text-ink-faint">
+							<p className="text-xs leading-relaxed text-ink-muted">
 								{formatNumber(insightData?.enforcement.clean)} clean verdicts
 								called for no action
 								{insightData?.enforcement.error
@@ -527,14 +565,16 @@ export function DashboardView({ days }: { days: number }) {
 								.
 							</p>
 							{(insightData?.enforcement.failed ?? 0) > 0 && (
-								<p className="rounded-md border border-vermilion/30 bg-vermilion/10 px-3 py-2 text-xs text-vermilion">
-									{formatNumber(insightData?.enforcement.failed)} deletion
-									{insightData?.enforcement.failed === 1 ? "" : "s"} could not
-									be enforced and the message is still up.{" "}
+								<p className="border-l-4 border-vermilion bg-surface py-2.5 pr-3 pl-3 text-xs text-ink-soft">
+									<span className="font-bold text-vermilion">
+										{formatNumber(insightData?.enforcement.failed)} deletion
+										{insightData?.enforcement.failed === 1 ? "" : "s"}
+									</span>{" "}
+									could not be enforced and the message is still up.{" "}
 									<Link
 										to="/messages"
 										search={{ verdict: "deleted" }}
-										className="underline"
+										className="font-bold underline underline-offset-2"
 									>
 										Inspect them
 									</Link>
@@ -547,17 +587,18 @@ export function DashboardView({ days }: { days: number }) {
 			</SectionGrid>
 
 			{/*
-        Leaderboards. Both member panels share one row shape on purpose — sent,
-        of which deleted — so a name that appears in both reads the same way in
-        both places.
+        Leaderboards. Both member lists share one row shape on purpose — sent, of
+        which deleted — so a name that appears in both reads the same way in both
+        places.
 
-        "Top offenders" is the only panel in the app that names members for what
+        "Top offenders" is the only list in the app that names members for what
         they did, so its description says "model": a message a human deleted by
         hand is not counted there, and the wording has to survive being read as
         an accusation.
       */}
 			<SectionGrid cols={2}>
 				<Section
+					index="08"
 					title="Top offenders"
 					description="Members whose messages the model deleted, all time"
 				>
@@ -580,6 +621,7 @@ export function DashboardView({ days }: { days: number }) {
 				</Section>
 
 				<Section
+					index="09"
 					title="Most active members"
 					description="Messages sent, all time"
 				>
@@ -597,6 +639,7 @@ export function DashboardView({ days }: { days: number }) {
 				</Section>
 
 				<Section
+					index="10"
 					title="Problem channels"
 					description="Channels carrying the most deletions, all time"
 				>
@@ -611,14 +654,18 @@ export function DashboardView({ days }: { days: number }) {
 					/>
 				</Section>
 
-				<Section title="Busiest channels" description="All time">
+				<Section index="11" title="Busiest channels" description="All time">
 					<RankedBars data={channelBars} showRank max={LIMIT} />
 				</Section>
 			</SectionGrid>
 
-			{/* ── Row F: reactions ──────────────────────────────────────── */}
+			{/* ── reactions ───────────────────────────────────────────────── */}
 			<SectionGrid cols={2}>
-				<Section title="Most reacted messages" description="All time">
+				<Section
+					index="12"
+					title="Most reacted messages"
+					description="All time"
+				>
 					<RankedBars
 						data={(reactions.data ?? []).map((r) => {
 							// A custom-emoji-only message has no readable text, so the label
@@ -639,22 +686,26 @@ export function DashboardView({ days }: { days: number }) {
           "net reactions added" said neither. `net_count` is
           `add_count - remove_count` on `message_reactions` rows, and every
           such row is a reaction this user gave — so the old label could be read
-          as reactions this user *received*, which is the opposite panel
+          as reactions this user *received*, which is the opposite list
           ("Most reacted messages"). "Reactions they gave, adds minus removes"
           is longer, but it is the only reading that is correct.
         */}
 				<Section
+					index="13"
 					title="Most active reactors"
 					description="Reactions they gave, adds minus removes"
 				>
-					<ul className="space-y-2">
+					<ul className="border-t border-hairline">
 						{(reactors.data ?? []).map((reactor) => (
-							<li key={reactor.user_id} className="flex items-center gap-2.5">
+							<li
+								key={reactor.user_id}
+								className="flex min-h-9 items-center gap-3 border-b border-hairline px-2"
+							>
 								<Avatar src={null} name={reactor.username} size={20} />
-								<span className="min-w-0 flex-1 truncate text-sm text-ink-soft">
+								<span className="min-w-0 flex-1 truncate text-sm text-ink">
 									{reactor.username}
 								</span>
-								<span className="reactor-count shrink-0 font-mono text-xs text-ink-muted">
+								<span className="reactor-count shrink-0 font-mono text-xs text-ink-soft">
 									+{formatNumber(reactor.net_count)}
 								</span>
 							</li>
@@ -663,16 +714,17 @@ export function DashboardView({ days }: { days: number }) {
 				</Section>
 			</SectionGrid>
 
-			{/* ── Row G: edits and media ────────────────────────────────── */}
+			{/* ── edits and media ─────────────────────────────────────────── */}
 			<SectionGrid cols={2}>
 				{/*
           Edits are an evasion signal — a message that says one thing and was
-          edited to say another — so the panel counts them and names who does it
+          edited to say another — so this counts them and names who does it
           most. `orphaned` is not a rounding error: `message_edits` has no
           foreign key, so an edit outlives its message once retention runs, and
           those rows can be counted but not attributed.
         */}
 				<Section
+					index="14"
 					title="Edit activity"
 					description="Messages edited after sending, all time"
 				>
@@ -681,7 +733,7 @@ export function DashboardView({ days }: { days: number }) {
 						hasData={Boolean(insightData)}
 						onRetry={() => void insights.refetch()}
 					>
-						<div className="space-y-4">
+						<div className="space-y-6">
 							<PanelStats
 								items={[
 									{
@@ -708,7 +760,7 @@ export function DashboardView({ days }: { days: number }) {
 								emptyLabel="No edits recorded"
 							/>
 							{(insightData?.edits.orphaned ?? 0) > 0 && (
-								<p className="text-xs leading-relaxed text-ink-faint">
+								<p className="text-xs leading-relaxed text-ink-muted">
 									{formatNumber(insightData?.edits.orphaned)} of these belong to
 									messages retention already removed, so they cannot be
 									attributed to a member.
@@ -726,6 +778,7 @@ export function DashboardView({ days }: { days: number }) {
           the original Discord URL stays on the message row either way.
         */}
 				<Section
+					index="15"
 					title="Media archive"
 					description="Attachments captured and archived"
 				>
@@ -734,7 +787,7 @@ export function DashboardView({ days }: { days: number }) {
 						hasData={Boolean(insightData)}
 						onRetry={() => void insights.refetch()}
 					>
-						<div className="space-y-4">
+						<div className="space-y-6">
 							<PanelStats
 								cols={2}
 								items={[
@@ -758,41 +811,36 @@ export function DashboardView({ days }: { days: number }) {
 									},
 								]}
 							/>
-							<p className="text-xs leading-relaxed text-ink-faint">
+							<p className="text-xs leading-relaxed text-ink-muted">
 								{formatNumber(insightData?.media.pending)} pending ·{" "}
 								{formatNumber(insightData?.media.failed)} failed
 							</p>
 							{(insightData?.media.failed ?? 0) > 0 && (
-								<p className="rounded-md border border-amber/30 bg-amber/10 px-3 py-2 text-xs text-amber">
-									{formatNumber(insightData?.media.failed)} attachment
-									{insightData?.media.failed === 1 ? "" : "s"} failed to upload.
-									The original Discord URL is still recorded on the message, but
-									it will stop resolving if the message is deleted.
+								<p className="border-l-4 border-amber bg-surface py-2.5 pr-3 pl-3 text-xs text-ink-soft">
+									<span className="font-bold text-amber">
+										{formatNumber(insightData?.media.failed)} attachment
+										{insightData?.media.failed === 1 ? "" : "s"}
+									</span>{" "}
+									failed to upload. The original Discord URL is still recorded
+									on the message, but it will stop resolving if the message is
+									deleted.
 								</p>
 							)}
 						</div>
 					</PanelGuard>
 				</Section>
 			</SectionGrid>
-
-			{/* ── Row H: queue health, full width ──────────────────────── */}
-			<Section
-				title="Queue health"
-				description="Pipeline position of every captured message"
-			>
-				<QueueBreakdown queue={queue} />
-			</Section>
 		</Reveal>
 	)
 }
 
 /**
- * One guard for every insights-backed panel.
+ * One guard for every insights-backed section.
  *
- * The insights endpoint feeds six panels, so the "failed, show a retry" case
+ * The insights endpoint feeds six sections, so the "failed, show a retry" case
  * would otherwise be written six times — and written six different ways. A
- * panel that already has data keeps rendering it while a refetch fails: stale
- * numbers with a live socket are better than six empty boxes.
+ * section that already has data keeps rendering it while a refetch fails: stale
+ * numbers with a live socket are better than six empty regions.
  */
 function PanelGuard({
 	error,
@@ -810,11 +858,11 @@ function PanelGuard({
 }
 
 /**
- * The four freshness timestamps, as chips.
+ * The four freshness timestamps, as a ruled strip.
  *
- * Every one of them is a "when", not a "how many", which is why they sit in the
- * header beside the totals rather than in a panel: they are the answer to "is
- * this page live", and that question is asked before any panel is read.
+ * Every one of them is a "when", not a "how many", which is why they sit under
+ * the headline instead of in a section: they are the answer to "is this page
+ * live", and that question is asked before any section is read.
  */
 function FreshnessChips({ freshness }: { freshness: IFreshness | undefined }) {
 	const waitingAge =
@@ -831,8 +879,8 @@ function FreshnessChips({ freshness }: { freshness: IFreshness | undefined }) {
 		at == null ? "never" : formatRelative(at)
 
 	return (
-		<div className="flex flex-wrap items-center gap-1.5">
-			<span className="field-label mr-1">Freshness</span>
+		<div className="flex flex-wrap items-center gap-2 border-t border-rule py-3">
+			<span className="field-label mr-2">Freshness</span>
 			<span className="verdict-chip">
 				<span className="verdict-dot verdict-dot-live" aria-hidden />
 				Last message {ago(freshness?.last_message_at)}
@@ -877,77 +925,4 @@ function ratioLabel(deleted: number, total: number): string {
 	return `${formatNumber(deleted)} / ${formatNumber(total)} · ${formatPercent(
 		(deleted / total) * 100,
 	)}`
-}
-
-/**
- * Queue breakdown.
- *
- * `dead` is called out separately and in the warning tone: it is the only state
- * that means "the worker gave up and nobody will ever judge this", and folding
- * it into "pending" hides a stuck pipeline behind a healthy-looking backlog.
- * Nothing here waits on a person — the pipeline is full-auto — so this is a
- * health signal, not a work queue.
- */
-function QueueBreakdown({
-	queue,
-}: {
-	queue: IDashboardStats["moderation_overview"] | undefined
-}) {
-	if (!queue) return null
-
-	const rows = [
-		{ key: "pending", label: "Queued", value: queue.pending, tone: "neutral" },
-		{
-			key: "claimed",
-			label: "Analyzing",
-			value: queue.claimed,
-			tone: "neutral",
-		},
-		{
-			key: "retry_wait",
-			label: "Retrying",
-			value: queue.retry_wait,
-			tone: "warning",
-		},
-		{ key: "dead", label: "Abandoned", value: queue.dead, tone: "danger" },
-		{
-			key: "skipped",
-			// Terminal like `analyzed`, so the list order puts it last. Not an
-			// alert: the channel is exempt on purpose.
-			label: "Not moderated",
-			value: queue.skipped,
-			tone: "neutral",
-		},
-		{
-			key: "error",
-			label: "Errored verdict",
-			value: queue.error,
-			tone: "warning",
-		},
-	] as const
-
-	const hasStuck = queue.dead > 0
-
-	return (
-		<div className="space-y-3">
-			<RankedBars
-				data={rows.map((r) => ({ label: r.label, value: r.value }))}
-			/>
-			{hasStuck && (
-				<p className="rounded-md border border-vermilion/30 bg-vermilion/10 px-3 py-2 text-xs text-vermilion">
-					{formatNumber(queue.dead)} message
-					{queue.dead === 1 ? "" : "s"} exhausted their retries and will not be
-					judged automatically.{" "}
-					<Link
-						to="/messages"
-						search={{ status: "dead" }}
-						className="underline"
-					>
-						Inspect them
-					</Link>
-					.
-				</p>
-			)}
-		</div>
-	)
 }

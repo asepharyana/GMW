@@ -1,6 +1,6 @@
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { cn } from "cn"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { HourHeatmap, RankedBars } from "#/components/features/charts/bars"
 import {
 	QueueBand,
@@ -147,6 +147,17 @@ function drawerSummary(content: string | null | undefined): string {
 }
 
 /**
+ * The message as the dossier quotes it, or `null` when nothing readable was
+ * captured. Same cleaning as `drawerSummary` (the gateway's `[Attachment: …]`
+ * placeholder is not author text), but with room for a real quote. A `null`
+ * omits the quote block entirely rather than printing an empty one.
+ */
+function messageText(content: string | null | undefined): string | null {
+	const body = truncate(messageBody(content), 600)
+	return body.length > 0 ? body : null
+}
+
+/**
  * The decided records, as the column shows them: enough to recognise a record
  * and see its outcome, never so much that a drawer of twenty competes with the
  * consulted slip. Each entry is a whole button, so a keyboard reaches every
@@ -166,27 +177,23 @@ function DrawerList({
 }) {
 	if (rows.length === 0) {
 		return (
-			<div className="hud-card px-4 py-8">
-				{/*
-				 * Two different emptinesses, and they must not read the same. An
-				 * empty drawer because a filter excludes everything is a navigation
-				 * problem; an empty drawer because no enforcement has EVER run is a
-				 * fact about this guild, and it is the honest answer here —
-				 * messages are kept, so no actions are recorded.
-				 */}
-				<EmptyState
-					title={
-						filtered
-							? "No decisions match this filter"
-							: "No enforcement action yet"
-					}
-					description={
-						filtered
-							? "Loosen the filters above to see earlier records."
-							: "The pipeline has not deleted anything itself. Deletions made by a moderator still appear as removed decisions above."
-					}
-				/>
-			</div>
+			// Two different emptinesses, and they must not read the same. An
+			// empty log because a filter excludes everything is a navigation
+			// problem; an empty log because no enforcement has EVER run is a fact
+			// about this guild, and it is the honest answer here — messages are
+			// kept, so no actions are recorded.
+			<EmptyState
+				title={
+					filtered
+						? "No decisions match this filter"
+						: "No enforcement action yet"
+				}
+				description={
+					filtered
+						? "Loosen the filters above to see earlier records."
+						: "The pipeline has not deleted anything itself. Deletions made by a moderator still appear as removed decisions."
+				}
+			/>
 		)
 	}
 
@@ -303,22 +310,18 @@ export function ModerationView({ days }: { days: number }) {
 	const active = rows.find((row) => row.id === activeId) ?? null
 
 	/*
-	 * The drawer holds every record EXCEPT the one being consulted. That is what
-	 * "pulled forward of" means: the slip in front is the one lifted OUT, so
-	 * leaving it in the drawer too would render the same record twice and make
-	 * the foreground copy decoration rather than a selection.
-	 *
-	 * Filtering on the stable case id rather than the row object keeps the two
-	 * in lockstep — the drawer and the slip derive the number the same way.
+	 * On a phone the dossier sits ABOVE the index, so choosing a record from the
+	 * index changes something the reader can no longer see. Bring it into view —
+	 * but only below `lg`, where the two columns are stacked; beside each other
+	 * they are both already on screen and a scroll would just be a jolt.
 	 */
-	const activeCaseId = active ? caseIdFor(active) : undefined
-	const drawerRows = useMemo(
-		() =>
-			activeCaseId
-				? rows.filter((row) => caseIdFor(row) !== activeCaseId)
-				: rows,
-		[rows, activeCaseId],
-	)
+	const dossierRef = useRef<HTMLDivElement>(null)
+	const selectRecord = (id: string) => {
+		setSelectedId(id)
+		if (window.matchMedia("(width < 64rem)").matches) {
+			dossierRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+		}
+	}
 
 	const categoryBars = useMemo(
 		() =>
@@ -391,85 +394,85 @@ export function ModerationView({ days }: { days: number }) {
 	}
 
 	return (
-		<Reveal className="space-y-4">
-			{/* Hero: a mono eyebrow names the surface, the title sits at the display
-          step so the page has a top, one line of context underneath. */}
-			<header className="flex flex-wrap items-end justify-between gap-3">
+		<Reveal className="space-y-16">
+			<header className="grid items-end gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,1fr)_auto]">
 				<div className="min-w-0">
 					<p className="field-label">Decision ledger</p>
-					<h1 className="display mt-1 text-ink">Moderation</h1>
-					<p className="mt-2 text-sm text-ink-muted">
+					<h1 className="mega-md mt-4 text-ink">Moderation</h1>
+					<p className="mt-4 max-w-xl text-sm leading-relaxed text-ink-muted">
 						Every decision, the rule it was judged against, and the reason
 						given.
 					</p>
 				</div>
-				<p className="text-micro-lg text-ink-faint">
+				<p className="tag-solid tag-solid-live self-start lg:self-end">
 					Records are public. There is no sign-in.
 				</p>
 			</header>
 
 			{/*
-			 * The headline is a FILING COUNT, not a four-tile KPI strip. The tiles
-			 * answered "is the system healthy", which is the operator's question
-			 * — but PRODUCT.md's reader is a member who arrived to ask why their
-			 * message was removed. The count of decided messages is the one number
-			 * that belongs to this ledger, so it leads at full scale, and the
-			 * supporting figures sit beside it as secondary readings rather than
-			 * as four peers competing for attention.
+			 * The headline is a FILING COUNT, not a KPI strip. The tiles answered "is
+			 * the system healthy", which is the operator's question — but
+			 * PRODUCT.md's reader is a member who arrived to ask why their message
+			 * was removed. The count of decided messages is the one number that
+			 * belongs to this ledger, so it leads at poster scale, and the
+			 * supporting figures sit beside it as secondary readings rather than as
+			 * peers competing for attention.
 			 */}
-			<div className="hud-card flex flex-wrap items-end justify-between gap-x-8 gap-y-4 px-4 py-4">
-				<div>
+			<div className="grid items-end gap-x-14 gap-y-8 lg:grid-cols-[minmax(0,1fr)_auto]">
+				<div className="min-w-0">
 					<p className="field-label">Decisions on record</p>
-					<p className="metric mt-1 text-4xl text-ink">
+					<p className="mega mt-4 text-ink">
 						{formatNumber(stats.data?.total)}
 					</p>
-					<p className="mt-1 text-xs text-ink-muted">
-						{filingLine}
+					<p className="mt-5 text-base text-ink-soft">
+						<span className="marker font-bold">{filingLine}</span>
 						{errorCount > 0
 							? ` · ${formatNumber(errorCount)} could not be applied`
 							: ""}
 					</p>
 				</div>
-				<dl className="flex flex-wrap gap-x-8 gap-y-3">
-					<div>
+				<dl className="grid grid-cols-3 gap-x-8 gap-y-4 border-t border-rule pt-4 lg:min-w-96">
+					<div className="min-w-0">
 						<dt className="field-label">Kept</dt>
-						<dd className="metric text-lg text-success">
+						<dd className="metric mt-1.5 text-4xl leading-none text-success">
 							{formatNumber(keptCount)}
 						</dd>
 					</div>
-					<div>
+					<div className="min-w-0">
 						<dt className="field-label">Coverage</dt>
-						<dd className="metric text-lg text-ink">
+						<dd className="metric mt-1.5 text-4xl leading-none text-ink">
 							{formatPercent(coverage.data?.coverage_rate)}
 						</dd>
 					</div>
-					<div>
+					<div className="min-w-0">
 						<dt className="field-label">Model errors</dt>
 						<dd
 							className={cn(
-								"metric text-lg",
+								"metric mt-1.5 text-4xl leading-none",
 								(stats.data?.failed ?? 0) > 0 ? "text-vermilion" : "text-ink",
 							)}
 						>
 							{formatNumber(stats.data?.failed)}
 						</dd>
-						<dd className="text-micro-lg text-ink-faint">{errorHint}</dd>
+						<dd className="mt-1.5 text-micro-lg text-ink-muted">{errorHint}</dd>
 					</div>
 				</dl>
 			</div>
 
 			{/*
-			 * THE DECK — the layout the direction contract's FIRST VIEWPORT block
-			 * specifies: a slip pulled forward of a drawer. Not a table with one
-			 * row expanded. A table gives every record equal weight and makes the
-			 * reader hunt; a slip in front of a drawer lets one record be consulted
-			 * while the rest stay findable.
+			 * THE CASEFILE — an index on the left, the opened record on the right.
+			 * Not a table with one row expanded: a table gives every record equal
+			 * weight and makes the reader hunt, where an index beside a dossier lets
+			 * one record be read in full while the rest stay one click away.
 			 *
-			 * The queue is deliberately NOT in this column group. `ai_status`
-			 * answers "where is this in the queue" and `verdicts.status` answers
-			 * "what was decided"; placing a queue count beside a decision is
-			 * exactly how a member ends up reading "38 waiting" as "38 were
-			 * removed". It gets its own band below instead.
+			 * The queue is deliberately NOT in this group. `ai_status` answers
+			 * "where is this in the queue" and `verdicts.status` answers "what was
+			 * decided"; placing a queue count beside a decision is exactly how a
+			 * member ends up reading "38 waiting" as "38 were removed". It gets its
+			 * own band below instead.
+			 *
+			 * Below `lg` the dossier comes FIRST (`order-first`), so the page is
+			 * never empty-handed in its first viewport.
 			 */}
 			{actions.error && !actions.data ? (
 				<ErrorState
@@ -477,51 +480,18 @@ export function ModerationView({ days }: { days: number }) {
 					onRetry={() => void actions.refetch()}
 				/>
 			) : (
-				<div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-					<div className="min-w-0">
-						{active ? (
-							<RecordSlip
-								caseId={caseIdFor(active)}
-								channel={
-									active.server_nick
-										? `@${active.server_nick}`
-										: "unknown member"
-								}
-								verdict={verdictFor(active)}
-								/* `analysis` is the model's own sentence; `reason` on an action
-                   row is the pipeline's action word, so it is only a fallback. */
-								reason={active.analysis ?? active.reason}
-								clause={clauseFor(active)}
-								evidence={active.evidence}
-								confidence={active.confidence}
-								// The auto-delete threshold is measured against the
-								// verdict, not the action; this row does not carry it, so
-								// it is passed absent rather than guessed.
-								threshold={undefined}
-								decidedAt={formatDateTime(active.created_at)}
-								active
-							/>
-						) : (
-							<div className="hud-card px-4 py-8">
-								<EmptyState
-									title="No record selected"
-									description="Choose a decision from the drawer to read why it was made."
-								/>
-							</div>
-						)}
-					</div>
-
-					<div className="min-w-0">
-						<div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-							<h2 className="text-sm font-medium tracking-wide text-ink">
+				<div className="grid items-start gap-x-14 gap-y-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+					<section className="min-w-0" aria-label="Decision log">
+						<div className="mb-4 space-y-3">
+							<h2 className="text-title leading-tight font-extrabold tracking-tight text-ink">
 								Decision log
-								<span className="ml-2 text-xs font-normal text-ink-muted">
-									{drawerRows.length === 0
-										? "nothing else decided"
-										: `${drawerRows.length} more`}
+								<span className="ml-3 font-mono text-xs font-normal text-ink-muted">
+									{rows.length === 0
+										? "nothing decided"
+										: `${rows.length} on this page`}
 								</span>
 							</h2>
-							<div className="flex items-center gap-2">
+							<div className="grid grid-cols-2 gap-2">
 								<Select
 									items={STATUS_ITEMS}
 									value={status || ANY}
@@ -529,7 +499,7 @@ export function ModerationView({ days }: { days: number }) {
 								>
 									<SelectTrigger
 										size="sm"
-										className="min-h-11 sm:min-h-8 w-32"
+										className="min-h-11 sm:min-h-8 w-full"
 										aria-label="Status"
 									>
 										<SelectValue placeholder="Status" />
@@ -553,7 +523,7 @@ export function ModerationView({ days }: { days: number }) {
 								>
 									<SelectTrigger
 										size="sm"
-										className="min-h-11 sm:min-h-8 w-36"
+										className="min-h-11 sm:min-h-8 w-full"
 										aria-label="Action"
 									>
 										<SelectValue placeholder="Action" />
@@ -570,21 +540,56 @@ export function ModerationView({ days }: { days: number }) {
 							</div>
 						</div>
 						<DrawerList
-							rows={drawerRows}
+							rows={rows}
 							activeId={activeId}
-							onSelect={setSelectedId}
+							onSelect={selectRecord}
 							filtered={status !== "" || actionType !== ""}
 						/>
+					</section>
+
+					<div
+						ref={dossierRef}
+						className="dossier-pin order-first min-w-0 scroll-mt-28 lg:order-none"
+					>
+						{active ? (
+							<RecordSlip
+								caseId={caseIdFor(active)}
+								channel={
+									active.server_nick
+										? `@${active.server_nick}`
+										: "unknown member"
+								}
+								verdict={verdictFor(active)}
+								message={messageText(active.content)}
+								/* `analysis` is the model's own sentence; `reason` on an action
+                   row is the pipeline's action word, so it is only a fallback. */
+								reason={active.analysis ?? active.reason}
+								clause={clauseFor(active)}
+								evidence={active.evidence}
+								confidence={active.confidence}
+								// The auto-delete threshold is measured against the
+								// verdict, not the action; this row does not carry it, so
+								// it is passed absent rather than guessed.
+								threshold={undefined}
+								decidedAt={formatDateTime(active.created_at)}
+								active
+							/>
+						) : (
+							<EmptyState
+								title="No record selected"
+								description="Choose a decision from the log to read why it was made."
+							/>
+						)}
 					</div>
 				</div>
 			)}
 
 			{/*
-			 * The queue band. Its own surface and its own sentence, so the two
-			 * questions stay visually separate: this is where a message sits in
-			 * the pipeline, and nothing is deleted until it has been judged.
+			 * The queue band. Its own strip and its own sentence, so the two
+			 * questions stay visually separate: this is where a message sits in the
+			 * pipeline, and nothing is deleted until it has been judged.
 			 *
-			 * The analytic panels sit BELOW the band, deliberately out of the first
+			 * The analytic sections sit BELOW the band, deliberately out of the first
 			 * viewport. They describe the shape across many records — the operator's
 			 * question — which is not what someone arrives to read.
 			 */}
@@ -601,7 +606,11 @@ export function ModerationView({ days }: { days: number }) {
 			/>
 
 			<SectionGrid cols={2}>
-				<Section title="Flag categories" description={`Last ${days} days`}>
+				<Section
+					index="01"
+					title="Flag categories"
+					description={`Last ${days} days`}
+				>
 					{trends.error && !trends.data ? (
 						<ErrorState
 							error={trends.error}
@@ -612,7 +621,11 @@ export function ModerationView({ days }: { days: number }) {
 					)}
 				</Section>
 
-				<Section title="Actions taken" description={`Last ${days} days`}>
+				<Section
+					index="02"
+					title="Actions taken"
+					description={`Last ${days} days`}
+				>
 					{trends.error && !trends.data ? (
 						<ErrorState
 							error={trends.error}
@@ -625,6 +638,8 @@ export function ModerationView({ days }: { days: number }) {
 			</SectionGrid>
 
 			<Section
+				index="03"
+				layout="split"
 				title="When moderation happens"
 				description="Actions by hour of day, last 30 days"
 			>
@@ -640,6 +655,7 @@ export function ModerationView({ days }: { days: number }) {
 
 			<SectionGrid cols={2}>
 				<Section
+					index="04"
 					title="Flagged domains"
 					description="Links that appeared in flagged messages"
 				>
@@ -660,6 +676,7 @@ export function ModerationView({ days }: { days: number }) {
 				</Section>
 
 				<Section
+					index="05"
 					title="Most flagged channels"
 					description={`Last ${days} days`}
 				>
