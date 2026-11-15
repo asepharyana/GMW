@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/MythEclipse/GMW/compare/v1.4.3...v1.5.0) (2026-11-15)
+
+
+### Features
+
+* **dashboard:** add insights endpoint and lay the overview out in eight rows ([531123e](https://github.com/MythEclipse/GMW/commit/531123ec480fb35c09081e96297b8145680f3054))
+
 ## [1.4.3](https://github.com/MythEclipse/GMW/compare/v1.4.2...v1.4.3) (2026-11-14)
 
 
