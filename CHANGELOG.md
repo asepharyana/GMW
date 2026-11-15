@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/MythEclipse/GMW/compare/v1.6.0...v1.7.0) (2026-11-15)
+
+
+### Features
+
+* **design:** replace Instrument with Signal Desk ([d767d7a](https://github.com/MythEclipse/GMW/commit/d767d7a6f29d3656ee07d9dc924304495c032093))
+
 # [1.6.0](https://github.com/MythEclipse/GMW/compare/v1.5.1...v1.6.0) (2026-11-15)
 
 
