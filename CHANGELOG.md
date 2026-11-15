@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/MythEclipse/GMW/compare/v1.5.0...v1.5.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **queue:** take deleted messages out of the moderation queue ([#6](https://github.com/MythEclipse/GMW/issues/6)) ([173cf42](https://github.com/MythEclipse/GMW/commit/173cf42beca98f3db739e2515b6db01322020c1f))
+
 # [1.5.0](https://github.com/MythEclipse/GMW/compare/v1.4.3...v1.5.0) (2026-11-15)
 
 
