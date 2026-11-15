@@ -214,9 +214,10 @@ export function pipelineLabelFor(message: {
 		message.deleted_at != null &&
 		(message.ai_status === "pending" || message.ai_status === "retry_wait")
 	) {
-		// Matches `pipelineLabel("skipped")`: not an error, and not queued —
-		// nothing is going to judge it, because there is nothing left to judge.
-		return "Not moderated"
+		// Not an error, and not queued — nothing is going to judge it,
+		// because there is nothing left to judge. Same terminal label as `skipped`,
+		// so reuse `pipelineLabel("skipped")` instead of duplicating the string.
+		return pipelineLabel("skipped")
 	}
 	return pipelineLabel(message.ai_status)
 }
