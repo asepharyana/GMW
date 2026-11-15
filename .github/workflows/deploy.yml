@@ -80,7 +80,20 @@ jobs:
         # it from CI means stubbing application config to create tables. This
         # step needs no application config and no build step, and the ledger it
         # would write (`__drizzle_migrations`) is read by no test in this suite.
-        run: psql -v ON_ERROR_STOP=1 "$TEST_DATABASE_URL" -f apps/backend/drizzle/migrations/0000_baseline.sql
+        #
+        # Driven by the journal, NOT by naming `0000_baseline.sql`. The old
+        # hard-coded filename silently applied the FIRST migration only, so a
+        # later one (0002) was present on disk but never ran here — the tests
+        # then exercised a schema the code no longer expects and failed on the
+        # difference, which is CI doing its job but blaming the wrong thing.
+        # Reading `meta/_journal.json` is also what the real migrator does at
+        # boot, so this cannot drift from it again: adding a migration means
+        # adding a journal entry (see `drizzle-kit generate --custom`).
+        run: |
+          for tag in $(jq -r '.entries | sort_by(.when) | .[] | .tag' apps/backend/drizzle/migrations/meta/_journal.json); do
+            echo "applying $tag"
+            psql -v ON_ERROR_STOP=1 "$TEST_DATABASE_URL" -f "apps/backend/drizzle/migrations/$tag.sql"
+          done
 
       - name: Install deps + test
         run: |

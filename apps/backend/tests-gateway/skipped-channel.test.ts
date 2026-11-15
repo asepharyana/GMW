@@ -447,30 +447,53 @@ describe("a single exempt thread inside a moderated channel", () => {
 })
 
 describe("the migration baseline", () => {
-	test("one migration, and its ledger row is what marks it applied", async () => {
+	test("the journal is contiguous and every entry has a file", async () => {
 		if (!reachable) return
 		// The migration history was squashed from 28 files to a single baseline.
 		// What replaced the old sentinel machinery is the simplest possible
-		// invariant, and this is the test that holds it in place: the journal has
-		// exactly ONE entry, and a database is fully migrated only when that one
-		// entry is recorded in __drizzle_migrations.
+		// invariant, and this is the test that holds it in place: a database is
+		// fully migrated only when every journal entry is recorded in
+		// __drizzle_migrations.
 		//
 		// The sentinel this replaces had twice stamped a migration applied WITHOUT
 		// running it, so production booted healthy against a schema missing its
-		// `verdicts` table. That failure mode is not possible when there is a single
-		// migration to be wrong about — but only as long as it stays a single
-		// migration, which is what the entry count below pins.
-		const { readFile } = await import("node:fs/promises")
+		// `verdicts` table. The property that keeps that failure mode impossible is
+		// NOT "there is exactly one migration" — 0002 (deleted rows leave the
+		// queue) is a legitimate second one. It is that the journal Drizzle reads
+		// and the files on disk agree, in order, with no gaps: a `.sql` file that
+		// no journal entry names is never executed (the migrator only reads the
+		// journal), and a journal entry with no file throws at boot.
+		//
+		// That exact mismatch happened here: a hand-written `0001_*.sql` was added
+		// without a journal entry, so it would have deployed while doing nothing.
+		// The file was re-created as 0002 through `drizzle-kit generate --custom`,
+		// which is what writes the journal. This test is the guard.
+		const { readFile, readdir } = await import("node:fs/promises")
 		const journal = JSON.parse(
 			await readFile(
 				new URL("../drizzle/migrations/meta/_journal.json", import.meta.url),
 				"utf-8",
 			),
-		) as { entries: Array<{ idx: number; tag: string }> }
+		) as { entries: Array<{ idx: number; tag: string; when: number }> }
 
-		expect(journal.entries).toHaveLength(1)
-		expect(journal.entries[0].idx).toBe(0)
+		// Contiguous indices from 0, in the order the migrator applies them.
+		expect(journal.entries.map((e) => e.idx)).toEqual(
+			journal.entries.map((_, i) => i),
+		)
+		// The migrator applies "everything newer than MAX(created_at)", so a
+		// non-monotonic `when` silently skips an entry.
+		const when = journal.entries.map((e) => e.when)
+		expect(when).toEqual([...when].sort((a, b) => a - b))
+		// The baseline must still be the one that builds the schema.
 		expect(journal.entries[0].tag).toBe("0000_baseline")
+
+		// Every entry has its file, and no file is orphaned from the journal.
+		const dir = new URL("../drizzle/migrations/", import.meta.url)
+		const files = (await readdir(dir))
+			.filter((f) => f.endsWith(".sql"))
+			.map((f) => f.replace(/\.sql$/, ""))
+			.sort()
+		expect(journal.entries.map((e) => e.tag).sort()).toEqual(files)
 
 		// And the schema that baseline describes must be the one actually live: the
 		// tables the application reads must all exist, and the queue function the
@@ -515,5 +538,13 @@ describe("the migration baseline", () => {
 		expect(fn).toHaveLength(1)
 		expect(fn[0].args).toContain("p_worker_id")
 		expect(fn[0].args).toContain("p_excluded_channel_ids")
+
+		// 0002 is applied, not merely present on disk. The trigger is the half of
+		// it that keeps the queue drained from here on, so testing for it is the
+		// cheapest proof that the statement actually ran.
+		const { rows: trigger } = await pool.query<{ tgname: string }>(
+			"SELECT tgname FROM pg_trigger WHERE tgname = 'messages_deleted_dequeue'",
+		)
+		expect(trigger).toHaveLength(1)
 	})
 })

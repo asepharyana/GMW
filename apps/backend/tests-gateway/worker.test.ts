@@ -325,7 +325,45 @@ describe("moderation worker state machine", () => {
 			"SELECT count(*)::int n FROM verdicts WHERE message_id IN ('w-1','w-2')",
 		)
 		expect(rows[0].n).toBe(0)
-		expect(await statesOf()).toEqual({ analyzed: 2, pending: 2 })
+		// `skipped`, not `pending`: a deletion takes the row out of the queue, so
+		// it is not left lying there as work the worker is refusing to pick up.
+		// See migration 0002 and the test below.
+		expect(await statesOf()).toEqual({ analyzed: 2, skipped: 2 })
+	})
+
+	/*
+	 * The stuck-in-queue bug, reproduced.
+	 *
+	 * `claim_messages()` skips `deleted_at IS NOT NULL` rows but never moves
+	 * them out of the queue, so a message a MODERATOR deleted while it was still
+	 * `pending` kept the Queued badge forever: the worker would not touch it,
+	 * nothing re-pended it, and no count could ever explain it. The dashboard
+	 * showed "Queued" + "Deleted by moderator" on the same card, which reads as
+	 * "this is still in the queue and you are waiting on it" — and it was, for
+	 * the rest of the server's life.
+	 */
+	test("a message deleted while still pending leaves the queue", async () => {
+		if (!reachable) return expect(true).toBe(true)
+		await seed(3)
+		await pool.query(
+			`UPDATE messages SET deleted_at = (extract(epoch from now())*1000)::bigint
+        WHERE id = 'w-2'`,
+		)
+
+		const w = new ModerationWorker(
+			pool as never,
+			scriptedGateway((req) => responseFor(req)),
+			cfg(),
+		)
+		await w.runOnce()
+
+		const { rows } = await pool.query<{ ai_status: string }>(
+			"SELECT ai_status FROM messages WHERE id = 'w-2'",
+		)
+		// Same terminal state as a skip: captured, never judged, never offered
+		// again. Not `dead` — nothing failed — and not `analyzed`, because no
+		// verdict exists and the model never saw the text (it is gone from Discord).
+		expect(rows[0].ai_status).toBe("skipped")
 	})
 
 	test("a claimed message reports its post-increment attempt number", async () => {

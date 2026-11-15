@@ -8,6 +8,13 @@
       "when": 1791176000000,
       "tag": "0000_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794737548045,
+      "tag": "0002_deleted_messages_leave_the_queue",
+      "breakpoints": true
     }
   ]
 }

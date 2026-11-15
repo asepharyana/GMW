@@ -179,6 +179,48 @@ export function pipelineLabel(
 	}
 }
 
+/**
+ * The pipeline label to show for a message, given what has happened to it.
+ *
+ * A message can leave the queue without ever being judged: the author or a
+ * moderator deletes it before a worker gets to it. `deleted_at` was set, but
+ * `ai_status` still read `pending`, so the card printed
+ *
+ *     Queued        Deleted by moderator
+ *
+ * side by side — a row presented as still waiting in line that no worker would
+ * ever claim. That is not a stale ordering problem, it is a stuck queue, and it
+ * is why `pipelineLabel(status)` alone is the wrong function to call here.
+ *
+ * Migration 0001 now moves such rows to `skipped`, so the database no longer
+ * produces the combination. This guard stays anyway, for two reasons: rows
+ * written before that migration are still in the table, and the dashboard's
+ * live feed keeps its own copy of a message between an edit and the next
+ * refetch. Both would otherwise keep rendering "Queued" on a deleted message.
+ *
+ * A `claimed` row keeps its `Analyzing` label: a worker really does hold it, and
+ * relabelling it here would contradict what the worker is about to report.
+ */
+export function pipelineLabelFor(message: {
+	ai_status?: TPipelineStatus | null
+	deleted_at?: number | null
+}): string {
+	// Only the two QUEUE states are rewritten. `analyzed`, `skipped` and `dead`
+	// are already terminal, and an analyzed message that was deleted afterwards
+	// is a different fact entirely — the model did judge it, and the card must
+	// still say so. `claimed` keeps its label: a worker really does hold it, and
+	// relabelling mid-flight would contradict the verdict it is about to publish.
+	if (
+		message.deleted_at != null &&
+		(message.ai_status === "pending" || message.ai_status === "retry_wait")
+	) {
+		// Matches `pipelineLabel("skipped")`: not an error, and not queued —
+		// nothing is going to judge it, because there is nothing left to judge.
+		return "Not moderated"
+	}
+	return pipelineLabel(message.ai_status)
+}
+
 export function pipelineTone(
 	status: TPipelineStatus | null | undefined,
 ): TVerdictTone {

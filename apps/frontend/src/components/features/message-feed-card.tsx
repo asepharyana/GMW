@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { MessageMedia } from "#/components/features/message-media"
 import { Badge, type TTone } from "#/components/ui/tone"
 import {
-	pipelineLabel,
+	pipelineLabelFor,
 	pipelineTone,
 	deletedBy as resolveDeletedBy,
 	verdictLabel,
@@ -215,7 +215,7 @@ export function MessageFeedCard({
 
 				{showPipeline && (
 					<Badge tone={pipelineTone(message.ai_status)}>
-						{pipelineLabel(message.ai_status)}
+						{pipelineLabelFor(message)}
 					</Badge>
 				)}
 
