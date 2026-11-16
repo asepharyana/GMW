@@ -4,6 +4,7 @@ import type * as schema from "../../database/schema.js"
 import { retentionPoliciesTable } from "../../database/schema.js"
 import { createChildLogger, type Logger } from "../../logger/index.js"
 import type { RetentionPolicy } from "./types.js"
+import { withErrorLog } from "./withErrorLog.js"
 
 // ─── RetentionDb Class ──────────────────────────────────────────────────────
 
@@ -30,42 +31,37 @@ export class RetentionDb {
 		channelId?: string,
 	): Promise<RetentionPolicy | null> {
 		this.logger.debug({ guildId, channelId }, "getRetentionPolicy entry")
-		try {
-			const conditions = [eq(retentionPoliciesTable.guild_id, guildId)]
+		return withErrorLog(
+			this.logger,
+			{ guildId, channelId },
+			"Failed to get retention policy",
+			async () => {
+				const conditions = [eq(retentionPoliciesTable.guild_id, guildId)]
 
-			// If a channel is specified, look for a channel-specific policy first
-			if (channelId) {
-				const channelRows = await this.db
+				// If a channel is specified, look for a channel-specific policy first
+				if (channelId) {
+					const channelRows = await this.db
+						.select()
+						.from(retentionPoliciesTable)
+						.where(
+							and(
+								...conditions,
+								eq(retentionPoliciesTable.channel_id, channelId),
+							),
+						)
+
+					if (channelRows.length > 0) return channelRows[0] as RetentionPolicy
+				}
+
+				// Fall back to the guild default (channel_id IS NULL)
+				const guildRows = await this.db
 					.select()
 					.from(retentionPoliciesTable)
-					.where(
-						and(
-							...conditions,
-							eq(retentionPoliciesTable.channel_id, channelId),
-						),
-					)
+					.where(and(...conditions, isNull(retentionPoliciesTable.channel_id)))
 
-				if (channelRows.length > 0) return channelRows[0] as RetentionPolicy
-			}
-
-			// Fall back to the guild default (channel_id IS NULL)
-			const guildRows = await this.db
-				.select()
-				.from(retentionPoliciesTable)
-				.where(and(...conditions, isNull(retentionPoliciesTable.channel_id)))
-
-			return (guildRows[0] as RetentionPolicy) || null
-		} catch (error) {
-			this.logger.error(
-				{
-					guildId,
-					channelId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to get retention policy",
-			)
-			throw error
-		}
+				return (guildRows[0] as RetentionPolicy) || null
+			},
+		)
 	}
 
 	async upsertRetentionPolicy(
@@ -75,60 +71,58 @@ export class RetentionDb {
 			{ guildId: policy.guild_id, channelId: policy.channel_id },
 			"upsertRetentionPolicy entry",
 		)
-		try {
-			const now = Date.now()
+		return withErrorLog(
+			this.logger,
+			{ guildId: policy.guild_id },
+			"Failed to upsert retention policy",
+			async () => {
+				const now = Date.now()
 
-			// Find existing policy that matches guild + optional channel
-			const conditions = [eq(retentionPoliciesTable.guild_id, policy.guild_id)]
-			if (policy.channel_id) {
-				conditions.push(
-					eq(retentionPoliciesTable.channel_id, policy.channel_id),
-				)
-			} else {
-				conditions.push(isNull(retentionPoliciesTable.channel_id))
-			}
+				// Find existing policy that matches guild + optional channel
+				const conditions = [
+					eq(retentionPoliciesTable.guild_id, policy.guild_id),
+				]
+				if (policy.channel_id) {
+					conditions.push(
+						eq(retentionPoliciesTable.channel_id, policy.channel_id),
+					)
+				} else {
+					conditions.push(isNull(retentionPoliciesTable.channel_id))
+				}
 
-			const existing = await this.db
-				.select({ id: retentionPoliciesTable.id })
-				.from(retentionPoliciesTable)
-				.where(and(...conditions))
-				.limit(1)
+				const existing = await this.db
+					.select({ id: retentionPoliciesTable.id })
+					.from(retentionPoliciesTable)
+					.where(and(...conditions))
+					.limit(1)
 
-			const existingRow = existing[0]
-			if (existingRow) {
+				const existingRow = existing[0]
+				if (existingRow) {
+					const rows = (await this.db
+						.update(retentionPoliciesTable)
+						.set({
+							...policy,
+							updated_at: now,
+						})
+						.where(eq(retentionPoliciesTable.id, existingRow.id))
+						.returning()) as RetentionPolicy[]
+
+					return rows[0] as RetentionPolicy
+				}
+
+				const id = `policy-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 				const rows = (await this.db
-					.update(retentionPoliciesTable)
-					.set({
+					.insert(retentionPoliciesTable)
+					.values({
 						...policy,
+						id,
+						created_at: now,
 						updated_at: now,
 					})
-					.where(eq(retentionPoliciesTable.id, existingRow.id))
 					.returning()) as RetentionPolicy[]
 
 				return rows[0] as RetentionPolicy
-			}
-
-			const id = `policy-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-			const rows = (await this.db
-				.insert(retentionPoliciesTable)
-				.values({
-					...policy,
-					id,
-					created_at: now,
-					updated_at: now,
-				})
-				.returning()) as RetentionPolicy[]
-
-			return rows[0] as RetentionPolicy
-		} catch (error) {
-			this.logger.error(
-				{
-					guildId: policy.guild_id,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to upsert retention policy",
-			)
-			throw error
-		}
+			},
+		)
 	}
 }

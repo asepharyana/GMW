@@ -6,7 +6,6 @@ import {
 	gte,
 	inArray,
 	isNotNull,
-	lt,
 	ne,
 	or,
 	type SQL,
@@ -15,6 +14,8 @@ import {
 import { summarizeAttemptOutcomes } from "../../domain/moderation-types.js"
 import { readChannelName } from "../../domain/utils/channelName.js"
 import { localHour } from "../../domain/utils/localTime.js"
+import { encodeCursor } from "../../domain/utils/pagination.js"
+import { buildCursorCondition } from "../database/cursor.js"
 import type { DatabaseHandle } from "../database/handle.js"
 import {
 	analysisAttemptsTable,
@@ -27,7 +28,7 @@ export interface ListModerationQuery {
 	status?: string
 	actionType?: string
 	limit?: number
-	cursor?: number
+	cursor?: string | number
 }
 
 const ACTION_TYPES = ["delete_message", "reset_nickname"] as const
@@ -88,8 +89,57 @@ function parseJsonArray(value: unknown): string[] | null {
 	}
 }
 
+/** How much of a message the moderation tables echo back to the dashboard. */
+const CONTENT_SNIPPET_CHARS = 300
+
+/** Distinct, non-empty `message_id`s of a set of action rows. */
+function uniqueMessageIds(
+	rows: Array<{ message_id: string | null }>,
+): string[] {
+	return [
+		...new Set(
+			rows.map((r) => r.message_id).filter((id): id is string => !!id),
+		),
+	]
+}
+
+/**
+ * Truncated content for an action's message, or null when there is no message
+ * or its content was not found. Truncated here because the query builder has no
+ * column-substring operator (the old SQL did `LEFT(m.content, 300)`).
+ */
+function contentSnippet(
+	contents: Map<string, string>,
+	messageId: string | null,
+): string | null {
+	const content = messageId ? contents.get(messageId) : undefined
+	return content === undefined ? null : content.slice(0, CONTENT_SNIPPET_CHARS)
+}
+
 export class ModerationRepository {
 	constructor(private readonly db: DatabaseHandle) {}
+
+	/**
+	 * `id -> content` for the given messages.
+	 *
+	 * `moderation_actions.message_id` has no foreign key, so there is no relation
+	 * to traverse and the old LEFT JOIN to `messages` is reproduced as an
+	 * explicit keyed lookup. Only the ids passed in are fetched, which bounds the
+	 * query to the page the caller is building.
+	 */
+	private async loadMessageContents(
+		messageIds: string[],
+	): Promise<Map<string, string>> {
+		const contents = new Map<string, string>()
+		if (messageIds.length === 0) return contents
+
+		const msgs = await this.db
+			.select({ id: messagesTable.id, content: messagesTable.content })
+			.from(messagesTable)
+			.where(inArray(messagesTable.id, messageIds))
+		for (const m of msgs) contents.set(m.id, m.content)
+		return contents
+	}
 
 	/**
 	 * Headline moderation counts.
@@ -238,12 +288,12 @@ export class ModerationRepository {
 				),
 			)
 		}
-		if (query.cursor) {
-			// `created_at` is epoch milliseconds held as a number, not a timestamp.
-			conditions.push(
-				lt(moderationActionsTable.created_at, Number(query.cursor)),
-			)
-		}
+		const after = buildCursorCondition(
+			moderationActionsTable.created_at,
+			moderationActionsTable.id,
+			query.cursor == null ? undefined : String(query.cursor),
+		)
+		if (after) conditions.push(after)
 
 		// `limit + 1` rows are fetched so the extra row, if present, is the
 		// existence proof for `nextCursor` without a second COUNT query.
@@ -251,19 +301,16 @@ export class ModerationRepository {
 			.select()
 			.from(moderationActionsTable)
 			.where(and(...conditions))
-			.orderBy(desc(moderationActionsTable.created_at))
+			.orderBy(
+				desc(moderationActionsTable.created_at),
+				desc(moderationActionsTable.id),
+			)
 			.limit(limit + 1)
 
-		// `moderation_actions.message_id` has no foreign key, so there is no
-		// relation to traverse; the previous LEFT JOIN to `messages` is reproduced
-		// as an explicit keyed lookup. Only the ids on this page are fetched, which
-		// bounds the second query to at most `limit + 1` keys.
-		const messageIds = [
-			...new Set(
-				rows.map((r) => r.message_id).filter((id): id is string => !!id),
-			),
-		]
-		const contents = new Map<string, string>()
+		// Only the ids on this page are looked up, which bounds the second query
+		// to at most `limit + 1` keys.
+		const messageIds = uniqueMessageIds(rows)
+		const contents = await this.loadMessageContents(messageIds)
 		// The model's actual sentence lives on `verdicts.analysis`, not on the
 		// action row: `moderation_actions.reason` is written by the pipeline as the
 		// action word ("deleted"), so the dashboard's "reason given by the model"
@@ -271,12 +318,6 @@ export class ModerationRepository {
 		// alongside the action, keyed the same way as the content lookup.
 		const analyses = new Map<string, string>()
 		if (messageIds.length > 0) {
-			const msgs = await this.db
-				.select({ id: messagesTable.id, content: messagesTable.content })
-				.from(messagesTable)
-				.where(inArray(messagesTable.id, messageIds))
-			for (const m of msgs) contents.set(m.id, m.content)
-
 			const verdicts = await this.db
 				.select({
 					message_id: verdictsTable.message_id,
@@ -310,19 +351,12 @@ export class ModerationRepository {
 			policy_version: r.policy_version ? String(r.policy_version) : null,
 			username: r.username ? String(r.username) : null,
 			server_nick: r.server_nick ? String(r.server_nick) : null,
-			// Truncated in SQL previously via LEFT(m.content, 300); Prisma has no
-			// column-substring operator, so the cut happens here.
-			content:
-				r.message_id && contents.has(r.message_id)
-					? (contents.get(r.message_id) as string).slice(0, 300)
-					: null,
+			content: contentSnippet(contents, r.message_id),
 		}))
 
 		const lastRow = rows[limit - 1]
 		const nextCursor =
-			rows.length > limit && lastRow?.created_at
-				? String(Number(lastRow.created_at))
-				: null
+			rows.length > limit && lastRow ? encodeCursor(lastRow) : null
 
 		return { data, nextCursor }
 	}
@@ -463,23 +497,7 @@ export class ModerationRepository {
 				),
 			)
 
-		// The previous query joined to `messages` and read `m.content`. That
-		// content is fetched per batch of message ids rather than joined, because
-		// `moderation_actions.message_id` has no foreign key and so no relation to
-		// traverse.
-		const messageIds = [
-			...new Set(
-				actions.map((a) => a.message_id).filter((id): id is string => !!id),
-			),
-		]
-		const contents = new Map<string, string>()
-		if (messageIds.length > 0) {
-			const msgs = await this.db
-				.select({ id: messagesTable.id, content: messagesTable.content })
-				.from(messagesTable)
-				.where(inArray(messagesTable.id, messageIds))
-			for (const m of msgs) contents.set(m.id, m.content)
-		}
+		const contents = await this.loadMessageContents(uniqueMessageIds(actions))
 
 		// Hosts are extracted with the same regex the SQL used
 		// (https?://([^/\s?#]+)), and DISTINCT-per-action is preserved by the Set:
@@ -523,11 +541,7 @@ export class ModerationRepository {
 				),
 			)
 
-		const messageIds = [
-			...new Set(
-				actions.map((a) => a.message_id).filter((id): id is string => !!id),
-			),
-		]
+		const messageIds = uniqueMessageIds(actions)
 
 		// One message can carry several moderation actions, so the metric counts
 		// ACTIONS per channel, not distinct messages. The previous query joined
@@ -634,7 +648,10 @@ export class ModerationRepository {
 			.select()
 			.from(moderationActionsTable)
 			.where(gte(moderationActionsTable.created_at, since))
-			.orderBy(desc(moderationActionsTable.created_at))
+			.orderBy(
+				desc(moderationActionsTable.created_at),
+				desc(moderationActionsTable.id),
+			)
 
 		// The containment test (`normalizer(...) @> ARRAY[category]`) becomes a
 		// membership check against the normalized list, which matches rows in
@@ -644,19 +661,7 @@ export class ModerationRepository {
 			.filter((a) => normalizeCategories(a.categories).includes(category))
 			.slice(0, limit)
 
-		const messageIds = [
-			...new Set(
-				matched.map((r) => r.message_id).filter((id): id is string => !!id),
-			),
-		]
-		const contents = new Map<string, string>()
-		if (messageIds.length > 0) {
-			const msgs = await this.db
-				.select({ id: messagesTable.id, content: messagesTable.content })
-				.from(messagesTable)
-				.where(inArray(messagesTable.id, messageIds))
-			for (const m of msgs) contents.set(m.id, m.content)
-		}
+		const contents = await this.loadMessageContents(uniqueMessageIds(matched))
 
 		return matched.map((r) => ({
 			id: String(r.id ?? ""),
@@ -671,10 +676,7 @@ export class ModerationRepository {
 			score: r.score != null ? Number(r.score) : null,
 			username: r.username ? String(r.username) : null,
 			server_nick: r.server_nick ? String(r.server_nick) : null,
-			content:
-				r.message_id && contents.has(r.message_id)
-					? (contents.get(r.message_id) as string).slice(0, 300)
-					: null,
+			content: contentSnippet(contents, r.message_id),
 		}))
 	}
 

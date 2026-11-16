@@ -1,7 +1,9 @@
 import type { IncomingMessage, Server } from "node:http"
 import type { Duplex } from "node:stream"
 import { WebSocket, WebSocketServer } from "ws"
+import { z } from "zod"
 import type { MessageQuery } from "../../application/messages/messages.schema.js"
+import { encodeCursor } from "../../domain/utils/pagination.js"
 import { createChildLogger } from "../../infrastructure/logger/index.js"
 import type { UseCases } from "../composition.js"
 import { setBroadcastFunctions } from "./broadcast.js"
@@ -19,13 +21,23 @@ interface JsonMessage {
 	payload?: Record<string, unknown>
 }
 
-/** Payload accepted by the `stream_messages` JSON command. */
-interface StreamMessagesPayload {
-	guildId?: string
-	channelId?: string
-	cursor?: string
-	limit?: number
-}
+/** Validate the JSON transport before its values reach a query or frame cap. */
+const streamMessagesSchema = z
+	.object({
+		guildId: z.string().trim().min(1).optional(),
+		channelId: z.string().trim().min(1).optional(),
+		cursor: z.string().optional(),
+		limit: z
+			.number()
+			.int()
+			.positive()
+			.transform((value) => Math.min(value, 500))
+			.default(200),
+	})
+	.refine(
+		(value) => value.guildId || value.channelId,
+		"guildId or channelId is required",
+	)
 
 // Track the active WebSocket server for lifecycle management
 let _wss: WebSocketServer | null = null
@@ -99,16 +111,6 @@ export function createWebSocketServer(
 
 	jsonHandlers.set("stream_messages", async (ws, message) => {
 		if (ws.readyState !== WebSocket.OPEN) return
-		const payload = (message.payload ?? {}) as StreamMessagesPayload
-		const guildId = payload.guildId
-		const channelId = payload.channelId
-		if (!guildId && !channelId) {
-			logger.warn({ payload }, "stream_messages requires guildId or channelId")
-			return
-		}
-
-		const pageSize = 50 // internal DB page size; still emitted one frame at a time
-		const maxFrames = Math.min(payload.limit ?? 200, 500)
 
 		/** Send the end-of-stream frame, reporting sent count + next cursor. */
 		function sendEnd(data: Record<string, unknown>): void {
@@ -120,6 +122,20 @@ export function createWebSocketServer(
 				}),
 			)
 		}
+
+		const parsed = streamMessagesSchema.safeParse(message.payload ?? {})
+		if (!parsed.success) {
+			logger.debug(
+				{ issues: parsed.error.issues },
+				"Invalid stream_messages payload",
+			)
+			sendEnd({ sent: 0, nextCursor: null, error: true })
+			return
+		}
+		const payload = parsed.data
+		const { guildId, channelId } = payload
+		const pageSize = 50
+		const maxFrames = payload.limit
 
 		let sent = 0
 		let nextCursor: string | null = null
@@ -133,10 +149,9 @@ export function createWebSocketServer(
 				pageSize,
 			)) {
 				if (ws.readyState !== WebSocket.OPEN) break
-				// Streamed DESC (newest first); the oldest emitted carries the smallest
-				// created_at, which is exactly the next-page cursor for "load older".
-				const createdAt = (msg as { created_at?: number }).created_at
-				if (createdAt !== undefined) nextCursor = String(createdAt)
+				// The same composite cursor as REST keeps same-millisecond messages
+				// reachable when a frame cap ends a stream in the middle of a tie.
+				nextCursor = encodeCursor(msg)
 				ws.send(
 					JSON.stringify({
 						type: "message_snapshot",

@@ -7,6 +7,7 @@ import { messagesTable } from "../../database/schema.js"
 import { createChildLogger, type Logger } from "../../logger/index.js"
 import { channelOrThreadCondition } from "./messagesCrud.js"
 import type { MessageQuery, MessageRecord, PageResult } from "./types.js"
+import { withErrorLog } from "./withErrorLog.js"
 
 /** The only values `messages.ai_status` can hold (see migration 0020). */
 const QUEUE_STATES = [
@@ -102,33 +103,29 @@ export class MessagesPagination {
 
 	async listMessages(query: MessageQuery): Promise<PageResult<MessageRecord>> {
 		this.logger.debug({ query }, "listMessages entry")
-		try {
-			const conditions = buildListMessageConditions(query)
-			// Clamp. `limit` reaches this from the dashboard, and the other two
-			// paginated readers (reviews, moderation actions) already clamp:
-			//   limit = 0  → .limit(1), hasMore true, data [], lastItem undefined
-			//                 → nextCursor null: an empty page the client cannot
-			//                   advance past. A silent dead end, no error.
-			//   limit < 0  → a Drizzle error.
-			const limit = Math.max(1, Math.min(query.limit || 50, 200))
-			const rows = await this.db
-				.select()
-				.from(messagesTable)
-				.where(conditions.length > 0 ? and(...conditions) : undefined)
-				.orderBy(desc(messagesTable.created_at), desc(messagesTable.id))
-				.limit(limit + 1)
+		return withErrorLog(
+			this.logger,
+			{ query },
+			"Failed to list messages",
+			async () => {
+				const conditions = buildListMessageConditions(query)
+				// Clamp. `limit` reaches this from the dashboard, and the other two
+				// paginated readers (reviews, moderation actions) already clamp:
+				//   limit = 0  → .limit(1), hasMore true, data [], lastItem undefined
+				//                 → nextCursor null: an empty page the client cannot
+				//                   advance past. A silent dead end, no error.
+				//   limit < 0  → a Drizzle error.
+				const limit = Math.max(1, Math.min(query.limit || 50, 200))
+				const rows = await this.db
+					.select()
+					.from(messagesTable)
+					.where(conditions.length > 0 ? and(...conditions) : undefined)
+					.orderBy(desc(messagesTable.created_at), desc(messagesTable.id))
+					.limit(limit + 1)
 
-			return pageResult<MessageRecord>(rows, limit)
-		} catch (error) {
-			this.logger.error(
-				{
-					query,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to list messages",
-			)
-			throw error
-		}
+				return pageResult<MessageRecord>(rows, limit)
+			},
+		)
 	}
 
 	/**

@@ -9,8 +9,7 @@ import {
 import { MessageFeedCard } from "#/components/features/message-feed-card"
 import { ChannelPicker, GuildPicker } from "#/components/features/pickers"
 import {
-	InfiniteScrollSentinel,
-	LoadMoreFallback,
+	PagedFooter,
 	usePagedCount,
 	useScrollReset,
 } from "#/components/ui/infinite-scroll"
@@ -406,17 +405,12 @@ export function MessagesView({
 								</ul>
 								{/* The sentinel only renders while another page exists, so
                     there is nothing to scroll past the last page. */}
-								<InfiniteScrollSentinel
+								<PagedFooter
 									onLoadMore={() => void messages.fetchNextPage()}
 									hasMore={messages.hasNextPage}
 									isFetching={messages.isFetchingNextPage}
-									label="feed"
-								/>
-								<LoadMoreFallback
-									onLoadMore={() => void messages.fetchNextPage()}
-									hasMore={messages.hasNextPage}
-									isFetching={messages.isFetchingNextPage}
-									label="messages"
+									sentinelLabel="feed"
+									fallbackLabel="messages"
 								/>
 							</>
 						)}
@@ -515,20 +509,13 @@ function EnforcementLog({
 					</li>
 				))}
 			</ul>
-			<p className="mt-4 text-center font-mono text-micro text-ink-muted uppercase">
-				{progress.label}
-			</p>
-			<InfiniteScrollSentinel
+			<PagedFooter
 				onLoadMore={onLoadMore}
 				hasMore={hasMore}
 				isFetching={isLoadingMore}
-				label="enforced messages"
-			/>
-			<LoadMoreFallback
-				onLoadMore={onLoadMore}
-				hasMore={hasMore}
-				isFetching={isLoadingMore}
-				label="enforcement log entries"
+				progressLabel={progress.label}
+				sentinelLabel="enforced messages"
+				fallbackLabel="enforcement log entries"
 			/>
 		</>
 	)
@@ -602,20 +589,13 @@ function EditHistory({
 					</li>
 				))}
 			</ul>
-			<p className="mt-4 text-center font-mono text-micro text-ink-muted uppercase">
-				{progress.label}
-			</p>
-			<InfiniteScrollSentinel
+			<PagedFooter
 				onLoadMore={onLoadMore}
 				hasMore={hasMore}
 				isFetching={isLoadingMore}
-				label="edits"
-			/>
-			<LoadMoreFallback
-				onLoadMore={onLoadMore}
-				hasMore={hasMore}
-				isFetching={isLoadingMore}
-				label="edit history entries"
+				progressLabel={progress.label}
+				sentinelLabel="edits"
+				fallbackLabel="edit history entries"
 			/>
 		</>
 	)

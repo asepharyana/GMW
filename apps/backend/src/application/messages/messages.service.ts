@@ -96,13 +96,14 @@ export class MessagesService {
 	async getImageMessages(
 		guildId: string,
 		limit?: number,
+		cursor?: string,
 	): Promise<ReturnType<MessagesRepository["getImageMessages"]>> {
 		if (!guildId) {
 			throw new ValidationError("guildId is required")
 		}
 
 		logger.debug({ guildId, limit }, "Getting image messages")
-		return this.repository.getImageMessages(guildId, limit)
+		return this.repository.getImageMessages(guildId, limit, cursor)
 	}
 
 	async getReviewMessages(

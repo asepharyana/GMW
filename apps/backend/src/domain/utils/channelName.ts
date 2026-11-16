@@ -1,4 +1,31 @@
 /**
+ * Walk `metadata.channel.channelName`, parsing `metadata` first when it is the
+ * raw JSON string. Returns the string exactly as stored (including ""), or
+ * undefined when the value is null, unparseable, or lacks the path — the JS
+ * equivalent of the SQL expression evaluating to NULL.
+ */
+function extractChannelName(metadata: unknown): string | undefined {
+	if (typeof metadata === "string") {
+		if (metadata === "") return undefined
+		let parsed: unknown
+		try {
+			parsed = JSON.parse(metadata)
+		} catch {
+			// A malformed cell used to make the `::jsonb` cast abort the whole
+			// query. One unreadable row must not take out the entire page.
+			return undefined
+		}
+		return extractChannelName(parsed)
+	}
+
+	if (metadata == null || typeof metadata !== "object") return undefined
+	const channel = (metadata as Record<string, unknown>).channel
+	if (channel == null || typeof channel !== "object") return undefined
+	const name = (channel as Record<string, unknown>).channelName
+	return typeof name === "string" ? name : undefined
+}
+
+/**
  * Read `messages.metadata -> 'channel' ->> 'channelName'`.
  *
  * Prisma's query builder has no `->>` path expression, so the JSON traversal
@@ -16,24 +43,8 @@
  * COALESCE(NULLIF(...), channel_id) shape.
  */
 export function readChannelName(metadata: unknown): string | undefined {
-	if (typeof metadata === "string") {
-		if (metadata === "") return undefined
-		let parsed: unknown
-		try {
-			parsed = JSON.parse(metadata)
-		} catch {
-			// A malformed cell used to make the `::jsonb` cast abort the whole
-			// query. One unreadable row must not take out the entire page.
-			return undefined
-		}
-		return readChannelName(parsed)
-	}
-
-	if (metadata == null || typeof metadata !== "object") return undefined
-	const channel = (metadata as Record<string, unknown>).channel
-	if (channel == null || typeof channel !== "object") return undefined
-	const name = (channel as Record<string, unknown>).channelName
-	return typeof name === "string" && name !== "" ? name : undefined
+	const name = extractChannelName(metadata)
+	return name === "" ? undefined : name
 }
 
 /**
@@ -47,19 +58,5 @@ export function readChannelName(metadata: unknown): string | undefined {
  * expression evaluating to SQL NULL.
  */
 export function rawChannelName(metadata: unknown): string | undefined {
-	if (typeof metadata === "string") {
-		if (metadata === "") return undefined
-		let parsed: unknown
-		try {
-			parsed = JSON.parse(metadata)
-		} catch {
-			return undefined
-		}
-		return rawChannelName(parsed)
-	}
-	if (metadata == null || typeof metadata !== "object") return undefined
-	const channel = (metadata as Record<string, unknown>).channel
-	if (channel == null || typeof channel !== "object") return undefined
-	const name = (channel as Record<string, unknown>).channelName
-	return typeof name === "string" ? name : undefined
+	return extractChannelName(metadata)
 }

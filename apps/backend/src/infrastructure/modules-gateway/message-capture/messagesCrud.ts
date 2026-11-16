@@ -5,6 +5,7 @@ import { messageEditsTable, messagesTable } from "../../database/schema.js"
 import { createChildLogger, type Logger } from "../../logger/index.js"
 import { traceId } from "../ai-moderation/trace.js"
 import type { MessageRecord } from "./types.js"
+import { withErrorLog } from "./withErrorLog.js"
 
 type MessageInsert = typeof messagesTable.$inferInsert
 
@@ -34,21 +35,16 @@ export class MessagesCrud {
 
 	async insertMessage(message: MessageRecord): Promise<void> {
 		this.logger.debug({ messageId: message.id }, "insertMessage entry")
-		try {
-			await this.db
-				.insert(messagesTable)
-				.values(message as MessageInsert)
-				.onConflictDoNothing()
-		} catch (error) {
-			this.logger.error(
-				{
-					messageId: message.id,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to insert message",
-			)
-			throw error
-		}
+		await withErrorLog(
+			this.logger,
+			{ messageId: message.id },
+			"Failed to insert message",
+			() =>
+				this.db
+					.insert(messagesTable)
+					.values(message as MessageInsert)
+					.onConflictDoNothing(),
+		)
 	}
 
 	async upsertMessageForCapture(message: MessageRecord): Promise<boolean> {
@@ -56,59 +52,55 @@ export class MessagesCrud {
 			{ messageId: message.id },
 			"upsertMessageForCapture entry",
 		)
-		try {
-			const messageWithAIStatus = {
-				...message,
-				ai_status: "pending" as const,
-			}
+		return withErrorLog(
+			this.logger,
+			{ messageId: message.id },
+			"Failed to upsert message for capture",
+			async () => {
+				const messageWithAIStatus = {
+					...message,
+					ai_status: "pending" as const,
+				}
 
-			const rows = await this.db
-				.insert(messagesTable)
-				.values(messageWithAIStatus as MessageInsert)
-				.onConflictDoNothing()
-				.returning({ id: messagesTable.id })
+				const rows = await this.db
+					.insert(messagesTable)
+					.values(messageWithAIStatus as MessageInsert)
+					.onConflictDoNothing()
+					.returning({ id: messagesTable.id })
 
-			// Stage 1 of the trace. `inserted` distinguishes a genuinely new message
-			// from a re-delivery (edits, gateway reconnects replaying history), which
-			// is the difference between "queued for analysis" and "already known" —
-			// worth one line, because a duplicate-delivery storm looks exactly like a
-			// capture failure otherwise.
-			if (rows.length > 0) {
-				this.logger.info(
-					{
-						trace: traceId(message.id),
-						messageId: message.id,
-						stage: "captured",
-						channelId: message.channel_id,
-						authorId: message.user_id,
-						contentChars: (message.content ?? "").length,
-						inserted: true,
-					},
-					"message captured; queued for analysis",
-				)
-			} else {
-				this.logger.debug(
-					{
-						trace: traceId(message.id),
-						messageId: message.id,
-						stage: "captured",
-						inserted: false,
-					},
-					"message already stored; not re-queued",
-				)
-			}
+				// Stage 1 of the trace. `inserted` distinguishes a genuinely new message
+				// from a re-delivery (edits, gateway reconnects replaying history), which
+				// is the difference between "queued for analysis" and "already known" —
+				// worth one line, because a duplicate-delivery storm looks exactly like a
+				// capture failure otherwise.
+				if (rows.length > 0) {
+					this.logger.info(
+						{
+							trace: traceId(message.id),
+							messageId: message.id,
+							stage: "captured",
+							channelId: message.channel_id,
+							authorId: message.user_id,
+							contentChars: (message.content ?? "").length,
+							inserted: true,
+						},
+						"message captured; queued for analysis",
+					)
+				} else {
+					this.logger.debug(
+						{
+							trace: traceId(message.id),
+							messageId: message.id,
+							stage: "captured",
+							inserted: false,
+						},
+						"message already stored; not re-queued",
+					)
+				}
 
-			return rows.length > 0
-		} catch (error) {
-			this.logger.error(
-				{
-					messageId: message.id,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to upsert message for capture",
-			)
-			throw error
-		}
+				return rows.length > 0
+			},
+		)
 	}
 
 	// ── UPDATE ──────────────────────────────────────────────────────────────────
@@ -126,34 +118,30 @@ export class MessagesCrud {
 		metadata?: string,
 	): Promise<void> {
 		this.logger.debug({ messageId }, "updateMessageAsEdited entry")
-		try {
-			await this.db
-				.update(messagesTable)
-				.set({
-					edited_content: editedContent,
-					edited_at: editedAt,
-					type: "edited",
-					...(metadata !== undefined ? { metadata } : {}),
-					ai_status: "pending",
-					ai_moderation_flags: null,
-					ai_moderation_score: null,
-					ai_analysis: null,
-					ai_categories: null,
-					ai_confidence: null,
-					ai_analyzed_at: null,
-					ai_error: null,
-				})
-				.where(eq(messagesTable.id, messageId))
-		} catch (error) {
-			this.logger.error(
-				{
-					messageId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to update message as edited",
-			)
-			throw error
-		}
+		await withErrorLog(
+			this.logger,
+			{ messageId },
+			"Failed to update message as edited",
+			async () => {
+				await this.db
+					.update(messagesTable)
+					.set({
+						edited_content: editedContent,
+						edited_at: editedAt,
+						type: "edited",
+						...(metadata !== undefined ? { metadata } : {}),
+						ai_status: "pending",
+						ai_moderation_flags: null,
+						ai_moderation_score: null,
+						ai_analysis: null,
+						ai_categories: null,
+						ai_confidence: null,
+						ai_analyzed_at: null,
+						ai_error: null,
+					})
+					.where(eq(messagesTable.id, messageId))
+			},
+		)
 	}
 
 	async updateMessageAsDeleted(
@@ -161,24 +149,19 @@ export class MessagesCrud {
 		deletedAt: number,
 	): Promise<void> {
 		this.logger.debug({ messageId }, "updateMessageAsDeleted entry")
-		try {
-			await this.db
-				.update(messagesTable)
-				.set({
-					deleted_at: deletedAt,
-					type: "deleted",
-				})
-				.where(eq(messagesTable.id, messageId))
-		} catch (error) {
-			this.logger.error(
-				{
-					messageId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to update message as deleted",
-			)
-			throw error
-		}
+		await withErrorLog(
+			this.logger,
+			{ messageId },
+			"Failed to update message as deleted",
+			() =>
+				this.db
+					.update(messagesTable)
+					.set({
+						deleted_at: deletedAt,
+						type: "deleted",
+					})
+					.where(eq(messagesTable.id, messageId)),
+		)
 	}
 
 	// ── EDIT HISTORY ──────────────────────────────────────────────────────────────
@@ -189,25 +172,20 @@ export class MessagesCrud {
 		editedAt: number,
 	): Promise<void> {
 		this.logger.debug({ messageId }, "insertMessageEdit entry")
-		try {
-			await this.db
-				.insert(messageEditsTable)
-				.values({
-					message_id: messageId,
-					old_content: oldContent,
-					edited_at: editedAt,
-				})
-				.onConflictDoNothing()
-		} catch (error) {
-			this.logger.error(
-				{
-					messageId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to insert message edit",
-			)
-			throw error
-		}
+		await withErrorLog(
+			this.logger,
+			{ messageId },
+			"Failed to insert message edit",
+			() =>
+				this.db
+					.insert(messageEditsTable)
+					.values({
+						message_id: messageId,
+						old_content: oldContent,
+						edited_at: editedAt,
+					})
+					.onConflictDoNothing(),
+		)
 	}
 
 	// ── GET ─────────────────────────────────────────────────────────────────────
@@ -222,52 +200,44 @@ export class MessagesCrud {
 			{ channelId, limit, offset, guildId },
 			"getMessagesByChannel entry",
 		)
-		try {
-			const conditions: SQL[] = [channelOrThreadCondition(channelId)]
+		return withErrorLog(
+			this.logger,
+			{ channelId },
+			"Failed to get messages by channel",
+			async () => {
+				const conditions: SQL[] = [channelOrThreadCondition(channelId)]
 
-			if (guildId) {
-				conditions.push(eq(messagesTable.guild_id, guildId))
-			}
+				if (guildId) {
+					conditions.push(eq(messagesTable.guild_id, guildId))
+				}
 
-			const rows = await this.db
-				.select()
-				.from(messagesTable)
-				.where(and(...conditions))
-				.orderBy(desc(messagesTable.created_at), desc(messagesTable.id))
-				.limit(limit)
-				.offset(offset)
+				const rows = await this.db
+					.select()
+					.from(messagesTable)
+					.where(and(...conditions))
+					.orderBy(desc(messagesTable.created_at), desc(messagesTable.id))
+					.limit(limit)
+					.offset(offset)
 
-			return rows as MessageRecord[]
-		} catch (error) {
-			this.logger.error(
-				{
-					channelId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to get messages by channel",
-			)
-			throw error
-		}
+				return rows as MessageRecord[]
+			},
+		)
 	}
 
 	async getMessageById(messageId: string): Promise<MessageRecord | null> {
 		this.logger.debug({ messageId }, "getMessageById entry")
-		try {
-			const rows = await this.db
-				.select()
-				.from(messagesTable)
-				.where(eq(messagesTable.id, messageId))
+		return withErrorLog(
+			this.logger,
+			{ messageId },
+			"Failed to get message by id",
+			async () => {
+				const rows = await this.db
+					.select()
+					.from(messagesTable)
+					.where(eq(messagesTable.id, messageId))
 
-			return (rows[0] as MessageRecord) ?? null
-		} catch (error) {
-			this.logger.error(
-				{
-					messageId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to get message by id",
-			)
-			throw error
-		}
+				return (rows[0] as MessageRecord) ?? null
+			},
+		)
 	}
 }

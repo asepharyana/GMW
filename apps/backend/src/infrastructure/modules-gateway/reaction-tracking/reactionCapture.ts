@@ -55,7 +55,7 @@ export function reactionRowId(
 	reaction: MessageReaction | PartialMessageReaction,
 	emojiKey: string,
 	userId: string,
-	reactionType: "add" | "remove",
+	reactionType: ReactionType,
 ): string {
 	return `${reaction.message.id}-${emojiKey}-${userId}-${reactionType}`
 }
@@ -70,7 +70,20 @@ function reactionUsername(user: User | PartialUser): string {
 	return user.username ?? "unknown"
 }
 
-async function handleReactionAdd(
+type ReactionType = "add" | "remove"
+type ReactionEvent = Record<string, unknown>
+
+/** Log wording per reaction type, so the one writer below reads the same as before. */
+const REACTION_LOG: Record<ReactionType, { ok: string; fail: string }> = {
+	add: { ok: "Reaction recorded", fail: "Failed to record reaction" },
+	remove: {
+		ok: "Reaction removal recorded",
+		fail: "Failed to record reaction removal",
+	},
+}
+
+async function recordReaction(
+	reactionType: ReactionType,
 	reaction: MessageReaction | PartialMessageReaction,
 	user: User | PartialUser,
 ): Promise<void> {
@@ -83,7 +96,7 @@ async function handleReactionAdd(
 
 	const { emoji, emojiId, animated } = getEmojiIdentifier(reaction)
 	const now = Date.now()
-	const id = reactionRowId(reaction, emojiId ?? emoji, user.id, "add")
+	const id = reactionRowId(reaction, emojiId ?? emoji, user.id, reactionType)
 
 	try {
 		const db = getDatabase()
@@ -99,65 +112,51 @@ async function handleReactionAdd(
 				emoji,
 				emoji_id: emojiId,
 				animated,
-				reaction_type: "add",
+				reaction_type: reactionType,
 				created_at: now,
 			})
 			.onConflictDoNothing()
 
 		logger.debug(
 			{ messageId: reaction.message.id, emoji, userId: user.id },
-			"Reaction recorded",
+			REACTION_LOG[reactionType].ok,
 		)
 	} catch (error) {
 		logger.error(
 			{ messageId: reaction.message.id, error: String(error) },
-			"Failed to record reaction",
+			REACTION_LOG[reactionType].fail,
 		)
 	}
 }
 
-async function handleReactionRemove(
+/**
+ * Persist one reaction event, then broadcast it. The broadcast is best-effort
+ * and only happens for monitored guilds.
+ */
+async function captureReaction(
+	reactionType: ReactionType,
 	reaction: MessageReaction | PartialMessageReaction,
 	user: User | PartialUser,
+	broadcast: (event: ReactionEvent) => Promise<void>,
 ): Promise<void> {
+	await recordReaction(reactionType, reaction, user)
+
 	const guildId = reaction.message.guildId
-	if (!guildId) return
 	if (!isMonitoredGuild(config, guildId)) return
-	if (user.bot) return
 
 	const { emoji, emojiId, animated } = getEmojiIdentifier(reaction)
-	const now = Date.now()
-	const id = reactionRowId(reaction, emojiId ?? emoji, user.id, "remove")
 
-	try {
-		const db = getDatabase()
-		await db
-			.insert(reactionsTable)
-			.values({
-				id,
-				message_id: reaction.message.id,
-				channel_id: reaction.message.channelId,
-				guild_id: guildId,
-				user_id: user.id,
-				username: reactionUsername(user),
-				emoji,
-				emoji_id: emojiId,
-				animated,
-				reaction_type: "remove",
-				created_at: now,
-			})
-			.onConflictDoNothing()
-
-		logger.debug(
-			{ messageId: reaction.message.id, emoji, userId: user.id },
-			"Reaction removal recorded",
-		)
-	} catch (error) {
-		logger.error(
-			{ messageId: reaction.message.id, error: String(error) },
-			"Failed to record reaction removal",
-		)
-	}
+	broadcast({
+		message_id: reaction.message.id,
+		channel_id: reaction.message.channelId,
+		guild_id: guildId,
+		user_id: user.id,
+		username: user.username,
+		emoji,
+		emoji_id: emojiId,
+		animated,
+		created_at: Date.now(),
+	}).catch(() => {})
 }
 
 // ─── Registration ────────────────────────────────────────────────────────
@@ -170,59 +169,23 @@ export function registerReactionCapture(
 
 	client.on(
 		"messageReactionAdd",
-		async (
+		(
 			reaction: MessageReaction | PartialMessageReaction,
 			user: User | PartialUser,
-		) => {
-			await handleReactionAdd(reaction, user)
-
-			const guildId = reaction.message.guildId
-			if (!isMonitoredGuild(config, guildId)) return
-
-			const { emoji, emojiId, animated } = getEmojiIdentifier(reaction)
-
-			eventBroadcaster
-				.reactionAdded({
-					message_id: reaction.message.id,
-					channel_id: reaction.message.channelId,
-					guild_id: guildId,
-					user_id: user.id,
-					username: user.username,
-					emoji,
-					emoji_id: emojiId,
-					animated,
-					created_at: Date.now(),
-				})
-				.catch(() => {})
-		},
+		) =>
+			captureReaction("add", reaction, user, (event) =>
+				eventBroadcaster.reactionAdded(event),
+			),
 	)
 
 	client.on(
 		"messageReactionRemove",
-		async (
+		(
 			reaction: MessageReaction | PartialMessageReaction,
 			user: User | PartialUser,
-		) => {
-			await handleReactionRemove(reaction, user)
-
-			const guildId = reaction.message.guildId
-			if (!isMonitoredGuild(config, guildId)) return
-
-			const { emoji, emojiId, animated } = getEmojiIdentifier(reaction)
-
-			eventBroadcaster
-				.reactionRemoved({
-					message_id: reaction.message.id,
-					channel_id: reaction.message.channelId,
-					guild_id: guildId,
-					user_id: user.id,
-					username: user.username,
-					emoji,
-					emoji_id: emojiId,
-					animated,
-					created_at: Date.now(),
-				})
-				.catch(() => {})
-		},
+		) =>
+			captureReaction("remove", reaction, user, (event) =>
+				eventBroadcaster.reactionRemoved(event),
+			),
 	)
 }

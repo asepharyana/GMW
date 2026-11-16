@@ -3,7 +3,7 @@ import {
 	asc,
 	desc,
 	eq,
-	inArray,
+	exists,
 	isNull,
 	lt,
 	notInArray,
@@ -18,7 +18,9 @@ import type {
 } from "../../domain/messages/message-contracts.js"
 import { readChannelName } from "../../domain/utils/channelName.js"
 import { mapMessageRow } from "../../domain/utils/messageMapper.js"
+import { encodeCursor } from "../../domain/utils/pagination.js"
 import { config } from "../config/index.js"
+import { buildCursorCondition } from "../database/cursor.js"
 import type { DatabaseHandle } from "../database/handle.js"
 import {
 	analysisAttemptsTable,
@@ -40,19 +42,7 @@ const EXCLUDED_THREAD_IDS = config.EXCLUDED_THREAD_IDS
 
 const logger = createChildLogger("messages.repository")
 
-/**
- * Message columns plus the joined verdict, aliased so `mapMessageRow` can pick
- * them up as `verdict_*`.
- *
- * The join is LEFT because most messages have no verdict at all — anything
- * still queued, or analysed by the old pipeline before the rewrite. An INNER
- * join here would silently hide every unanalysed message from the dashboard.
- *
- * Prisma returns the nested `verdicts` object rather than flat `verdict_*`
- * columns, so `flattenVerdict` below re-projects it into the shape
- * `mapMessageRow` expects. Doing that in one place keeps every caller of the
- * mapper free of relation-handling.
- */
+/** Full message projection, shared by list, detail, and review queries. */
 const messageColumns = {
 	id: messagesTable.id,
 	guild_id: messagesTable.guild_id,
@@ -89,20 +79,7 @@ const messageColumns = {
 	reference_guild_id: messagesTable.reference_guild_id,
 } as const
 
-/**
- * The verdict columns, ALIASED to `verdict_*`.
- *
- * Prisma returned a nested `verdicts` object and `flattenVerdict` re-projected
- * it. Drizzle has no nested selection, so the join selects these under their
- * flat names directly — which leaves `flattenVerdict` the identity on rows that
- * come from `messageWithVerdict`, so all eight of its call sites keep working
- * untouched.
- *
- * `auto_delete_state` is deliberately NOT aliased: `mapMessageRow` reads it
- * under that exact name, and only the gateway's enforcer writes it, which is
- * what lets the dashboard separate a bot deletion from a human one.
- * `messages.deleted_at` cannot — Discord's messageDelete fires for both.
- */
+/** Flat aliases consumed by mapMessageRow; missing LEFT JOIN values stay null. */
 const verdictColumns = {
 	verdict_status: verdictsTable.status,
 	verdict_score: verdictsTable.score,
@@ -125,58 +102,6 @@ const verdictColumns = {
  * the old pipeline before the rewrite.
  */
 const messageWithVerdict = { ...messageColumns, ...verdictColumns }
-
-/**
- * Re-project a row carrying verdict data into the flat `verdict_*` shape
- * `mapMessageRow` reads. A missing verdict leaves every `verdict_*` key null,
- * which the mapper already treats as "not judged".
- *
- * Handles BOTH shapes, and that is deliberate:
- *  - rows from `messageWithVerdict` already arrive flat (the join aliases them),
- *    so this is the identity plus a null-fill for a LEFT JOIN miss;
- *  - `reviewSelect` narrows the verdict columns, so its keys may be absent and
- *    the null-fill is what keeps the mapper's contract intact.
- *
- * The `verdicts` branch only runs if a nested object is present, which after the
- * Drizzle port nothing produces — it is kept so the two shapes cannot diverge
- * silently if a caller ever reintroduces a nested select.
- */
-function flattenVerdict(row: Record<string, unknown>): Record<string, unknown> {
-	const { verdicts: v, ...message } = row
-
-	const VERDICT_KEYS = [
-		"verdict_status",
-		"verdict_score",
-		"verdict_confidence",
-		"verdict_flags",
-		"verdict_categories",
-		"verdict_reason",
-		"verdict_analysis",
-		"verdict_evidence",
-		"verdict_model",
-		"verdict_updated_at",
-		"auto_delete_state",
-	] as const
-
-	if (v !== undefined) {
-		const verdict = (v ?? {}) as Record<string, unknown>
-		const projected: Record<string, unknown> = { ...message }
-		for (const key of VERDICT_KEYS) {
-			const source =
-				key === "auto_delete_state"
-					? "auto_delete_state"
-					: key.slice("verdict_".length)
-			projected[key] = verdict[source] ?? null
-		}
-		return projected
-	}
-
-	const filled: Record<string, unknown> = { ...message }
-	for (const key of VERDICT_KEYS) {
-		if (filled[key] === undefined) filled[key] = null
-	}
-	return filled
-}
 
 export interface AttachmentResult {
 	id: string
@@ -230,7 +155,7 @@ function mapAttachmentRow(r: Record<string, unknown>): AttachmentResult {
 		upload_status: String(r.upload_status ?? "pending"),
 		upload_error: (r.upload_error as string | null) ?? null,
 		created_at: Number(r.created_at ?? 0),
-		uploaded_at: (r.uploaded_at as number | null) ?? null,
+		uploaded_at: r.uploaded_at == null ? null : Number(r.uploaded_at),
 	}
 }
 
@@ -239,121 +164,19 @@ function cursorLimit(limit: number): number {
 	return limit + 1
 }
 
-/**
- * The resume token for a page fetched with `limit + 1` rows.
- *
- * THE INDEX IS `limit - 1`, NOT `limit`, AND THAT IS THE WHOLE POINT
- *
- * `cursorLimit()` fetches one row MORE than it returns: the overflow row is
- * proof that another page exists. So the last row actually shown to the caller
- * sits at `rows[limit - 1]`, and the cursor must be built from THAT row — it is
- * the position the next page has to resume strictly after.
- *
- * Using `rows[limit]` instead (the overflow row itself) is off by one and loses
- * a row at every page boundary: the cursor points at a row the client never
- * received, the next page filters strictly `< cursor`, and that row is
- * therefore skipped forever. It is a silent data-loss bug, not a visible
- * error — the page still looks plausible.
- *
- * This was the bug in all four cursor-paginated queries in this file
- * (`findMany`, `findByChannel`, `getImageMessages`, `getAttachmentsByChannel`)
- * before `getReviewMessages`/`getRecentEdits` were added; the index is spelled
- * once here so the next one cannot repeat it.
- *
- * Stringified because `PageResult.nextCursor` is `string | null` and the queries
- * compare it with `Number(query.cursor)` on the way back in — one canonical
- * representation at the boundary, not two.
- *
- * Returns null when the fetched row count does not exceed `limit`, i.e. this
- * was the final page.
- */
-function nextCursorAt<T extends { created_at: unknown }>(
+/** Resume after the last returned row, including id to preserve timestamp ties. */
+function nextCursorAt<T extends { created_at: number; id: string }>(
 	rows: T[],
 	limit: number,
 ): string | null {
 	if (rows.length <= limit) return null
-	return String(rows[limit - 1].created_at)
+	return encodeCursor(rows[limit - 1])
 }
 
-/**
- * The review queue's sort key, defined ONCE in JS and once in SQL — and the two
- * pairs must agree.
- *
- * WHY THEY ARE DUPLICATED AT ALL
- *
- * `getReviewMessages` uses this key twice: once in ORDER BY, once inside the
- * cursor comparison. Writing it as a single SQL expression and reusing that
- * expression in both places is what makes drift impossible. It still has to
- * exist twice overall — once as SQL text for the query, once as a JS function
- * for encoding a returned row into the next cursor — so the pairing is
- * asserted by the tests rather than by the compiler.
- *
- * `actionRankOf` mirrors `reviewActionRank()`: ranking rather than sorting the
- * raw string is what puts `deleted` above `clean`, because those are the two
- * dispositions the model can reach. `NULL`/absent lands in bucket 0 and
- * therefore sorts last.
- */
-const ACTION_RANKS: Record<string, number> = {
-	deleted: 2,
-	clean: 1,
-}
-
-function actionRankOf(recommendedAction: unknown): number {
-	if (typeof recommendedAction !== "string") return 0
-	return ACTION_RANKS[recommendedAction] ?? 0
-}
-
-/**
- * Score as a comparable integer, scaled by 100.
- *
- * This replaces the severity tier that used to sit between the action rank and
- * `created_at` in the queue order: with severity gone, how bad the model thought
- * something was IS the score, so that is what orders it.
- *
- * Scaled to an integer rather than carried as a raw float because the cursor
- * comparison tests this key for EQUALITY. The old SQL cast to `float8` before
- * multiplying so both sides did identical double arithmetic on a float4 input;
- * JS numbers are already float64, so the widening happens for free here.
- * `Math.floor` matches the SQL `FLOOR`, so a negative score would not diverge.
- *
- * Prisma's `orderBy` cannot hold a computed expression, so the queue is ordered
- * in JS. `compareReviewOrder` below is the exact inverse used for the cursor
- * filter, so sort and pagination cannot drift.
- */
-function scoreRankOf(score: unknown): number {
-	return Math.floor(Number(score ?? 0) * 100)
-}
-
-/** The four components the review sort key is built from, all pre-ranked. */
-interface ReviewSortKey {
-	id: string
-	created_at: bigint | number
-	/** `actionRankOf(verdict.status)` — the cursor stores this, not the string. */
-	action: number
-	/** `scoreRankOf(verdict.score)` — `floor(score * 100)`. */
-	score: number
-}
-
-/**
- * Order rows by the full review-queue sort key, most-important first: action
- * rank, then score, then recency, then id.
- *
- * `id` is last because a cursor needs a total order — two rows sharing (action,
- * score, created_at) would otherwise be emitted in an arbitrary order and could
- * be duplicated or skipped across a page boundary.
- *
- * Both keys are pre-ranked, so a decoded cursor and a fetched row are directly
- * comparable — which is what lets this one function serve as both the sort and
- * the cursor filter.
- */
-function compareReviewOrder(a: ReviewSortKey, b: ReviewSortKey): number {
-	return (
-		b.action - a.action ||
-		b.score - a.score ||
-		Number(b.created_at) - Number(a.created_at) ||
-		(a.id < b.id ? 1 : a.id > b.id ? -1 : 0)
-	)
-}
+// Reuse these exact expressions for sorting, cursor filtering, and encoding.
+// Widen float4 before multiplying so Postgres and JS cursor values agree.
+const reviewActionRank = sql<number>`CASE ${verdictsTable.status} WHEN 'deleted' THEN 2 WHEN 'clean' THEN 1 ELSE 0 END`
+const reviewScoreRank = sql<number>`FLOOR(COALESCE(${verdictsTable.score}::double precision, 0) * 100)`
 
 /**
  * A position in the review queue, resolved to the raw column values a row
@@ -379,8 +202,11 @@ function decodeReviewCursor(cursor?: string): ReviewCursor | null {
 		) as Partial<ReviewCursor>
 		if (
 			typeof raw.action !== "number" ||
+			!Number.isFinite(raw.action) ||
 			typeof raw.score !== "number" ||
+			!Number.isFinite(raw.score) ||
 			typeof raw.created_at !== "number" ||
+			!Number.isFinite(raw.created_at) ||
 			typeof raw.id !== "string"
 		) {
 			return null
@@ -443,7 +269,11 @@ function decodeEditCursor(cursor?: string): EditCursor | null {
 		const raw = JSON.parse(
 			Buffer.from(cursor, "base64").toString("utf-8"),
 		) as Partial<EditCursor>
-		if (typeof raw.edited_at !== "number" || typeof raw.id !== "string") {
+		if (
+			typeof raw.edited_at !== "number" ||
+			!Number.isFinite(raw.edited_at) ||
+			typeof raw.id !== "string"
+		) {
 			return null
 		}
 		return { edited_at: raw.edited_at, id: raw.id }
@@ -455,62 +285,6 @@ function decodeEditCursor(cursor?: string): EditCursor | null {
 function encodeEditCursor(cursor: EditCursor): string {
 	return Buffer.from(JSON.stringify(cursor)).toString("base64")
 }
-
-/**
- * Columns `getReviewMessages` returns — a narrower set than `messageWithVerdict`
- * (no edit/deletion bookkeeping, no legacy moderation flags) because the review
- * queue renders only these.
- */
-const reviewSelect = {
-	id: messagesTable.id,
-	guild_id: messagesTable.guild_id,
-	channel_id: messagesTable.channel_id,
-	user_id: messagesTable.user_id,
-	username: messagesTable.username,
-	avatar_url: messagesTable.avatar_url,
-	content: messagesTable.content,
-	type: messagesTable.type,
-	created_at: messagesTable.created_at,
-	// Legacy `messages.ai_*` — the new worker never writes these, so they are
-	// null for anything judged after the rewrite. The live judgement is the
-	// verdict_* columns, joined from `verdicts`.
-	ai_confidence: messagesTable.ai_confidence,
-	ai_analysis: messagesTable.ai_analysis,
-	is_reply: messagesTable.is_reply,
-	is_forward: messagesTable.is_forward,
-	is_crosspost: messagesTable.is_crosspost,
-	reference_message_id: messagesTable.reference_message_id,
-	reference_channel_id: messagesTable.reference_channel_id,
-	reference_guild_id: messagesTable.reference_guild_id,
-	// Retry state, so the review queue can distinguish "flagged, fine" from
-	// "never finished, needs a human".
-	ai_status: messagesTable.ai_status,
-	attempts: messagesTable.attempts,
-	worker_id: messagesTable.worker_id,
-	// Flattened verdict columns, exactly as `messageWithVerdict` — the JS sort
-	// below reads `r.verdicts?.status` today and reads `r.verdict_status` after.
-	...verdictColumns,
-} as const
-
-/**
- * How much of the review queue to over-fetch, now that ordering happens in JS.
- *
- * The cursor's sort key cannot be pushed into `orderBy`, so `take` bounds the
- * scan rather than the page, and rows are trimmed after sorting. A factor
- * leaves headroom for the cursor filter to discard rows before the page fills;
- * if it ever truncates a full page, `nextCursor` still advances so paging
- * continues correctly — it just skips rows that sorted below the scan window.
- */
-const REVIEW_SCAN_FACTOR = 4
-const REVIEW_MIN_SCAN = 200
-
-/**
- * Extra attachment rows to scan per page slot when resolving image messages.
- * Only the distinct message ids matter, so a message with N image attachments
- * consumes N rows of the window; this keeps the distinct count above the page
- * size. 4 covers the common case of a few images per message.
- */
-const ATTACHMENT_ID_OVERSAMPLE = 4
 
 /**
  * A condition on the message's verdict status.
@@ -553,55 +327,83 @@ type MessageAiStatus = NonNullable<
 >
 type MessageType = NonNullable<(typeof messagesTable.$inferSelect)["type"]>
 
+/**
+ * The `MessageQuery` filters that every message listing shares: guild, channel,
+ * author, and pipeline status.
+ */
+function baseMessageFilters(query: MessageQuery): SQL[] {
+	const conditions: SQL[] = []
+	if (query.guildId) {
+		conditions.push(eq(messagesTable.guild_id, query.guildId))
+	}
+	if (query.channelId) {
+		conditions.push(eq(messagesTable.channel_id, query.channelId))
+	}
+	if (query.userId) {
+		conditions.push(eq(messagesTable.user_id, query.userId))
+	}
+	if (query.status) {
+		// Pipeline position, e.g. `dead`.
+		conditions.push(
+			eq(messagesTable.ai_status, query.status as MessageAiStatus),
+		)
+	}
+	if (query.verdict) {
+		// Moderation outcome. Filtering on messages.ai_status here would return
+		// nothing at all, because the worker only ever writes `analyzed` to it.
+		conditions.push(hasVerdictStatus(query.verdict))
+	}
+	if (query.needsReview) {
+		conditions.push(hasVerdictStatus("deleted"))
+	}
+
+	return conditions
+}
+
+/**
+ * Add the paging concerns to a filter list: the `created_at` resume cursor and
+ * the spam-thread exclusion (NULL-safe: non-thread messages are kept).
+ */
+function withPaging(conditions: SQL[], cursor?: string): SQL[] {
+	const paged = [...conditions]
+	const after = buildCursorCondition(
+		messagesTable.created_at,
+		messagesTable.id,
+		cursor,
+	)
+	if (after) paged.push(after)
+	const excludeThreads = excludeSpamThreads()
+	if (excludeThreads) paged.push(excludeThreads)
+	return paged
+}
+
 export class MessagesRepository {
 	constructor(private readonly db: DatabaseHandle) {}
 
-	async findMany(query: MessageQuery): Promise<PageResult<MessageRow>> {
-		const limit = query.limit ?? 50
-		const conditions: SQL[] = []
-
-		if (query.guildId) {
-			conditions.push(eq(messagesTable.guild_id, query.guildId))
-		}
-		if (query.channelId) {
-			conditions.push(eq(messagesTable.channel_id, query.channelId))
-		}
-		if (query.userId) {
-			conditions.push(eq(messagesTable.user_id, query.userId))
-		}
-		if (query.status) {
-			// Pipeline position, e.g. `dead`.
-			conditions.push(
-				eq(messagesTable.ai_status, query.status as MessageAiStatus),
-			)
-		}
-		if (query.verdict) {
-			// Moderation outcome. Filtering on messages.ai_status here would return
-			// nothing at all, because the worker only ever writes `analyzed` to it.
-			conditions.push(hasVerdictStatus(query.verdict))
-		}
-		if (query.needsReview) {
-			conditions.push(hasVerdictStatus("deleted"))
-		}
-		if (query.cursor) {
-			conditions.push(lt(messagesTable.created_at, Number(query.cursor)))
-		}
-
-		// Exclude spam threads (NULL-safe: non-thread messages are kept)
-		const excludeThreads = excludeSpamThreads()
-		if (excludeThreads) conditions.push(excludeThreads)
-
-		const rows = await this.db
+	/**
+	 * One `limit + 1` page of messages with their joined verdict, newest first.
+	 * The extra row is how callers detect whether another page exists.
+	 */
+	private selectMessagePage(conditions: SQL[], limit: number) {
+		return this.db
 			.select(messageWithVerdict)
 			.from(messagesTable)
 			.leftJoin(verdictsTable, eq(verdictsTable.message_id, messagesTable.id))
 			.where(and(...conditions))
-			.orderBy(desc(messagesTable.created_at))
+			.orderBy(desc(messagesTable.created_at), desc(messagesTable.id))
 			.limit(cursorLimit(limit))
+	}
 
-		const data = rows
-			.slice(0, limit)
-			.map((r) => mapMessageRow(flattenVerdict(r)))
+	async findMany(query: MessageQuery): Promise<PageResult<MessageRow>> {
+		const limit = query.limit ?? 50
+		const conditions = baseMessageFilters(query)
+
+		const rows = await this.selectMessagePage(
+			withPaging(conditions, query.cursor),
+			limit,
+		)
+
+		const data = rows.slice(0, limit).map((r) => mapMessageRow(r))
 		const nextCursor = nextCursorAt(rows, limit)
 
 		logger.debug({ count: data.length, nextCursor }, "Found messages")
@@ -623,7 +425,7 @@ export class MessagesRepository {
 			.limit(1)
 
 		if (!row) return null
-		return mapMessageRow(flattenVerdict(row))
+		return mapMessageRow(row)
 	}
 
 	/**
@@ -704,31 +506,7 @@ export class MessagesRepository {
 		channelId: string,
 		query: MessageQuery,
 	): Promise<PageResult<MessageRow>> {
-		const limit = query.limit ?? 50
-		const conditions: SQL[] = [eq(messagesTable.channel_id, channelId)]
-
-		if (query.cursor) {
-			conditions.push(lt(messagesTable.created_at, Number(query.cursor)))
-		}
-
-		// Exclude spam threads (NULL-safe)
-		const excludeThreads = excludeSpamThreads()
-		if (excludeThreads) conditions.push(excludeThreads)
-
-		const rows = await this.db
-			.select(messageWithVerdict)
-			.from(messagesTable)
-			.leftJoin(verdictsTable, eq(verdictsTable.message_id, messagesTable.id))
-			.where(and(...conditions))
-			.orderBy(desc(messagesTable.created_at))
-			.limit(cursorLimit(limit))
-
-		const data = rows
-			.slice(0, limit)
-			.map((r) => mapMessageRow(flattenVerdict(r)))
-		const nextCursor = nextCursorAt(rows, limit)
-
-		return { data, nextCursor }
+		return this.findMany({ ...query, channelId })
 	}
 
 	/**
@@ -741,40 +519,15 @@ export class MessagesRepository {
 		query: MessageQuery,
 		pageSize = 50,
 	): AsyncGenerator<MessageRow, void, unknown> {
-		const conditions: SQL[] = []
-
-		if (query.guildId) {
-			conditions.push(eq(messagesTable.guild_id, query.guildId))
-		}
-		if (query.channelId) {
-			conditions.push(eq(messagesTable.channel_id, query.channelId))
-		}
-		if (query.userId) {
-			conditions.push(eq(messagesTable.user_id, query.userId))
-		}
-		if (query.status) {
-			conditions.push(
-				eq(messagesTable.ai_status, query.status as MessageAiStatus),
-			)
-		}
-		const excludeThreads = excludeSpamThreads()
-		if (excludeThreads) conditions.push(excludeThreads)
+		const conditions = baseMessageFilters(query)
 
 		let cursor: string | undefined = query.cursor
 
 		while (true) {
-			const pageConditions = [...conditions]
-			if (cursor) {
-				pageConditions.push(lt(messagesTable.created_at, Number(cursor)))
-			}
-
-			const rows = await this.db
-				.select(messageWithVerdict)
-				.from(messagesTable)
-				.leftJoin(verdictsTable, eq(verdictsTable.message_id, messagesTable.id))
-				.where(and(...pageConditions))
-				.orderBy(desc(messagesTable.created_at))
-				.limit(cursorLimit(pageSize))
+			const rows = await this.selectMessagePage(
+				withPaging(conditions, cursor),
+				pageSize,
+			)
 
 			if (rows.length === 0) return
 
@@ -782,11 +535,11 @@ export class MessagesRepository {
 			const pageRows = hasMore ? rows.slice(0, pageSize) : rows
 
 			for (const r of pageRows) {
-				yield mapMessageRow(flattenVerdict(r))
+				yield mapMessageRow(r)
 			}
 
 			if (!hasMore) return
-			cursor = String(rows[pageSize - 1].created_at)
+			cursor = encodeCursor(rows[pageSize - 1])
 		}
 	}
 
@@ -823,7 +576,7 @@ export class MessagesRepository {
 			// `findById` without a second round trip.
 			.returning(messageColumns)
 
-		return mapMessageRow(flattenVerdict(row))
+		return mapMessageRow(row)
 	}
 
 	async update(id: string, data: MessageUpdate) {
@@ -854,129 +607,61 @@ export class MessagesRepository {
 			.returning(messageColumns)
 
 		if (!row) return null
-		return mapMessageRow(flattenVerdict(row))
+		return mapMessageRow(row)
 	}
 
-	/**
-	 * Messages a human should look at: verdict `deleted` — the model decided the
-	 * message should be removed — plus any that ran out of attempts (`dead`).
-	 *
-	 * This used to be `messages.ai_status IN ('warn','flagged')`, which returned
-	 * an empty list forever once the new worker started writing only `analyzed` to
-	 * that column. The judgement lives in `verdicts.status` now. Of the statuses
-	 * that survived the collapse, `deleted` is the only one that means "a human
-	 * must decide": `clean` is a pass, and `error` is a failed analysis attempt,
-	 * which the `dead` retry path already covers.
-	 *
-	 * CURSOR PAGINATION MUST MATCH THE ORDER BY
-	 *
-	 * This query does not sort by recency — it sorts actionable-first, then by how
-	 * hard the model judged the message, then newest, which is the order a
-	 * moderator works the queue in. A `created_at`-only cursor would therefore be
-	 * wrong here: every page re-sorts independently, so the same row reappears on
-	 * page 2 while rows from page 1 that fell below the cut are silently lost.
-	 *
-	 * So the cursor carries the WHOLE sort key (action rank, score, created_at,
-	 * id) and the WHERE clause replays it as a nested lexicographic comparison
-	 * against the same key expressions the ORDER BY uses. Both sides read
-	 * `reviewActionRank()` / `reviewScoreKey()` — one definition each — so the
-	 * comparison cannot drift from the sort. `id` is the final tiebreak in the
-	 * ORDER BY precisely so that a cursor has a total order to resume from: two
-	 * rows sharing (action, score, created_at) would otherwise be returned in
-	 * an arbitrary order and could be duplicated or skipped across pages.
-	 */
+	/** Review queue ordered by action, score, recency, then id. */
 	async getReviewMessages(
 		channelId?: string,
-		limit: number = 20,
+		limit = 20,
 		cursor?: string,
 	): Promise<ReviewPageResult> {
 		const conditions: SQL[] = [
-			// `or()`/`and()` are typed `SQL | undefined` because they return
-			// undefined for an empty argument list. Both calls here pass two
-			// non-optional arguments, so the undefined branch is unreachable —
-			// `allOf`/`anyOf` state that without a non-null assertion at every
-			// call site.
-			anyOf(hasVerdictStatus("deleted"), eq(messagesTable.ai_status, "dead")),
+			anyOf(
+				eq(verdictsTable.status, "deleted"),
+				eq(messagesTable.ai_status, "dead"),
+			),
 		]
+		if (channelId) conditions.push(eq(messagesTable.channel_id, channelId))
+		const excluded = excludeSpamThreads()
+		if (excluded) conditions.push(excluded)
 
-		if (channelId) {
-			conditions.push(eq(messagesTable.channel_id, channelId))
+		const at = decodeReviewCursor(cursor)
+		if (at) {
+			conditions.push(
+				sql`(${reviewActionRank}, ${reviewScoreRank}, ${messagesTable.created_at}, ${messagesTable.id}) < (${at.action}, ${at.score}, ${at.created_at}, ${at.id})`,
+			)
 		}
 
-		const excludeThreads = excludeSpamThreads()
-		if (excludeThreads) conditions.push(excludeThreads)
-
-		// The sort key is a computed expression (CASE rank, FLOOR(score*100)), and
-		// Prisma's `orderBy` accepts only a column, so the queue is ordered in JS
-		// via `compareReviewOrder`. Two consequences, both handled here:
-		//
-		//   * The cursor comparison was ALSO a computed expression in SQL, so it
-		//     moves into the same JS filter. `compareReviewOrder(a, at) > 0` is the
-		//     exact inverse of the sort, which is what keeps page 2 from
-		//     re-emitting page 1's rows.
-		//   * `take` can no longer bound the scan, since the ordering happens after
-		//     the fetch. Rows are therefore over-fetched and trimmed below. The
-		//     window is bounded by `REVIEW_SCAN_FACTOR * limit` to keep the fetch
-		//     proportional to the page.
-		const at = decodeReviewCursor(cursor)
-
+		// Filter and sort the whole queue BEFORE limiting. A bounded scan followed
+		// by JS sorting loses candidates outside the scan and eventually stalls.
 		const rows = await this.db
-			.select(reviewSelect)
+			.select({
+				...messageWithVerdict,
+				action_rank: reviewActionRank,
+				score_rank: reviewScoreRank,
+			})
 			.from(messagesTable)
 			.leftJoin(verdictsTable, eq(verdictsTable.message_id, messagesTable.id))
 			.where(and(...conditions))
-			.limit(Math.max(cursorLimit(limit) * REVIEW_SCAN_FACTOR, REVIEW_MIN_SCAN))
+			.orderBy(
+				desc(reviewActionRank),
+				desc(reviewScoreRank),
+				desc(messagesTable.created_at),
+				desc(messagesTable.id),
+			)
+			.limit(cursorLimit(limit))
 
-		const keyed = rows.map((r) => ({
-			row: r,
-			key: {
-				id: r.id,
-				created_at: r.created_at,
-				action: actionRankOf(r.verdict_status ?? null),
-				score: scoreRankOf(r.verdict_score ?? null),
-			} satisfies ReviewSortKey,
-		}))
-
-		const ordered = keyed
-			.filter((k) => (at ? compareReviewOrder(k.key, at) > 0 : true))
-			.sort((a, b) => compareReviewOrder(a.key, b.key))
-
-		const page = ordered.slice(0, cursorLimit(limit))
-		// THROUGH `mapMessageRow`, unlike the pre-fix version of this line.
-		//
-		// `reviewSelect` reads Prisma's raw rows, and its BigInt columns
-		// (`messages.created_at`, `verdicts.updated_at`) arrive as `bigint`
-		// values. `JSON.stringify` cannot serialise those, so oRPC's wire
-		// serializer tags them and the browser rebuilds them as REAL `BigInt`
-		// objects — not numbers. Every arithmetic operation on them then throws
-		// `TypeError: Cannot convert a BigInt value to number`, which took the
-		// whole review/enforcement panel down with "This panel failed to render".
-		//
-		// `findMany` has never had this problem because it maps through
-		// `mapMessageRow`, which coerces with `Number(...)`. This endpoint is the
-		// only message query that skipped that boundary, so it is the only one
-		// that shipped BigInts to the browser. Fixing it here rather than in the
-		// frontend means every consumer of these rows — HTTP, WebSocket, the
-		// stream_messages replay — gets numbers, exactly as `list` already does.
-		const results = page
-			.slice(0, limit)
-			.map((k) => mapMessageRow(flattenVerdict(k.row)))
-
-		// Cursor comes from the LAST RETURNED row (index `limit - 1`), not the
-		// overflow row at index `limit` — see `nextCursorAt` for why that
-		// distinction costs a row per page boundary if you get it backwards.
-		const overflowed = page.length > limit
-		const last = overflowed ? page[limit - 1].key : null
-		const nextCursor =
-			last && results.length === limit
-				? encodeReviewCursor({
-						action: last.action,
-						score: last.score,
-						created_at: Number(last.created_at),
-						id: last.id,
-					})
-				: null
-
+		const results = rows.slice(0, limit).map((r) => mapMessageRow(r))
+		const last = rows.length > limit ? rows[limit - 1] : undefined
+		const nextCursor = last
+			? encodeReviewCursor({
+					action: Number(last.action_rank),
+					score: Number(last.score_rank),
+					created_at: Number(last.created_at),
+					id: last.id,
+				})
+			: null
 		return { results, nextCursor }
 	}
 
@@ -993,54 +678,29 @@ export class MessagesRepository {
 	async getImageMessages(
 		guildId: string,
 		limit: number = 50,
+		cursor?: string,
 	): Promise<PageResult<MessageRow>> {
-		// Subquery: find distinct message_ids from attachments with image MIME type
-		const attachmentConditions: SQL[] = [
-			eq(attachmentsTable.guild_id, guildId),
-			// `{startsWith: "image/"}` — a LIKE prefix match, which is what the
-			// parameterised equivalent is. `sql` keeps the pattern a bound value.
-			sql`${attachmentsTable.type} LIKE ${"image/%"}`,
-		]
-		// Exclude spam threads (NULL-safe for non-thread messages)
-		const excludeAttachments =
-			EXCLUDED_THREAD_IDS.length > 0
-				? or(
-						isNull(attachmentsTable.thread_id),
-						notInArray(attachmentsTable.thread_id, EXCLUDED_THREAD_IDS),
-					)
-				: undefined
-		if (excludeAttachments) attachmentConditions.push(excludeAttachments)
-
-		// Over-fetched relative to `limit` because a message can carry several image
-		// attachments: the previous `IN (SELECT ... LIMIT limit+1)` capped the
-		// candidate *attachments*, so duplicates within that window collapsed and
-		// the page came back short. Deduplicating first is what the subquery did
-		// not do, and `cursorLimit` here is measured in distinct messages.
-		const imageAttachments = await this.db
-			.select({ message_id: attachmentsTable.message_id })
+		// EXISTS counts messages, not attachments: any number of images on one
+		// message consumes exactly one page slot, without a bounded overscan.
+		const matchingImage = this.db
+			.select({ id: attachmentsTable.id })
 			.from(attachmentsTable)
-			.where(and(...attachmentConditions))
-			.orderBy(desc(attachmentsTable.created_at))
-			.limit(cursorLimit(limit) * ATTACHMENT_ID_OVERSAMPLE)
-		const imageMsgIds = [...new Set(imageAttachments.map((a) => a.message_id))]
+			.where(
+				and(
+					eq(attachmentsTable.message_id, messagesTable.id),
+					eq(attachmentsTable.guild_id, guildId),
+					sql`${attachmentsTable.type} LIKE ${"image/%"}`,
+				),
+			)
+		const rows = await this.selectMessagePage(
+			withPaging(
+				[eq(messagesTable.guild_id, guildId), exists(matchingImage)],
+				cursor,
+			),
+			limit,
+		)
 
-		// Fetch full message rows for those IDs
-		const rows = imageMsgIds.length
-			? await this.db
-					.select(messageWithVerdict)
-					.from(messagesTable)
-					.leftJoin(
-						verdictsTable,
-						eq(verdictsTable.message_id, messagesTable.id),
-					)
-					.where(inArray(messagesTable.id, imageMsgIds))
-					.orderBy(desc(messagesTable.created_at))
-					.limit(cursorLimit(limit))
-			: []
-
-		const data = rows
-			.slice(0, limit)
-			.map((r) => mapMessageRow(flattenVerdict(r)))
+		const data = rows.slice(0, limit).map((r) => mapMessageRow(r))
 		const nextCursor = nextCursorAt(rows, limit)
 
 		logger.debug({ count: data.length, nextCursor }, "Found image messages")
@@ -1060,15 +720,18 @@ export class MessagesRepository {
 			conditions.push(eq(attachmentsTable.message_id, query.messageId))
 		}
 
-		if (query.cursor) {
-			conditions.push(lt(attachmentsTable.created_at, Number(query.cursor)))
-		}
+		const after = buildCursorCondition(
+			attachmentsTable.created_at,
+			attachmentsTable.id,
+			query.cursor,
+		)
+		if (after) conditions.push(after)
 
 		const rows = await this.db
 			.select()
 			.from(attachmentsTable)
 			.where(and(...conditions))
-			.orderBy(desc(attachmentsTable.created_at))
+			.orderBy(desc(attachmentsTable.created_at), desc(attachmentsTable.id))
 			.limit(cursorLimit(limit))
 
 		const data = rows.map(mapAttachmentRow)
@@ -1101,24 +764,6 @@ export class MessagesRepository {
 	): Promise<EditPageResult> {
 		const at = decodeEditCursor(cursor)
 
-		// `message_edits.message_id` has no foreign key and so no Prisma relation,
-		// so the previous INNER JOIN to `messages` becomes a keyed lookup. Ordering
-		// is on `message_edits` columns alone, so the fetch needs no over-scan.
-		// `message_edits` has no channel column and no foreign key, so a
-		// channelId filter has to be resolved to message ids first. That lookup is
-		// skipped when no channel was requested, which is the common case.
-		let channelMessageIds: string[] | null = null
-		if (channelId) {
-			const inChannel = await this.db
-				.select({ id: messagesTable.id })
-				.from(messagesTable)
-				.where(eq(messagesTable.channel_id, channelId))
-			channelMessageIds = inChannel.map((m) => m.id)
-			if (channelMessageIds.length === 0) {
-				return { results: [], nextCursor: null }
-			}
-		}
-
 		// The cursor replays the (edited_at, id) lexicographic comparison: strictly
 		// older, OR same millisecond with a lower id.
 		const conditions: SQL[] = []
@@ -1133,77 +778,41 @@ export class MessagesRepository {
 				),
 			)
 		}
-		if (channelMessageIds) {
-			conditions.push(inArray(messageEditsTable.message_id, channelMessageIds))
-		}
+		if (channelId) conditions.push(eq(messagesTable.channel_id, channelId))
 
+		// Join before LIMIT so orphaned edits cannot consume page slots or hide
+		// a later valid edit; channel filtering also stays inside this query.
 		const rows = await this.db
 			.select({
 				id: messageEditsTable.id,
 				message_id: messageEditsTable.message_id,
 				old_content: messageEditsTable.old_content,
 				edited_at: messageEditsTable.edited_at,
+				channel_id: messagesTable.channel_id,
+				metadata: messagesTable.metadata,
+				username: messagesTable.username,
+				content: messagesTable.content,
+				edited_content: messagesTable.edited_content,
 			})
 			.from(messageEditsTable)
+			.innerJoin(
+				messagesTable,
+				eq(messagesTable.id, messageEditsTable.message_id),
+			)
 			.where(and(...conditions))
 			.orderBy(desc(messageEditsTable.edited_at), desc(messageEditsTable.id))
 			.limit(cursorLimit(limit))
 
-		const messageIds = [...new Set(rows.map((r) => r.message_id))]
-		const contextById = new Map<
-			string,
-			{
-				channel_id: string
-				channel_name: string
-				username: string
-				new_content: string
-			}
-		>()
-		if (messageIds.length > 0) {
-			const msgs = await this.db
-				.select({
-					id: messagesTable.id,
-					channel_id: messagesTable.channel_id,
-					metadata: messagesTable.metadata,
-					username: messagesTable.username,
-					content: messagesTable.content,
-					edited_content: messagesTable.edited_content,
-				})
-				.from(messagesTable)
-				.where(inArray(messagesTable.id, messageIds))
-			for (const m of msgs) {
-				// An INNER JOIN dropped edits whose message is gone; `contextById`
-				// reproduces that by filtering below rather than emitting a null row.
-				contextById.set(m.id, {
-					channel_id: m.channel_id,
-					channel_name: readChannelName(m.metadata) ?? m.channel_id,
-					username: m.username,
-					new_content: m.edited_content ?? m.content,
-				})
-			}
-		}
-
-		// The `limit + 1`-th row is fetched purely to detect "there is more"; it is
-		// not part of `results`. The cursor is built from the last RETURNED row
-		// (index `limit - 1`) — see `nextCursorAt` for why index `limit` loses a
-		// row per page boundary.
-		const joined = rows
-			.slice(0, limit)
-			.map((r) => {
-				const ctx = contextById.get(r.message_id)
-				if (!ctx) return null
-				return {
-					id: String(r.id),
-					message_id: String(r.message_id),
-					old_content: r.old_content ? String(r.old_content) : "",
-					new_content: ctx.new_content ? String(ctx.new_content) : "",
-					edited_at: r.edited_at ? Number(r.edited_at) : 0,
-					channel_id: ctx.channel_id ? String(ctx.channel_id) : null,
-					channel_name: ctx.channel_name ? String(ctx.channel_name) : null,
-					username: ctx.username ? String(ctx.username) : null,
-				}
-			})
-			.filter((r): r is NonNullable<typeof r> => r !== null)
+		const results = rows.slice(0, limit).map((r) => ({
+			id: r.id,
+			message_id: r.message_id,
+			old_content: r.old_content,
+			new_content: r.edited_content ?? r.content,
+			edited_at: Number(r.edited_at),
+			channel_id: r.channel_id,
+			channel_name: readChannelName(r.metadata) ?? r.channel_id,
+			username: r.username,
+		}))
 
 		const last = rows.length > limit ? rows[limit - 1] : undefined
 		const nextCursor = last
@@ -1213,7 +822,7 @@ export class MessagesRepository {
 				})
 			: null
 
-		return { results: joined, nextCursor }
+		return { results, nextCursor }
 	}
 
 	/**

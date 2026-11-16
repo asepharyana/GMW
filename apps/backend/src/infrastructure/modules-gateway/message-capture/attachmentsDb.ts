@@ -5,6 +5,7 @@ import { attachmentsTable } from "../../database/schema.js"
 import { createChildLogger, type Logger } from "../../logger/index.js"
 import { channelOrThreadCondition } from "./messagesCrud.js"
 import type { AttachmentRecord } from "./types.js"
+import { withErrorLog } from "./withErrorLog.js"
 
 // ─── AttachmentsDb Class ────────────────────────────────────────────────────
 
@@ -20,21 +21,17 @@ export class AttachmentsDb {
 
 	async insertAttachment(attachment: AttachmentRecord): Promise<void> {
 		this.logger.debug({ attachmentId: attachment.id }, "insertAttachment entry")
-		try {
-			await this.db
-				.insert(attachmentsTable)
-				.values(attachment)
-				.onConflictDoNothing()
-		} catch (error) {
-			this.logger.error(
-				{
-					attachmentId: attachment.id,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to insert attachment",
-			)
-			throw error
-		}
+		return withErrorLog(
+			this.logger,
+			{ attachmentId: attachment.id },
+			"Failed to insert attachment",
+			async () => {
+				await this.db
+					.insert(attachmentsTable)
+					.values(attachment)
+					.onConflictDoNothing()
+			},
+		)
 	}
 
 	async getAttachmentsByChannel(
@@ -47,34 +44,30 @@ export class AttachmentsDb {
 			{ channelId, limit, offset },
 			"getAttachmentsByChannel entry",
 		)
-		try {
-			const conditions: SQL[] = [
-				channelOrThreadCondition(channelId, attachmentsTable),
-			]
+		return withErrorLog(
+			this.logger,
+			{ channelId },
+			"Failed to get attachments by channel",
+			async () => {
+				const conditions: SQL[] = [
+					channelOrThreadCondition(channelId, attachmentsTable),
+				]
 
-			if (guildId) {
-				conditions.push(eq(attachmentsTable.guild_id, guildId))
-			}
+				if (guildId) {
+					conditions.push(eq(attachmentsTable.guild_id, guildId))
+				}
 
-			const rows = await this.db
-				.select()
-				.from(attachmentsTable)
-				.where(and(...conditions))
-				.orderBy(desc(attachmentsTable.created_at))
-				.limit(limit)
-				.offset(offset)
+				const rows = await this.db
+					.select()
+					.from(attachmentsTable)
+					.where(and(...conditions))
+					.orderBy(desc(attachmentsTable.created_at))
+					.limit(limit)
+					.offset(offset)
 
-			return rows as AttachmentRecord[]
-		} catch (error) {
-			this.logger.error(
-				{
-					channelId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to get attachments by channel",
-			)
-			throw error
-		}
+				return rows as AttachmentRecord[]
+			},
+		)
 	}
 
 	async updateAttachmentAsUploaded(
@@ -83,25 +76,21 @@ export class AttachmentsDb {
 		uploadedAt: number,
 	): Promise<void> {
 		this.logger.debug({ attachmentId }, "updateAttachmentAsUploaded entry")
-		try {
-			await this.db
-				.update(attachmentsTable)
-				.set({
-					uploaded_url: uploadedUrl,
-					upload_status: "uploaded",
-					uploaded_at: uploadedAt,
-				})
-				.where(eq(attachmentsTable.id, attachmentId))
-		} catch (error) {
-			this.logger.error(
-				{
-					attachmentId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to update attachment as uploaded",
-			)
-			throw error
-		}
+		return withErrorLog(
+			this.logger,
+			{ attachmentId },
+			"Failed to update attachment as uploaded",
+			async () => {
+				await this.db
+					.update(attachmentsTable)
+					.set({
+						uploaded_url: uploadedUrl,
+						upload_status: "uploaded",
+						uploaded_at: uploadedAt,
+					})
+					.where(eq(attachmentsTable.id, attachmentId))
+			},
+		)
 	}
 
 	async updateAttachmentDiscordUrl(
@@ -109,21 +98,17 @@ export class AttachmentsDb {
 		discordUrl: string,
 	): Promise<void> {
 		this.logger.debug({ attachmentId }, "updateAttachmentDiscordUrl entry")
-		try {
-			await this.db
-				.update(attachmentsTable)
-				.set({ discord_url: discordUrl })
-				.where(eq(attachmentsTable.id, attachmentId))
-		} catch (error) {
-			this.logger.error(
-				{
-					attachmentId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to update attachment Discord URL",
-			)
-			throw error
-		}
+		return withErrorLog(
+			this.logger,
+			{ attachmentId },
+			"Failed to update attachment Discord URL",
+			async () => {
+				await this.db
+					.update(attachmentsTable)
+					.set({ discord_url: discordUrl })
+					.where(eq(attachmentsTable.id, attachmentId))
+			},
+		)
 	}
 
 	async updateAttachmentAsFailedUpload(
@@ -131,24 +116,20 @@ export class AttachmentsDb {
 		error: string,
 	): Promise<void> {
 		this.logger.debug({ attachmentId }, "updateAttachmentAsFailedUpload entry")
-		try {
-			await this.db
-				.update(attachmentsTable)
-				.set({
-					upload_status: "failed",
-					upload_error: error,
-				})
-				.where(eq(attachmentsTable.id, attachmentId))
-		} catch (error) {
-			this.logger.error(
-				{
-					attachmentId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to update attachment as failed",
-			)
-			throw error
-		}
+		return withErrorLog(
+			this.logger,
+			{ attachmentId },
+			"Failed to update attachment as failed",
+			async () => {
+				await this.db
+					.update(attachmentsTable)
+					.set({
+						upload_status: "failed",
+						upload_error: error,
+					})
+					.where(eq(attachmentsTable.id, attachmentId))
+			},
+		)
 	}
 
 	async getAttachmentsForMessages(
@@ -158,23 +139,19 @@ export class AttachmentsDb {
 			{ messageIdsCount: messageIds.length },
 			"getAttachmentsForMessages entry",
 		)
-		try {
-			if (messageIds.length === 0) return []
-			const rows = await this.db
-				.select()
-				.from(attachmentsTable)
-				.where(inArray(attachmentsTable.message_id, messageIds))
+		return withErrorLog(
+			this.logger,
+			{ messageIds },
+			"Failed to get attachments for messages",
+			async () => {
+				if (messageIds.length === 0) return []
+				const rows = await this.db
+					.select()
+					.from(attachmentsTable)
+					.where(inArray(attachmentsTable.message_id, messageIds))
 
-			return rows as AttachmentRecord[]
-		} catch (error) {
-			this.logger.error(
-				{
-					messageIds,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to get attachments for messages",
-			)
-			throw error
-		}
+				return rows as AttachmentRecord[]
+			},
+		)
 	}
 }

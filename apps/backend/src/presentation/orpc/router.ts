@@ -6,6 +6,27 @@ import { config } from "../../infrastructure/config/index.js"
 import type { UseCases } from "../composition.js"
 import { mutationProcedure } from "./mutation-guard.js"
 
+/** `limit` input: coerced positive int with a per-procedure default. */
+const limitInput = (defaultValue: number) =>
+	z.object({
+		limit: z.coerce.number().int().positive().default(defaultValue),
+	})
+
+/** `days` input: lookback window in days, capped at a year. */
+const daysInput = z.object({
+	days: z.coerce.number().int().positive().max(365).default(30),
+})
+
+/**
+ * Cursor-paged list input. `cursor` is an opaque resume token: absent = first
+ * page; the client treats a null cursor in the response as "no more pages".
+ */
+const cursorPageInput = (defaultLimit: number) =>
+	limitInput(defaultLimit).extend({
+		channelId: z.string().optional(),
+		cursor: z.string().optional(),
+	})
+
 /**
  * Compose the oRPC surface from a wired use-case graph.
  *
@@ -32,23 +53,19 @@ export function buildRouter(useCases: UseCases) {
 			)
 			.handler(({ input }) => dashboardService.getActivity(input.days)),
 		leaderboards: os
-			.input(z.object({ limit: z.coerce.number().int().positive().default(8) }))
+			.input(limitInput(8))
 			.handler(({ input }) => dashboardService.getLeaderboards(input.limit)),
 		reactions: os
-			.input(
-				z.object({ limit: z.coerce.number().int().positive().default(20) }),
-			)
+			.input(limitInput(20))
 			.handler(({ input }) => dashboardService.getTopReactions(input.limit)),
 		reactors: os
-			.input(
-				z.object({ limit: z.coerce.number().int().positive().default(20) }),
-			)
+			.input(limitInput(20))
 			.handler(({ input }) => dashboardService.getTopReactors(input.limit)),
 		// Everything the panels above cannot express: what the model acts on,
 		// how sure it is, whether enforcement followed through, plus edits,
 		// media and pipeline freshness.
 		insights: os
-			.input(z.object({ limit: z.coerce.number().int().positive().default(8) }))
+			.input(limitInput(8))
 			.handler(({ input }) => dashboardService.getInsights(input.limit)),
 	}
 
@@ -76,13 +93,17 @@ export function buildRouter(useCases: UseCases) {
 			.handler(({ input }) => messagesService.getMessageById(input.id)),
 		images: os
 			.input(
-				z.object({
+				limitInput(50).extend({
 					guildId: z.string(),
-					limit: z.coerce.number().int().positive().default(50),
+					cursor: z.string().optional(),
 				}),
 			)
 			.handler(({ input }) =>
-				messagesService.getImageMessages(input.guildId, input.limit),
+				messagesService.getImageMessages(
+					input.guildId,
+					input.limit,
+					input.cursor,
+				),
 			),
 		attachmentsByChannel: os
 			.input(
@@ -94,43 +115,25 @@ export function buildRouter(useCases: UseCases) {
 			.handler(({ input }) =>
 				messagesService.getAttachmentsByChannel(input.channelId, input.query),
 			),
-		review: os
-			.input(
-				z.object({
-					limit: z.coerce.number().int().positive().default(20),
-					channelId: z.string().optional(),
-					// Opaque resume token. Absent = first page; the client treats a null
-					// `cursor` in the response as "no more pages" and stops asking.
-					cursor: z.string().optional(),
-				}),
+		review: os.input(cursorPageInput(20)).handler(async ({ input }) => {
+			const { results, nextCursor } = await messagesService.getReviewMessages(
+				input.channelId,
+				input.limit,
+				input.cursor,
 			)
-			.handler(async ({ input }) => {
-				const { results, nextCursor } = await messagesService.getReviewMessages(
-					input.channelId,
-					input.limit,
-					input.cursor,
-				)
-				return { results, limit: input.limit, cursor: nextCursor }
-			}),
+			return { results, limit: input.limit, cursor: nextCursor }
+		}),
 		// Public, read-only recent message edits (evasion tracker). Cursor-paged like
 		// `review`: the response is now `{ results, nextCursor }` rather than a bare
 		// array, so the Edits tab can scroll the same way the other two tabs do.
-		editHistory: os
-			.input(
-				z.object({
-					limit: z.coerce.number().int().positive().default(50),
-					channelId: z.string().optional(),
-					cursor: z.string().optional(),
-				}),
+		editHistory: os.input(cursorPageInput(50)).handler(async ({ input }) => {
+			const { results, nextCursor } = await messagesService.getRecentEdits(
+				input.limit,
+				input.channelId,
+				input.cursor,
 			)
-			.handler(async ({ input }) => {
-				const { results, nextCursor } = await messagesService.getRecentEdits(
-					input.limit,
-					input.channelId,
-					input.cursor,
-				)
-				return { results, nextCursor }
-			}),
+			return { results, nextCursor }
+		}),
 	}
 
 	// ── Moderation ───────────────────────────────────────────────────
@@ -138,11 +141,10 @@ export function buildRouter(useCases: UseCases) {
 		stats: os.handler(() => moderationService.getStats()),
 		actions: os
 			.input(
-				z.object({
-					limit: z.coerce.number().int().positive().default(50),
+				limitInput(50).extend({
 					status: z.string().optional(),
 					actionType: z.string().optional(),
-					cursor: z.coerce.number().int().optional(),
+					cursor: z.union([z.string(), z.number().int()]).optional(),
 				}),
 			)
 			.handler(({ input }) =>
@@ -154,60 +156,35 @@ export function buildRouter(useCases: UseCases) {
 				}),
 			),
 		trends: os
-			.input(
-				z.object({
-					days: z.coerce.number().int().positive().max(365).default(30),
-				}),
-			)
+			.input(daysInput)
 			.handler(({ input }) => moderationService.getTrends(input.days)),
 		// Flagged link / scam domain ranking (public Scam Domain panel).
 		topDomains: os
-			.input(
-				z.object({
-					days: z.coerce.number().int().positive().max(365).default(30),
-				}),
-			)
+			.input(daysInput)
 			.handler(({ input }) =>
 				moderationService.getTopFlaggedDomains(input.days),
 			),
 		// Top flagged channels (join moderation_actions → messages).
 		topChannels: os
-			.input(
-				z.object({
-					days: z.coerce.number().int().positive().max(365).default(30),
-				}),
-			)
+			.input(daysInput)
 			.handler(({ input }) =>
 				moderationService.getTopFlaggedChannels(input.days),
 			),
 		// Hour-of-day moderation distribution (heatmap by hour).
 		byHour: os
-			.input(
-				z.object({
-					days: z.coerce.number().int().positive().max(365).default(30),
-				}),
-			)
+			.input(daysInput)
 			.handler(({ input }) =>
 				moderationService.getHourlyModeration(input.days),
 			),
 		// Flag category drill-down (list actions for one category).
 		byCategory: os
-			.input(
-				z.object({
-					days: z.coerce.number().int().positive().max(365).default(30),
-					category: z.string().min(1),
-				}),
-			)
+			.input(daysInput.extend({ category: z.string().min(1) }))
 			.handler(({ input }) =>
 				moderationService.getByCategory(input.days, input.category),
 			),
 		// Auto-moderation coverage (analysis run completion rate).
 		coverage: os
-			.input(
-				z.object({
-					days: z.coerce.number().int().positive().max(365).default(30),
-				}),
-			)
+			.input(daysInput)
 			.handler(({ input }) => moderationService.getCoverage(input.days)),
 	}
 

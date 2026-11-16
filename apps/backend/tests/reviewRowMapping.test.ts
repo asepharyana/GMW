@@ -1,32 +1,11 @@
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
+import { mapMessageRow } from "../src/domain/utils/messageMapper.js"
 
 /**
- * Regression guard: the enforcement log must not ship `BigInt` to the browser.
- *
- * WHY THIS EXISTS
- *
- * `messages.review` reads rows through `reviewSelect`, which includes Prisma's
- * BigInt columns (`messages.created_at`, `verdicts.updated_at`). Those rows
- * used to be returned via `flattenVerdict()` alone, skipping `mapMessageRow()`.
- *
- * `JSON.stringify` cannot serialise a `bigint`, so oRPC's wire serializer tags
- * the value and the BROWSER rebuilds it as a real `BigInt` object rather than a
- * number. The frontend then does `Date.now() - created_at` and every such
- * operation throws `TypeError: Cannot convert a BigInt value to number` — which
- * the panel-level error boundary rendered as "This panel failed to render". The
- * whole enforcement tab was dead and every typecheck stayed green, because the
- * value is only a BigInt at runtime, arriving through an `as unknown as` cast.
- *
- * `findMany` never had the bug: it maps through `mapMessageRow`, which coerces
- * with `Number(...)`. This test pins that the review queue returns rows through
- * that same boundary, so a future endpoint cannot quietly reintroduce the
- * asymmetry.
- *
- * The behavioural half — that a BigInt really does throw on arithmetic — is
- * asserted below, because that is the mechanism a source-level guard cannot
- * prove on its own.
+ * Numeric serialization guards for the message mapper. Repository behavior is
+ * covered by messagesRepositoryPaging.test.ts using actual Drizzle queries.
  */
 
 const repoPath = fileURLToPath(
@@ -59,20 +38,6 @@ function stripComments(source: string): string {
 const mapperCode = stripComments(mapperSource)
 
 describe("review rows are mapped, not shipped raw", () => {
-	it("maps getReviewMessages rows through mapMessageRow", () => {
-		// The mapping must be part of the `results` construction itself, so the
-		// coercion cannot be bypassed by a later refactor of the paging code.
-		expect(rawSource).toMatch(
-			/const results = page\s*\n?\s*\.slice\(0, limit\)\s*\n?\s*\.map\(\(k\) => mapMessageRow\(flattenVerdict\(k\.row\)\)\)/,
-		)
-	})
-
-	it("does not return bare flattenVerdict rows from the review queue", () => {
-		// The exact pre-fix shape: a page whose elements skip the mapper, and so
-		// carry raw BigInt columns.
-		expect(rawSource).not.toMatch(/\.map\(\(k\) => flattenVerdict\(k\.row\)\)/)
-	})
-
 	it("types ReviewPageResult.results as mapped message rows", () => {
 		// `Record<string, unknown>[]` is what let the BigInt through untyped: it
 		// hides every field from the compiler, so nothing downstream complained.
@@ -198,7 +163,7 @@ describe("mapMessageRow converts every BigInt column, none by cast", () => {
 	 */
 	function coercedAssignmentPattern(key: string): RegExp {
 		return new RegExp(
-			`${key}:\\s*[\\s\\S]{0,200}?${key} == null\\s*\\? null\\s*:\\s*Number\\(\\s*row\\.${key}\\s*\\)`,
+			`${key}:\\s*[\\s\\S]{0,200}?numberOrNull\\(\\s*row\\.${key}\\s*\\)`,
 		)
 	}
 
@@ -270,10 +235,18 @@ describe("mapMessageRow converts every BigInt column, none by cast", () => {
 	// explicitly rather than trusting the loop above to cover it.
 	it("coerces the renamed bookkeeping fields, not the raw column name", () => {
 		expect(mapperCode).toMatch(
-			/ai_lease_until:\s*row\.lease_until == null\s*\?\s*null\s*:\s*Number\(\s*row\.lease_until\s*\)/,
+			/ai_lease_until:\s*numberOrNull\(\s*row\.lease_until\s*\)/,
 		)
 		expect(mapperCode).toMatch(
-			/ai_ready_for_work_at:[\s\S]{0,120}?row\.ready_for_work_at == null\s*\?\s*null\s*:\s*Number\(\s*row\.ready_for_work_at\s*\)/,
+			/ai_ready_for_work_at:\s*numberOrNull\(\s*row\.ready_for_work_at\s*\)/,
+		)
+	})
+
+	it("numberOrNull is the single null-guarded Number() coercion", () => {
+		// Every BigInt column above goes through this one helper, so its body is
+		// what must stay a null-guarded `Number(...)` and never become a cast.
+		expect(mapperCode).toMatch(
+			/function numberOrNull\(value: unknown\): number \| null \{\s*return value == null \? null : Number\(value\)\s*\}/,
 		)
 	})
 
@@ -292,12 +265,35 @@ describe("mapMessageRow converts every BigInt column, none by cast", () => {
 	it("keeps a null BigInt column null instead of coercing it to 0", () => {
 		// `Number(null)` is 0, and epoch 0 renders as "56 years ago". A never-edited
 		// message must not acquire a deletion timestamp.
-		expect(mapperCode).toMatch(
-			/edited_at: row\.edited_at == null \? null : Number\(row\.edited_at\)/,
-		)
-		expect(mapperCode).toMatch(
-			/deleted_at: row\.deleted_at == null \? null : Number\(row\.deleted_at\)/,
-		)
+		expect(mapperCode).toMatch(/edited_at: numberOrNull\(row\.edited_at\)/)
+		expect(mapperCode).toMatch(/deleted_at: numberOrNull\(row\.deleted_at\)/)
+	})
+
+	it("behaviourally: mapMessageRow itself turns BigInt columns into numbers", () => {
+		// Runs the real mapper on a row carrying live BigInts, which is the exact
+		// failure the source-level checks above can only approximate.
+		const mapped = mapMessageRow({
+			id: "1",
+			created_at: 1791168918578n,
+			edited_at: 1791170314611n,
+			deleted_at: null,
+			ai_analyzed_at: 1791168918999n,
+			ai_analysis_duration_ms: 42n,
+			lease_until: 1791171763920n,
+			ready_for_work_at: 0n,
+			verdict_updated_at: 1791168922637n,
+		})
+
+		expect(() => JSON.stringify(mapped)).not.toThrow()
+		expect(mapped.edited_at).toBe(1791170314611)
+		expect(mapped.deleted_at).toBeNull()
+		expect(mapped.ai_analyzed_at).toBe(1791168918999)
+		expect(mapped.ai_analysis_duration_ms).toBe(42)
+		expect(mapped.ai_lease_until).toBe(1791171763920)
+		expect(mapped.ai_ready_for_work_at).toBe(0)
+		expect(mapped.verdict_updated_at).toBe(1791168922637)
+		// A never-set BigInt column must stay null, not become epoch 0.
+		expect(mapMessageRow({ id: "2" }).edited_at).toBeNull()
 	})
 
 	it("behaviourally: a row with BigInt columns maps to JSON-serialisable numbers", () => {

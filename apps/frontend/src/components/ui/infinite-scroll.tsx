@@ -139,6 +139,51 @@ export function LoadMoreFallback({
 }
 
 /**
+ * Everything that sits under a paged list: an optional progress line, the
+ * scroll sentinel, and the keyboard fallback button. Each list names its
+ * sentinel and its fallback separately because the sentinel `label` identifies
+ * the observer node, while the fallback `label` is read aloud by screen readers.
+ */
+export function PagedFooter({
+	onLoadMore,
+	hasMore,
+	isFetching,
+	sentinelLabel,
+	fallbackLabel,
+	progressLabel,
+}: {
+	onLoadMore: () => void
+	hasMore: boolean
+	isFetching: boolean
+	sentinelLabel: string
+	fallbackLabel: string
+	/** Text from `usePagedCount`; omit to render no progress line. */
+	progressLabel?: string
+}) {
+	return (
+		<>
+			{progressLabel !== undefined && (
+				<p className="mt-4 text-center font-mono text-micro text-ink-muted uppercase">
+					{progressLabel}
+				</p>
+			)}
+			<InfiniteScrollSentinel
+				onLoadMore={onLoadMore}
+				hasMore={hasMore}
+				isFetching={isFetching}
+				label={sentinelLabel}
+			/>
+			<LoadMoreFallback
+				onLoadMore={onLoadMore}
+				hasMore={hasMore}
+				isFetching={isFetching}
+				label={fallbackLabel}
+			/>
+		</>
+	)
+}
+
+/**
  * Scrolls the window to the top whenever `token` changes.
  *
  * Paging appends to the bottom of the list, so switching guild or channel leaves

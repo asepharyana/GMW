@@ -1,9 +1,20 @@
-import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm"
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	inArray,
+	isNull,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm"
 import type { NodePgDatabase } from "drizzle-orm/node-postgres"
 import type * as schema from "../../database/schema.js"
 import { messagesTable } from "../../database/schema.js"
 import { createChildLogger, type Logger } from "../../logger/index.js"
 import type { MessageRecord } from "./types.js"
+import { withErrorLog } from "./withErrorLog.js"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -12,6 +23,52 @@ function stringifyAIList(
 ): string | null {
 	if (value == null) return null
 	return Array.isArray(value) ? JSON.stringify(value) : value
+}
+
+// ─── Shared query fragments ──────────────────────────────────────────────────
+
+type ConversationRow = { thread_id: string | null; channel_id: string }
+
+/** Unpaid work: queued for analysis and not deleted. */
+function pendingCondition(): SQL {
+	return and(
+		eq(messagesTable.ai_status, "pending"),
+		isNull(messagesTable.deleted_at),
+	) as SQL
+}
+
+/**
+ * Messages the worker gave up on part-way through a batch.
+ *
+ * "dead", not "error": the v1 pipeline parked an unjudgeable message at
+ * 'error'; the v2 state machine parks it at 'dead' after maxAttempts. The
+ * 'error' state no longer exists, so a filter on it could never match a row.
+ */
+function incompleteAnalysisCondition(): SQL {
+	return and(
+		eq(messagesTable.ai_status, "dead"),
+		sql`${messagesTable.ai_moderation_flags} LIKE ${"%analysis_incomplete%"}`,
+		sql`(${messagesTable.ai_moderation_flags} IS NULL OR ${messagesTable.ai_moderation_flags} NOT LIKE ${"%individual_analysis_exhausted%"})`,
+		isNull(messagesTable.deleted_at),
+	) as SQL
+}
+
+/** A conversation is a thread, or the channel when there is no thread. */
+function inConversation(conversationKey: string): SQL {
+	return or(
+		eq(messagesTable.thread_id, conversationKey),
+		eq(messagesTable.channel_id, conversationKey),
+	) as SQL
+}
+
+/** Distinct conversation keys, first-seen order preserved. */
+function distinctConversationKeys(rows: ConversationRow[]): string[] {
+	const keys = new Set<string>()
+	for (const row of rows) {
+		const key = row.thread_id || row.channel_id
+		if (key) keys.add(key)
+	}
+	return [...keys]
 }
 
 // ─── AIAnalysisUpdate interface ──────────────────────────────────────────────
@@ -69,28 +126,24 @@ export class MessagesAnalysis {
 		result: AIAnalysisUpdate,
 	): Promise<MessageRecord | null> {
 		this.logger.debug({ messageId }, "updateMessageAIAnalysis entry")
-		try {
-			await this.db
-				.update(messagesTable)
-				.set(buildAIAnalysisSet(result))
-				.where(eq(messagesTable.id, messageId))
+		return withErrorLog(
+			this.logger,
+			{ messageId },
+			"Failed to update message AI analysis",
+			async () => {
+				await this.db
+					.update(messagesTable)
+					.set(buildAIAnalysisSet(result))
+					.where(eq(messagesTable.id, messageId))
 
-			const rows = await this.db
-				.select()
-				.from(messagesTable)
-				.where(eq(messagesTable.id, messageId))
+				const rows = await this.db
+					.select()
+					.from(messagesTable)
+					.where(eq(messagesTable.id, messageId))
 
-			return (rows[0] as MessageRecord) ?? null
-		} catch (error) {
-			this.logger.error(
-				{
-					messageId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to update message AI analysis",
-			)
-			throw error
-		}
+				return (rows[0] as MessageRecord) ?? null
+			},
+		)
 	}
 
 	async updateMessagesAIAnalysisBulk(
@@ -101,61 +154,52 @@ export class MessagesAnalysis {
 			"updateMessagesAIAnalysisBulk entry",
 		)
 		if (updates.length === 0) return []
-		try {
-			const now = Date.now()
+		return withErrorLog(
+			this.logger,
+			{},
+			"Failed to bulk update messages AI analysis",
+			async () => {
+				const now = Date.now()
 
-			await this.db.transaction(async (tx) => {
-				for (const { messageId, result } of updates) {
-					await tx
-						.update(messagesTable)
-						.set(buildAIAnalysisSet(result, now))
-						.where(eq(messagesTable.id, messageId))
-				}
-			})
+				await this.db.transaction(async (tx) => {
+					for (const { messageId, result } of updates) {
+						await tx
+							.update(messagesTable)
+							.set(buildAIAnalysisSet(result, now))
+							.where(eq(messagesTable.id, messageId))
+					}
+				})
 
-			const ids = updates.map(({ messageId }) => messageId)
-			const rows = await this.db
-				.select()
-				.from(messagesTable)
-				.where(inArray(messagesTable.id, ids))
+				const ids = updates.map(({ messageId }) => messageId)
+				const rows = await this.db
+					.select()
+					.from(messagesTable)
+					.where(inArray(messagesTable.id, ids))
 
-			return rows as MessageRecord[]
-		} catch (error) {
-			this.logger.error(
-				{
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to bulk update messages AI analysis",
-			)
-			throw error
-		}
+				return rows as MessageRecord[]
+			},
+		)
 	}
 
 	async getPendingAIAnalysisMessages(
 		limit: number = 25,
 	): Promise<MessageRecord[]> {
 		this.logger.debug({ limit }, "getPendingAIAnalysisMessages entry")
-		try {
-			const rows = await this.db
-				.select()
-				.from(messagesTable)
-				.where(
-					and(
-						eq(messagesTable.ai_status, "pending"),
-						isNull(messagesTable.deleted_at),
-					),
-				)
-				.orderBy(asc(messagesTable.created_at))
-				.limit(limit)
+		return withErrorLog(
+			this.logger,
+			{},
+			"Failed to get pending AI analysis messages",
+			async () => {
+				const rows = await this.db
+					.select()
+					.from(messagesTable)
+					.where(pendingCondition())
+					.orderBy(asc(messagesTable.created_at))
+					.limit(limit)
 
-			return rows as MessageRecord[]
-		} catch (error) {
-			this.logger.error(
-				{ error: error instanceof Error ? error.message : String(error) },
-				"Failed to get pending AI analysis messages",
-			)
-			throw error
-		}
+				return rows as MessageRecord[]
+			},
+		)
 	}
 
 	// ── Conversation Context ────────────────────────────────────────────────────
@@ -170,38 +214,90 @@ export class MessagesAnalysis {
 			{ channelId: input.channelId, threadId: input.threadId },
 			"getConversationContextBefore entry",
 		)
-		try {
-			const { channelId, threadId, beforeCreatedAt, limit } = input
+		return withErrorLog(
+			this.logger,
+			{ channelId: input.channelId, threadId: input.threadId },
+			"Failed to get conversation context before",
+			async () => {
+				const { channelId, threadId, beforeCreatedAt, limit } = input
 
-			const locationCondition = threadId
-				? eq(messagesTable.thread_id, threadId)
-				: eq(messagesTable.channel_id, channelId)
+				const locationCondition = threadId
+					? eq(messagesTable.thread_id, threadId)
+					: eq(messagesTable.channel_id, channelId)
 
-			const rows = await this.db
-				.select()
+				const rows = await this.db
+					.select()
+					.from(messagesTable)
+					.where(
+						and(
+							locationCondition,
+							sql`${messagesTable.created_at} < ${beforeCreatedAt}`,
+							isNull(messagesTable.deleted_at),
+						),
+					)
+					.orderBy(desc(messagesTable.created_at))
+					.limit(limit)
+
+				return (rows as MessageRecord[]).reverse()
+			},
+		)
+	}
+
+	/**
+	 * Lock up to `limit` messages matching `condition` (oldest first, skipping
+	 * rows another worker holds) and flip them to "claimed" in one transaction.
+	 *
+	 * "claimed", not "processing": the 0020 CHECK constraint rejects
+	 * "processing", so that write threw a check_violation and the whole
+	 * transaction rolled back. The methods that use this have no callers today,
+	 * which is why nobody noticed — the next caller would have got an exception
+	 * instead of a row.
+	 *
+	 * UPDATE..RETURNING has no guaranteed row order (Postgres returns rows in
+	 * physical update order). Consumers rely on chronological order: the
+	 * moderation worker's batch context treats the array as a created_at ASC
+	 * prefix, and the context anchor uses messages[0].created_at. So the result
+	 * is re-sorted here.
+	 */
+	private async claimMessages(
+		condition: SQL,
+		limit: number,
+	): Promise<MessageRecord[]> {
+		const rows = await this.db.transaction(async (tx) => {
+			const pendingIdsQuery = tx
+				.select({ id: messagesTable.id })
 				.from(messagesTable)
+				.where(condition)
+				.orderBy(asc(messagesTable.created_at))
+				.limit(limit)
+				.for("update", { skipLocked: true })
+
+			const pendingIds = (await pendingIdsQuery) as Array<{ id: string }>
+
+			if (pendingIds.length === 0) return []
+
+			return await tx
+				.update(messagesTable)
+				.set({
+					ai_status: "claimed",
+					worker_id: null,
+					lease_until: null,
+					ai_analyzed_at: null,
+				})
 				.where(
-					and(
-						locationCondition,
-						sql`${messagesTable.created_at} < ${beforeCreatedAt}`,
-						isNull(messagesTable.deleted_at),
+					inArray(
+						messagesTable.id,
+						pendingIds.map((r) => r.id),
 					),
 				)
-				.orderBy(desc(messagesTable.created_at))
-				.limit(limit)
+				.returning()
+		})
 
-			return (rows as MessageRecord[]).reverse()
-		} catch (error) {
-			this.logger.error(
-				{
-					channelId: input.channelId,
-					threadId: input.threadId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to get conversation context before",
-			)
-			throw error
-		}
+		rows.sort(
+			(a, b) =>
+				(a as MessageRecord).created_at - (b as MessageRecord).created_at,
+		)
+		return rows as MessageRecord[]
 	}
 
 	async getPendingMessagesByConversation(
@@ -212,109 +308,37 @@ export class MessagesAnalysis {
 			{ conversationKey, limit },
 			"getPendingMessagesByConversation entry",
 		)
-		try {
-			const rows = await this.db.transaction(async (tx) => {
-				const pendingIdsQuery = tx
-					.select({ id: messagesTable.id })
-					.from(messagesTable)
-					.where(
-						and(
-							or(
-								eq(messagesTable.thread_id, conversationKey),
-								eq(messagesTable.channel_id, conversationKey),
-							),
-							eq(messagesTable.ai_status, "pending"),
-							isNull(messagesTable.deleted_at),
-						),
-					)
-					.orderBy(asc(messagesTable.created_at))
-					.limit(limit)
-					.for("update", { skipLocked: true })
-
-				const pendingIds = (await pendingIdsQuery) as Array<{ id: string }>
-
-				if (pendingIds.length === 0) return []
-
-				return await tx
-					.update(messagesTable)
-					.set({
-						// "claimed", not "processing": the 0020 CHECK constraint rejects
-						// "processing", so this write threw a check_violation and the
-						// whole transaction rolled back. These methods have no callers
-						// today, which is why nobody noticed — the next caller would have
-						// got an exception instead of a row.
-						ai_status: "claimed",
-						worker_id: null,
-						lease_until: null,
-						ai_analyzed_at: null,
-					})
-					.where(
-						inArray(
-							messagesTable.id,
-							pendingIds.map((r) => r.id),
-						),
-					)
-					.returning()
-			})
-
-			// UPDATE..RETURNING has no guaranteed row order (Postgres returns rows
-			// in physical update order). Consumers rely on chronological order:
-			// the moderation worker's batch context treats the array as a
-			// created_at ASC prefix, and the context anchor uses
-			// messages[0].created_at.
-			rows.sort(
-				(a, b) =>
-					(a as MessageRecord).created_at - (b as MessageRecord).created_at,
-			)
-			return rows as MessageRecord[]
-		} catch (error) {
-			this.logger.error(
-				{
-					conversationKey,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to get pending messages by conversation",
-			)
-			throw error
-		}
+		return withErrorLog(
+			this.logger,
+			{ conversationKey },
+			"Failed to get pending messages by conversation",
+			() =>
+				this.claimMessages(
+					and(inConversation(conversationKey), pendingCondition()) as SQL,
+					limit,
+				),
+		)
 	}
 
 	async getPendingConversationKeys(limit: number = 500): Promise<string[]> {
 		this.logger.debug({ limit }, "getPendingConversationKeys entry")
-		try {
-			const rows = (await this.db
-				.selectDistinct({
-					thread_id: messagesTable.thread_id,
-					channel_id: messagesTable.channel_id,
-				})
-				.from(messagesTable)
-				.where(
-					and(
-						eq(messagesTable.ai_status, "pending"),
-						isNull(messagesTable.deleted_at),
-					),
-				)
-				.limit(limit)) as Array<{
-				thread_id: string | null
-				channel_id: string
-			}>
+		return withErrorLog(
+			this.logger,
+			{},
+			"Failed to get pending conversation keys",
+			async () => {
+				const rows = (await this.db
+					.selectDistinct({
+						thread_id: messagesTable.thread_id,
+						channel_id: messagesTable.channel_id,
+					})
+					.from(messagesTable)
+					.where(pendingCondition())
+					.limit(limit)) as ConversationRow[]
 
-			const keys: string[] = []
-			for (const row of rows) {
-				const key = row.thread_id || row.channel_id
-				if (key && !keys.includes(key)) {
-					keys.push(key)
-				}
-			}
-
-			return keys
-		} catch (error) {
-			this.logger.error(
-				{ error: error instanceof Error ? error.message : String(error) },
-				"Failed to get pending conversation keys",
-			)
-			throw error
-		}
+				return distinctConversationKeys(rows)
+			},
+		)
 	}
 
 	async getConversationKeysWithIncompleteAnalysis(
@@ -324,45 +348,23 @@ export class MessagesAnalysis {
 			{ limit },
 			"getConversationKeysWithIncompleteAnalysis entry",
 		)
-		try {
-			const rows = (await this.db
-				.selectDistinct({
-					thread_id: messagesTable.thread_id,
-					channel_id: messagesTable.channel_id,
-				})
-				.from(messagesTable)
-				.where(
-					and(
-						// "dead", not "error": the v1 pipeline parked an unjudgeable
-						// message at 'error'; the v2 state machine parks it at 'dead'
-						// after maxAttempts. The 'error' state no longer exists, so this
-						// filter could never match a row.
-						eq(messagesTable.ai_status, "dead"),
-						sql`${messagesTable.ai_moderation_flags} LIKE ${"%analysis_incomplete%"}`,
-						sql`(${messagesTable.ai_moderation_flags} IS NULL OR ${messagesTable.ai_moderation_flags} NOT LIKE ${"%individual_analysis_exhausted%"})`,
-						isNull(messagesTable.deleted_at),
-					),
-				)
-				.limit(limit)) as Array<{
-				thread_id: string | null
-				channel_id: string
-			}>
+		return withErrorLog(
+			this.logger,
+			{},
+			"Failed to get conversation keys with incomplete analysis",
+			async () => {
+				const rows = (await this.db
+					.selectDistinct({
+						thread_id: messagesTable.thread_id,
+						channel_id: messagesTable.channel_id,
+					})
+					.from(messagesTable)
+					.where(incompleteAnalysisCondition())
+					.limit(limit)) as ConversationRow[]
 
-			const keys: string[] = []
-			for (const row of rows) {
-				const key = row.thread_id || row.channel_id
-				if (key && !keys.includes(key)) {
-					keys.push(key)
-				}
-			}
-			return keys
-		} catch (error) {
-			this.logger.error(
-				{ error: error instanceof Error ? error.message : String(error) },
-				"Failed to get conversation keys with incomplete analysis",
-			)
-			throw error
-		}
+				return distinctConversationKeys(rows)
+			},
+		)
 	}
 
 	async getIncompleteMessagesByConversation(
@@ -373,71 +375,18 @@ export class MessagesAnalysis {
 			{ conversationKey, limit },
 			"getIncompleteMessagesByConversation entry",
 		)
-		try {
-			const rows = await this.db.transaction(async (tx) => {
-				const pendingIdsQuery = tx
-					.select({ id: messagesTable.id })
-					.from(messagesTable)
-					.where(
-						and(
-							or(
-								eq(messagesTable.thread_id, conversationKey),
-								eq(messagesTable.channel_id, conversationKey),
-							),
-							// See above: v2 parks exhausted messages at 'dead'.
-							eq(messagesTable.ai_status, "dead"),
-							sql`${messagesTable.ai_moderation_flags} LIKE ${"%analysis_incomplete%"}`,
-							sql`(${messagesTable.ai_moderation_flags} IS NULL OR ${messagesTable.ai_moderation_flags} NOT LIKE ${"%individual_analysis_exhausted%"})`,
-							isNull(messagesTable.deleted_at),
-						),
-					)
-					.orderBy(asc(messagesTable.created_at))
-					.limit(limit)
-					.for("update", { skipLocked: true })
-
-				const pendingIds = (await pendingIdsQuery) as Array<{ id: string }>
-
-				if (pendingIds.length === 0) return []
-
-				return await tx
-					.update(messagesTable)
-					.set({
-						// "claimed", not "processing": the 0020 CHECK constraint rejects
-						// "processing", so this write threw a check_violation and the
-						// whole transaction rolled back. These methods have no callers
-						// today, which is why nobody noticed — the next caller would have
-						// got an exception instead of a row.
-						ai_status: "claimed",
-						worker_id: null,
-						lease_until: null,
-						ai_analyzed_at: null,
-					})
-					.where(
-						inArray(
-							messagesTable.id,
-							pendingIds.map((r) => r.id),
-						),
-					)
-					.returning()
-			})
-
-			// Same UPDATE..RETURNING ordering guarantee as above: re-sort to
-			// created_at ASC so the individual fallback path also sees a
-			// chronological array.
-			rows.sort(
-				(a, b) =>
-					(a as MessageRecord).created_at - (b as MessageRecord).created_at,
-			)
-			return rows as MessageRecord[]
-		} catch (error) {
-			this.logger.error(
-				{
-					conversationKey,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to get incomplete messages by conversation",
-			)
-			throw error
-		}
+		return withErrorLog(
+			this.logger,
+			{ conversationKey },
+			"Failed to get incomplete messages by conversation",
+			() =>
+				this.claimMessages(
+					and(
+						inConversation(conversationKey),
+						incompleteAnalysisCondition(),
+					) as SQL,
+					limit,
+				),
+		)
 	}
 }

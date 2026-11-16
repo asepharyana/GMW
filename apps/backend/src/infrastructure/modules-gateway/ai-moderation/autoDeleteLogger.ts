@@ -18,20 +18,53 @@ interface ChannelWithSend {
 
 const logger = createChildLogger("auto-delete-logger")
 
-/**
- * Post a log message about the auto-deletion to the configured moderation log
- * channel. No-op when AUTO_DELETE_LOG_CHANNEL_ID is unset. Failures are
- * warnings only — losing the log line must never fail the deletion.
- */
-export async function logDeletionToChannel(
-	guild: Guild,
-	message: MessageLike & {
-		content?: string | null
-		edited_content?: string | null
-	},
+type LoggedMessage = MessageLike & {
+	content?: string | null
+	edited_content?: string | null
+}
+
+interface LogFields {
+	status: string
+	categories: string
+	reason: string
+	snippet: string
+}
+
+/** The four values every auto-delete log line reports about a message. */
+function describeVerdict(
+	message: LoggedMessage,
 	verdict: VerdictLike | null | undefined,
-	channelId: string,
-): Promise<void> {
+): LogFields {
+	return {
+		status: verdict?.status ?? message.ai_status ?? "unknown",
+		categories:
+			(verdict?.categories ?? []).join(", ") ||
+			message.ai_categories ||
+			message.ai_moderation_flags ||
+			"—",
+		reason: verdict?.analysis ?? message.ai_analysis ?? "—",
+		snippet: (message.edited_content ?? message.content ?? "").substring(
+			0,
+			200,
+		),
+	}
+}
+
+/**
+ * Send one line to the configured moderation log channel. No-op when
+ * AUTO_DELETE_LOG_CHANNEL_ID is unset. Failures are warnings only — losing the
+ * log line must never fail the deletion.
+ */
+async function sendToLogChannel(options: {
+	guild: Guild
+	message: LoggedMessage
+	verdict: VerdictLike | null | undefined
+	channelId: string
+	format: (fields: LogFields) => string
+	successLog: string
+	failureLog: string
+}): Promise<void> {
+	const { guild, message, verdict, channelId } = options
 	if (!config.AUTO_DELETE_LOG_CHANNEL_ID) return
 
 	try {
@@ -43,37 +76,46 @@ export async function logDeletionToChannel(
 			"send" in logChannel &&
 			typeof (logChannel as ChannelWithSend).send === "function"
 		) {
-			const status = verdict?.status ?? message.ai_status ?? "unknown"
-			const categories =
-				(verdict?.categories ?? []).join(", ") ||
-				message.ai_categories ||
-				message.ai_moderation_flags ||
-				"—"
-			const reason = verdict?.analysis ?? message.ai_analysis ?? "—"
-			const snippet = (
-				message.edited_content ??
-				message.content ??
-				""
-			).substring(0, 200)
 			await (logChannel as ChannelWithSend).send(
-				`**🧹 Auto-Delete** — Pesan dari <@${message.user_id}> di <#${channelId}>\n` +
-					`**Status:** ${status}\n` +
-					`**Kategori:** ${categories}\n` +
-					`**Alasan:** ${reason}\n` +
-					`**Isi:** ${snippet}\n` +
-					`**Waktu:** <t:${Math.floor(Date.now() / 1000)}:R>`,
+				options.format(describeVerdict(message, verdict)),
 			)
-			logger.info(
-				{ channelId, messageId: message.id },
-				"Deletion logged to channel",
-			)
+			logger.info({ channelId, messageId: message.id }, options.successLog)
 		}
 	} catch (logErr) {
 		logger.warn(
 			{ messageId: message.id, error: String(logErr) },
-			"Failed to log auto-delete to moderation channel",
+			options.failureLog,
 		)
 	}
+}
+
+const logTime = () => `<t:${Math.floor(Date.now() / 1000)}:R>`
+
+/**
+ * Post a log message about the auto-deletion to the configured moderation log
+ * channel.
+ */
+export function logDeletionToChannel(
+	guild: Guild,
+	message: LoggedMessage,
+	verdict: VerdictLike | null | undefined,
+	channelId: string,
+): Promise<void> {
+	return sendToLogChannel({
+		guild,
+		message,
+		verdict,
+		channelId,
+		format: ({ status, categories, reason, snippet }) =>
+			`**🧹 Auto-Delete** — Pesan dari <@${message.user_id}> di <#${channelId}>\n` +
+			`**Status:** ${status}\n` +
+			`**Kategori:** ${categories}\n` +
+			`**Alasan:** ${reason}\n` +
+			`**Isi:** ${snippet}\n` +
+			`**Waktu:** ${logTime()}`,
+		successLog: "Deletion logged to channel",
+		failureLog: "Failed to log auto-delete to moderation channel",
+	})
 }
 
 /**
@@ -86,59 +128,29 @@ export async function logDeletionToChannel(
  * audit trail where every entry claims the system deleted the message is
  * misleading when most of them were removed by a person.
  */
-export async function logAlreadyDeleted(
+export function logAlreadyDeleted(
 	guild: Guild,
-	message: MessageLike & {
-		content?: string | null
-		edited_content?: string | null
-	},
+	message: LoggedMessage,
 	verdict: VerdictLike | null | undefined,
 	channelId: string,
 ): Promise<void> {
-	if (!config.AUTO_DELETE_LOG_CHANNEL_ID) return
-
-	try {
-		const logChannel = guild.channels.cache.get(
-			config.AUTO_DELETE_LOG_CHANNEL_ID,
-		)
-		if (
-			logChannel &&
-			"send" in logChannel &&
-			typeof (logChannel as ChannelWithSend).send === "function"
-		) {
-			const status = verdict?.status ?? message.ai_status ?? "unknown"
-			const categories =
-				(verdict?.categories ?? []).join(", ") ||
-				message.ai_categories ||
-				message.ai_moderation_flags ||
-				"—"
-			const reason = verdict?.analysis ?? message.ai_analysis ?? "—"
-			const snippet = (
-				message.edited_content ??
-				message.content ??
-				""
-			).substring(0, 200)
-			await (logChannel as ChannelWithSend).send(
-				`**⏭️ Auto-Delete gagal — sudah dihapus orang lain** — Pesan dari <@${message.user_id}> di <#${channelId}>\n` +
-					`**Status:** ${status}\n` +
-					`**Kategori:** ${categories}\n` +
-					`**Alasan AI:** ${reason}\n` +
-					`**Isi:** ${snippet}\n` +
-					`Discord mengembalikan ` +
-					`\`MESSAGE_ID_NOT_FOUND\`: pesan sudah tidak ada saat sistem mau ` +
-					`menghapus. Kemungkinan dihapus moderator lain, bot lain, atau oleh ` +
-					`retensi pesan server. Sistem tidak perlu menghapusnya lagi.\n` +
-					`**Waktu:** <t:${Math.floor(Date.now() / 1000)}:R>`,
-			)
-			logger.info(
-				{ channelId, messageId: message.id },
-				"Already-deleted message logged to channel",
-			)
-		}
-	} catch (logErr) {
-		logger.warn(
-			{ messageId: message.id, error: String(logErr) },
-			"Failed to log already-deleted message to moderation channel",
-		)
-	}
+	return sendToLogChannel({
+		guild,
+		message,
+		verdict,
+		channelId,
+		format: ({ status, categories, reason, snippet }) =>
+			`**⏭️ Auto-Delete gagal — sudah dihapus orang lain** — Pesan dari <@${message.user_id}> di <#${channelId}>\n` +
+			`**Status:** ${status}\n` +
+			`**Kategori:** ${categories}\n` +
+			`**Alasan AI:** ${reason}\n` +
+			`**Isi:** ${snippet}\n` +
+			`Discord mengembalikan ` +
+			`\`MESSAGE_ID_NOT_FOUND\`: pesan sudah tidak ada saat sistem mau ` +
+			`menghapus. Kemungkinan dihapus moderator lain, bot lain, atau oleh ` +
+			`retensi pesan server. Sistem tidak perlu menghapusnya lagi.\n` +
+			`**Waktu:** ${logTime()}`,
+		successLog: "Already-deleted message logged to channel",
+		failureLog: "Failed to log already-deleted message to moderation channel",
+	})
 }

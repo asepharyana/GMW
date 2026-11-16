@@ -7,6 +7,7 @@ import { moderationActionsTable } from "../../database/schema.js"
 import { createChildLogger, type Logger } from "../../logger/index.js"
 import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js"
 import type { ModerationAction, PageResult } from "./types.js"
+import { withErrorLog } from "./withErrorLog.js"
 
 let _eventBroadcaster: EventBroadcaster | null = null
 
@@ -34,60 +35,52 @@ export class ModerationActionsDb {
 			{ guildId: action.guild_id },
 			"createModerationAction entry",
 		)
-		try {
-			const id = `action-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-			const created_at = Date.now()
+		return withErrorLog(
+			this.logger,
+			{ guildId: action.guild_id },
+			"Failed to create moderation action",
+			async () => {
+				const id = `action-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+				const created_at = Date.now()
 
-			const rows = await this.db
-				.insert(moderationActionsTable)
-				.values({
-					...action,
-					id,
-					created_at,
-				})
-				.returning()
+				const rows = await this.db
+					.insert(moderationActionsTable)
+					.values({
+						...action,
+						id,
+						created_at,
+					})
+					.returning()
 
-			const created = rows[0] as ModerationAction
+				const created = rows[0] as ModerationAction
 
-			// Fire-and-forget live broadcast (backend WS → frontend feed).
-			if (_eventBroadcaster) {
-				_eventBroadcaster
-					.moderationAction(created as unknown as Record<string, unknown>)
-					.catch(() => {})
-			}
+				// Fire-and-forget live broadcast (backend WS → frontend feed).
+				if (_eventBroadcaster) {
+					_eventBroadcaster
+						.moderationAction(created as unknown as Record<string, unknown>)
+						.catch(() => {})
+				}
 
-			return created
-		} catch (error) {
-			this.logger.error(
-				{
-					guildId: action.guild_id,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to create moderation action",
-			)
-			throw error
-		}
+				return created
+			},
+		)
 	}
 
 	async getModerationAction(id: string): Promise<ModerationAction | null> {
 		this.logger.debug({ actionId: id }, "getModerationAction entry")
-		try {
-			const rows = await this.db
-				.select()
-				.from(moderationActionsTable)
-				.where(eq(moderationActionsTable.id, id))
+		return withErrorLog(
+			this.logger,
+			{ actionId: id },
+			"Failed to get moderation action",
+			async () => {
+				const rows = await this.db
+					.select()
+					.from(moderationActionsTable)
+					.where(eq(moderationActionsTable.id, id))
 
-			return (rows[0] as ModerationAction) || null
-		} catch (error) {
-			this.logger.error(
-				{
-					actionId: id,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to get moderation action",
-			)
-			throw error
-		}
+				return (rows[0] as ModerationAction) || null
+			},
+		)
 	}
 
 	async listModerationActions(query: {
@@ -97,49 +90,48 @@ export class ModerationActionsDb {
 		limit: number
 	}): Promise<PageResult<ModerationAction>> {
 		this.logger.debug({ query }, "listModerationActions entry")
-		try {
-			const limit = Math.max(1, Math.min(query.limit || 50, 100))
-			const conditions: SQL[] = []
+		return withErrorLog(
+			this.logger,
+			{},
+			"Failed to list moderation actions",
+			async () => {
+				const limit = Math.max(1, Math.min(query.limit || 50, 100))
+				const conditions: SQL[] = []
 
-			if (query.guildId) {
-				conditions.push(eq(moderationActionsTable.guild_id, query.guildId))
-			}
-			if (query.status && query.status.length > 0) {
-				conditions.push(
-					inArray(
-						moderationActionsTable.status,
-						query.status as Array<"pending" | "failed" | "executed">,
-					),
+				if (query.guildId) {
+					conditions.push(eq(moderationActionsTable.guild_id, query.guildId))
+				}
+				if (query.status && query.status.length > 0) {
+					conditions.push(
+						inArray(
+							moderationActionsTable.status,
+							query.status as Array<"pending" | "failed" | "executed">,
+						),
+					)
+				}
+
+				const cursorCondition = buildCursorCondition(
+					moderationActionsTable.created_at,
+					moderationActionsTable.id,
+					query.cursor,
 				)
-			}
+				if (cursorCondition) {
+					conditions.push(cursorCondition)
+				}
 
-			const cursorCondition = buildCursorCondition(
-				moderationActionsTable.created_at,
-				moderationActionsTable.id,
-				query.cursor,
-			)
-			if (cursorCondition) {
-				conditions.push(cursorCondition)
-			}
+				const rows = await this.db
+					.select()
+					.from(moderationActionsTable)
+					.where(conditions.length > 0 ? and(...conditions) : undefined)
+					.orderBy(
+						desc(moderationActionsTable.created_at),
+						desc(moderationActionsTable.id),
+					)
+					.limit(limit + 1)
 
-			const rows = await this.db
-				.select()
-				.from(moderationActionsTable)
-				.where(conditions.length > 0 ? and(...conditions) : undefined)
-				.orderBy(
-					desc(moderationActionsTable.created_at),
-					desc(moderationActionsTable.id),
-				)
-				.limit(limit + 1)
-
-			return pageResult<ModerationAction>(rows, limit)
-		} catch (error) {
-			this.logger.error(
-				{ error: error instanceof Error ? error.message : String(error) },
-				"Failed to list moderation actions",
-			)
-			throw error
-		}
+				return pageResult<ModerationAction>(rows, limit)
+			},
+		)
 	}
 
 	async updateModerationAction(
@@ -147,23 +139,19 @@ export class ModerationActionsDb {
 		updates: Partial<Omit<ModerationAction, "id" | "created_at">>,
 	): Promise<ModerationAction | null> {
 		this.logger.debug({ actionId: id }, "updateModerationAction entry")
-		try {
-			const rows = (await this.db
-				.update(moderationActionsTable)
-				.set(updates)
-				.where(eq(moderationActionsTable.id, id))
-				.returning()) as ModerationAction[]
+		return withErrorLog(
+			this.logger,
+			{ actionId: id },
+			"Failed to update moderation action",
+			async () => {
+				const rows = (await this.db
+					.update(moderationActionsTable)
+					.set(updates)
+					.where(eq(moderationActionsTable.id, id))
+					.returning()) as ModerationAction[]
 
-			return rows[0] || null
-		} catch (error) {
-			this.logger.error(
-				{
-					actionId: id,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to update moderation action",
-			)
-			throw error
-		}
+				return rows[0] || null
+			},
+		)
 	}
 }

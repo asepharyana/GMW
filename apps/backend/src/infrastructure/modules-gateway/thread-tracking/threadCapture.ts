@@ -6,6 +6,16 @@ import type { EventBroadcaster } from "../event-broadcaster/eventBroadcaster.js"
 
 const logger = createChildLogger("thread-tracking")
 
+/** Fields every thread event carries, whatever changed. */
+function threadBase(thread: ThreadChannel) {
+	return {
+		id: thread.id,
+		guild_id: thread.guildId,
+		channel_id: thread.parentId ?? thread.guildId,
+		name: thread.name,
+	}
+}
+
 export function registerThreadCapture(
 	client: Client,
 	eventBroadcaster: EventBroadcaster,
@@ -16,10 +26,7 @@ export function registerThreadCapture(
 		if (!isMonitoredGuild(config, thread.guildId)) return
 
 		const data = {
-			id: thread.id,
-			guild_id: thread.guildId,
-			channel_id: thread.parentId ?? thread.guildId,
-			name: thread.name,
+			...threadBase(thread),
 			owner_id: thread.ownerId ?? null,
 			type: thread.type,
 			archived: (thread as any).archived ?? false,
@@ -34,10 +41,7 @@ export function registerThreadCapture(
 		if (!isMonitoredGuild(config, thread.guildId)) return
 
 		const data = {
-			id: thread.id,
-			guild_id: thread.guildId,
-			channel_id: thread.parentId ?? thread.guildId,
-			name: thread.name,
+			...threadBase(thread),
 			deleted_at: Date.now(),
 		}
 
@@ -51,10 +55,7 @@ export function registerThreadCapture(
 			if (!isMonitoredGuild(config, newThread.guildId)) return
 
 			const data = {
-				id: newThread.id,
-				guild_id: newThread.guildId,
-				channel_id: newThread.parentId ?? newThread.guildId,
-				name: newThread.name,
+				...threadBase(newThread),
 				archived: (newThread as any).archived ?? false,
 				rate_limit_per_user: (newThread as any).rateLimitPerUser ?? null,
 				updated_at: Date.now(),

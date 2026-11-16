@@ -109,7 +109,13 @@ describe("getTopFlaggedDomains reads content from messages", () => {
 		)
 		// a.content never existed; the message body lives on messages.content.
 		expect(body).not.toContain("a.content")
-		expect(body).toContain("messages")
-		expect(body).toContain("content")
+		// The lookup is shared (`loadMessageContents`), so the method delegates to
+		// it and the helper is what must read `messages.content`.
+		expect(body).toContain("loadMessageContents")
+		const helper = source.slice(
+			source.indexOf("private async loadMessageContents"),
+			source.indexOf("async getStats"),
+		)
+		expect(helper).toContain("messagesTable.content")
 	})
 })

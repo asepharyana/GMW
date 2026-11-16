@@ -23,6 +23,11 @@ export interface ToolDef {
 	}
 }
 
+// Parameter schemas shared by most tools.
+const guildIdParam = { type: "string", description: "ID server (opsional)." }
+const channelIdParam = { type: "string", description: "ID channel (opsional)." }
+const userIdParam = { type: "string", description: "ID user (wajib)." }
+
 export const tools: ToolDef[] = [
 	{
 		type: "function",
@@ -33,8 +38,8 @@ export const tools: ToolDef[] = [
 			parameters: {
 				type: "object",
 				properties: {
-					guildId: { type: "string", description: "ID server (opsional)." },
-					channelId: { type: "string", description: "ID channel (opsional)." },
+					guildId: guildIdParam,
+					channelId: channelIdParam,
 				},
 			},
 		},
@@ -48,7 +53,7 @@ export const tools: ToolDef[] = [
 			parameters: {
 				type: "object",
 				properties: {
-					guildId: { type: "string", description: "ID server (opsional)." },
+					guildId: guildIdParam,
 					limit: {
 						type: "number",
 						description: "Jumlah channel teratas (default 5, max 10).",
@@ -66,8 +71,8 @@ export const tools: ToolDef[] = [
 			parameters: {
 				type: "object",
 				properties: {
-					guildId: { type: "string", description: "ID server (opsional)." },
-					channelId: { type: "string", description: "ID channel (opsional)." },
+					guildId: guildIdParam,
+					channelId: channelIdParam,
 					limit: {
 						type: "number",
 						description: "Jumlah pesan terakhir (default 5, max 20).",
@@ -85,8 +90,8 @@ export const tools: ToolDef[] = [
 			parameters: {
 				type: "object",
 				properties: {
-					guildId: { type: "string", description: "ID server (opsional)." },
-					channelId: { type: "string", description: "ID channel (opsional)." },
+					guildId: guildIdParam,
+					channelId: channelIdParam,
 					limit: { type: "number", description: "Jumlah pesan (default 5)." },
 				},
 			},
@@ -105,8 +110,8 @@ export const tools: ToolDef[] = [
 						type: "string",
 						description: "Kata kunci pencarian (wajib).",
 					},
-					guildId: { type: "string", description: "ID server (opsional)." },
-					channelId: { type: "string", description: "ID channel (opsional)." },
+					guildId: guildIdParam,
+					channelId: channelIdParam,
 					limit: { type: "number", description: "Jumlah hasil (default 5)." },
 				},
 				required: ["query"],
@@ -122,9 +127,9 @@ export const tools: ToolDef[] = [
 			parameters: {
 				type: "object",
 				properties: {
-					userId: { type: "string", description: "ID user (wajib)." },
-					guildId: { type: "string", description: "ID server (opsional)." },
-					channelId: { type: "string", description: "ID channel (opsional)." },
+					userId: userIdParam,
+					guildId: guildIdParam,
+					channelId: channelIdParam,
 					limit: { type: "number", description: "Jumlah pesan (default 10)." },
 				},
 				required: ["userId"],
@@ -140,8 +145,8 @@ export const tools: ToolDef[] = [
 			parameters: {
 				type: "object",
 				properties: {
-					userId: { type: "string", description: "ID user (wajib)." },
-					guildId: { type: "string", description: "ID server (opsional)." },
+					userId: userIdParam,
+					guildId: guildIdParam,
 				},
 				required: ["userId"],
 			},
@@ -156,8 +161,8 @@ export const tools: ToolDef[] = [
 			parameters: {
 				type: "object",
 				properties: {
-					userId: { type: "string", description: "ID user (wajib)." },
-					guildId: { type: "string", description: "ID server (opsional)." },
+					userId: userIdParam,
+					guildId: guildIdParam,
 				},
 				required: ["userId"],
 			},
@@ -202,7 +207,7 @@ export const tools: ToolDef[] = [
 			parameters: {
 				type: "object",
 				properties: {
-					guildId: { type: "string", description: "ID server (opsional)." },
+					guildId: guildIdParam,
 					status: {
 						type: "string",
 						description:
@@ -222,8 +227,8 @@ export const tools: ToolDef[] = [
 			parameters: {
 				type: "object",
 				properties: {
-					guildId: { type: "string", description: "ID server (opsional)." },
-					channelId: { type: "string", description: "ID channel (opsional)." },
+					guildId: guildIdParam,
+					channelId: channelIdParam,
 					days: {
 						type: "number",
 						description: "Jumlah hari ke belakang (default 14, max 60).",

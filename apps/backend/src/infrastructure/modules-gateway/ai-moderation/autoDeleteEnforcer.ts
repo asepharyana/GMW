@@ -25,6 +25,7 @@ import type { Client } from "discord.js-selfbot-v13"
 import { sql } from "drizzle-orm"
 import { config } from "../../config/index.js"
 import { getDatabase } from "../../database/drizzle.js"
+import type { DatabaseHandle } from "../../database/handle.js"
 import { createChildLogger } from "../../logger/index.js"
 import type { VerdictLike } from "./autoDeleteEligibility.js"
 import {
@@ -96,8 +97,10 @@ function normalizeEvidence(raw: unknown): string[] {
 }
 
 /** Verdicts awaiting a decision, oldest first. */
-async function claimUnenforced(limit: number): Promise<Row[]> {
-	const db = getDatabase()
+export async function claimUnenforced(
+	limit: number,
+	db: DatabaseHandle = getDatabase(),
+): Promise<Row[]> {
 	// AUTO_DELETE_FLAGGED_DELAY_MS is a grace period between "the model flagged
 	// this" and "we delete it". It was declared in the schema and documented in
 	// .env.example from the start, and read nowhere: setting it to 60000 to buy
@@ -138,6 +141,9 @@ async function claimUnenforced(limit: number): Promise<Row[]> {
       FROM verdicts v
       JOIN messages m ON m.id = v.message_id
       WHERE v.status = 'deleted'
+        -- An edit re-queues the message but leaves the previous verdict stored.
+        -- Wait for the worker to finish judging the current content.
+        AND m.ai_status = 'analyzed'
         AND m.deleted_at IS NULL
         AND v.created_at <= ${notBefore}
         AND (v.${sql.raw("auto_delete_state")} IS NULL

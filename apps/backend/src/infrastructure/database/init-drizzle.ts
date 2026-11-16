@@ -92,37 +92,31 @@ function convertPlaceholdersForPostgres(sql: string) {
 	return sql.replace(/\?/g, () => `$${++i}`)
 }
 
-export async function executeAll(sql: string, params?: unknown[]) {
+function requirePool(): Pool {
 	if (!rawPool) {
 		throw new Error(
 			"Database not initialized. Call initializeDatabase() first.",
 		)
 	}
-	const query = convertPlaceholdersForPostgres(sql)
-	const result = await rawPool.query(query, params || [])
-	return result.rows
+	return rawPool
+}
+
+async function runQuery(sql: string, params?: unknown[]) {
+	return requirePool().query(convertPlaceholdersForPostgres(sql), params || [])
+}
+
+export async function executeAll(sql: string, params?: unknown[]) {
+	return (await runQuery(sql, params)).rows
 }
 
 export async function executeGet(sql: string, params?: unknown[]) {
-	if (!rawPool) {
-		throw new Error(
-			"Database not initialized. Call initializeDatabase() first.",
-		)
-	}
-	const query = convertPlaceholdersForPostgres(sql)
-	const result = await rawPool.query(query, params || [])
-	return result.rows[0] ?? null
+	return (await runQuery(sql, params)).rows[0] ?? null
 }
 
 export async function withDatabaseClient<T>(
 	callback: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-	if (!rawPool) {
-		throw new Error(
-			"Database not initialized. Call initializeDatabase() first.",
-		)
-	}
-	const client = await rawPool.connect()
+	const client = await requirePool().connect()
 	try {
 		return await callback(client)
 	} finally {

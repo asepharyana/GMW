@@ -454,6 +454,59 @@ export function getEmbedMetadata(
 	}))
 }
 
+type ReferencedMessageContent = {
+	content: string
+	username: string
+	userId: string
+	attachments: AttachmentEvidence[]
+	authorIsBot: boolean
+}
+
+/** Normalise one raw discord.js attachment into the stored evidence shape. */
+function toAttachmentEvidence(raw: unknown): AttachmentEvidence {
+	const a = raw as {
+		id: string
+		name: string | null
+		url: string
+		contentType: string | null
+		size: number
+		width?: number | null
+		height?: number | null
+	}
+	return {
+		id: a.id,
+		name: a.name || "unknown",
+		url: a.url,
+		contentType: a.contentType ?? null,
+		size: a.size,
+		width: a.width ?? null,
+		height: a.height ?? null,
+	}
+}
+
+/**
+ * A cached reply target and a forward snapshot expose the same fields
+ * (`content`, `author`, attachments), so both are reduced to one shape here.
+ * The attachments are passed in already iterated because the two sources
+ * reach them differently — and differ on whether a missing collection is an
+ * error (cache) or just empty (snapshot).
+ */
+function toReferencedMessage(
+	source: {
+		content?: string | null
+		author?: { username?: string; id?: string; bot?: boolean } | null
+	},
+	attachments: Iterable<unknown>,
+): ReferencedMessageContent {
+	return {
+		content: source.content ?? "",
+		username: source.author?.username ?? "Unknown",
+		userId: source.author?.id ?? "",
+		attachments: Array.from(attachments).map(toAttachmentEvidence),
+		authorIsBot: Boolean(source.author?.bot),
+	}
+}
+
 /**
  * Try to get referenced message content from the channel cache or message snapshots.
  * For replies, Discord sends `referenced_message` in the API, which
@@ -462,13 +515,9 @@ export function getEmbedMetadata(
  * stores in `message.messageSnapshots` as a Collection of partial Message objects.
  * Returns null if the message can't be resolved from either source.
  */
-function getReferencedMessageContent(message: Message): {
-	content: string
-	username: string
-	userId: string
-	attachments: AttachmentEvidence[]
-	authorIsBot: boolean
-} | null {
+function getReferencedMessageContent(
+	message: Message,
+): ReferencedMessageContent | null {
 	const ref = message.reference
 	if (!ref?.messageId) return null
 
@@ -476,34 +525,10 @@ function getReferencedMessageContent(message: Message): {
 	try {
 		const cached = (message.channel as any)?.messages?.cache?.get(ref.messageId)
 		if (cached) {
-			return {
-				content: cached.content ?? "",
-				username: cached.author?.username ?? "Unknown",
-				userId: cached.author?.id ?? "",
-				attachments: Array.from(
-					(cached.attachments as { values: () => Iterable<unknown> }).values(),
-				).map((raw: unknown) => {
-					const a = raw as {
-						id: string
-						name: string | null
-						url: string
-						contentType: string | null
-						size: number
-						width?: number | null
-						height?: number | null
-					}
-					return {
-						id: a.id,
-						name: a.name || "unknown",
-						url: a.url,
-						contentType: a.contentType ?? null,
-						size: a.size,
-						width: a.width ?? null,
-						height: a.height ?? null,
-					}
-				}),
-				authorIsBot: Boolean(cached.author?.bot),
-			}
+			return toReferencedMessage(
+				cached,
+				(cached.attachments as { values: () => Iterable<unknown> }).values(),
+			)
 		}
 	} catch {
 		// Cache may not be available or message not in it
@@ -515,36 +540,12 @@ function getReferencedMessageContent(message: Message): {
 	try {
 		const snapshot = message.messageSnapshots?.get(ref.messageId)
 		if (snapshot) {
-			return {
-				content: snapshot.content ?? "",
-				username: (snapshot as any).author?.username ?? "Unknown",
-				userId: (snapshot as any).author?.id ?? "",
-				attachments: Array.from(
-					(
-						snapshot as { attachments?: { values: () => Iterable<unknown> } }
-					).attachments?.values() ?? [],
-				).map((raw: unknown) => {
-					const a = raw as {
-						id: string
-						name: string | null
-						url: string
-						contentType: string | null
-						size: number
-						width?: number | null
-						height?: number | null
-					}
-					return {
-						id: a.id,
-						name: a.name || "unknown",
-						url: a.url,
-						contentType: a.contentType ?? null,
-						size: a.size,
-						width: a.width ?? null,
-						height: a.height ?? null,
-					}
-				}),
-				authorIsBot: Boolean((snapshot as any).author?.bot),
-			}
+			return toReferencedMessage(
+				snapshot as any,
+				(
+					snapshot as { attachments?: { values: () => Iterable<unknown> } }
+				).attachments?.values() ?? [],
+			)
 		}
 	} catch {
 		// Snapshots may not be available

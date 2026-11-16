@@ -3,18 +3,31 @@
 function resolveServerNick(row: Record<string, unknown>): string | null {
 	const metadata = row.metadata
 	if (!metadata || typeof metadata !== "string") {
-		return (row.username as string | null) ?? null
+		return orNull<string>(row.username)
 	}
 	try {
 		const parsed = JSON.parse(metadata) as {
 			member?: { displayName?: string | null } | null
 		}
-		return (
-			parsed?.member?.displayName ?? (row.username as string | null) ?? null
-		)
+		return parsed?.member?.displayName ?? orNull<string>(row.username)
 	} catch {
-		return (row.username as string | null) ?? null
+		return orNull<string>(row.username)
 	}
+}
+
+/** `undefined` and `null` both become `null`; no runtime coercion. */
+function orNull<T>(value: unknown): T | null {
+	return (value as T | null) ?? null
+}
+
+/**
+ * `null`/`undefined` stay `null`, anything else goes through `Number(...)`.
+ * The null check comes first on purpose: "never happened" and "happened at
+ * epoch zero" are different facts, and `Number(null)` would turn the first
+ * into the second.
+ */
+function numberOrNull(value: unknown): number | null {
+	return value == null ? null : Number(value)
 }
 
 export interface MappedMessage {
@@ -95,26 +108,26 @@ export function mapMessageRow(row: Record<string, unknown>): MappedMessage {
 		id: String(row.id ?? ""),
 		guild_id: String(row.guild_id ?? ""),
 		channel_id: String(row.channel_id ?? ""),
-		thread_id: (row.thread_id as string | null) ?? null,
+		thread_id: orNull<string>(row.thread_id),
 		user_id: String(row.user_id ?? ""),
 		username: String(row.username ?? ""),
 		server_nick: resolveServerNick(row),
-		avatar_url: (row.avatar_url as string | null) ?? null,
+		avatar_url: orNull<string>(row.avatar_url),
 		content: String(row.content ?? ""),
-		edited_content: (row.edited_content as string | null) ?? null,
+		edited_content: orNull<string>(row.edited_content),
 		created_at: Number(row.created_at ?? 0),
 		// BigInt columns, so `Number(...)` is required — see `verdict_updated_at`
 		// below. These are the two the "Edited" / "deleted" badges read, so a
 		// `bigint` here is not merely unserialisable: it breaks the arithmetic that
 		// decides whether to render those badges at all.
-		edited_at: row.edited_at == null ? null : Number(row.edited_at),
-		deleted_at: row.deleted_at == null ? null : Number(row.deleted_at),
+		edited_at: numberOrNull(row.edited_at),
+		deleted_at: numberOrNull(row.deleted_at),
 		type: String(row.type ?? "text"),
-		metadata: (row.metadata as string | null) ?? null,
+		metadata: orNull<string>(row.metadata),
 		// Pipeline position, NOT the judgement. `analyzed` only means the worker is
 		// finished with this message. The moderation outcome is `verdict_status`
 		// below, which comes from the `verdicts` table.
-		ai_status: (row.ai_status as string | null) ?? null,
+		ai_status: orNull<string>(row.ai_status),
 		// Retry bookkeeping, so the dashboard can show stuck work without a second
 		// query. `dead` is the state that means "the worker gave up".
 		//
@@ -122,23 +135,22 @@ export function mapMessageRow(row: Record<string, unknown>): MappedMessage {
 		// is load-bearing, not decoration — see the note on `verdict_updated_at`
 		// below for why a cast is not enough. `attempts` is an int column and is
 		// left as-is.
-		ai_attempts: (row.attempts as number | null) ?? null,
-		ai_worker_id: (row.worker_id as string | null) ?? null,
-		ai_lease_until: row.lease_until == null ? null : Number(row.lease_until),
-		ai_ready_for_work_at:
-			row.ready_for_work_at == null ? null : Number(row.ready_for_work_at),
+		ai_attempts: orNull<number>(row.attempts),
+		ai_worker_id: orNull<string>(row.worker_id),
+		ai_lease_until: numberOrNull(row.lease_until),
+		ai_ready_for_work_at: numberOrNull(row.ready_for_work_at),
 		// ── Verdict (from `verdicts`, joined by the repository) ────────────────
 		// null means "not judged yet" — which is now distinguishable from
 		// "judged clean". Before the split those were the same value.
-		verdict_status: (row.verdict_status as string | null) ?? null,
-		verdict_score: (row.verdict_score as number | null) ?? null,
-		verdict_confidence: (row.verdict_confidence as number | null) ?? null,
-		verdict_flags: (row.verdict_flags as string[] | null) ?? null,
-		verdict_categories: (row.verdict_categories as string[] | null) ?? null,
-		verdict_reason: (row.verdict_reason as string | null) ?? null,
-		verdict_analysis: (row.verdict_analysis as string | null) ?? null,
-		verdict_evidence: (row.verdict_evidence as unknown) ?? null,
-		verdict_model: (row.verdict_model as string | null) ?? null,
+		verdict_status: orNull<string>(row.verdict_status),
+		verdict_score: orNull<number>(row.verdict_score),
+		verdict_confidence: orNull<number>(row.verdict_confidence),
+		verdict_flags: orNull<string[]>(row.verdict_flags),
+		verdict_categories: orNull<string[]>(row.verdict_categories),
+		verdict_reason: orNull<string>(row.verdict_reason),
+		verdict_analysis: orNull<string>(row.verdict_analysis),
+		verdict_evidence: orNull<unknown>(row.verdict_evidence),
+		verdict_model: orNull<string>(row.verdict_model),
 		// COERCED, NOT CAST. `verdicts.updated_at` is a BigInt column, so this
 		// arrives as a real `bigint` and a cast (`as number | null`) passes it
 		// through untouched — which is what shipped BigInts to the browser. The
@@ -149,29 +161,24 @@ export function mapMessageRow(row: Record<string, unknown>): MappedMessage {
 		// `== null` first so a NULL column stays null instead of becoming 0 — "never
 		// judged" and "judged at epoch zero" are different facts, and a 0 would
 		// render as 56 years ago.
-		verdict_updated_at:
-			row.verdict_updated_at == null ? null : Number(row.verdict_updated_at),
-		auto_delete_state: (row.auto_delete_state as string | null) ?? null,
+		verdict_updated_at: numberOrNull(row.verdict_updated_at),
+		auto_delete_state: orNull<string>(row.auto_delete_state),
 		// Legacy `messages.ai_*` columns. The new worker writes NOTHING here, so
 		// these stay null for anything analysed after the rewrite; kept for older
 		// rows and existing frontend code paths.
-		ai_moderation_flags: (row.ai_moderation_flags as string | null) ?? null,
-		ai_moderation_score: (row.ai_moderation_score as number | null) ?? null,
-		ai_analysis: (row.ai_analysis as string | null) ?? null,
-		ai_categories: (row.ai_categories as string | null) ?? null,
-		ai_confidence: (row.ai_confidence as number | null) ?? null,
-		ai_analyzed_at:
-			row.ai_analyzed_at == null ? null : Number(row.ai_analyzed_at),
-		ai_analysis_duration_ms:
-			row.ai_analysis_duration_ms == null
-				? null
-				: Number(row.ai_analysis_duration_ms),
-		ai_error: (row.ai_error as string | null) ?? null,
+		ai_moderation_flags: orNull<string>(row.ai_moderation_flags),
+		ai_moderation_score: orNull<number>(row.ai_moderation_score),
+		ai_analysis: orNull<string>(row.ai_analysis),
+		ai_categories: orNull<string>(row.ai_categories),
+		ai_confidence: orNull<number>(row.ai_confidence),
+		ai_analyzed_at: numberOrNull(row.ai_analyzed_at),
+		ai_analysis_duration_ms: numberOrNull(row.ai_analysis_duration_ms),
+		ai_error: orNull<string>(row.ai_error),
 		is_reply: row.is_reply === null ? null : Boolean(row.is_reply),
 		is_forward: row.is_forward === null ? null : Boolean(row.is_forward),
 		is_crosspost: row.is_crosspost === null ? null : Boolean(row.is_crosspost),
-		reference_message_id: (row.reference_message_id as string | null) ?? null,
-		reference_channel_id: (row.reference_channel_id as string | null) ?? null,
-		reference_guild_id: (row.reference_guild_id as string | null) ?? null,
+		reference_message_id: orNull<string>(row.reference_message_id),
+		reference_channel_id: orNull<string>(row.reference_channel_id),
+		reference_guild_id: orNull<string>(row.reference_guild_id),
 	}
 }

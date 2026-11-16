@@ -1,9 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { useCallback } from "react"
-import { ErrorState, LoadingState } from "#/components/ui/states"
+import { RouteSeedGate } from "#/components/features/route-seed-gate"
 import { type ICursorPage, qk } from "#/hooks/use-data"
-import { type ISeedEntry, useRouteSeed } from "#/hooks/use-route-seed"
+import type { ISeedEntry } from "#/hooks/use-route-seed"
 import { browserApi } from "#/libs/api/browser"
 import type {
 	IGuild,
@@ -37,115 +36,103 @@ const FEED_LIMIT = 50
 // a list the very next fetch immediately replaces.
 const EDIT_LIMIT = 25
 
-export function MessagesPage() {
-	const fetcher = useCallback(async () => {
-		const guilds = (await browserApi.messages.guilds()) as unknown as IGuild[]
-		const defaultGuildId = await browserApi.config.defaultGuildId()
-		const guildId = guilds?.[0]?.id ?? defaultGuildId
+async function fetchSeed() {
+	const guilds = (await browserApi.messages.guilds()) as unknown as IGuild[]
+	const defaultGuildId = await browserApi.config.defaultGuildId()
+	const guildId = guilds?.[0]?.id ?? defaultGuildId
 
-		const [channels, review, edits] = await Promise.all([
-			guildId
-				? (browserApi.messages.textChannels(guildId) as unknown as Promise<
-						ITextChannel[]
-					>)
-				: Promise.resolve([] as ITextChannel[]),
-			browserApi.messages.review({
-				limit: REVIEW_LIMIT,
-			}) as unknown as Promise<IReviewResult>,
-			browserApi.messages.editHistory({
-				limit: EDIT_LIMIT,
-			}) as unknown as Promise<ICursorPage<IMessageEdit> | IMessageEdit[]>,
-		])
+	const [channels, review, edits] = await Promise.all([
+		guildId
+			? (browserApi.messages.textChannels(guildId) as unknown as Promise<
+					ITextChannel[]
+				>)
+			: Promise.resolve([] as ITextChannel[]),
+		browserApi.messages.review({
+			limit: REVIEW_LIMIT,
+		}) as unknown as Promise<IReviewResult>,
+		browserApi.messages.editHistory({
+			limit: EDIT_LIMIT,
+		}) as unknown as Promise<ICursorPage<IMessageEdit> | IMessageEdit[]>,
+	])
 
-		// Same guard as the server version: never call messages.list without a
-		// scope, or the backend throws ValidationError.
-		const EMPTY_PAGE: IMessagePage = { data: [], nextCursor: null }
-		const messages = guildId
-			? ((await browserApi.messages.list({
-					guildId,
-					limit: FEED_LIMIT,
-				})) as unknown as IMessagePage)
-			: EMPTY_PAGE
+	// Same guard as the server version: never call messages.list without a
+	// scope, or the backend throws ValidationError.
+	const EMPTY_PAGE: IMessagePage = { data: [], nextCursor: null }
+	const messages = guildId
+		? ((await browserApi.messages.list({
+				guildId,
+				limit: FEED_LIMIT,
+			})) as unknown as IMessagePage)
+		: EMPTY_PAGE
 
-		// The PAGES are returned whole, cursor included — not `.data` / `.results`.
-		// `prime` below writes each one as page 0 of an infinite query, and a page
-		// stripped of its cursor reads as "this is the last page", which would
-		// silently disable the very scrolling this route exists for.
-		return {
-			guilds: guilds ?? [],
-			channels: channels ?? [],
-			messages,
-			review,
-			edits,
-			defaultGuildId: guildId ?? null,
-		}
-	}, [])
+	// The PAGES are returned whole, cursor included — not `.data` / `.results`.
+	// `prime` below writes each one as page 0 of an infinite query, and a page
+	// stripped of its cursor reads as "this is the last page", which would
+	// silently disable the very scrolling this route exists for.
+	return {
+		guilds: guilds ?? [],
+		channels: channels ?? [],
+		messages,
+		review,
+		edits,
+		defaultGuildId: guildId ?? null,
+	}
+}
 
-	// Prime all three paged queries with the seed, so the view's infinite
-	// queries mount onto page one instead of re-requesting it.
-	//
-	// THE KEY SHAPES MATTER AND ARE NOT INTERCHANGEABLE. An infinite query's
-	// cache entry is `{ pages: [page0], pageParams: [undefined] }`, not the bare
-	// page — seeding `IMessagePage` directly would render `data.pages` as
-	// `undefined` and crash the list. And the cursor must be carried through, or
-	// `getNextPageParam` sees `nextCursor: null`, concludes there is no page 2,
-	// and the scroll the user came here for silently does nothing.
-	const prime = useCallback(
-		(r: {
-			guilds: IGuild[]
-			channels: ITextChannel[]
-			messages: IMessagePage
-			review: IReviewResult
-			edits: ICursorPage<IMessageEdit> | IMessageEdit[]
-			defaultGuildId: string | null
-		}) => {
-			const scope = r.messages
-			const first: ISeedEntry<unknown>[] = [
-				{
-					key: qk.guilds,
-					data: r.guilds,
-				},
-				{
-					key: qk.textChannels(r.defaultGuildId ?? ""),
-					data: r.channels,
-				},
-				{
-					key: [
-						...qk.messagePage({
-							guildId: r.defaultGuildId ?? undefined,
-							limit: FEED_LIMIT,
-						}),
-					],
-					data: {
-						pages: [scope],
-						pageParams: [undefined],
-					},
-				},
-				{
-					key: [...qk.review(undefined), REVIEW_LIMIT],
-					data: { pages: [r.review], pageParams: [undefined] },
-				},
-				{
-					key: [...qk.edits(undefined), EDIT_LIMIT],
-					data: { pages: [r.edits], pageParams: [undefined] },
-				},
-			]
-			return first
+// Prime all three paged queries with the seed, so the view's infinite
+// queries mount onto page one instead of re-requesting it.
+//
+// THE KEY SHAPES MATTER AND ARE NOT INTERCHANGEABLE. An infinite query's
+// cache entry is `{ pages: [page0], pageParams: [undefined] }`, not the bare
+// page — seeding `IMessagePage` directly would render `data.pages` as
+// `undefined` and crash the list. And the cursor must be carried through, or
+// `getNextPageParam` sees `nextCursor: null`, concludes there is no page 2,
+// and the scroll the user came here for silently does nothing.
+function prime(r: Awaited<ReturnType<typeof fetchSeed>>) {
+	const scope = r.messages
+	const first: ISeedEntry<unknown>[] = [
+		{
+			key: qk.guilds,
+			data: r.guilds,
 		},
-		[],
+		{
+			key: qk.textChannels(r.defaultGuildId ?? ""),
+			data: r.channels,
+		},
+		{
+			key: [
+				...qk.messagePage({
+					guildId: r.defaultGuildId ?? undefined,
+					limit: FEED_LIMIT,
+				}),
+			],
+			data: {
+				pages: [scope],
+				pageParams: [undefined],
+			},
+		},
+		{
+			key: [...qk.review(undefined), REVIEW_LIMIT],
+			data: { pages: [r.review], pageParams: [undefined] },
+		},
+		{
+			key: [...qk.edits(undefined), EDIT_LIMIT],
+			data: { pages: [r.edits], pageParams: [undefined] },
+		},
+	]
+	return first
+}
+
+export function MessagesPage() {
+	return (
+		<RouteSeedGate
+			fetcher={fetchSeed}
+			prime={prime}
+			loadingLabel="Loading messages"
+		>
+			{(data) => <MessagesView defaultGuildId={data.defaultGuildId} />}
+		</RouteSeedGate>
 	)
-
-	const seed = useRouteSeed(fetcher, prime)
-
-	if (seed.error) {
-		return <ErrorState error={seed.error} onRetry={seed.retry} />
-	}
-
-	if (seed.isPending || !seed.data) {
-		return <LoadingState label="Loading messages" />
-	}
-
-	return <MessagesView defaultGuildId={seed.data.defaultGuildId} />
 }
 
 /**

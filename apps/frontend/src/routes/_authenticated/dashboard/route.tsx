@@ -1,9 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { useCallback } from "react"
-import { ErrorState, LoadingState } from "#/components/ui/states"
+import { RouteSeedGate } from "#/components/features/route-seed-gate"
 import { qk } from "#/hooks/use-data"
-import { useRouteSeed } from "#/hooks/use-route-seed"
 import { browserApi } from "#/libs/api/browser"
 import type {
 	IDashboardActivity,
@@ -19,72 +17,62 @@ const DAYS = 14
 /** How many ranked rows each member/channel/editor list carries. */
 const LIMIT = 8
 
+async function fetchSeed() {
+	// Independent reads, so they go in parallel rather than in sequence.
+	const [stats, activity, leaderboards, reactions, reactors, insights] =
+		await Promise.all([
+			browserApi.dashboard.stats(),
+			browserApi.dashboard.activity(DAYS),
+			browserApi.dashboard.leaderboards(LIMIT),
+			browserApi.dashboard.reactions(10),
+			browserApi.dashboard.reactors(10),
+			browserApi.dashboard.insights(LIMIT),
+		])
+
+	return {
+		stats: stats as unknown as IDashboardStats,
+		activity: activity as unknown as IDashboardActivity,
+		leaderboards: leaderboards as unknown as IDashboardLeaderboards,
+		reactions: reactions as unknown as ITopReaction[],
+		reactors: reactors as unknown as ITopReactor[],
+		insights: insights as unknown as IDashboardInsights,
+	}
+}
+
+// Prime the cache under the exact keys `useStats` / `useActivity` /
+// `useLeaderboards` / `useTopReactions` / `useTopReactors` / `useInsights`
+// read, so those hooks mount onto this data instead of firing six identical
+// requests one frame later.
+function prime(r: Awaited<ReturnType<typeof fetchSeed>>) {
+	return [
+		{ key: qk.stats, data: r.stats },
+		{ key: qk.activity(DAYS), data: r.activity },
+		{ key: qk.leaderboards(LIMIT), data: r.leaderboards },
+		{ key: qk.reactions(10), data: r.reactions },
+		{ key: qk.reactors(10), data: r.reactors },
+		{ key: qk.insights(LIMIT), data: r.insights },
+	]
+}
+
 /**
  * Client route for /dashboard — was an async React Server Component that
  * fetched its seed from `#/libs/api/server` at render time.
  *
  * The fetch list, the parallel Promise.all, and the props handed to the view
- * are unchanged; only the transport and the timing moved. `useRouteSeed` holds
- * the render until all four resolve, so `DashboardView` still receives real
+ * are unchanged; only the transport and the timing moved. `RouteSeedGate` holds
+ * the render until the seed resolves, so `DashboardView` still receives real
  * numbers on its first render exactly as it did under SSR.
  */
 export function DashboardPage() {
-	const fetcher = useCallback(async () => {
-		// Independent reads, so they go in parallel rather than in sequence.
-		const [stats, activity, leaderboards, reactions, reactors, insights] =
-			await Promise.all([
-				browserApi.dashboard.stats(),
-				browserApi.dashboard.activity(DAYS),
-				browserApi.dashboard.leaderboards(LIMIT),
-				browserApi.dashboard.reactions(10),
-				browserApi.dashboard.reactors(10),
-				browserApi.dashboard.insights(LIMIT),
-			])
-
-		return {
-			stats: stats as unknown as IDashboardStats,
-			activity: activity as unknown as IDashboardActivity,
-			leaderboards: leaderboards as unknown as IDashboardLeaderboards,
-			reactions: reactions as unknown as ITopReaction[],
-			reactors: reactors as unknown as ITopReactor[],
-			insights: insights as unknown as IDashboardInsights,
-		}
-	}, [])
-
-	// Prime the cache under the exact keys `useStats` / `useActivity` /
-	// `useLeaderboards` / `useTopReactions` / `useTopReactors` / `useInsights`
-	// read, so those hooks mount onto this data instead of firing six identical
-	// requests one frame later.
-	const prime = useCallback(
-		(r: {
-			stats: IDashboardStats
-			activity: IDashboardActivity
-			leaderboards: IDashboardLeaderboards
-			reactions: ITopReaction[]
-			reactors: ITopReactor[]
-			insights: IDashboardInsights
-		}) => [
-			{ key: qk.stats, data: r.stats },
-			{ key: qk.activity(DAYS), data: r.activity },
-			{ key: qk.leaderboards(LIMIT), data: r.leaderboards },
-			{ key: qk.reactions(10), data: r.reactions },
-			{ key: qk.reactors(10), data: r.reactors },
-			{ key: qk.insights(LIMIT), data: r.insights },
-		],
-		[],
+	return (
+		<RouteSeedGate
+			fetcher={fetchSeed}
+			prime={prime}
+			loadingLabel="Loading overview"
+		>
+			{() => <DashboardView days={DAYS} />}
+		</RouteSeedGate>
 	)
-
-	const seed = useRouteSeed(fetcher, prime)
-
-	if (seed.error) {
-		return <ErrorState error={seed.error} onRetry={seed.retry} />
-	}
-
-	if (seed.isPending || !seed.data) {
-		return <LoadingState label="Loading overview" />
-	}
-
-	return <DashboardView days={DAYS} />
 }
 
 /**

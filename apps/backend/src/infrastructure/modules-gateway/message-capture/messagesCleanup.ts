@@ -4,6 +4,7 @@ import type * as schema from "../../database/schema.js"
 import { messagesTable } from "../../database/schema.js"
 import { createChildLogger, type Logger } from "../../logger/index.js"
 import type { MessageRecord } from "./types.js"
+import { withErrorLog } from "./withErrorLog.js"
 
 // ─── MessagesCleanup Class ────────────────────────────────────────────────────
 
@@ -20,31 +21,27 @@ export class MessagesCleanup {
 	async getExpiredMessages(retentionDays: number): Promise<MessageRecord[]> {
 		if (retentionDays <= 0) return []
 		this.logger.debug({ retentionDays }, "getExpiredMessages entry")
-		try {
-			const cutoffTime = Date.now() - retentionDays * 24 * 60 * 60 * 1000
+		return withErrorLog(
+			this.logger,
+			{ retentionDays },
+			"Failed to get expired messages",
+			async () => {
+				const cutoffTime = Date.now() - retentionDays * 24 * 60 * 60 * 1000
 
-			const rows = await this.db
-				.select()
-				.from(messagesTable)
-				.where(
-					and(
-						sql`${messagesTable.created_at} < ${cutoffTime}`,
-						isNull(messagesTable.deleted_at),
-					),
-				)
-				.limit(1000)
+				const rows = await this.db
+					.select()
+					.from(messagesTable)
+					.where(
+						and(
+							sql`${messagesTable.created_at} < ${cutoffTime}`,
+							isNull(messagesTable.deleted_at),
+						),
+					)
+					.limit(1000)
 
-			return rows as MessageRecord[]
-		} catch (error) {
-			this.logger.error(
-				{
-					retentionDays,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to get expired messages",
-			)
-			throw error
-		}
+				return rows as MessageRecord[]
+			},
+		)
 	}
 
 	/**
