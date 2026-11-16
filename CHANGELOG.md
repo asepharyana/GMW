@@ -1,3 +1,5 @@
+## [1.7.1](https://github.com/MythEclipse/GMW/compare/v1.7.0...v1.7.1) (2026-11-16)
+
 # [1.7.0](https://github.com/MythEclipse/GMW/compare/v1.6.0...v1.7.0) (2026-11-15)
 
 
