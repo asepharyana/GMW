@@ -1,3 +1,10 @@
+## [1.7.2](https://github.com/MythEclipse/GMW/compare/v1.7.1...v1.7.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* **deps:** bump esbuild to 0.25.0 for GHSA-67mh-4wv8-2f99 ([7cba47e](https://github.com/MythEclipse/GMW/commit/7cba47e32d8d0a0669fef417cd52d914f67d2e66))
+
 ## [1.7.1](https://github.com/MythEclipse/GMW/compare/v1.7.0...v1.7.1) (2026-11-16)
 
 # [1.7.0](https://github.com/MythEclipse/GMW/compare/v1.6.0...v1.7.0) (2026-11-15)
