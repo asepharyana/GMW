@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  undici: 7.30.1
+
 importers:
 
   .:
@@ -46,7 +49,7 @@ importers:
         version: 11.5.3
       openai:
         specifier: ^7.56.0
-        version: 7.56.0(undici@7.30.0)(ws@8.23.0)(zod@4.6.7)
+        version: 7.56.0(undici@7.30.1)(ws@8.23.0)(zod@4.6.7)
       p-limit:
         specifier: ^7.3.3
         version: 7.3.3
@@ -2603,7 +2606,7 @@ packages:
       '@smithy/hash-node': '>=4.3.0 <5'
       '@smithy/signature-v4': '>=5.4.0 <6'
       google-auth-library: '>=9.15.1 <12'
-      undici: '>=5 <9'
+      undici: 7.30.1
       ws: ^8.21.0
       zod: ^3.25 || ^4.0
     peerDependenciesMeta:
@@ -3037,8 +3040,8 @@ packages:
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
 
-  undici@7.30.0:
-    resolution: {integrity: sha512-dkrQXeHSaoamnItlYbmzG0wFYrM0ZwDxCIg0A7aKjTyyhh9svRzCNFEzV+Vm05/yehjCzjDZ31KXfGEjYSztDQ==}
+  undici@7.30.1:
+    resolution: {integrity: sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==}
     engines: {node: '>=20.18.1'}
 
   unplugin@3.7.0:
@@ -4701,7 +4704,7 @@ snapshots:
       qrcode: 1.5.4
       tough-cookie: 5.1.2
       tree-kill: 1.2.2
-      undici: 7.30.0
+      undici: 7.30.1
       werift-rtp: 0.8.9
       ws: 8.23.0
     transitivePeerDependencies:
@@ -5094,9 +5097,9 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  openai@7.56.0(undici@7.30.0)(ws@8.23.0)(zod@4.6.7):
+  openai@7.56.0(undici@7.30.1)(ws@8.23.0)(zod@4.6.7):
     optionalDependencies:
-      undici: 7.30.0
+      undici: 7.30.1
       ws: 8.23.0
       zod: 4.6.7
 
@@ -5520,7 +5523,7 @@ snapshots:
 
   undici-types@8.9.0: {}
 
-  undici@7.30.0: {}
+  undici@7.30.1: {}
 
   unplugin@3.7.0(esbuild@0.28.2)(rolldown@1.2.19)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)):
     dependencies:
