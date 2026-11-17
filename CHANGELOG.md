@@ -1,3 +1,11 @@
+## [1.7.3](https://github.com/MythEclipse/GMW/compare/v1.7.2...v1.7.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* auto-fix code quality ([79f054d](https://github.com/MythEclipse/GMW/commit/79f054da53dbaef9f3c8d20ff2d59dd08a5a8c6c))
+* **deps:** bump undici to 7.30.1 for GHSA-4w7w-5xrc-9h26, GHSA-2m5v-pch6-74hx, GHSA-qrxm-fqhp-jwvm, GHSA-9fm3-97px-rjf6, GHSA-55wc-3pg8-jfw6, GHSA-xjj6-f33q-929c, GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472 ([4df6434](https://github.com/MythEclipse/GMW/commit/4df6434a1597cca97e0f448aef668d4392499474))
+
 ## [1.7.2](https://github.com/MythEclipse/GMW/compare/v1.7.1...v1.7.2) (2026-11-17)
 
 
