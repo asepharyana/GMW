@@ -23,7 +23,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^2.1.8
-        version: 2.1.8(hono@4.13.18)
+        version: 2.1.8(hono@4.13.19)
       '@orpc/server':
         specifier: 1.16.2
         version: 1.16.2(@opentelemetry/api@1.9.1)(ws@8.23.0)
@@ -40,8 +40,8 @@ importers:
         specifier: ^0.45.4
         version: 0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(bun-types@1.4.4)(pg@8.23.1)
       hono:
-        specifier: ^4.13.18
-        version: 4.13.18
+        specifier: ^4.13.19
+        version: 4.13.19
       ioredis:
         specifier: ^6.0.0
         version: 6.0.0
@@ -49,8 +49,8 @@ importers:
         specifier: ^11.5.3
         version: 11.5.3
       openai:
-        specifier: ^7.56.0
-        version: 7.56.0(undici@7.30.1)(ws@8.23.0)(zod@4.6.7)
+        specifier: ^7.57.0
+        version: 7.57.0(undici@7.30.1)(ws@8.23.0)(zod@4.6.7)
       p-limit:
         specifier: ^7.3.3
         version: 7.3.3
@@ -137,8 +137,8 @@ importers:
         specifier: ^3.15.1
         version: 3.15.1
       lucide-react:
-        specifier: ^1.72.0
-        version: 1.72.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: ^1.73.0
+        version: 1.73.0(@types/react@19.3.0)(react@19.3.1)
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -2097,8 +2097,8 @@ packages:
   help-me@5.0.0:
     resolution: {integrity: sha512-7xgomUX6ADmcYzFik0HzAxh/73YlKR9bmFzf51CZwR+b6YtzU2m0u49hQCqV6SvlqIqsaxovfwdvbnsw3b/zpg==}
 
-  hono@4.13.18:
-    resolution: {integrity: sha512-H9q/E1XizaWstJxUW881dmLxEj+t/TrGGnyxINkm4+sK0qUwsMtFdo2BWI9Vs3cIS19MU6b6iCijoUoEf4f3DA==}
+  hono@4.13.19:
+    resolution: {integrity: sha512-KmXvQAXwcAHV+muzbIwoJ23niEB5nMoDVr9WcRkU8mvjUECm/1+7v4Jgp7P7a+H6MLFrh+vXrGonGrGS+RQfkA==}
     engines: {node: '>=16.9.0'}
 
   https-proxy-agent@5.0.1:
@@ -2233,8 +2233,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.72.0:
-    resolution: {integrity: sha512-fbF5i1GU8GODETa3Q7rXqrJrcx3iPYrQtxthom103zGx+Z0BGwKYAW9s+9435ohYJ7hQm0av0PoZcqI1CRwNrg==}
+  lucide-react@1.73.0:
+    resolution: {integrity: sha512-fVOzGviL9mTfHenG1PbCfIceavyGlnpYNSYr+aGZHLRymAJ7DTP6KHuqt0uBkCKAoenr1UVkwSbDIYt2xIesEQ==}
     peerDependencies:
       '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -2295,8 +2295,8 @@ packages:
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
 
-  openai@7.56.0:
-    resolution: {integrity: sha512-viGsb+pfPxaRqnap556J4vScLNXPzRRFAQ7dbWKvDaeyY5rleW3vEKnw7Mo4gnnee2kYOhppHXZS1b5JH42HCw==}
+  openai@7.57.0:
+    resolution: {integrity: sha512-RbmrdE5NdfW6nGq/FaCJ3KFCZpotoExPzruQUSMCTw/ouUFO08vpvVdSmgmPxQMFAiv9EXZCEXvcWYU+n6NzsQ==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
@@ -3274,9 +3274,9 @@ snapshots:
       gsap: 3.15.1
       react: 19.3.1
 
-  '@hono/node-server@2.1.8(hono@4.13.18)':
+  '@hono/node-server@2.1.8(hono@4.13.19)':
     dependencies:
-      hono: 4.13.18
+      hono: 4.13.19
 
   '@ioredis/commands@2.0.0': {}
 
@@ -4445,7 +4445,7 @@ snapshots:
 
   help-me@5.0.0: {}
 
-  hono@4.13.18: {}
+  hono@4.13.19: {}
 
   https-proxy-agent@5.0.1:
     dependencies:
@@ -4544,7 +4544,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.72.0(@types/react@19.3.0)(react@19.3.1):
+  lucide-react@1.73.0(@types/react@19.3.0)(react@19.3.1):
     dependencies:
       react: 19.3.1
     optionalDependencies:
@@ -4592,7 +4592,7 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  openai@7.56.0(undici@7.30.1)(ws@8.23.0)(zod@4.6.7):
+  openai@7.57.0(undici@7.30.1)(ws@8.23.0)(zod@4.6.7):
     optionalDependencies:
       undici: 7.30.1
       ws: 8.23.0
