@@ -1,3 +1,10 @@
+## [1.7.4](https://github.com/MythEclipse/GMW/compare/v1.7.3...v1.7.4) (2026-11-19)
+
+
+### Bug Fixes
+
+* **backend:** stop the heap OOM crash loop that flapped GMW 12x in 10 min ([#11](https://github.com/MythEclipse/GMW/issues/11)) ([7249d63](https://github.com/MythEclipse/GMW/commit/7249d63e9b4461ef4e530a1aa4e151f4f1b95164))
+
 ## [1.7.3](https://github.com/MythEclipse/GMW/compare/v1.7.2...v1.7.3) (2026-11-17)
 
 
