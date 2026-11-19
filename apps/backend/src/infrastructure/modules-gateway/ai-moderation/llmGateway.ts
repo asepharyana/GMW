@@ -207,6 +207,22 @@ export class HttpLlmGateway implements LlmGateway {
 		let content: string | null = null
 		let refusal: string | null | undefined
 
+		// A runaway generation must not be allowed to grow the heap without limit.
+		//
+		// `max_tokens` is a request, not a guarantee: the router in front of the
+		// model has already been observed ignoring it and emitting a repetition
+		// loop (one stored vision description is 70KB of the same sentence), so
+		// `acc += chunk` below has no inherent ceiling. At ~4 bytes per character
+		// a 60MB accumulation is enough to abort a 560MB heap, and it happens
+		// inside the same process that serves the dashboard and capture.
+		//
+		// The ceiling is deliberately generous — `max_tokens` (16384) is far
+		// smaller than this — so it can only trip on a genuine runaway, never on
+		// a legitimately long verdict batch. Tripping it is a normal
+		// LlmUnavailableError, so the worker's durable attempt counter retries the
+		// message instead of the process dying.
+		const MAX_COMPLETION_CHARS = 1_000_000
+
 		// Streaming first: the router always answers with SSE, and a non-stream
 		// request waits for the full body and can time out on a slow model.
 		try {
@@ -220,6 +236,11 @@ export class HttpLlmGateway implements LlmGateway {
 			let acc = ""
 			for await (const chunk of stream as unknown as AsyncIterable<StreamChunk>) {
 				acc += extractChunkText(chunk)
+				if (acc.length > MAX_COMPLETION_CHARS) {
+					throw new LlmUnavailableError(
+						`completion exceeded ${MAX_COMPLETION_CHARS} chars — treating as a runaway generation`,
+					)
+				}
 			}
 			content = acc
 		} catch (err) {
