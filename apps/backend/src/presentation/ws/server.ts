@@ -39,6 +39,42 @@ const streamMessagesSchema = z
 		"guildId or channelId is required",
 	)
 
+/**
+ * How many `stream_messages` replays may be in flight at once, across ALL
+ * sockets.
+ *
+ * A replay is not cheap: it materialises up to `limit` message rows and
+ * JSON-encodes each one, and every connected dashboard tab can ask for its own.
+ * Measured on this box, ONE 500-frame replay of a busy channel costs ~2.7MB of
+ * live heap, and 30 concurrent ones drove heap from 55MB to 243MB — inside a
+ * process whose V8 heap ceiling is 560MB because `MemoryMax=1G`. A dashboard
+ * that reconnects in a loop (which is exactly what happens while the backend is
+ * restarting) could therefore pin the heap long enough for the next allocation
+ * burst to abort the process with "Reached heap limit".
+ *
+ * Serialising the replays bounds that: a queued request waits for a slot instead
+ * of allocating alongside every other request. The snapshot is a convenience
+ * replay, so a short wait is invisible to the user, and it is strictly better
+ * than an OOM that takes capture and the dashboard down together.
+ */
+const MAX_CONCURRENT_REPLAYS = 2
+let activeReplays = 0
+const replayQueue: Array<() => void> = []
+
+async function withReplaySlot<T>(fn: () => Promise<T>): Promise<T> {
+	if (activeReplays >= MAX_CONCURRENT_REPLAYS) {
+		await new Promise<void>((resolve) => replayQueue.push(resolve))
+	}
+	activeReplays++
+	try {
+		return await fn()
+	} finally {
+		activeReplays--
+		const next = replayQueue.shift()
+		if (next) next()
+	}
+}
+
 // Track the active WebSocket server for lifecycle management
 let _wss: WebSocketServer | null = null
 
@@ -139,33 +175,37 @@ export function createWebSocketServer(
 
 		let sent = 0
 		let nextCursor: string | null = null
-		try {
-			for await (const msg of useCases.messages.streamMessages(
-				{
-					guildId,
-					channelId,
-					cursor: payload.cursor,
-				} as MessageQuery,
-				pageSize,
-			)) {
-				if (ws.readyState !== WebSocket.OPEN) break
-				// The same composite cursor as REST keeps same-millisecond messages
-				// reachable when a frame cap ends a stream in the middle of a tie.
-				nextCursor = encodeCursor(msg)
-				ws.send(
-					JSON.stringify({
-						type: "message_snapshot",
-						data: msg,
-					}),
-				)
-				sent++
-				if (sent >= maxFrames) break
+		// Held for the whole replay, so the per-frame allocation below cannot
+		// stack up across sockets. See MAX_CONCURRENT_REPLAYS.
+		await withReplaySlot(async () => {
+			try {
+				for await (const msg of useCases.messages.streamMessages(
+					{
+						guildId,
+						channelId,
+						cursor: payload.cursor,
+					} as MessageQuery,
+					pageSize,
+				)) {
+					if (ws.readyState !== WebSocket.OPEN) break
+					// The same composite cursor as REST keeps same-millisecond messages
+					// reachable when a frame cap ends a stream in the middle of a tie.
+					nextCursor = encodeCursor(msg)
+					ws.send(
+						JSON.stringify({
+							type: "message_snapshot",
+							data: msg,
+						}),
+					)
+					sent++
+					if (sent >= maxFrames) break
+				}
+				sendEnd({ sent, nextCursor })
+			} catch (err) {
+				logger.error({ err }, "stream_messages failed")
+				sendEnd({ sent, nextCursor, error: true })
 			}
-			sendEnd({ sent, nextCursor })
-		} catch (err) {
-			logger.error({ err }, "stream_messages failed")
-			sendEnd({ sent, nextCursor, error: true })
-		}
+		})
 	})
 
 	wss.on("connection", (ws: WebSocket) => {
