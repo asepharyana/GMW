@@ -22,8 +22,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.8",
-    "@orpc/server": "1.16.2",
+    "@hono/node-server": "^2.1.9",
+    "@orpc/server": "1.16.4",
     "axios": "^1.21.1",
     "discord.js-selfbot-v13": "^3.7.1",
     "dotenv": "^18.0.10",
@@ -31,7 +31,7 @@
     "hono": "^4.13.19",
     "ioredis": "^6.0.0",
     "lru-cache": "^11.5.3",
-    "openai": "^7.57.0",
+    "openai": "^7.61.0",
     "p-limit": "^7.3.3",
     "pg": "^8.23.1",
     "pino": "^10.3.1",
