@@ -1,3 +1,11 @@
+import {
+	coerceNumber,
+	coerceStringArray,
+	coerceText,
+	extractLenientJson,
+	LenientJsonError,
+	parseLenientJson,
+} from "../../../domain/utils/lenientJson.js"
 import { POLICY_VERSION } from "./policy.js"
 
 /**
@@ -79,13 +87,6 @@ export type ParseBatchResult = {
 	batchFailed: boolean
 	batchError?: string
 }
-
-/**
- * The outcomes a verdict may claim. `clean` and `deleted` are the only two real
- * answers — there is no review tier, so the pipeline is full auto and every
- * violation is removed. An unknown value is an `error`, not a guess.
- */
-const STATUSES = new Set(["clean", "deleted"])
 
 /**
  * The three dispositions the MODEL may choose between.
@@ -247,91 +248,43 @@ export function hasDeferralAnalysis(analysis: string): boolean {
 }
 
 export function clampScore(value: unknown, fallback = 0): number {
-	const n = typeof value === "number" ? value : Number(value)
-	if (!Number.isFinite(n)) return fallback
+	const n = coerceNumber(value)
+	if (n === undefined) return fallback
 	return Math.max(0, Math.min(1, n))
 }
 
+/**
+ * Read a list field, accepting every shape the model writes.
+ *
+ * `["spam"]`, `"spam"`, `"spam, scam"` and `[{"name":"spam"}]` all state the
+ * same categories. Reading only the array form left `categories` EMPTY, and the
+ * category is what chooses between deleting the message and resetting the
+ * nickname — so a quoting slip there silently changed the enforcement.
+ */
 function asStringArray(value: unknown): string[] {
-	if (!Array.isArray(value)) return []
-	return value
-		.map((v) =>
-			typeof v === "string" ? v : typeof v === "number" ? String(v) : null,
-		)
-		.filter((v): v is string => v !== null && v.length > 0)
+	return coerceStringArray(value)
 }
 
 /**
- * Extract the first balanced JSON object from a model response.
+ * Extract the first JSON object from a model response.
  *
- * Kept deliberately tolerant: models wrap JSON in prose, markdown fences, and
- * occasionally prepend reasoning. v1's implementation is reused verbatim in
- * behaviour (brace/bracket counting with string-escape handling).
+ * Kept deliberately tolerant, and now tolerant of *syntax* rather than only of
+ * packaging: models wrap JSON in prose and fences, and also emit trailing
+ * commas, single quotes, unquoted values, comments and smart quotes. All of
+ * those are the same answer written carelessly, so they are read rather than
+ * rejected — a rejection costs a whole batch.
+ *
+ * Throws only when there is no JSON container at all.
  */
 export function extractJson(content: string): unknown {
-	const trimmed = content.trim()
-	if (
-		(trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-		(trimmed.startsWith("[") && trimmed.endsWith("]"))
-	) {
-		try {
-			const parsed = JSON.parse(trimmed)
-			if (parsed && typeof parsed === "object") return parsed
-		} catch {
-			/* fall through to fence and bracket scanner */
+	try {
+		return extractLenientJson(content).value
+	} catch (error) {
+		if (error instanceof LenientJsonError) {
+			throw new Error("no JSON object found in response")
 		}
+		throw error
 	}
-
-	const fence = /```(?:json)?\s*([\s\S]*?)\s*```/g
-	for (const match of content.matchAll(fence)) {
-		try {
-			const parsed = JSON.parse(match[1].trim())
-			if (parsed && typeof parsed === "object") return parsed
-		} catch {
-			/* try the next fence */
-		}
-	}
-
-	for (let start = 0; start < content.length; start++) {
-		const first = content[start]
-		if (first !== "{" && first !== "[") continue
-
-		const stack: string[] = [first]
-		let inString = false
-		let escaped = false
-
-		for (let i = start + 1; i < content.length; i++) {
-			const ch = content[i]
-			if (inString) {
-				if (escaped) escaped = false
-				else if (ch === "\\") escaped = true
-				else if (ch === '"') inString = false
-				continue
-			}
-			if (ch === '"') {
-				inString = true
-				continue
-			}
-			if (ch === "{" || ch === "[") {
-				stack.push(ch)
-				continue
-			}
-			const last = stack[stack.length - 1]
-			if ((ch === "}" && last === "{") || (ch === "]" && last === "[")) {
-				stack.pop()
-				if (stack.length === 0) {
-					try {
-						const parsed = JSON.parse(content.slice(start, i + 1))
-						if (parsed && typeof parsed === "object") return parsed
-					} catch {
-						/* keep scanning */
-					}
-					break
-				}
-			}
-		}
-	}
-	throw new Error("no JSON object found in response")
 }
 
 function errorVerdict(
@@ -365,12 +318,172 @@ function errorVerdict(
 }
 
 /**
+ * The status values the model may return, after formatting is normalised.
+ *
+ * `clean` and `deleted` only — `warn`, `flagged` and `error` are decisions the
+ * pipeline removed or derives itself, and accepting them would resurrect a
+ * review tier or let a model authorise enforcement it cannot justify. What IS
+ * accepted is the *spelling*: `Clean`, `DELETED`, ` clean. ` and a quoted
+ * `"clean"` are the same answer, and rejecting them cost a whole batch.
+ */
+const STATUS_ALIASES: ReadonlyMap<string, ParsedVerdict["status"]> = new Map([
+	["clean", "clean"],
+	["deleted", "deleted"],
+	// `delete`/`remove` state the same decision in the imperative. Rejecting
+	// them threw away a verdict the model had already made.
+	["delete", "deleted"],
+	["remove", "deleted"],
+	["removed", "deleted"],
+	["keep", "clean"],
+	["kept", "clean"],
+	["ok", "clean"],
+	["allow", "clean"],
+])
+
+/**
+ * Read the status field, tolerating case, padding and stray punctuation.
+ *
+ * Returns null when the value is not one of the two decisions — the caller then
+ * degrades THAT message to an error verdict, which is the D10 rule.
+ */
+export function normaliseStatus(
+	value: unknown,
+): ParsedVerdict["status"] | null {
+	if (typeof value !== "string") return null
+	const normalised = value
+		.trim()
+		.toLowerCase()
+		.replace(/^["'`]+|["'`]+$/g, "")
+		.replace(/[\s.,;:!]+$/g, "")
+		.trim()
+	return STATUS_ALIASES.get(normalised) ?? null
+}
+
+/**
+ * Read the message id, whatever the model called the field.
+ *
+ * `messageId`, `messageID`, `message`, `id`, `msg_id` and `Message_ID` all
+ * appear in real replies, and a single missed spelling drops that verdict into
+ * `missing` — a silent requeue that looks like the model forgetting a message.
+ * Surrounding quotes and whitespace are stripped for the same reason.
+ */
+function readMessageId(entry: Record<string, unknown>): string {
+	for (const key of [
+		"message_id",
+		"messageId",
+		"messageID",
+		"messageid",
+		"msg_id",
+		"msgId",
+		"message",
+		"id",
+	]) {
+		const value = entry[key]
+		if (value === null || value === undefined) continue
+		const text =
+			typeof value === "string" || typeof value === "number"
+				? String(value)
+				: ""
+		const cleaned = text
+			.trim()
+			.replace(/^["'`]+|["'`]+$/g, "")
+			.trim()
+		if (cleaned.length > 0) return cleaned
+	}
+	return ""
+}
+
+/** True when a value looks like one verdict entry rather than a container. */
+function looksLikeVerdictEntry(value: unknown): boolean {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) {
+		return false
+	}
+	const record = value as Record<string, unknown>
+	return (
+		record.status !== undefined ||
+		record.analysis !== undefined ||
+		record.message_id !== undefined ||
+		record.messageId !== undefined
+	)
+}
+
+/**
+ * Find the verdict list in whatever container the model produced.
+ *
+ * Five shapes occur in practice, all of them the same answer:
+ *   { results: [...] }            the contract
+ *   { verdicts: [...] }           a renamed wrapper
+ *   [...]                         no wrapper at all
+ *   { "m1": {...}, "m2": {...} }  keyed by message id
+ *   { message_id, status, ... }   one entry, unwrapped
+ *
+ * Returns null when nothing in the payload is a list of verdicts, which stays a
+ * batch failure: an unusable response must retry, not be reported as "the model
+ * judged nothing".
+ */
+function findVerdictList(payload: unknown): unknown[] | null {
+	if (Array.isArray(payload)) return payload
+
+	if (payload === null || typeof payload !== "object") return null
+	const container = payload as Record<string, unknown>
+
+	for (const key of ["results", "data", "verdicts", "messages", "items"]) {
+		const candidate = container[key]
+		if (Array.isArray(candidate)) return candidate
+		// The list arrived as JSON text inside the field.
+		if (typeof candidate === "string" && candidate.trim().startsWith("[")) {
+			const parsed = parseLenientJson(candidate)
+			if (Array.isArray(parsed.value)) return parsed.value
+		}
+		// `results` keyed by message id.
+		if (
+			candidate !== null &&
+			typeof candidate === "object" &&
+			!Array.isArray(candidate)
+		) {
+			const entries = Object.entries(candidate as Record<string, unknown>)
+			if (
+				entries.length > 0 &&
+				entries.every(([, v]) => looksLikeVerdictEntry(v))
+			) {
+				return entries.map(([id, v]) => ({ ...(v as object), message_id: id }))
+			}
+		}
+	}
+
+	// No wrapper: keyed by message id, or a single unwrapped entry.
+	if (looksLikeVerdictEntry(payload)) return [payload]
+	const entries = Object.entries(container)
+	if (
+		entries.length > 0 &&
+		entries.every(([, v]) => looksLikeVerdictEntry(v))
+	) {
+		return entries.map(([id, v]) => ({ ...(v as object), message_id: id }))
+	}
+
+	return null
+}
+
+/**
  * Parse a model response into one verdict per requested message.
  *
  * `requestedIds` is the contract: the caller must receive exactly one verdict
  * per id, or the message stays in the queue. A message the model never
  * mentioned is reported in `missing` rather than silently dropped, because
  * "the model forgot" and "the model judged it clean" are different facts.
+ *
+ * Two tolerances were added because each one previously cost a full re-request:
+ *
+ *  - **Syntax.** `extractJson` reads trailing commas, single quotes, unquoted
+ *    values, comments and smart quotes instead of rejecting them.
+ *  - **Truncation.** A reply cut off at `max_tokens` used to fail the entire
+ *    batch. Complete entries now persist and only the cut one is reported
+ *    missing, so a 40-message batch keeps its first 30 answers instead of
+ *    paying for all 40 again.
+ *
+ * What is NOT tolerated: an unknown status, a missing verdict, or a verdict for
+ * an id we never asked about. Those are decision-shaped, not formatting-shaped,
+ * and the D10 rule applies — degrade that one message, never guess.
  */
 export function parseVerdicts(
 	raw: string,
@@ -380,9 +493,9 @@ export function parseVerdicts(
 	const verdictById = new Map<string, ParsedVerdict>()
 	const missing: string[] = []
 
-	let payload: unknown
+	let parsed: ReturnType<typeof extractLenientJson>
 	try {
-		payload = extractJson(raw)
+		parsed = extractLenientJson(raw)
 	} catch (e) {
 		// Not JSON at all → the batch itself is unusable. Retry the whole call.
 		return {
@@ -395,14 +508,7 @@ export function parseVerdicts(
 		}
 	}
 
-	const container = payload as { results?: unknown; data?: unknown }
-	const list = Array.isArray(container.results)
-		? container.results
-		: Array.isArray(container.data)
-			? container.data
-			: Array.isArray(payload)
-				? payload
-				: null
+	const list = findVerdictList(parsed.value)
 
 	if (!list) {
 		return {
@@ -419,9 +525,15 @@ export function parseVerdicts(
 
 	for (const entry of list) {
 		if (!entry || typeof entry !== "object") continue
+
+		// An entry the reader had to auto-close was cut off mid-write. Its
+		// fields may be half-read, so it is not the model's answer: report it
+		// missing so the caller re-queues it, rather than persisting a guess.
+		if (parsed.incomplete.has(entry)) continue
+
 		const raw_ = entry as Record<string, unknown>
 
-		const id = String(raw_.message_id ?? raw_.id ?? "").trim()
+		const id = readMessageId(raw_)
 		if (!id) continue
 
 		// A duplicate degrades only the DUPLICATE (v1 threw and lost the batch).
@@ -435,8 +547,7 @@ export function parseVerdicts(
 		// not be able to overwrite a real verdict.
 		if (!requestedIds.includes(id)) continue
 
-		const analysisRaw = raw_.analysis
-		const analysis = typeof analysisRaw === "string" ? analysisRaw.trim() : ""
+		const analysis = coerceText(raw_.analysis)
 
 		// D10, part 1: deferral text is now a PER-MESSAGE degradation.
 		if (hasDeferralAnalysis(analysis)) {
@@ -444,17 +555,17 @@ export function parseVerdicts(
 			continue
 		}
 
-		const status = String(raw_.status ?? "")
-		if (!STATUSES.has(status)) {
+		const status = normaliseStatus(raw_.status)
+		if (!status) {
 			verdictById.set(id, errorVerdict(id, "invalid_status", attempt))
 			continue
 		}
 
 		const score = clampScore(raw_.score, 0)
-		const confidenceRaw = clampScore(raw_.confidence, Number.NaN)
+		const confidenceValue = clampScore(raw_.confidence, Number.NaN)
 		// v1 derived confidence from score when the model omitted it. Keep that.
-		const confidence = Number.isFinite(confidenceRaw)
-			? confidenceRaw
+		const confidence = Number.isFinite(confidenceValue)
+			? confidenceValue
 			: status === "deleted"
 				? Math.max(0.8, score)
 				: 0.9
@@ -470,7 +581,19 @@ export function parseVerdicts(
 		// change removes.
 		const effectiveCategories = categories.length > 0 ? categories : flags
 
-		const reason = typeof raw_.reason === "string" ? raw_.reason.trim() : ""
+		const reason = coerceText(raw_.reason)
+
+		// `verdicts_reason_check` rejects a `deleted` row with a null or empty
+		// reason, so a model that states the decision and no prose must not be
+		// able to make the INSERT fail. The order is the model's own words
+		// first, then a statement of the category that justified it — never a
+		// silent empty string.
+		const deletionReason =
+			reason.length > 0
+				? reason
+				: analysis.length > 0
+					? analysis
+					: `Pelanggaran kategori ${effectiveCategories.join(", ") || "tidak disebutkan"}.`
 
 		// The model's disposition is NOT read, and that is the point.
 		//
@@ -492,24 +615,29 @@ export function parseVerdicts(
 			// `status` is already the decision — it is validated above to be exactly
 			// one of clean/deleted — so nothing reconciles it and nothing overrides
 			// it. The model states the outcome once and that value is the outcome.
-			status: status as ParsedVerdict["status"],
+			status,
 			// The enforcement the CATEGORY derived, never an unrecognised value.
 			action,
 			// A deletion without a stated cause is a deletion a moderator cannot
 			// audit or appeal, so it falls back to the model's own explanation rather
 			// than to an empty string. The fallback is the analysis, not a literal
 			// placeholder: a real sentence is worth more to a reviewer than "n/a".
-			...(status === "deleted"
-				? { reason: reason.length > 0 ? reason : analysis }
-				: {}),
+			...(status === "deleted" ? { reason: deletionReason } : {}),
 			flags,
 			categories: effectiveCategories,
 			confidence,
 			score,
+			// The boilerplate says "no violation", so it is only ever a fallback
+			// for a CLEAN verdict. Using it for a deletion wrote "tidak ada
+			// indikasi pelanggaran" into the analysis of a message the same row
+			// deletes — a self-contradicting record, and the one sentence a
+			// moderator reads when they ask why something was removed.
 			analysis:
 				analysis.length > 0
 					? analysis
-					: `Tidak ada indikasi pelanggaran. Pesan dinilai wajar dalam konteks percakapan.`,
+					: status === "deleted"
+						? deletionReason
+						: `Tidak ada indikasi pelanggaran. Pesan dinilai wajar dalam konteks percakapan.`,
 			evidence: asStringArray(raw_.evidence),
 			// The version that actually produced this verdict, not whatever the
 			// model echoed back. The prompt's policy_version field is advisory and

@@ -150,20 +150,32 @@ type StreamChunk = {
 	content?: string
 }
 
-export function extractChunkText(
-	chunk: StreamChunk | null | undefined,
-): string {
-	if (!chunk) return ""
+/**
+ * Split one chunk into (answer, reasoning).
+ *
+ * The single-accumulator version of this merged the two: a reasoning model
+ * streams `content: null` while it thinks, so every reasoning token landed in
+ * the same string the answer later went into, and the parser received
+ * "…thinking about whether m1 is spam…{"results":[…]}" — one brace in the
+ * thinking was enough to point the JSON scanner at the wrong object. Keeping
+ * the two apart and preferring the answer is what makes the reply readable at
+ * all on such a model.
+ */
+export function splitChunkText(chunk: StreamChunk | null | undefined): {
+	content: string
+	reasoning: string
+} {
+	if (!chunk) return { content: "", reasoning: "" }
 	const choice = chunk.choices?.[0]
-	return (
+	const content =
 		choice?.delta?.content ||
-		choice?.delta?.reasoning_content ||
-		choice?.delta?.reasoning ||
 		choice?.message?.content ||
 		chunk.message?.content ||
 		chunk.content ||
 		""
-	)
+	const reasoning =
+		choice?.delta?.reasoning_content || choice?.delta?.reasoning || ""
+	return { content, reasoning }
 }
 
 export class HttpLlmGateway implements LlmGateway {
@@ -233,16 +245,27 @@ export class HttpLlmGateway implements LlmGateway {
 				} as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
 				{ timeout: req.timeoutMs },
 			)
-			let acc = ""
+			// Two accumulators, not one. A reasoning model streams its thoughts in
+			// `reasoning_content` and the answer in `content`; merging them put a
+			// reasoning brace in front of the JSON and made the parser read the
+			// wrong object. Reasoning is kept only as a fallback for a model that
+			// puts everything there, which is otherwise an empty reply.
+			let answer = ""
+			let reasoning = ""
 			for await (const chunk of stream as unknown as AsyncIterable<StreamChunk>) {
-				acc += extractChunkText(chunk)
-				if (acc.length > MAX_COMPLETION_CHARS) {
+				const part = splitChunkText(chunk)
+				answer += part.content
+				reasoning += part.reasoning
+				// Both channels count toward the ceiling: a repetition loop can run
+				// in either one, and a runaway in `reasoning_content` grows the heap
+				// just as fast as one in `content`.
+				if (answer.length + reasoning.length > MAX_COMPLETION_CHARS) {
 					throw new LlmUnavailableError(
 						`completion exceeded ${MAX_COMPLETION_CHARS} chars — treating as a runaway generation`,
 					)
 				}
 			}
-			content = acc
+			content = answer.trim().length > 0 ? answer : reasoning
 		} catch (err) {
 			// Large responses occasionally get their SSE truncated mid-flight and a
 			// stream retry fails identically. One non-stream attempt recovers it.
@@ -261,10 +284,20 @@ export class HttpLlmGateway implements LlmGateway {
 					} as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
 					{ timeout: req.timeoutMs },
 				)
-				content = completion.choices?.[0]?.message?.content ?? null
-				refusal = (
-					completion.choices?.[0]?.message as { refusal?: string } | undefined
-				)?.refusal
+				const message = completion.choices?.[0]?.message as
+					| {
+							content?: string | null
+							reasoning_content?: string | null
+							reasoning?: string | null
+							refusal?: string
+					  }
+					| undefined
+				const answer = message?.content ?? null
+				content =
+					answer && answer.trim().length > 0
+						? answer
+						: (message?.reasoning_content ?? message?.reasoning ?? null)
+				refusal = message?.refusal
 			} catch (inner) {
 				throw new LlmUnavailableError(
 					inner instanceof Error ? inner.message : String(inner),

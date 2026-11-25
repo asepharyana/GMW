@@ -28,6 +28,10 @@ import { randomUUID } from "node:crypto"
 import { LRUCache } from "lru-cache"
 import pLimit from "p-limit"
 import type { Pool, PoolClient } from "pg"
+import {
+	coerceText,
+	parseLenientJson,
+} from "../../../domain/utils/lenientJson.js"
 import { createChildLogger } from "../../logger/index.js"
 // Link/embed pairing lives with the other capture→prompt helpers, and the two
 // escaping helpers used to be duplicated here. Both are re-exported below so
@@ -480,27 +484,25 @@ async function describeMediaItems(
 /**
  * Split a vision reply into one description per image.
  *
- * The prompt asks for a JSON array of strings. Tolerates prose and markdown
- * fences, because a single bracket of preamble should not cost the whole batch
- * its descriptions. Returns fewer entries than `count` when the reply cannot be
- * split, and the caller then treats the reply as one shared description rather
- * than attributing it to the wrong image.
+ * The prompt asks for a JSON array of strings. Tolerates prose, markdown
+ * fences and a malformed array, because a single bracket of preamble should not
+ * cost the whole batch its descriptions. Returns fewer entries than `count`
+ * when the reply cannot be split, and the caller then treats the reply as one
+ * shared description rather than attributing it to the wrong image.
  */
 function splitVisionDescriptions(raw: string, _count: number): string[] {
 	const trimmed = raw.trim()
-	const fenced = /```(?:json)?\s*([\s\S]*?)\s*```/.exec(trimmed)
+	const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(trimmed)
 	const candidate = fenced?.[1] ?? trimmed
 	if (candidate.startsWith("[")) {
-		try {
-			const parsed: unknown = JSON.parse(candidate)
-			if (Array.isArray(parsed)) {
-				const strings = parsed
-					.map((v) => (typeof v === "string" ? v.trim() : ""))
-					.filter((v) => v.length > 0)
-				if (strings.length > 0) return strings
-			}
-		} catch {
-			/* fall through */
+		// Lenient: a trailing comma or single-quoted string in a list of image
+		// descriptions used to discard every description in the reply.
+		const parsed = parseLenientJson(candidate).value
+		if (Array.isArray(parsed)) {
+			const strings = parsed
+				.map((v) => coerceText(v))
+				.filter((v) => v.length > 0)
+			if (strings.length > 0) return strings
 		}
 	}
 	// Not a JSON array. If there is exactly one image there is nothing to split,
@@ -1043,7 +1045,6 @@ export class ModerationWorker {
 		/** Wall-clock of the moderation call, for `verdicts.duration_ms`. */
 		llmMs: number
 	}> {
-		const requestedIds = messages.map((m) => m.id)
 		// Sticker and custom emoji count as media. They are not attachment rows,
 		// so `hasMedia` from the claim query is false for a message that is
 		// nothing but a sticker — and the vision pre-pass was gated on `hasMedia`,

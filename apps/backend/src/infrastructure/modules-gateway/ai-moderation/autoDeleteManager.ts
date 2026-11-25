@@ -23,6 +23,7 @@
  */
 import type { Client, Guild, PermissionString } from "discord.js-selfbot-v13"
 import { LRUCache } from "lru-cache"
+import { extractLenientJson } from "../../../domain/utils/lenientJson.js"
 import { config } from "../../config/index.js"
 import { createChildLogger } from "../../logger/index.js"
 import { parseRichMessageMetadata } from "../message-capture/messageMetadata.js"
@@ -195,6 +196,31 @@ async function logAutoDeleteAttempt(
 // ─── AI-Based Global Username Check ──────────────────────────────────
 
 /**
+ * Read the `offensive` decision from a model reply.
+ *
+ * Returns `undefined` when the reply carries no readable boolean — the caller
+ * then treats the check as failed and fails open, which is the documented
+ * behaviour. Reading the FIELD rather than searching the text matters: a
+ * `false` verdict whose explanation contains the word "true" must not flip.
+ */
+function readOffensiveFlag(text: string): boolean | undefined {
+	let parsed: unknown
+	try {
+		parsed = extractLenientJson(text).value
+	} catch {
+		return undefined
+	}
+	if (parsed === null || typeof parsed !== "object") return undefined
+	const record = parsed as Record<string, unknown>
+	for (const key of ["offensive", "is_offensive", "violation", "violates"]) {
+		const value = record[key]
+		if (value === true || value === "true") return true
+		if (value === false || value === "false") return false
+	}
+	return undefined
+}
+
+/**
  * Ask the moderation model whether a global username violates the rules.
  *
  * Fail-open: if the call fails or times out, return false so the nickname
@@ -212,12 +238,16 @@ async function isGlobalUsernameOffensiveAI(username: string): Promise<boolean> {
 			timeoutMs: 10_000,
 		})
 		const text = content?.trim() ?? ""
-		const jsonMatch = text.match(/\{[^}]*"offensive"\s*:\s*(true|false)[^}]*\}/)
-		if (jsonMatch) {
-			const parsed = JSON.parse(jsonMatch[0]) as { offensive: boolean }
-			return parsed.offensive === true
-		}
-		return text.toLowerCase().includes("true")
+		// Read the boolean, not the prose. The old version matched a quoted key
+		// with a regex and, on a miss, fell back to `text.includes("true")` —
+		// so a model that wrote `{offensive: false}` (unquoted key) or
+		// `{"offensive": false, "reason": "true statement, not abuse"}` could
+		// have its nickname replaced on the strength of a substring.
+		const decision = readOffensiveFlag(text)
+		if (decision !== undefined) return decision
+		// No readable boolean at all: this is a failed check, and the documented
+		// behaviour is fail-open so a broken model cannot block the reset.
+		return false
 	} catch (error) {
 		logger.warn(
 			{
