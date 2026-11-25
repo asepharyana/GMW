@@ -1,4 +1,5 @@
 import { tools } from "../../domain/chatbot/chatbot.toolDefs.js"
+import { parseLenientJsonValue } from "../../domain/utils/lenientJson.js"
 import { createChildLogger } from "../../infrastructure/logger/index.js"
 import type {
 	ChatbotContext,
@@ -317,6 +318,11 @@ Gaya ngobrol:
 	 * Parse an LLM HTTP body into content + tool_calls. Handles both shapes
 	 * omniroute can return: a single JSON object (stream:false honored) or SSE
 	 * text (stream implied). For SSE we delegate to parseSse.
+	 *
+	 * The body is read leniently. `JSON.parse` here meant one trailing comma in
+	 * a non-stream reply threw, fell through to the SSE parser, found no
+	 * `data:` line, and answered from the canned fallback — the user saw "lagi
+	 * ada masalah koneksi" for a reply that was 99% well-formed JSON.
 	 */
 	private parseResponse(body: string): {
 		content: string
@@ -330,41 +336,67 @@ Gaya ngobrol:
 		const trimmed = body.trim()
 		// Non-streaming response: a single JSON object.
 		if (trimmed.startsWith("{")) {
-			try {
-				const json = JSON.parse(trimmed) as {
-					choices?: Array<{
-						message?: {
-							content?: string | null
-							tool_calls?: Array<{
-								id?: string
-								type?: string
-								function?: { name?: string; arguments?: string }
-							}>
-						}
-						delta?: unknown
-					}>
-				}
-				const msg = json.choices?.[0]?.message
-				// If the router returned SSE-style shape under `choices[].delta`
-				// (rare), fall through to the SSE parser.
-				if (msg) {
-					const content = msg.content ?? ""
-					const toolCalls = (msg.tool_calls ?? []).map((tc, i) => {
-						const id = tc.id || `tool_${i}_${Date.now()}`
-						return {
-							id,
-							name: tc.function?.name ?? "",
-							arguments: tc.function?.arguments ?? "",
-							args: this.safeJsonParse(tc.function?.arguments ?? ""),
-						}
-					})
-					return { content: content.trim(), toolCalls }
-				}
-			} catch {
-				// Not valid JSON after all — treat as SSE below.
+			const json = this.readChatCompletion(trimmed)
+			const msg = json?.choices?.[0]?.message
+			// If the router returned SSE-style shape under `choices[].delta`
+			// (rare), fall through to the SSE parser.
+			if (msg) {
+				const content = msg.content ?? ""
+				const toolCalls = (msg.tool_calls ?? []).map((tc, i) => {
+					const id = tc.id || `tool_${i}_${Date.now()}`
+					return {
+						id,
+						name: tc.function?.name ?? "",
+						arguments: tc.function?.arguments ?? "",
+						args: this.safeJsonParse(tc.function?.arguments ?? ""),
+					}
+				})
+				return { content: content.trim(), toolCalls }
 			}
 		}
 		return this.parseSse(body)
+	}
+
+	/**
+	 * Read a non-streaming chat completion body, tolerating JSON syntax slips.
+	 *
+	 * Returns null when the body carries no `choices` at all, which is what the
+	 * caller uses to decide "this is actually SSE".
+	 */
+	private readChatCompletion(body: string): {
+		choices?: Array<{
+			message?: {
+				content?: string | null
+				tool_calls?: Array<{
+					id?: string
+					type?: string
+					function?: { name?: string; arguments?: string }
+				}>
+			}
+			delta?: unknown
+		}>
+	} | null {
+		try {
+			const value = parseLenientJsonValue(body)
+			if (value === null || typeof value !== "object") return null
+			const record = value as Record<string, unknown>
+			if (!Array.isArray(record.choices)) return null
+			return record as {
+				choices?: Array<{
+					message?: {
+						content?: string | null
+						tool_calls?: Array<{
+							id?: string
+							type?: string
+							function?: { name?: string; arguments?: string }
+						}>
+					}
+					delta?: unknown
+				}>
+			}
+		} catch {
+			return null
+		}
 	}
 
 	/**
@@ -393,41 +425,28 @@ Gaya ngobrol:
 			if (!line.startsWith("data:")) continue
 			const payload = line.slice(5).trim()
 			if (!payload || payload === "[DONE]") continue
-			try {
-				const json = JSON.parse(payload) as {
-					choices?: Array<{
-						delta?: {
-							content?: string
-							tool_calls?: Array<{
-								id?: string
-								index?: number
-								type?: string
-								function?: { name?: string; arguments?: string }
-							}>
-						}
-						finish_reason?: string | null
-					}>
-				}
-				const delta = json.choices?.[0]?.delta
-				if (!delta) continue
-				if (delta.content) contentParts.push(delta.content)
-				if (delta.tool_calls) {
-					for (const tc of delta.tool_calls) {
-						const idx = String(tc.index ?? 0)
-						const cur = toolById.get(idx) ?? {
-							id: tc.id ?? "",
-							name: "",
-							arguments: "",
-						}
-						// Keep the first non-empty id for this call index.
-						if (tc.id && !cur.id) cur.id = tc.id
-						if (tc.function?.name) cur.name += tc.function.name
-						if (tc.function?.arguments) cur.arguments += tc.function.arguments
-						toolById.set(idx, cur)
+			// Lenient per line: one malformed frame used to be skipped, and a
+			// skipped frame is a missing token in the answer or — worse — a
+			// dropped tool call, so the model's request silently never ran.
+			const parsedLine = this.readChunk(payload)
+			if (!parsedLine) continue
+			const delta = parsedLine.choices?.[0]?.delta
+			if (!delta) continue
+			if (delta.content) contentParts.push(delta.content)
+			if (delta.tool_calls) {
+				for (const tc of delta.tool_calls) {
+					const idx = String(tc.index ?? 0)
+					const cur = toolById.get(idx) ?? {
+						id: tc.id ?? "",
+						name: "",
+						arguments: "",
 					}
+					// Keep the first non-empty id for this call index.
+					if (tc.id && !cur.id) cur.id = tc.id
+					if (tc.function?.name) cur.name += tc.function.name
+					if (tc.function?.arguments) cur.arguments += tc.function.arguments
+					toolById.set(idx, cur)
 				}
-			} catch {
-				// Skip malformed lines (keepalives, etc.)
 			}
 		}
 
@@ -446,12 +465,90 @@ Gaya ngobrol:
 		return { content: contentParts.join(""), toolCalls }
 	}
 
-	private safeJsonParse(s: string): Record<string, unknown> {
+	/**
+	 * Read one SSE frame payload into its chunk shape.
+	 *
+	 * Returns null for a frame that is not a chat chunk (keepalives, usage
+	 * summaries, provider-specific noise).
+	 */
+	private readChunk(payload: string): {
+		choices?: Array<{
+			delta?: {
+				content?: string
+				tool_calls?: Array<{
+					id?: string
+					index?: number
+					type?: string
+					function?: { name?: string; arguments?: string }
+				}>
+			}
+			finish_reason?: string | null
+		}>
+	} | null {
 		try {
-			return JSON.parse(s) as Record<string, unknown>
+			const value = parseLenientJsonValue(payload)
+			if (value === null || typeof value !== "object") return null
+			const record = value as Record<string, unknown>
+			if (!Array.isArray(record.choices)) return null
+			return record as {
+				choices?: Array<{
+					delta?: {
+						content?: string
+						tool_calls?: Array<{
+							id?: string
+							index?: number
+							type?: string
+							function?: { name?: string; arguments?: string }
+						}>
+					}
+					finish_reason?: string | null
+				}>
+			}
+		} catch {
+			return null
+		}
+	}
+
+	/**
+	 * Read a tool call's arguments object.
+	 *
+	 * Never throws, and never returns `{}` for arguments that ARE readable. The
+	 * old version returned `{}` on any parse failure, which silently turned a
+	 * call with slightly-off JSON into a call with NO arguments — the tool then
+	 * ran with defaults and the model reported a result it never asked for. A
+	 * model that writes a trailing comma, a single-quoted key, a comment or an
+	 * unquoted value is stating a real intent, so the intent is read.
+	 *
+	 * A double-encoded argument (`"{\"query\": \"x\"}"`) is the other common
+	 * shape, and it is unwrapped for the same reason.
+	 */
+	private safeJsonParse(s: string): Record<string, unknown> {
+		if (!s || s.trim().length === 0) return {}
+		try {
+			const value = parseLenientJsonValue(s)
+			return this.asArgumentObject(value)
 		} catch {
 			return {}
 		}
+	}
+
+	/**
+	 * Coerce a parsed value into a tool-argument object.
+	 *
+	 * Accepts an object, or an array holding exactly one object (some models
+	 * wrap a single call's arguments in a list).
+	 */
+	private asArgumentObject(value: unknown): Record<string, unknown> {
+		if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+			return value as Record<string, unknown>
+		}
+		if (Array.isArray(value) && value.length === 1) {
+			const only = value[0]
+			if (only !== null && typeof only === "object" && !Array.isArray(only)) {
+				return only as Record<string, unknown>
+			}
+		}
+		return {}
 	}
 
 	private fallbackResponse(input: string): string {

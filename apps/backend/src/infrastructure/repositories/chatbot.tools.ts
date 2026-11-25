@@ -41,19 +41,65 @@ function toolExecError(err: unknown, name: string): string {
 	return `Tool ${name} gagal: ${detail}`
 }
 
+/**
+ * Read an id argument, whatever shape the model used.
+ *
+ * `userId` used to be read with `typeof args.userId === "string"` only, so a
+ * model that wrote the snowflake as a NUMBER produced `undefined` — and
+ * `userMessages(undefined, …)` then queried the whole guild instead of one
+ * user, answering a question nobody asked. A number, a numeric string and a
+ * quoted id all address the same member, so all three are accepted.
+ */
+export function readIdArg(value: unknown): string | undefined {
+	if (typeof value === "string") {
+		const trimmed = value.trim().replace(/^["'`]+|["'`]+$/g, "")
+		return trimmed.length > 0 ? trimmed : undefined
+	}
+	if (typeof value === "number" && Number.isFinite(value)) return String(value)
+	return undefined
+}
+
+/**
+ * Read a free-text query argument.
+ *
+ * The plural spelling is accepted because models ask for several terms at once:
+ * `{"queries":["judi","togel"]}` reached the old code as an absent `query`, the
+ * tool searched for the EMPTY string, and the model then reported the resulting
+ * flood of rows as if it had searched for something.
+ */
+export function readQueryArg(args: Record<string, unknown>): string {
+	const single = args.query ?? args.q ?? args.keyword ?? args.search
+	if (typeof single === "string" && single.trim().length > 0) {
+		return single.trim()
+	}
+	const many = args.queries ?? args.keywords ?? args.terms
+	if (Array.isArray(many)) {
+		const parts = many
+			.map((v) => (typeof v === "string" ? v.trim() : ""))
+			.filter((v) => v.length > 0)
+		if (parts.length > 0) return parts.join(" ")
+	}
+	if (typeof many === "string" && many.trim().length > 0) {
+		// `"judi, togel"` or `'["judi","togel"]'` — either way the words are the
+		// terms the model wanted searched.
+		return many
+			.replace(/^\[|\]$/g, "")
+			.split(/[,;]+/)
+			.map((v) => v.trim().replace(/^["'`]+|["'`]+$/g, ""))
+			.filter((v) => v.length > 0)
+			.join(" ")
+	}
+	return ""
+}
+
 /** Executes a tool call against the real DB and returns a readable result. */
 export async function executeTool(
 	name: string,
 	args: Record<string, unknown>,
 ): Promise<string> {
-	const guildId =
-		typeof args.guildId === "string" && args.guildId ? args.guildId : undefined
-	const channelId =
-		typeof args.channelId === "string" && args.channelId
-			? args.channelId
-			: undefined
-	const userId =
-		typeof args.userId === "string" && args.userId ? args.userId : undefined
+	const guildId = readIdArg(args.guildId)
+	const channelId = readIdArg(args.channelId)
+	const userId = readIdArg(args.userId ?? args.user_id ?? args.memberId)
 	const limitRaw =
 		typeof args.limit === "number" ? args.limit : Number(args.limit) || 5
 	const limit = Math.min(Math.max(1, Math.round(limitRaw)), 20)
@@ -70,7 +116,7 @@ export async function executeTool(
 				return await topFlagged(guildId, channelId, limit)
 			case "search_messages":
 				return await searchMessages(
-					String(args.query ?? ""),
+					readQueryArg(args),
 					guildId,
 					channelId,
 					limit,
