@@ -1,3 +1,11 @@
+## [1.7.7](https://github.com/MythEclipse/GMW/compare/v1.7.6...v1.7.7) (2026-11-25)
+
+
+### Bug Fixes
+
+* **chatbot:** answer from a reply that is only nearly well-formed ([a023fcd](https://github.com/MythEclipse/GMW/commit/a023fcdd7a1d8be24a4332aaa643af92fcafdc63))
+* **moderation:** read near-miss model output instead of rejecting the batch ([1c49c57](https://github.com/MythEclipse/GMW/commit/1c49c57989124ca2e6581cc67bc09dbad01bbfa3))
+
 ## [1.7.6](https://github.com/MythEclipse/GMW/compare/v1.7.5...v1.7.6) (2026-11-24)
 
 ## [1.7.5](https://github.com/MythEclipse/GMW/compare/v1.7.4...v1.7.5) (2026-11-19)
