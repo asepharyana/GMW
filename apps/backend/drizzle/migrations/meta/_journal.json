@@ -15,6 +15,13 @@
       "when": 1794737548045,
       "tag": "0002_deleted_messages_leave_the_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795763000000,
+      "tag": "0003_deleted_messages_never_queued",
+      "breakpoints": true
     }
   ]
 }

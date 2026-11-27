@@ -1442,9 +1442,19 @@ export class ModerationWorker {
 			//      that can never be judged, and the row never reached `dead`, so
 			//      an operator had no signal at all.
 			if (result.missing.length > 0) {
-				await client.query(
+				// `deleted_at` wins over the retry: a message a moderator deleted
+				// mid-batch must not be re-pended, because `claim_messages()`
+				// selects only `deleted_at IS NULL` rows — a `retry_wait` row with
+				// a deletion stamp is claimable by nothing and never counted away,
+				// which is exactly the phantom-queue state migration 0002 exists
+				// to prevent. Same terminal `skipped` state the trigger writes.
+				const { rows: rescheduled } = await client.query<{
+					id: string
+					ai_status: string
+				}>(
 					`UPDATE messages
               SET ai_status = CASE
+                    WHEN deleted_at IS NOT NULL THEN 'skipped'
                     WHEN attempts >= $3 THEN 'dead'
                     ELSE 'retry_wait'
                   END,
@@ -1452,7 +1462,8 @@ export class ModerationWorker {
                     (extract(epoch from now())*1000)::bigint
                     + ($4::bigint * (1 << LEAST(GREATEST(attempts - 1, 0), 20))),
                   worker_id = NULL, lease_until = NULL
-            WHERE id = ANY($1::text[]) AND ai_status = 'claimed' AND worker_id = $2`,
+            WHERE id = ANY($1::text[]) AND ai_status = 'claimed' AND worker_id = $2
+            RETURNING id, ai_status`,
 					[
 						result.missing,
 						this.workerId,
@@ -1460,8 +1471,21 @@ export class ModerationWorker {
 						this.config.retryBackoffBaseMs,
 					],
 				)
+				const statusById = new Map(rescheduled.map((r) => [r.id, r.ai_status]))
 				for (const id of result.missing) {
 					const msg = byId.get(id)
+					const status = statusById.get(id)
+					if (status === "skipped") {
+						// Not a requeue: the row is terminal, so saying "requeued
+						// for another attempt" would send an operator looking for
+						// work that will never happen.
+						log.debug(
+							{ trace: traceId(id), messageId: id, stage: "dequeued" },
+							"message was deleted mid-batch — left the queue instead of retrying",
+						)
+						this.stats.skipped += 1
+						continue
+					}
 					logMessageRequeued({
 						trace: traceId(id),
 						messageId: id,
@@ -1662,9 +1686,11 @@ export class ModerationWorker {
 		const { rows } = await this.pool.query<{
 			id: string
 			attempts: number
+			ai_status: string
 		}>(
 			`UPDATE messages
           SET ai_status = CASE
+                WHEN deleted_at IS NOT NULL THEN 'skipped'
                 WHEN attempts >= $3 THEN 'dead'
                 ELSE 'retry_wait'
               END,
@@ -1674,7 +1700,7 @@ export class ModerationWorker {
               worker_id = NULL,
               lease_until = NULL
         WHERE id = ANY($1::text[]) AND ai_status = 'claimed' AND worker_id = $2
-        RETURNING id, attempts`,
+        RETURNING id, attempts, ai_status`,
 			[
 				messageIds,
 				this.workerId,
@@ -1684,11 +1710,19 @@ export class ModerationWorker {
 		)
 
 		const attemptsById = new Map(rows.map((r) => [r.id, r.attempts]))
+		// A message deleted while this batch was in flight is NOT retried: see
+		// the note in `persist`. It leaves the queue in the terminal `skipped`
+		// state instead of parking in a `retry_wait` row nothing can claim.
+		const statusById = new Map(rows.map((r) => [r.id, r.ai_status]))
 
 		const attemptRowsSql: string[] = []
 		const attemptValues: unknown[] = []
 		let ap = 1
 		for (const msg of messages) {
+			// A row that left the queue because it was deleted did not fail at the
+			// LLM, so writing `llm_error` / `llm_unavailable` for it would put a
+			// cause in the attempt ledger that is not what happened.
+			if (statusById.get(msg.id) === "skipped") continue
 			const attempts = attemptsById.get(msg.id) ?? msg.attempts
 			attemptRowsSql.push(
 				`($${ap++}, $${ap++}, $${ap++}, 'llm_error', 'llm_unavailable', $${ap++}, $${ap++})`,
@@ -1713,6 +1747,14 @@ export class ModerationWorker {
 
 		for (const msg of messages) {
 			const attempts = attemptsById.get(msg.id) ?? msg.attempts
+			if (statusById.get(msg.id) === "skipped") {
+				this.stats.skipped += 1
+				log.debug(
+					{ trace: traceId(msg.id), messageId: msg.id, stage: "dequeued" },
+					"message was deleted mid-batch — left the queue instead of retrying",
+				)
+				continue
+			}
 			const isDead = attempts >= this.config.maxAttempts
 			if (isDead) {
 				this.stats.dead += 1

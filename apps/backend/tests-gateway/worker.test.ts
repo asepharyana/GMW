@@ -366,6 +366,91 @@ describe("moderation worker state machine", () => {
 		expect(rows[0].ai_status).toBe("skipped")
 	})
 
+	/*
+	 * The other direction of the same bug, and the one 0002 could not see.
+	 *
+	 * 0002's trigger fires on `UPDATE OF deleted_at`, so it only helps a row
+	 * deleted BEFORE it is queued. A row deleted while its batch is IN FLIGHT
+	 * is `claimed` at deletion time (the trigger deliberately leaves it alone),
+	 * and the worker then writes `retry_wait` over it. `claim_messages()`
+	 * selects only `deleted_at IS NULL`, so that row can never be claimed and
+	 * no counter can ever drain it — the phantom queue, reached from behind.
+	 *
+	 * Measured on production 2026-11-27: 9 of 9 `retry_wait` rows were
+	 * deleted and 0 were claimable.
+	 */
+	test("a message deleted mid-batch is dequeued, not retried", async () => {
+		if (!reachable) return expect(true).toBe(true)
+		await seed(3)
+		// Delete the row the model is about to omit, while the batch is in
+		// flight. The delete is AWAITED inside the gateway so it lands before
+		// the worker's retry UPDATE — a fire-and-forget delete here would race
+		// the very statement under test.
+		let omitted: string | null = null
+		const gw = scriptedGateway(async (req) => {
+			const full = JSON.parse(responseFor(req)) as {
+				results: Array<{ message_id: string }>
+			}
+			omitted = full.results[full.results.length - 1].message_id
+			await pool.query(
+				`UPDATE messages SET deleted_at = (extract(epoch from now())*1000)::bigint
+          WHERE id = $1`,
+				[omitted],
+			)
+			full.results = full.results.slice(0, -1)
+			return JSON.stringify(full)
+		})
+		const w = new ModerationWorker(pool as never, gw, cfg())
+
+		await w.runOnce()
+
+		expect(omitted).not.toBeNull()
+		const { rows } = await pool.query<{ ai_status: string }>(
+			"SELECT ai_status FROM messages WHERE id = $1",
+			[omitted],
+		)
+		// Terminal, not `retry_wait`: a deleted row in `retry_wait` is
+		// unclaimable (`claim_messages` selects only `deleted_at IS NULL`) and
+		// therefore permanent phantom queue.
+		expect(rows[0].ai_status).toBe("skipped")
+
+		// And nothing deleted is left in a state the queue can select.
+		const { rows: stuck } = await pool.query<{ n: number }>(
+			`SELECT count(*)::int n FROM messages
+        WHERE deleted_at IS NOT NULL AND ai_status IN ('pending','retry_wait')`,
+		)
+		expect(stuck[0].n).toBe(0)
+	})
+
+	test("a batch failure does not re-queue a message deleted mid-batch", async () => {
+		if (!reachable) return expect(true).toBe(true)
+		await seed(2)
+		const gw = scriptedGateway(async () => {
+			await pool.query(
+				`UPDATE messages SET deleted_at = (extract(epoch from now())*1000)::bigint
+          WHERE id = 'w-1'`,
+			)
+			return "not json"
+		})
+		const w = new ModerationWorker(pool as never, gw, cfg())
+
+		await w.runOnce()
+
+		const { rows } = await pool.query<{ id: string; ai_status: string }>(
+			"SELECT id, ai_status FROM messages WHERE id LIKE 'w-%' ORDER BY id",
+		)
+		expect(rows).toEqual([
+			{ id: "w-1", ai_status: "skipped" },
+			{ id: "w-2", ai_status: "retry_wait" },
+		])
+		// The attempt ledger must not claim the deleted row failed at the LLM:
+		// it did not, it left the queue.
+		const { rows: attempts } = await pool.query<{ message_id: string }>(
+			"SELECT message_id FROM analysis_attempts ORDER BY message_id",
+		)
+		expect(attempts.map((r) => r.message_id)).toEqual(["w-2"])
+	})
+
 	test("a claimed message reports its post-increment attempt number", async () => {
 		if (!reachable) return expect(true).toBe(true)
 		await seed(2)
