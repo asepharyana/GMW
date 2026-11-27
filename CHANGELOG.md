@@ -1,3 +1,10 @@
+## [1.7.8](https://github.com/MythEclipse/GMW/compare/v1.7.7...v1.7.8) (2026-11-27)
+
+
+### Bug Fixes
+
+* **queue:** a deleted message can never be re-queued ([64374f1](https://github.com/MythEclipse/GMW/commit/64374f1659476ad293cfc9ce447756765d782ce6))
+
 ## [1.7.7](https://github.com/MythEclipse/GMW/compare/v1.7.6...v1.7.7) (2026-11-25)
 
 
